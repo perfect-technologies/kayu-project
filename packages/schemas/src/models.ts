@@ -13,8 +13,13 @@ import {
   UserRole,
   VerificationStatus,
   VisibilityLevel,
-} from "./enums";
-import { DateTimeSchema, IdSchema, JsonValueSchema, NullableDateTimeSchema } from "./common";
+} from "./enums.js";
+import {
+  DateTimeSchema,
+  IdSchema,
+  JsonValueSchema,
+  NullableDateTimeSchema,
+} from "./common.js";
 
 export const UserSummarySchema = z.object({
   id: IdSchema,

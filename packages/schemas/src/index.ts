@@ -1,6 +1,6 @@
 export const schemasPackageName = "@kayu/schemas";
 
-export * from "./common";
-export * from "./enums";
-export * from "./models";
-export * from "./dto";
+export * from "./common.js";
+export * from "./enums.js";
+export * from "./models.js";
+export * from "./dto.js";

@@ -27,13 +27,20 @@ export class SupabaseGuard implements CanActivate {
 
     const user: AuthContextUser = {
       authUserId: claims.sub,
-      email: typeof claims.email === "string" ? claims.email : undefined,
-      phone: typeof claims.phone === "string" ? claims.phone : undefined,
+      email: this.normalizeClaim(claims.email),
+      phone: this.normalizeClaim(claims.phone),
       claims,
     };
 
     req.user = user;
     return true;
+  }
+
+  private normalizeClaim(value: unknown): string | undefined {
+    if (typeof value !== "string") return undefined;
+
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
   }
 
   private extractToken(req: AuthenticatedRequest): string | null {

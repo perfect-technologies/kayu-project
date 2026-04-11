@@ -3,11 +3,11 @@
 ## Overall Project Status
 
 - **Project:** KAYOU Monorepo Migration
-- **Current phase:** Foundation
+- **Current phase:** Backend Complete
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 04 — Backend: Authentication & Identity
-- **Next recommended chunk:** 04 — Backend: Authentication & Identity
+- **Current focus:** Chunk 05 — Backend: Categories & Providers
+- **Next recommended chunk:** 05 — Backend: Categories & Providers
 - **Last updated:** 2026-04-12
 
 ---
@@ -30,7 +30,7 @@
 | 01 | Monorepo Scaffold & Infrastructure | P0 | Yes | — | done | Codex | Scaffold created; `pnpm install`, `pnpm type-check`, and Docker Postgres `SELECT 1` passed |
 | 02 | Shared Schemas Package | P0 | Yes | 01 | done | Codex | `@kayu/schemas` implemented with Zod enums, model schemas, DTOs, and response schemas; `pnpm --filter @kayu/schemas build` and `pnpm type-check` passed |
 | 03 | Backend Foundation & Database | P0 | Yes | 01 | done | Codex | NestJS backend foundation, Prisma PostgreSQL schema, common guards/decorators/pipes, `prisma db push`, backend build/start, and `pnpm type-check` passed |
-| 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | not_started | — | Supabase JWT validation + identity module |
+| 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | done | Codex | Identity module implemented with Supabase JWT validation, actor resolution, `/me` endpoints, and provider onboarding; `pnpm type-check`, backend build/start, unauthenticated 401, invalid token 401, and valid Supabase JWT `/api/me` auto-create smoke checks passed |
 | 05 | Backend: Categories & Providers | P0 | Yes | 04 | not_started | — | Core marketplace |
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | not_started | — | Transactions |
 | 07 | Backend: Messaging & Social | P1 | Yes | 04 | not_started | — | Communication |
@@ -51,7 +51,7 @@
 
 ### Milestone B: Backend Complete (Chunks 04-08)
 **Exit condition:** All API endpoints migrated, seed data works, manual API testing passes.
-**Status:** not_started
+**Status:** in_progress
 
 ### Milestone C: Frontend Integration (Chunks 09-10)
 **Exit condition:** Web app runs with full feature parity, no Next.js API routes remain.
@@ -99,15 +99,15 @@
 
 ## Current Focus
 
-**Objective:** Begin chunk 04 authentication and identity module now that the backend foundation is complete.
+**Objective:** Start chunk 05 categories, trades, and provider discovery now that authentication and identity are complete.
 
-**Definition of done:** Supabase-backed identity endpoints exist, local users are resolved consistently, and provider onboarding can build on the shared auth guards.
+**Definition of done:** Categories, trades, and provider discovery endpoints are implemented on top of the shared schemas and auth guards.
 
 ---
 
 ## Next Recommended Chunk
 
-`04-backend-auth.md` — Implement authenticated identity endpoints and profile completion on top of the Supabase guard chain.
+`05-backend-categories-providers.md` — Start categories, trades, and provider discovery.
 
 ---
 
@@ -116,7 +116,7 @@
 - [x] Monorepo structure with Turborepo + pnpm
 - [x] Shared Zod schemas package
 - [x] NestJS backend with PostgreSQL
-- [ ] Supabase auth + identity module (/me, profile, provider onboarding)
+- [x] Supabase auth + identity module (/me, profile, provider onboarding)
 - [ ] Categories, trades, provider discovery
 - [ ] Bookings and reviews
 - [ ] Messaging and notifications

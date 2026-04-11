@@ -6,13 +6,13 @@ import {
   JsonObjectSchema,
   PaginationParams,
   createApiSuccessResponseSchema,
-} from "./common";
+} from "./common.js";
 import {
   BookingStatus,
   MessageType,
   UserRole,
   VerificationStatus,
-} from "./enums";
+} from "./enums.js";
 import {
   AuthUserSchema,
   BookingSchema,
@@ -29,7 +29,7 @@ import {
   SubcategorySchema,
   UserSchema,
   VisibilitySettingsSchema,
-} from "./models";
+} from "./models.js";
 
 const RatingSchema = z.number().int().min(1).max(5);
 
@@ -292,6 +292,7 @@ export const AuthResponseSchema = z.object({
 export const MeResponseSchema = z.object({
   success: z.boolean(),
   user: UserSchema.extend({
+    profileComplete: z.boolean(),
     provider: ProviderSchema.optional().nullable(),
   }).optional(),
   error: z.string().optional(),
