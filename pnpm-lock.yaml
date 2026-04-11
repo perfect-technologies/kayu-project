@@ -77,6 +77,10 @@ importers:
         version: 5.9.3
 
   packages/schemas:
+    dependencies:
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       typescript:
         specifier: ^5.8.0
@@ -139,6 +143,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
 snapshots:
 
   '@turbo/darwin-64@2.9.6':
@@ -169,3 +176,5 @@ snapshots:
       '@turbo/windows-arm64': 2.9.6
 
   typescript@5.9.3: {}
+
+  zod@4.3.6: {}

@@ -6,8 +6,8 @@
 - **Current phase:** Foundation
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 02 — Shared Schemas Package
-- **Next recommended chunk:** 02 — Shared Schemas Package
+- **Current focus:** Chunk 03 — Backend Foundation & Database
+- **Next recommended chunk:** 03 — Backend Foundation & Database
 - **Last updated:** 2026-04-11
 
 ---
@@ -28,7 +28,7 @@
 | ID | Chunk | Priority | Launch Critical | Depends On | Status | Owner | Notes |
 |----|-------|----------|-----------------|------------|--------|-------|-------|
 | 01 | Monorepo Scaffold & Infrastructure | P0 | Yes | — | done | Codex | Scaffold created; `pnpm install`, `pnpm type-check`, and Docker Postgres `SELECT 1` passed |
-| 02 | Shared Schemas Package | P0 | Yes | 01 | not_started | — | Type contract |
+| 02 | Shared Schemas Package | P0 | Yes | 01 | done | Codex | `@kayu/schemas` implemented with Zod enums, model schemas, DTOs, and response schemas; `pnpm --filter @kayu/schemas build` and `pnpm type-check` passed |
 | 03 | Backend Foundation & Database | P0 | Yes | 01 | not_started | — | NestJS + Prisma + PostgreSQL |
 | 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | not_started | — | Supabase JWT validation + identity module |
 | 05 | Backend: Categories & Providers | P0 | Yes | 04 | not_started | — | Core marketplace |
@@ -98,22 +98,22 @@
 
 ## Current Focus
 
-**Objective:** Implement chunk 02 shared schemas package after chunk 01 scaffold completion.
+**Objective:** Begin chunk 03 backend foundation after shared schema package completion.
 
-**Definition of done:** Shared Zod schemas package compiles and becomes the API contract source for later chunks.
+**Definition of done:** NestJS backend foundation compiles, Prisma is configured for PostgreSQL, and backend can connect to the local database.
 
 ---
 
 ## Next Recommended Chunk
 
-`02-shared-schemas.md` — Define shared Zod schemas and inferred TypeScript types before backend foundation work.
+`03-backend-foundation.md` — Create NestJS backend foundation with Prisma and PostgreSQL connectivity.
 
 ---
 
 ## Launch-Critical Checklist
 
 - [x] Monorepo structure with Turborepo + pnpm
-- [ ] Shared Zod schemas package
+- [x] Shared Zod schemas package
 - [ ] NestJS backend with PostgreSQL
 - [ ] Supabase auth + identity module (/me, profile, provider onboarding)
 - [ ] Categories, trades, provider discovery
