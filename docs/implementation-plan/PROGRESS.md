@@ -6,9 +6,9 @@
 - **Current phase:** Foundation
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 03 — Backend Foundation & Database
-- **Next recommended chunk:** 03 — Backend Foundation & Database
-- **Last updated:** 2026-04-11
+- **Current focus:** Chunk 04 — Backend: Authentication & Identity
+- **Next recommended chunk:** 04 — Backend: Authentication & Identity
+- **Last updated:** 2026-04-12
 
 ---
 
@@ -29,7 +29,7 @@
 |----|-------|----------|-----------------|------------|--------|-------|-------|
 | 01 | Monorepo Scaffold & Infrastructure | P0 | Yes | — | done | Codex | Scaffold created; `pnpm install`, `pnpm type-check`, and Docker Postgres `SELECT 1` passed |
 | 02 | Shared Schemas Package | P0 | Yes | 01 | done | Codex | `@kayu/schemas` implemented with Zod enums, model schemas, DTOs, and response schemas; `pnpm --filter @kayu/schemas build` and `pnpm type-check` passed |
-| 03 | Backend Foundation & Database | P0 | Yes | 01 | not_started | — | NestJS + Prisma + PostgreSQL |
+| 03 | Backend Foundation & Database | P0 | Yes | 01 | done | Codex | NestJS backend foundation, Prisma PostgreSQL schema, common guards/decorators/pipes, `prisma db push`, backend build/start, and `pnpm type-check` passed |
 | 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | not_started | — | Supabase JWT validation + identity module |
 | 05 | Backend: Categories & Providers | P0 | Yes | 04 | not_started | — | Core marketplace |
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | not_started | — | Transactions |
@@ -47,7 +47,7 @@
 
 ### Milestone A: Foundation (Chunks 01-03)
 **Exit condition:** `turbo run type-check` passes, backend starts and connects to PostgreSQL.
-**Status:** in_progress
+**Status:** done
 
 ### Milestone B: Backend Complete (Chunks 04-08)
 **Exit condition:** All API endpoints migrated, seed data works, manual API testing passes.
@@ -93,20 +93,21 @@
 | 2026-04-11 | Flat monorepo (apps/ + packages/ at root) | 01 | Schemas shared by backend and frontend — nesting packages inside frontend would be incorrect | pnpm workspace at root level |
 | 2026-04-11 | PostgreSQL via Docker Compose | 03, 13 | SQLite not production-ready, Prisma supports both | compose.yaml at project root |
 | 2026-04-11 | Supabase for authentication | 02, 03, 04, 09, 10, 11 | No local password management; supports email+password and phone+OTP; backend only validates JWT via JWKS | Same pattern as ibt-car project; User model gets authUserId, loses password field |
+| 2026-04-12 | Local user profile names are nullable until profile completion | 03, 04 | Supabase JWTs can create local users before firstName/lastName are collected | Chunk 04 `/me/profile` completes these fields |
 
 ---
 
 ## Current Focus
 
-**Objective:** Begin chunk 03 backend foundation after shared schema package completion.
+**Objective:** Begin chunk 04 authentication and identity module now that the backend foundation is complete.
 
-**Definition of done:** NestJS backend foundation compiles, Prisma is configured for PostgreSQL, and backend can connect to the local database.
+**Definition of done:** Supabase-backed identity endpoints exist, local users are resolved consistently, and provider onboarding can build on the shared auth guards.
 
 ---
 
 ## Next Recommended Chunk
 
-`03-backend-foundation.md` — Create NestJS backend foundation with Prisma and PostgreSQL connectivity.
+`04-backend-auth.md` — Implement authenticated identity endpoints and profile completion on top of the Supabase guard chain.
 
 ---
 
@@ -114,7 +115,7 @@
 
 - [x] Monorepo structure with Turborepo + pnpm
 - [x] Shared Zod schemas package
-- [ ] NestJS backend with PostgreSQL
+- [x] NestJS backend with PostgreSQL
 - [ ] Supabase auth + identity module (/me, profile, provider onboarding)
 - [ ] Categories, trades, provider discovery
 - [ ] Bookings and reviews

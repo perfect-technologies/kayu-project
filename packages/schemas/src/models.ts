@@ -18,14 +18,14 @@ import { DateTimeSchema, IdSchema, JsonValueSchema, NullableDateTimeSchema } fro
 
 export const UserSummarySchema = z.object({
   id: IdSchema,
-  firstName: z.string(),
-  lastName: z.string(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
   avatar: z.string().nullable().optional(),
 });
 
 export const UserSchema = UserSummarySchema.extend({
   authUserId: z.string().nullable().optional(),
-  email: z.string().email(),
+  email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
   role: UserRole,
   city: z.string().nullable().optional(),
@@ -45,7 +45,7 @@ export const UserSchema = UserSummarySchema.extend({
 });
 
 export const AuthUserSchema = UserSummarySchema.extend({
-  email: z.string().email(),
+  email: z.string().email().nullable().optional(),
   role: UserRole,
   isVerified: z.boolean(),
   city: z.string().nullable().optional(),
