@@ -12,6 +12,11 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { FavoritesModule } from "./modules/favorites/favorites.module";
+import { AdminModule } from "./modules/admin/admin.module";
+import { SettingsModule } from "./modules/settings/settings.module";
+import { StatsModule } from "./modules/stats/stats.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { GeoModule } from "./modules/geo/geo.module";
 
 @Module({
   imports: [
@@ -32,6 +37,11 @@ import { FavoritesModule } from "./modules/favorites/favorites.module";
     NotificationsModule,
     MessagingModule,
     FavoritesModule,
+    AdminModule,
+    SettingsModule,
+    StatsModule,
+    DashboardModule,
+    GeoModule,
   ],
   controllers: [AppController],
 })

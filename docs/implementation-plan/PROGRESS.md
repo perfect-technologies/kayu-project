@@ -3,11 +3,11 @@
 ## Overall Project Status
 
 - **Project:** KAYOU Monorepo Migration
-- **Current phase:** Backend Complete
+- **Current phase:** Frontend Integration
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 08 — Backend: Admin & Settings
-- **Next recommended chunk:** 08 — Backend: Admin & Settings
+- **Current focus:** Chunk 09 — Shared Packages
+- **Next recommended chunk:** 09 — Shared Packages
 - **Last updated:** 2026-04-12
 
 ---
@@ -34,7 +34,7 @@
 | 05 | Backend: Categories & Providers | P0 | Yes | 04 | done | Codex | Categories hierarchy, provider discovery/detail, visibility gating, and provider self-update implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/schemas type-check`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, live `curl` smoke tests for `/api/categories`, `/api/categories/hierarchy`, `/api/providers`, `/api/providers/:id`, and direct Nest app-context smoke tests for `ProvidersService.updateMe` passed |
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | done | Codex | Bookings/reviews modules implemented with lifecycle rules, notifications, trust score + badge recalculation; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and temp-fixture service smoke test for create/list/update/cancel/review/duplicate-review flows passed |
 | 07 | Backend: Messaging & Social | P1 | Yes | 04 | done | Codex | Messaging, notifications, and favorites modules implemented; shared `NotificationsService` wired into bookings/reviews; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and a Nest app-context smoke test for message send/list/read, notification mark-read/read-all, and favorite add/check/remove flows passed |
-| 08 | Backend: Admin & Settings | P1 | Yes | 04 | not_started | — | Management |
+| 08 | Backend: Admin & Settings | P1 | Yes | 04 | done | Codex | Admin, settings, stats, geo, and dashboard modules implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, `pnpm type-check`, and read-only Nest app-context smoke checks for stats/geo/settings/client dashboard/admin lists/admin dashboard passed |
 | 09 | Shared Packages (API, UI, Utils) | P0 | Yes | 04-08 | not_started | — | Frontend integration |
 | 10 | Web App: Next.js Migration | P0 | Yes | 09 | not_started | — | Web parity |
 | 11 | Mobile App: Foundation & Auth | P1 | Mobile only | 09 | not_started | — | Expo scaffold |
@@ -51,7 +51,7 @@
 
 ### Milestone B: Backend Complete (Chunks 04-08)
 **Exit condition:** All API endpoints migrated, seed data works, manual API testing passes.
-**Status:** in_progress
+**Status:** done
 
 ### Milestone C: Frontend Integration (Chunks 09-10)
 **Exit condition:** Web app runs with full feature parity, no Next.js API routes remain.
@@ -97,20 +97,21 @@
 | 2026-04-12 | Compute provider ratings from `Review.overallScore` and certification state from verified certifications | 05, 09, 10, 12 | Prisma `Provider` no longer stores legacy `rating`/`isCertified` fields directly, but shared/API responses still need them | Shared schemas extended in chunk 05; future API client/frontend work should treat these fields as derived |
 | 2026-04-12 | Treat `ProviderBadge.providerId` as the trust-score record ID, not the provider ID, when syncing badges | 06, 08, 10, 12 | Prisma relation is keyed to `TrustScore.id` despite the field name; writing badges against the provider ID fails foreign-key validation | Reuse trust-score-aware badge writes/queries anywhere provider badges are managed |
 | 2026-04-12 | Centralize notification writes behind `NotificationsService` with optional transaction injection | 06, 07, 08, 10, 12 | Booking, review, badge, and messaging flows all create notifications and need one consistent write path | Reuse `NotificationsService.create` / `createMany` instead of direct Prisma notification writes in future modules |
+| 2026-04-12 | Keep `/api/dashboard/admin` in the Nest migration even though chunk 08’s endpoint list only called out provider/client dashboards | 08, 09, 10 | Legacy dashboard routes include an admin aggregate endpoint and the launch checklist depends on admin dashboard parity | Shared API client and web migration should include the admin dashboard route alongside provider/client dashboards |
 
 ---
 
 ## Current Focus
 
-**Objective:** Start chunk 08 admin and settings APIs now that messaging, notifications, and favorites are complete.
+**Objective:** Start chunk 09 shared packages now that the backend API surface is complete.
 
-**Definition of done:** Admin management endpoints and user visibility/settings APIs are implemented on top of the completed backend modules.
+**Definition of done:** `@kayu/api`, `@kayu/ui`, and `@kayu/utils` expose the shared contracts and helpers needed by the web and mobile apps.
 
 ---
 
 ## Next Recommended Chunk
 
-`08-backend-admin-settings.md` — Start admin management and settings APIs.
+`09-shared-packages.md` — Build the shared API client, UI tokens, and utilities on top of the completed backend surface.
 
 ---
 
@@ -123,7 +124,7 @@
 - [x] Categories, trades, provider discovery
 - [x] Bookings and reviews
 - [x] Messaging and notifications
-- [ ] Admin dashboard API
+- [x] Admin dashboard API
 - [ ] Shared API client with React Query keys
 - [ ] Web app migrated (feature parity)
 - [ ] Seed data and Docker Compose

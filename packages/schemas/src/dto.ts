@@ -218,7 +218,15 @@ export const CreateCategoryDto = z.object({
 
 export const UpdateCategoryDto = CreateCategoryDto.partial().extend({
   id: IdSchema.optional(),
+  categoryId: IdSchema.optional(),
   isActive: z.boolean().optional(),
+});
+
+export const AdminModerateReviewDto = z.object({
+  reviewId: IdSchema,
+  isPublic: z.boolean().optional(),
+  isEdited: z.boolean().optional(),
+  reply: z.string().nullable().optional(),
 });
 
 export const FavoriteProviderDto = z.object({
@@ -290,6 +298,10 @@ export const AdminReviewSearchParams = PaginationParams.extend({
   search: z.string().optional(),
 }).extend({
   limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const AdminCategorySearchParams = z.object({
+  includeInactive: BooleanQueryParamSchema.optional(),
 });
 
 export const DistanceParams = z.object({
@@ -416,6 +428,47 @@ export const DashboardClientResponseSchema = z.object({
   favorites: z.array(ProviderSchema.partial()).optional(),
   notifications: z.array(NotificationSchema),
   user: UserSchema.pick({ firstName: true, lastName: true }).optional(),
+});
+
+export const DashboardAdminResponseSchema = z.object({
+  stats: AdminStatsResponseSchema,
+  providers: z.array(
+    ProviderSchema.partial().extend({
+      id: IdSchema,
+      userId: IdSchema.optional(),
+      firstName: z.string().nullable().optional(),
+      lastName: z.string().nullable().optional(),
+      email: z.string().email().nullable().optional(),
+      phone: z.string().nullable().optional(),
+      city: z.string().nullable().optional(),
+      avatar: z.string().nullable().optional(),
+      categories: z.array(z.string()).optional(),
+      totalBookings: z.number().int().min(0).optional(),
+    }),
+  ),
+  recentBookings: z.array(
+    BookingSchema.partial().extend({
+      id: IdSchema,
+      clientName: z.string().optional(),
+      clientAvatar: z.string().nullable().optional(),
+      providerName: z.string().optional(),
+      providerAvatar: z.string().nullable().optional(),
+    }),
+  ),
+  topCategories: z.array(
+    CategorySchema.pick({ id: true, name: true, slug: true }).extend({
+      providerCount: z.number().int().min(0),
+      subcategoryCount: z.number().int().min(0),
+      icon: z.string().nullable().optional(),
+      color: z.string().nullable().optional(),
+    }),
+  ),
+  topCities: z.array(z.object({ name: z.string(), count: z.number().int().min(0) })),
+  allCategories: z.array(
+    CategorySchema.pick({ id: true, name: true, slug: true }).extend({
+      providerCount: z.number().int().min(0),
+    }),
+  ),
 });
 
 export const DistanceResponseSchema = z.object({
@@ -602,6 +655,7 @@ export type AdminUpdateProviderDto = z.infer<typeof AdminUpdateProviderDto>;
 export type CategorySubcategoryInput = z.infer<typeof CategorySubcategoryInputSchema>;
 export type CreateCategoryDto = z.infer<typeof CreateCategoryDto>;
 export type UpdateCategoryDto = z.infer<typeof UpdateCategoryDto>;
+export type AdminModerateReviewDto = z.infer<typeof AdminModerateReviewDto>;
 export type FavoriteProviderDto = z.infer<typeof FavoriteProviderDto>;
 export type ProviderSearchParams = z.infer<typeof ProviderSearchParams>;
 export type BookingSearchParams = z.infer<typeof BookingSearchParams>;
@@ -612,6 +666,7 @@ export type CategorySearchParams = z.infer<typeof CategorySearchParams>;
 export type AdminUserSearchParams = z.infer<typeof AdminUserSearchParams>;
 export type AdminProviderSearchParams = z.infer<typeof AdminProviderSearchParams>;
 export type AdminReviewSearchParams = z.infer<typeof AdminReviewSearchParams>;
+export type AdminCategorySearchParams = z.infer<typeof AdminCategorySearchParams>;
 export type DistanceParams = z.infer<typeof DistanceParams>;
 export type GeocodeParams = z.infer<typeof GeocodeParams>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
@@ -621,6 +676,7 @@ export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
 export type DashboardBooking = z.infer<typeof DashboardBookingSchema>;
 export type DashboardProviderResponse = z.infer<typeof DashboardProviderResponseSchema>;
 export type DashboardClientResponse = z.infer<typeof DashboardClientResponseSchema>;
+export type DashboardAdminResponse = z.infer<typeof DashboardAdminResponseSchema>;
 export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
 export type GeocodeResponse = z.infer<typeof GeocodeResponseSchema>;
 export type PublicStatsResponse = z.infer<typeof PublicStatsResponseSchema>;
