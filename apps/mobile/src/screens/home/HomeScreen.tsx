@@ -135,7 +135,15 @@ export function HomeScreen() {
         {categoriesLoading ? (
           <ActivityIndicator color={colors.primary.DEFAULT} style={styles.loader} />
         ) : (
-          <CategoryGrid categories={categories} />
+          <CategoryGrid
+            categories={categories}
+            onPress={(cat) =>
+              (navigation as any).navigate('Search', {
+                screen: 'CategoryDetail',
+                params: { categoryId: cat.id, categoryName: cat.name },
+              })
+            }
+          />
         )}
       </View>
 
@@ -145,7 +153,15 @@ export function HomeScreen() {
         {providersLoading ? (
           <ActivityIndicator color={colors.primary.DEFAULT} style={styles.loader} />
         ) : (
-          <FeaturedProviders providers={providers} />
+          <FeaturedProviders
+            providers={providers}
+            onPress={(provider) =>
+              (navigation as any).navigate('Search', {
+                screen: 'ProviderProfile',
+                params: { providerId: provider.id },
+              })
+            }
+          />
         )}
       </View>
     </ScrollView>
