@@ -1,4 +1,18 @@
-import { schemasPackageName } from "@kayu/schemas";
-
-export const apiPackageName = "@kayu/api";
-export const apiSchemasPackageName = schemasPackageName;
+export { ApiClient } from "./client.js";
+export { ApiError } from "./error.js";
+export {
+  identityApi,
+  categoriesApi,
+  providersApi,
+  bookingsApi,
+  reviewsApi,
+  messagesApi,
+  notificationsApi,
+  favoritesApi,
+  settingsApi,
+  dashboardApi,
+  statsApi,
+  geoApi,
+  adminApi,
+} from "./endpoints.js";
+export { queryKeys } from "./query-keys.js";

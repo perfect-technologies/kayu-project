@@ -6,8 +6,8 @@
 - **Current phase:** Frontend Integration
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 09 — Shared Packages
-- **Next recommended chunk:** 09 — Shared Packages
+- **Current focus:** Chunk 10 — Web App Migration
+- **Next recommended chunk:** 10 — Web App: Next.js Migration
 - **Last updated:** 2026-04-12
 
 ---
@@ -35,7 +35,7 @@
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | done | Codex | Bookings/reviews modules implemented with lifecycle rules, notifications, trust score + badge recalculation; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and temp-fixture service smoke test for create/list/update/cancel/review/duplicate-review flows passed |
 | 07 | Backend: Messaging & Social | P1 | Yes | 04 | done | Codex | Messaging, notifications, and favorites modules implemented; shared `NotificationsService` wired into bookings/reviews; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and a Nest app-context smoke test for message send/list/read, notification mark-read/read-all, and favorite add/check/remove flows passed |
 | 08 | Backend: Admin & Settings | P1 | Yes | 04 | done | Codex | Admin, settings, stats, geo, and dashboard modules implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, `pnpm type-check`, and read-only Nest app-context smoke checks for stats/geo/settings/client dashboard/admin lists/admin dashboard passed |
-| 09 | Shared Packages (API, UI, Utils) | P0 | Yes | 04-08 | not_started | — | Frontend integration |
+| 09 | Shared Packages (API, UI, Utils) | P0 | Yes | 04-08 | done | Claude | `@kayu/api` (ApiClient, typed endpoints, query keys), `@kayu/ui` (design tokens), `@kayu/utils` (phone, currency, distance, date, helpers with cn); `pnpm type-check` (11/11 tasks), `pnpm --filter @kayu/api build`, `pnpm --filter @kayu/ui build`, `pnpm --filter @kayu/utils build`, and runtime sanity checks all passed |
 | 10 | Web App: Next.js Migration | P0 | Yes | 09 | not_started | — | Web parity |
 | 11 | Mobile App: Foundation & Auth | P1 | Mobile only | 09 | not_started | — | Expo scaffold |
 | 12 | Mobile App: Core Features | P1 | Mobile only | 11 | not_started | — | Mobile marketplace |
@@ -55,7 +55,7 @@
 
 ### Milestone C: Frontend Integration (Chunks 09-10)
 **Exit condition:** Web app runs with full feature parity, no Next.js API routes remain.
-**Status:** not_started
+**Status:** in_progress
 
 ### Milestone D: Mobile App (Chunks 11-12)
 **Exit condition:** Mobile app can register, browse, book, review, message.
@@ -103,15 +103,15 @@
 
 ## Current Focus
 
-**Objective:** Start chunk 09 shared packages now that the backend API surface is complete.
+**Objective:** Start chunk 10 web app migration now that shared packages are complete.
 
-**Definition of done:** `@kayu/api`, `@kayu/ui`, and `@kayu/utils` expose the shared contracts and helpers needed by the web and mobile apps.
+**Definition of done:** Next.js web app migrated to consume NestJS backend via `@kayu/api`, with full feature parity to the current monolith.
 
 ---
 
 ## Next Recommended Chunk
 
-`09-shared-packages.md` — Build the shared API client, UI tokens, and utilities on top of the completed backend surface.
+`10-web-app-migration.md` — Migrate the Next.js web app to consume the NestJS backend via shared packages.
 
 ---
 
@@ -125,7 +125,7 @@
 - [x] Bookings and reviews
 - [x] Messaging and notifications
 - [x] Admin dashboard API
-- [ ] Shared API client with React Query keys
+- [x] Shared API client with React Query keys
 - [ ] Web app migrated (feature parity)
 - [ ] Seed data and Docker Compose
 - [ ] Developer documentation
