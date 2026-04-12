@@ -6,8 +6,8 @@
 - **Current phase:** Mobile App
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 10 complete — Web App migrated with full feature parity
-- **Next recommended chunk:** 11 — Mobile App: Foundation & Auth
+- **Current focus:** Chunk 11 complete — Expo mobile app with auth flow, navigation, and home screen
+- **Next recommended chunk:** 12 — Mobile App: Core Features
 - **Last updated:** 2026-04-12
 
 ---
@@ -37,7 +37,7 @@
 | 08 | Backend: Admin & Settings | P1 | Yes | 04 | done | Codex | Admin, settings, stats, geo, and dashboard modules implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, `pnpm type-check`, and read-only Nest app-context smoke checks for stats/geo/settings/client dashboard/admin lists/admin dashboard passed |
 | 09 | Shared Packages (API, UI, Utils) | P0 | Yes | 04-08 | done | Claude | `@kayu/api` (ApiClient, typed endpoints, query keys), `@kayu/ui` (design tokens), `@kayu/utils` (phone, currency, distance, date, helpers with cn); `pnpm type-check` (11/11 tasks), `pnpm --filter @kayu/api build`, `pnpm --filter @kayu/ui build`, `pnpm --filter @kayu/utils build`, and runtime sanity checks all passed |
 | 10 | Web App: Next.js Migration | P0 | Yes | 09 | done | Claude | All pages, components, hooks migrated; Supabase auth replaces local JWT; API proxy to NestJS backend; SSR for public pages; React Query for client pages; 0 API routes, 0 Prisma imports; `pnpm type-check` (11/11 tasks) passes |
-| 11 | Mobile App: Foundation & Auth | P1 | Mobile only | 09 | not_started | — | Expo scaffold |
+| 11 | Mobile App: Foundation & Auth | P1 | Mobile only | 09 | done | Claude | Expo app with Supabase auth (email+phone OTP), React Navigation (auth stack + 5-tab bottom tabs), HomeScreen with categories/stats/providers, common components (Button, Input, Card, Badge); `pnpm --filter @kayu/mobile type-check` passes |
 | 12 | Mobile App: Core Features | P1 | Mobile only | 11 | not_started | — | Mobile marketplace |
 | 13 | Seed Data, DevOps & Launch | P0 | Yes | 10 | not_started | — | Launch readiness |
 
@@ -59,7 +59,7 @@
 
 ### Milestone D: Mobile App (Chunks 11-12)
 **Exit condition:** Mobile app can register, browse, book, review, message.
-**Status:** not_started
+**Status:** in_progress
 
 ### Milestone E: Launch Ready (Chunk 13)
 **Exit condition:** New developer can clone, `docker compose up` + `pnpm dev`, working environment.
@@ -103,15 +103,15 @@
 
 ## Current Focus
 
-**Objective:** Chunk 10 complete. Web app fully migrated with feature parity.
+**Objective:** Chunk 11 complete. Expo mobile app with auth flow, navigation, and home screen.
 
-**Definition of done (met):** Next.js web app migrated to consume NestJS backend via `@kayu/api`, with full feature parity to the current monolith. Zero API routes, zero Prisma imports, `pnpm type-check` passes (11/11 tasks).
+**Definition of done (met):** Expo React Native app with Supabase auth (email+password, phone+OTP), SecureStore token persistence, React Navigation (auth stack + bottom tabs), HomeScreen with categories/stats/featured providers, common UI components. `pnpm --filter @kayu/mobile type-check` passes.
 
 ---
 
 ## Next Recommended Chunk
 
-`11-mobile-foundation.md` — Set up Expo mobile app with Supabase auth and shared packages.
+`12-mobile-features.md` — Mobile app core features: provider browsing, bookings, messaging, reviews, dashboard.
 
 ---
 
