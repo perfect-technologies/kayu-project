@@ -6,10 +6,15 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "noEmit": true,
-    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next.config.ts", "src"]
+  "include": ["next-env.d.ts", "next.config.ts", "src", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
 }

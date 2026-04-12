@@ -52,7 +52,21 @@ export class ApiClient {
     params?: Record<string, string | number | boolean | undefined>,
   ): string {
     const base = this.baseUrl.replace(/\/+$/, "");
-    const url = new URL(`${base}${path}`);
+    const raw = `${base}${path}`;
+
+    // When baseUrl is empty or relative (browser proxy), we can't use new URL()
+    // directly because it requires an absolute URL. Build query string manually.
+    if (!base || !base.startsWith("http")) {
+      const qs = params
+        ? Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+            .join("&")
+        : "";
+      return qs ? `${raw}?${qs}` : raw;
+    }
+
+    const url = new URL(raw);
     if (params) {
       for (const [key, value] of Object.entries(params)) {
         if (value !== undefined) {
