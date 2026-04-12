@@ -101,6 +101,11 @@ export const TradeSchema = z.object({
   createdAt: DateTimeSchema.optional(),
 });
 
+export const ProviderTradeSchema = TradeSchema.extend({
+  isPrimary: z.boolean(),
+  experience: z.number().int().nullable().optional(),
+});
+
 export const CategoryHierarchySchema = CategorySchema.extend({
   subcategories: z.array(
     SubcategorySchema.extend({
@@ -255,7 +260,15 @@ export const ProviderSchema = z.object({
   premiumExpiry: NullableDateTimeSchema.optional(),
   isAvailable: z.boolean(),
   verificationStatus: VerificationStatus,
-  user: UserSummarySchema,
+  user: UserSchema.pick({
+    id: true,
+    firstName: true,
+    lastName: true,
+    avatar: true,
+    city: true,
+    country: true,
+    isVerified: true,
+  }),
   categories: z.array(CategorySummarySchema).default([]),
   serviceZones: z.array(ServiceZoneSchema).default([]),
   createdAt: DateTimeSchema.optional(),
@@ -272,9 +285,13 @@ export const ProviderDetailSchema = ProviderSchema.extend({
     avatar: true,
     city: true,
     country: true,
+    address: true,
+    latitude: true,
+    longitude: true,
     isVerified: true,
   }),
   categories: z.array(CategorySchema).default([]),
+  trades: z.array(ProviderTradeSchema).default([]),
   skills: z.array(SkillSchema).default([]),
   serviceZones: z.array(ServiceZoneSchema).default([]),
   trustScore: TrustScoreSchema.nullable().optional(),
@@ -457,6 +474,7 @@ export type CategorySummary = z.infer<typeof CategorySummarySchema>;
 export type Category = z.infer<typeof CategorySchema>;
 export type Subcategory = z.infer<typeof SubcategorySchema>;
 export type Trade = z.infer<typeof TradeSchema>;
+export type ProviderTrade = z.infer<typeof ProviderTradeSchema>;
 export type CategoryHierarchy = z.infer<typeof CategoryHierarchySchema>;
 export type Skill = z.infer<typeof SkillSchema>;
 export type ServiceZone = z.infer<typeof ServiceZoneSchema>;

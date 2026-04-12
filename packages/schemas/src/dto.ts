@@ -23,6 +23,7 @@ import {
   NotificationSchema,
   ProviderDetailSchema,
   ProviderSchema,
+  ProviderTradeSchema,
   ReviewSchema,
   ServiceZoneSchema,
   SkillSchema,
@@ -36,6 +37,11 @@ const RatingSchema = z.number().int().min(1).max(5);
 export const ServiceZoneInputSchema = ServiceZoneSchema.pick({
   city: true,
   commune: true,
+});
+
+export const SkillInputSchema = z.object({
+  name: z.string().min(1),
+  level: z.number().int().min(1).max(5).optional(),
 });
 
 export const CompleteProfileDto = z.object({
@@ -84,6 +90,19 @@ export const ProviderOnboardingDto = z.object({
   experience: z.number().int().min(0).max(50).optional(),
   hourlyRate: z.number().min(0).optional(),
   description: z.string().max(1000).optional(),
+});
+
+export const UpdateProviderDto = z.object({
+  profession: z.string().min(2).optional(),
+  description: z.string().max(1000).nullable().optional(),
+  experience: z.number().int().min(0).max(50).nullable().optional(),
+  hourlyRate: z.number().min(0).nullable().optional(),
+  isAvailable: z.boolean().optional(),
+  categoryIds: z.array(IdSchema).optional(),
+  skills: z.array(SkillInputSchema).optional(),
+  serviceZones: z.array(ServiceZoneInputSchema).optional(),
+  tradeIds: z.array(IdSchema).max(3).optional(),
+  primaryTradeId: IdSchema.nullable().optional(),
 });
 
 export const CreateBookingDto = z.object({
@@ -449,6 +468,38 @@ export const ProvidersResponseSchema = z.object({
   }),
 });
 
+export const ProviderRatingBreakdownSchema = z.object({
+  "1": z.number().int().min(0),
+  "2": z.number().int().min(0),
+  "3": z.number().int().min(0),
+  "4": z.number().int().min(0),
+  "5": z.number().int().min(0),
+});
+
+export const ProviderRatingAveragesSchema = z.object({
+  overall: z.number().min(0),
+  punctuality: z.number().min(0),
+  quality: z.number().min(0),
+  communication: z.number().min(0),
+  value: z.number().min(0),
+  professionalism: z.number().min(0),
+});
+
+export const ProviderProfileStatsSchema = z.object({
+  totalReviews: z.number().int().min(0),
+  totalBookings: z.number().int().min(0),
+  ratingBreakdown: ProviderRatingBreakdownSchema,
+  ratingAverages: ProviderRatingAveragesSchema,
+});
+
+export const ProviderProfileResponseSchema = ProviderDetailSchema.extend({
+  trades: z.array(ProviderTradeSchema).default([]),
+  recentReviews: z.array(ReviewSchema).default([]),
+  stats: ProviderProfileStatsSchema,
+  hasAccess: z.boolean(),
+  accessDeniedReason: z.string().nullable().optional(),
+});
+
 export const BookingsResponseSchema = z.object({
   bookings: z.array(BookingSchema),
   pagination: z.object({
@@ -510,6 +561,7 @@ export type RegisterDto = z.infer<typeof RegisterDto>;
 export type LoginDto = z.infer<typeof LoginDto>;
 export type ForgotPasswordDto = z.infer<typeof ForgotPasswordDto>;
 export type ProviderOnboardingDto = z.infer<typeof ProviderOnboardingDto>;
+export type UpdateProviderDto = z.infer<typeof UpdateProviderDto>;
 export type CreateBookingDto = z.infer<typeof CreateBookingDto>;
 export type UpdateBookingDto = z.infer<typeof UpdateBookingDto>;
 export type CreateReviewDto = z.infer<typeof CreateReviewDto>;
@@ -546,6 +598,7 @@ export type PublicStatsResponse = z.infer<typeof PublicStatsResponseSchema>;
 export type CategoriesResponse = z.infer<typeof CategoriesResponseSchema>;
 export type CategoryHierarchyResponse = z.infer<typeof CategoryHierarchyResponseSchema>;
 export type ProvidersResponse = z.infer<typeof ProvidersResponseSchema>;
+export type ProviderProfileResponse = z.infer<typeof ProviderProfileResponseSchema>;
 export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
 export type ReviewsResponse = z.infer<typeof ReviewsResponseSchema>;
 export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;

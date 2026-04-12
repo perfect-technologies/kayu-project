@@ -6,8 +6,8 @@
 - **Current phase:** Backend Complete
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 05 — Backend: Categories & Providers
-- **Next recommended chunk:** 05 — Backend: Categories & Providers
+- **Current focus:** Chunk 06 — Backend: Bookings & Reviews
+- **Next recommended chunk:** 06 — Backend: Bookings & Reviews
 - **Last updated:** 2026-04-12
 
 ---
@@ -31,7 +31,7 @@
 | 02 | Shared Schemas Package | P0 | Yes | 01 | done | Codex | `@kayu/schemas` implemented with Zod enums, model schemas, DTOs, and response schemas; `pnpm --filter @kayu/schemas build` and `pnpm type-check` passed |
 | 03 | Backend Foundation & Database | P0 | Yes | 01 | done | Codex | NestJS backend foundation, Prisma PostgreSQL schema, common guards/decorators/pipes, `prisma db push`, backend build/start, and `pnpm type-check` passed |
 | 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | done | Codex | Identity module implemented with Supabase JWT validation, actor resolution, `/me` endpoints, and provider onboarding; `pnpm type-check`, backend build/start, unauthenticated 401, invalid token 401, and valid Supabase JWT `/api/me` auto-create smoke checks passed |
-| 05 | Backend: Categories & Providers | P0 | Yes | 04 | not_started | — | Core marketplace |
+| 05 | Backend: Categories & Providers | P0 | Yes | 04 | done | Codex | Categories hierarchy, provider discovery/detail, visibility gating, and provider self-update implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/schemas type-check`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, live `curl` smoke tests for `/api/categories`, `/api/categories/hierarchy`, `/api/providers`, `/api/providers/:id`, and direct Nest app-context smoke tests for `ProvidersService.updateMe` passed |
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | not_started | — | Transactions |
 | 07 | Backend: Messaging & Social | P1 | Yes | 04 | not_started | — | Communication |
 | 08 | Backend: Admin & Settings | P1 | Yes | 04 | not_started | — | Management |
@@ -94,20 +94,21 @@
 | 2026-04-11 | PostgreSQL via Docker Compose | 03, 13 | SQLite not production-ready, Prisma supports both | compose.yaml at project root |
 | 2026-04-11 | Supabase for authentication | 02, 03, 04, 09, 10, 11 | No local password management; supports email+password and phone+OTP; backend only validates JWT via JWKS | Same pattern as ibt-car project; User model gets authUserId, loses password field |
 | 2026-04-12 | Local user profile names are nullable until profile completion | 03, 04 | Supabase JWTs can create local users before firstName/lastName are collected | Chunk 04 `/me/profile` completes these fields |
+| 2026-04-12 | Compute provider ratings from `Review.overallScore` and certification state from verified certifications | 05, 09, 10, 12 | Prisma `Provider` no longer stores legacy `rating`/`isCertified` fields directly, but shared/API responses still need them | Shared schemas extended in chunk 05; future API client/frontend work should treat these fields as derived |
 
 ---
 
 ## Current Focus
 
-**Objective:** Start chunk 05 categories, trades, and provider discovery now that authentication and identity are complete.
+**Objective:** Start chunk 06 bookings and reviews now that categories, trades, and provider discovery are complete.
 
-**Definition of done:** Categories, trades, and provider discovery endpoints are implemented on top of the shared schemas and auth guards.
+**Definition of done:** Booking lifecycle and review endpoints are implemented on top of providers/categories and shared schemas.
 
 ---
 
 ## Next Recommended Chunk
 
-`05-backend-categories-providers.md` — Start categories, trades, and provider discovery.
+`06-backend-bookings-reviews.md` — Start bookings lifecycle and review APIs.
 
 ---
 
@@ -117,7 +118,7 @@
 - [x] Shared Zod schemas package
 - [x] NestJS backend with PostgreSQL
 - [x] Supabase auth + identity module (/me, profile, provider onboarding)
-- [ ] Categories, trades, provider discovery
+- [x] Categories, trades, provider discovery
 - [ ] Bookings and reviews
 - [ ] Messaging and notifications
 - [ ] Admin dashboard API

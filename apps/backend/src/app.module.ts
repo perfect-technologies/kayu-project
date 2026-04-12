@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 import { AppController } from "./app.controller";
 import { CommonModule } from "./common/common.module";
 import { DatabaseModule } from "./database/database.module";
+import { CategoriesModule } from "./modules/categories/categories.module";
 import { IdentityModule } from "./modules/identity/identity.module";
+import { ProvidersModule } from "./modules/providers/providers.module";
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { IdentityModule } from "./modules/identity/identity.module";
     DatabaseModule,
     CommonModule,
     IdentityModule,
+    CategoriesModule,
+    ProvidersModule,
   ],
   controllers: [AppController],
 })
