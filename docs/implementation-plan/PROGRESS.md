@@ -6,8 +6,8 @@
 - **Current phase:** Backend Complete
 - **Overall status:** in_progress
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 07 — Backend: Messaging & Social
-- **Next recommended chunk:** 07 — Backend: Messaging & Social
+- **Current focus:** Chunk 08 — Backend: Admin & Settings
+- **Next recommended chunk:** 08 — Backend: Admin & Settings
 - **Last updated:** 2026-04-12
 
 ---
@@ -33,7 +33,7 @@
 | 04 | Backend: Authentication & Identity | P0 | Yes | 02, 03 | done | Codex | Identity module implemented with Supabase JWT validation, actor resolution, `/me` endpoints, and provider onboarding; `pnpm type-check`, backend build/start, unauthenticated 401, invalid token 401, and valid Supabase JWT `/api/me` auto-create smoke checks passed |
 | 05 | Backend: Categories & Providers | P0 | Yes | 04 | done | Codex | Categories hierarchy, provider discovery/detail, visibility gating, and provider self-update implemented; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/schemas type-check`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, live `curl` smoke tests for `/api/categories`, `/api/categories/hierarchy`, `/api/providers`, `/api/providers/:id`, and direct Nest app-context smoke tests for `ProvidersService.updateMe` passed |
 | 06 | Backend: Bookings & Reviews | P0 | Yes | 05 | done | Codex | Bookings/reviews modules implemented with lifecycle rules, notifications, trust score + badge recalculation; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and temp-fixture service smoke test for create/list/update/cancel/review/duplicate-review flows passed |
-| 07 | Backend: Messaging & Social | P1 | Yes | 04 | not_started | — | Communication |
+| 07 | Backend: Messaging & Social | P1 | Yes | 04 | done | Codex | Messaging, notifications, and favorites modules implemented; shared `NotificationsService` wired into bookings/reviews; `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and a Nest app-context smoke test for message send/list/read, notification mark-read/read-all, and favorite add/check/remove flows passed |
 | 08 | Backend: Admin & Settings | P1 | Yes | 04 | not_started | — | Management |
 | 09 | Shared Packages (API, UI, Utils) | P0 | Yes | 04-08 | not_started | — | Frontend integration |
 | 10 | Web App: Next.js Migration | P0 | Yes | 09 | not_started | — | Web parity |
@@ -96,20 +96,21 @@
 | 2026-04-12 | Local user profile names are nullable until profile completion | 03, 04 | Supabase JWTs can create local users before firstName/lastName are collected | Chunk 04 `/me/profile` completes these fields |
 | 2026-04-12 | Compute provider ratings from `Review.overallScore` and certification state from verified certifications | 05, 09, 10, 12 | Prisma `Provider` no longer stores legacy `rating`/`isCertified` fields directly, but shared/API responses still need them | Shared schemas extended in chunk 05; future API client/frontend work should treat these fields as derived |
 | 2026-04-12 | Treat `ProviderBadge.providerId` as the trust-score record ID, not the provider ID, when syncing badges | 06, 08, 10, 12 | Prisma relation is keyed to `TrustScore.id` despite the field name; writing badges against the provider ID fails foreign-key validation | Reuse trust-score-aware badge writes/queries anywhere provider badges are managed |
+| 2026-04-12 | Centralize notification writes behind `NotificationsService` with optional transaction injection | 06, 07, 08, 10, 12 | Booking, review, badge, and messaging flows all create notifications and need one consistent write path | Reuse `NotificationsService.create` / `createMany` instead of direct Prisma notification writes in future modules |
 
 ---
 
 ## Current Focus
 
-**Objective:** Start chunk 07 messaging and social APIs now that bookings, reviews, and provider trust flows are complete.
+**Objective:** Start chunk 08 admin and settings APIs now that messaging, notifications, and favorites are complete.
 
-**Definition of done:** Conversations, messages, favorites, and related notification flows are implemented on top of auth and provider discovery.
+**Definition of done:** Admin management endpoints and user visibility/settings APIs are implemented on top of the completed backend modules.
 
 ---
 
 ## Next Recommended Chunk
 
-`07-backend-messaging-social.md` — Start messaging, conversations, and favorites APIs.
+`08-backend-admin-settings.md` — Start admin management and settings APIs.
 
 ---
 
@@ -121,7 +122,7 @@
 - [x] Supabase auth + identity module (/me, profile, provider onboarding)
 - [x] Categories, trades, provider discovery
 - [x] Bookings and reviews
-- [ ] Messaging and notifications
+- [x] Messaging and notifications
 - [ ] Admin dashboard API
 - [ ] Shared API client with React Query keys
 - [ ] Web app migrated (feature parity)

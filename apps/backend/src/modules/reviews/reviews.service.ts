@@ -7,6 +7,7 @@ import {
 import type { BadgeType, Prisma, TrustLevel } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 type ReviewQuery = {
   providerId: string;
@@ -67,7 +68,10 @@ const managedBadges: BadgeType[] = [
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async findAll(query: ReviewQuery) {
     const page = query.page;
@@ -173,8 +177,8 @@ export class ReviewsService {
 
       await this.syncProviderMetrics(tx, body.providerId);
 
-      await tx.notification.create({
-        data: {
+      await this.notifications.create(
+        {
           userId: booking.provider.userId,
           type: "NEW_REVIEW",
           title: "Nouvel avis client",
@@ -185,7 +189,8 @@ export class ReviewsService {
             providerId: body.providerId,
           },
         },
-      });
+        tx,
+      );
 
       return review;
     });
@@ -415,8 +420,8 @@ export class ReviewsService {
         })),
       });
 
-      await tx.notification.createMany({
-        data: badgesToCreate.map((badgeType) => ({
+      await this.notifications.createMany(
+        badgesToCreate.map((badgeType) => ({
           userId: provider.userId,
           type: "BADGE_EARNED",
           title: "Nouveau badge",
@@ -426,7 +431,8 @@ export class ReviewsService {
             badgeType,
           },
         })),
-      });
+        tx,
+      );
     }
   }
 

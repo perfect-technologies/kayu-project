@@ -9,6 +9,9 @@ import { IdentityModule } from "./modules/identity/identity.module";
 import { BookingsModule } from "./modules/bookings/bookings.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { ReviewsModule } from "./modules/reviews/reviews.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { MessagingModule } from "./modules/messaging/messaging.module";
+import { FavoritesModule } from "./modules/favorites/favorites.module";
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { ReviewsModule } from "./modules/reviews/reviews.module";
     ProvidersModule,
     BookingsModule,
     ReviewsModule,
+    NotificationsModule,
+    MessagingModule,
+    FavoritesModule,
   ],
   controllers: [AppController],
 })

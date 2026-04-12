@@ -255,6 +255,12 @@ export const MessageSearchParams = PaginationParams.extend({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const NotificationSearchParams = PaginationParams.extend({
+  unreadOnly: BooleanQueryParamSchema.optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export const CategorySearchParams = z.object({
   withSubcategories: BooleanQueryParamSchema.optional(),
   categoryId: IdSchema.optional(),
@@ -545,10 +551,32 @@ export const MessagesResponseSchema = z.object({
       }).optional(),
     }),
   ),
-  pagination: z.object({ page: z.number(), limit: z.number() }).optional(),
+  pagination: z
+    .object({
+      page: z.number(),
+      limit: z.number(),
+      total: z.number(),
+      totalPages: z.number(),
+      hasMore: z.boolean().optional(),
+    })
+    .optional(),
 });
 
-export const FavoritesResponseSchema = z.array(FavoriteSchema);
+export const NotificationsResponseSchema = z.object({
+  notifications: z.array(NotificationSchema),
+  unreadCount: z.number().int().min(0),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+    hasMore: z.boolean().optional(),
+  }),
+});
+
+export const FavoritesResponseSchema = z.object({
+  favorites: z.array(FavoriteSchema),
+});
 export const VisibilitySettingsResponseSchema = z.object({
   settings: VisibilitySettingsSchema,
 });
@@ -579,6 +607,7 @@ export type ProviderSearchParams = z.infer<typeof ProviderSearchParams>;
 export type BookingSearchParams = z.infer<typeof BookingSearchParams>;
 export type ReviewSearchParams = z.infer<typeof ReviewSearchParams>;
 export type MessageSearchParams = z.infer<typeof MessageSearchParams>;
+export type NotificationSearchParams = z.infer<typeof NotificationSearchParams>;
 export type CategorySearchParams = z.infer<typeof CategorySearchParams>;
 export type AdminUserSearchParams = z.infer<typeof AdminUserSearchParams>;
 export type AdminProviderSearchParams = z.infer<typeof AdminProviderSearchParams>;
@@ -603,6 +632,7 @@ export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
 export type ReviewsResponse = z.infer<typeof ReviewsResponseSchema>;
 export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;
 export type MessagesResponse = z.infer<typeof MessagesResponseSchema>;
+export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>;
 export type FavoritesResponse = z.infer<typeof FavoritesResponseSchema>;
 export type VisibilitySettingsResponse = z.infer<typeof VisibilitySettingsResponseSchema>;
 export type UnknownApiSuccessResponse = z.infer<typeof UnknownApiSuccessResponseSchema>;

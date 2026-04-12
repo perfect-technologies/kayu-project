@@ -7,6 +7,7 @@ import {
 import type { BookingStatus, Prisma } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 type BookingQuery = {
   status?: BookingStatus;
@@ -104,7 +105,10 @@ type BookingAccessRecord = Prisma.BookingGetPayload<{
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async findAll(actor: Actor, query: BookingQuery) {
     const page = query.page;
@@ -176,15 +180,18 @@ export class BookingsService {
         include: bookingInclude,
       });
 
-      await this.createNotification(tx, {
-        userId: provider.userId,
-        type: "BOOKING_NEW",
-        title: "Nouvelle reservation",
-        message: `${this.getDisplayName(actor)} souhaite vous reserver pour "${body.title}"`,
-        data: {
-          bookingId: created.id,
+      await this.notifications.create(
+        {
+          userId: provider.userId,
+          type: "BOOKING_NEW",
+          title: "Nouvelle reservation",
+          message: `${this.getDisplayName(actor)} souhaite vous reserver pour "${body.title}"`,
+          data: {
+            bookingId: created.id,
+          },
         },
-      });
+        tx,
+      );
 
       return created;
     });
@@ -438,16 +445,19 @@ export class BookingsService {
 
     const targetUserId = booking.clientId === actor.id ? booking.provider.userId : booking.clientId;
 
-    await this.createNotification(tx, {
-      userId: targetUserId,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      data: {
-        bookingId: booking.id,
-        status,
+    await this.notifications.create(
+      {
+        userId: targetUserId,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        data: {
+          bookingId: booking.id,
+          status,
+        },
       },
-    });
+      tx,
+    );
   }
 
   private getStatusNotificationPayload(title: string, status: BookingStatus) {
@@ -479,27 +489,6 @@ export class BookingsService {
       default:
         return null;
     }
-  }
-
-  private async createNotification(
-    tx: Prisma.TransactionClient,
-    params: {
-      userId: string;
-      type: Prisma.NotificationCreateInput["type"];
-      title: string;
-      message: string;
-      data?: Prisma.InputJsonValue;
-    },
-  ) {
-    await tx.notification.create({
-      data: {
-        userId: params.userId,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        data: params.data,
-      },
-    });
   }
 
   private mapBooking(booking: BookingRecord) {
