@@ -6,7 +6,9 @@ import { CommonModule } from "./common/common.module";
 import { DatabaseModule } from "./database/database.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { IdentityModule } from "./modules/identity/identity.module";
+import { BookingsModule } from "./modules/bookings/bookings.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
+import { ReviewsModule } from "./modules/reviews/reviews.module";
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ProvidersModule } from "./modules/providers/providers.module";
     IdentityModule,
     CategoriesModule,
     ProvidersModule,
+    BookingsModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
 })
