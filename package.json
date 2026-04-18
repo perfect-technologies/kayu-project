@@ -3,15 +3,20 @@
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
-    "dev:web": "turbo run dev --filter=@kayu/web --filter=@kayu/backend",
-    "dev:mobile": "turbo run dev --filter=@kayu/mobile --filter=@kayu/backend",
+    "dev:web": "turbo run dev --filter=@kayu/web",
+    "dev:mobile": "turbo run dev --filter=@kayu/mobile",
     "dev:backend": "turbo run dev --filter=@kayu/backend",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "clean": "turbo run clean",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:push": "pnpm --filter @kayu/backend run prisma:push",
+    "db:seed": "pnpm --filter @kayu/backend run db:seed",
+    "db:reset": "pnpm --filter @kayu/backend run prisma:reset",
+    "db:studio": "pnpm --filter @kayu/backend run db:studio",
+    "setup": "pnpm install && pnpm db:up && sleep 5 && pnpm db:push && pnpm db:seed"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

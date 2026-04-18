@@ -189,7 +189,7 @@ EXPO_PUBLIC_API_URL=http://localhost:3001/api
 }
 ```
 
-The `setup` script is the one-command quickstart.
+The `setup` script is the one-command quickstart. Invoke it with `pnpm run setup`; `pnpm setup` is a pnpm environment command and does not run the project script.
 
 ## Documentation
 
@@ -229,7 +229,7 @@ The final acceptance test is:
 # 1. Clone and setup
 git clone <repo>
 cd kayu-project
-pnpm setup
+pnpm run setup
 
 # 2. Start development
 pnpm dev:web    # starts backend + web
@@ -252,7 +252,7 @@ open http://localhost:3000
 
 ## Acceptance Criteria
 
-1. `pnpm setup` completes without errors (install, docker, db push, seed)
+1. `pnpm run setup` completes without errors (install, docker, db push, seed)
 2. Seed data creates all expected records (categories, users, providers, bookings, reviews)
 3. `pnpm dev:web` starts backend and web app
 4. `pnpm dev:mobile` starts backend and mobile app
@@ -290,7 +290,7 @@ open http://localhost:3000
 - [ ] Reviews exist with rating data
 - [ ] `pnpm dev:web` starts both backend and web
 - [ ] `pnpm dev:mobile` starts both backend and mobile
-- [ ] `pnpm setup` works on a clean clone
+- [ ] `pnpm run setup` works on a clean clone
 - [ ] `README.md` exists and has quickstart
 - [ ] `DEVELOPER_GUIDE.md` documents architecture
 - [ ] `.env.example` files exist for backend, web, mobile

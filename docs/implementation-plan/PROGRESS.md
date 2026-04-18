@@ -4,10 +4,10 @@
 
 - **Project:** KAYOU Monorepo Migration
 - **Current phase:** Launch Readiness
-- **Overall status:** in_progress
+- **Overall status:** done
 - **Launch target:** Web parity + Mobile MVP
-- **Current focus:** Chunk 12 complete — Full mobile marketplace with search, bookings, messaging, reviews, favorites, profile
-- **Next recommended chunk:** 13 — Seed Data, DevOps & Launch
+- **Current focus:** Chunk 13 complete — Seed data, Docker Compose, environment management, and developer documentation
+- **Next recommended chunk:** Launch validation / production planning
 - **Last updated:** 2026-04-12
 
 ---
@@ -39,7 +39,7 @@
 | 10 | Web App: Next.js Migration | P0 | Yes | 09 | done | Claude | All pages, components, hooks migrated; Supabase auth replaces local JWT; API proxy to NestJS backend; SSR for public pages; React Query for client pages; 0 API routes, 0 Prisma imports; `pnpm type-check` (11/11 tasks) passes |
 | 11 | Mobile App: Foundation & Auth | P1 | Mobile only | 09 | done | Claude | Expo app with Supabase auth (email+phone OTP), React Navigation (auth stack + 5-tab bottom tabs), HomeScreen with categories/stats/providers, common components (Button, Input, Card, Badge); `pnpm --filter @kayu/mobile type-check` passes |
 | 12 | Mobile App: Core Features | P1 | Mobile only | 11 | done | Claude | Full mobile marketplace: search, provider profiles, bookings, reviews, messaging, favorites, profile, settings; `pnpm --filter @kayu/mobile type-check` passes |
-| 13 | Seed Data, DevOps & Launch | P0 | Yes | 10 | not_started | — | Launch readiness |
+| 13 | Seed Data, DevOps & Launch | P0 | Yes | 10 | done | Codex | PostgreSQL seeds migrated; compose/env/root scripts/docs complete; `pnpm run setup`, `pnpm db:seed`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and `pnpm type-check` passed |
 
 ---
 
@@ -63,7 +63,7 @@
 
 ### Milestone E: Launch Ready (Chunk 13)
 **Exit condition:** New developer can clone, `docker compose up` + `pnpm dev`, working environment.
-**Status:** not_started
+**Status:** done
 
 ---
 
@@ -98,20 +98,22 @@
 | 2026-04-12 | Treat `ProviderBadge.providerId` as the trust-score record ID, not the provider ID, when syncing badges | 06, 08, 10, 12 | Prisma relation is keyed to `TrustScore.id` despite the field name; writing badges against the provider ID fails foreign-key validation | Reuse trust-score-aware badge writes/queries anywhere provider badges are managed |
 | 2026-04-12 | Centralize notification writes behind `NotificationsService` with optional transaction injection | 06, 07, 08, 10, 12 | Booking, review, badge, and messaging flows all create notifications and need one consistent write path | Reuse `NotificationsService.create` / `createMany` instead of direct Prisma notification writes in future modules |
 | 2026-04-12 | Keep `/api/dashboard/admin` in the Nest migration even though chunk 08’s endpoint list only called out provider/client dashboards | 08, 09, 10 | Legacy dashboard routes include an admin aggregate endpoint and the launch checklist depends on admin dashboard parity | Shared API client and web migration should include the admin dashboard route alongside provider/client dashboards |
+| 2026-04-12 | Demo login credentials require Supabase Auth user seeding, not just local database users | 13 | Web/mobile login is owned by Supabase; local `User` rows alone cannot authenticate in the UI | `SEED_SUPABASE_USERS=true` enables optional creation of Supabase Auth users during `pnpm db:seed` |
+| 2026-04-12 | Disable declaration/composite output for the Next.js web app | 10, 13 | `apps/web` inherited package declaration settings from the root TS config, causing portable React type errors during full repo type-check | Keep app tsconfigs non-composite unless they are intended to publish declarations |
 
 ---
 
 ## Current Focus
 
-**Objective:** Chunk 12 complete. Full mobile marketplace with all core features.
+**Objective:** Chunk 13 complete. Seed data, Docker orchestration, env examples, root scripts, and developer documentation are ready for local onboarding.
 
-**Definition of done (met):** 14 new screens (search, provider profile, category detail, all reviews, bookings list, booking detail, create booking, review form, conversations, chat, profile, edit profile, favorites, settings), 10 new components (ProviderCard, BookingStatusBadge, RatingDisplay, RatingInput, ConversationCard, MessageBubble, ChatInput, EmptyState, LoadingScreen, ErrorState), full navigation stack structure (stacks within tabs). All data fetching via TanStack Query + @kayu/api. `pnpm --filter @kayu/mobile type-check` passes.
+**Definition of done (met):** `compose.yaml` starts PostgreSQL on port 5433 with optional pgAdmin profile; backend Prisma seed creates 15 categories, 40 subcategories, 93 trades, 93 services, 29 users, 15 providers, 25 bookings, and reviews/messages/favorites/notifications; `.env.example` files exist for backend/web/mobile; root scripts include setup/database helpers; `README.md` and `docs/DEVELOPER_GUIDE.md` document setup, architecture, scripts, env vars, credentials, and endpoints. `pnpm run setup`, `pnpm db:seed`, `pnpm --filter @kayu/backend type-check`, `pnpm --filter @kayu/backend build`, and `pnpm type-check` passed.
 
 ---
 
 ## Next Recommended Chunk
 
-`13-seed-devops-launch.md` — Seed data, Docker Compose orchestration, env management, developer documentation.
+Launch validation / production planning.
 
 ---
 
@@ -127,8 +129,8 @@
 - [x] Admin dashboard API
 - [x] Shared API client with React Query keys
 - [x] Web app migrated (feature parity)
-- [ ] Seed data and Docker Compose
-- [ ] Developer documentation
+- [x] Seed data and Docker Compose
+- [x] Developer documentation
 
 ---
 

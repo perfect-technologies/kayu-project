@@ -12,8 +12,14 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "prisma:reset": "prisma db push --force-reset && pnpm run db:seed",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
     "lint": "echo 'no linter configured'",
     "clean": "rm -rf dist"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
     "@kayu/schemas": "workspace:*",

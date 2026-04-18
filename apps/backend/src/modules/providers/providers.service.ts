@@ -303,12 +303,14 @@ export class ProvidersService {
           viewer,
         );
 
-    return {
-      success: true as const,
-      provider: this.applyVisibility(detail, provider, {
+    const visibleProvider = this.applyVisibility(detail, provider, {
         hasAccess,
         isOwner: this.isOwner(provider, viewer),
-      }),
+      });
+
+    return {
+      ...visibleProvider,
+      success: true as const,
       hasAccess,
       accessDeniedReason,
     };
@@ -476,12 +478,12 @@ export class ProvidersService {
       }
     });
 
-    const result = await this.findById(provider.id, actor);
+    const { success: _success, ...updatedProvider } = await this.findById(provider.id, actor);
     return {
       success: true as const,
-      provider: result.provider,
-      hasAccess: result.hasAccess,
-      accessDeniedReason: result.accessDeniedReason,
+      provider: updatedProvider,
+      hasAccess: updatedProvider.hasAccess,
+      accessDeniedReason: updatedProvider.accessDeniedReason,
     };
   }
 

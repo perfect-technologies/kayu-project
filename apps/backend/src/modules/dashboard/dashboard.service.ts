@@ -941,7 +941,16 @@ export class DashboardService {
       isEdited: review.isEdited,
       createdAt: review.createdAt,
       updatedAt: review.updatedAt,
-      client: review.client,
+      client: {
+        id: review.client.id,
+        name: this.formatName(review.client.firstName, review.client.lastName, "Client"),
+        firstName: review.client.firstName,
+        lastName: review.client.lastName,
+        avatar: review.client.avatar,
+      },
+      booking: {
+        title: review.booking.title,
+      },
       service: review.booking.service?.name ?? review.booking.title,
     };
   }

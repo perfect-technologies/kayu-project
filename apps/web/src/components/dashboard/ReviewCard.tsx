@@ -17,12 +17,15 @@ interface Review {
   repliedAt?: Date | null;
   client: {
     id: string;
-    name: string;
+    name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
     avatar?: string | null;
   };
-  booking: {
+  booking?: {
     title: string;
   };
+  service?: string | null;
 }
 
 interface ReviewCardProps {
@@ -38,6 +41,13 @@ export function ReviewCard({
   onReply,
   compact = false,
 }: ReviewCardProps) {
+  const clientName =
+    review.client.name ||
+    [review.client.firstName, review.client.lastName].filter(Boolean).join(' ') ||
+    'Client';
+  const fallbackInitial = clientName.charAt(0).toUpperCase();
+  const bookingTitle = review.booking?.title ?? review.service ?? 'Service';
+
   const renderStars = (rating: number) => {
     return (
       <div className="flex gap-0.5">
@@ -63,13 +73,13 @@ export function ReviewCard({
           <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0">
             <AvatarImage src={review.client.avatar || undefined} />
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-              {review.client.name.charAt(0).toUpperCase()}
+              {fallbackInitial}
             </AvatarFallback>
           </Avatar>
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <span className="font-medium text-sm">{review.client.name}</span>
+              <span className="font-medium text-sm">{clientName}</span>
               {renderStars(review.rating)}
               <span className="text-xs text-muted-foreground">
                 {formatDistanceToNow(new Date(review.createdAt), {
@@ -80,7 +90,7 @@ export function ReviewCard({
             </div>
 
             <p className="text-sm text-muted-foreground mb-1">
-              Pour: <span className="text-foreground">{review.booking.title}</span>
+              Pour: <span className="text-foreground">{bookingTitle}</span>
             </p>
 
             {review.comment && (

@@ -23,6 +23,9 @@ import {
   EyeOff,
   Phone,
   ArrowLeft,
+  BriefcaseBusiness,
+  ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 
 interface LoginDialogProps {
@@ -30,6 +33,38 @@ interface LoginDialogProps {
   onOpenChange: (open: boolean) => void;
   onSwitchToRegister?: () => void;
 }
+
+const demoAccounts = [
+  {
+    role: 'Client',
+    name: 'Paul Kabasele',
+    email: 'paul.kabasele@email.cd',
+    password: 'Password123!',
+    hint: 'Réservations et favoris',
+    accentClassName: 'bg-emerald-500',
+    Icon: UserRound,
+  },
+  {
+    role: 'Prestataire',
+    name: 'Jean-Pierre Mukendi',
+    email: 'jeanpierre.mukendi@kayou.cd',
+    password: 'Password123!',
+    hint: 'Profil pro et demandes',
+    accentClassName: 'bg-blue-600',
+    Icon: BriefcaseBusiness,
+  },
+  {
+    role: 'Admin',
+    name: 'Admin KAYOU',
+    email: 'admin@kayou.cd',
+    password: 'Password123!',
+    hint: 'Pilotage et modération',
+    accentClassName: 'bg-rose-500',
+    Icon: ShieldCheck,
+  },
+] as const;
+
+const showDemoAccounts = process.env.NODE_ENV !== 'production';
 
 export function LoginDialog({ open, onOpenChange, onSwitchToRegister }: LoginDialogProps) {
   const router = useRouter();
@@ -47,6 +82,7 @@ export function LoginDialog({ open, onOpenChange, onSwitchToRegister }: LoginDia
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [demoLoadingEmail, setDemoLoadingEmail] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +139,29 @@ export function LoginDialog({ open, onOpenChange, onSwitchToRegister }: LoginDia
       setSocialLoading(null);
       setError(`Connexion via ${provider} bientôt disponible`);
     }, 1000);
+  };
+
+  const handleDemoLogin = async (account: (typeof demoAccounts)[number]) => {
+    setError('');
+    setLoginMethod('email');
+    setOtpSent(false);
+    setOtpCode('');
+    setEmail(account.email);
+    setPassword(account.password);
+    setDemoLoadingEmail(account.email);
+    setIsLoading(true);
+
+    try {
+      await login(account.email, account.password);
+      onOpenChange(false);
+      resetDialog();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de connexion');
+    } finally {
+      setDemoLoadingEmail(null);
+      setIsLoading(false);
+    }
   };
 
   const handleSwitchToRegister = () => {
@@ -235,6 +294,54 @@ export function LoginDialog({ open, onOpenChange, onSwitchToRegister }: LoginDia
           {error && (
             <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
               {error}
+            </div>
+          )}
+
+          {showDemoAccounts && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Accès rapide</p>
+                <p className="text-xs text-muted-foreground">
+                  Comptes seedés pour tester chaque rôle.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                {demoAccounts.map((account) => {
+                  const Icon = account.Icon;
+                  const isDemoLoading = demoLoadingEmail === account.email;
+
+                  return (
+                    <button
+                      key={account.email}
+                      type="button"
+                      onClick={() => handleDemoLogin(account)}
+                      disabled={isLoading}
+                      className="group flex w-full items-center gap-3 rounded-lg border bg-background p-3 text-left transition hover:border-primary/40 hover:bg-muted/40 disabled:pointer-events-none disabled:opacity-60"
+                    >
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${account.accentClassName}`}>
+                        {isDemoLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Icon className="h-4 w-4" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-foreground">
+                            {account.name}
+                          </span>
+                          <span className="rounded-md border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            {account.role}
+                          </span>
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">
+                          {account.hint}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
