@@ -173,12 +173,12 @@ function BookingsNavigator() {
       <BookingsStack.Screen
         name="BookingsMain"
         component={BookingsScreen}
-        options={{ title: 'Mes réservations' }}
+        options={{ headerShown: false }}
       />
       <BookingsStack.Screen
         name="BookingDetail"
         component={BookingDetailScreen}
-        options={{ title: 'Détails' }}
+        options={{ headerShown: false }}
       />
       <BookingsStack.Screen
         name="Review"

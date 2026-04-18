@@ -5,7 +5,7 @@
 - **Track:** KAYOU Design v2 Iteration — new screens
 - **Primary reference:** `./00-overview.md` + `../DESIGN_SYSTEM.md` (unchanged)
 - **Visual source of truth:** `./prototype/`
-- **Status:** in_progress (DS01, DS02 done)
+- **Status:** in_progress (DS01, DS02, DS03 done)
 - **Last updated:** 2026-04-18
 
 ---
@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|---|
 | DS01 | Shared upgrades — icons, tab bar, routing | P0 | v1 shipped | web + mobile + `@kayu/ui` | done | Icons, role-aware tabs, booking→review routing, KayouMoment polish all landed |
 | DS02 | Auth — phone OTP + role picker | P0 | DS01 | web + mobile | done | UI shipped on web (`/auth`) and mobile (`AuthScreen`). V1 Login/Register retired. OTP backend wiring deferred — see Blockers. |
-| DS03 | My Bookings + Booking Detail (client) | P0 | DS01 | web + mobile | not_started | Tightly coupled; single chunk |
+| DS03 | My Bookings + Booking Detail (client) | P0 | DS01 | web + mobile | done | `/bookings` + `/bookings/[id]` on web; mobile v1 BookingsScreen + BookingDetailScreen rewritten in place. `BookingDetail` is one component with `perspective: "client" \| "pro"` — pro sees Commission KAYOU + payout in QuoteBreakdown. |
 | DS04 | Messages upgrade | P1 | DS01 | web + mobile | not_started | Rewrites v1 conv/chat screens |
 | DS05 | Write Review upgrade | P1 | DS03 (linked nav) | web + mobile | not_started | Rewrites v1 ReviewScreen |
 | DS06 | Provider Dashboard | P0 (pro) | DS01 | web + mobile | not_started | Opens the pro surface |
@@ -36,7 +36,7 @@ Mobile tab bar navigates correctly to `bookings/messages/provider`. Icons availa
 
 ### M2 — Client v2 complete (DS02–DS05)
 Client can auth with phone OTP, see their bookings and details, chat with pros (system messages + suggested replies), leave a 5-dim review.
-**Status:** not_started
+**Status:** in_progress — DS02 + DS03 landed; DS04 (Messages), DS05 (WriteReview) remaining.
 
 ### M3 — Pro v2 complete (DS06–DS09)
 Pro has a dashboard with today's schedule + requests, can accept/decline requests, compose quotes with line items + commission visibility, view weekly earnings and request Mobile Money payouts, onboard in 6 steps, complete verification.
@@ -94,9 +94,9 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 
 ## Current focus
 
-**Objective:** start DS01 so the foundation unblocks parallel work on DS02/DS03/DS06/DS10.
+**Objective:** pick up DS04 (Messages) and DS05 (WriteReview) to close the client track, and in parallel start DS06 (ProviderDashboard) to open the pro track.
 
-**Definition of done for DS01:** icons available, mobile tab bar targets + hide list + role-aware set all update from one place, booking→review routing works end-to-end, `@kayu/ui` re-published.
+**Definition of done for DS03 (shipped):** MyBookings list with 4 tabs (À venir / En cours / Terminées / Annulées) on web (`/bookings`) and mobile; unified `BookingDetail` (web `/bookings/[id]`; mobile screen) with Timeline, QuoteBreakdown (+ commission split for pro), CounterpartyCard, AddressCard mini-map and context-aware ActionButtons. V1 `BookingsScreen.tsx` + `BookingDetailScreen.tsx` rewritten in place.
 
 ---
 
@@ -104,7 +104,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 
 - [x] DS01 shared upgrades landed
 - [x] Auth replaces v1 login across web + mobile *(UI complete; OTP backend wiring tracked in Blockers)*
-- [ ] Client sees MyBookings + BookingDetail + Messages + WriteReview, all v2
+- [ ] Client sees MyBookings + BookingDetail + Messages + WriteReview, all v2 *(MyBookings + BookingDetail done in DS03; Messages + WriteReview pending)*
 - [ ] Pro sees Dashboard + Requests + Quote + Earnings + Onboarding + Verify
 - [ ] Admin has Ops dashboard on desktop
 - [ ] Mobile tab bar is role-aware

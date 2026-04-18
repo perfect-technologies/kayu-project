@@ -237,7 +237,7 @@ export default function ProviderDashboardPage() {
                 )}
               </CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard/provider/bookings">
+                <Link href="/bookings">
                   Voir tout
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Link>

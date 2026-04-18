@@ -1,23 +1,68 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { formatDateTime } from '@kayu/utils';
+import { I } from '@kayu/ui/mobile';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { colors, spacing, borderRadius, fontSizes, fontWeights } from '@/lib/theme';
-import { BookingStatusBadge } from '@/components/bookings/BookingStatusBadge';
-import { Button } from '@/components/common/Button';
-import { LoadingScreen } from '@/components/common/LoadingScreen';
-import { ErrorState } from '@/components/common/ErrorState';
+import { theme } from '@/lib/theme';
+import {
+  formatRelativeFR,
+  formatWhen,
+  fullAddress,
+  initialsFromName,
+  priceLabelFor,
+  toV2Status,
+  type V2Status,
+} from '@/lib/bookingV2';
 import type { BookingsStackParamList } from '@/navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<BookingsStackParamList, 'BookingDetail'>;
 type Route = RouteProp<BookingsStackParamList, 'BookingDetail'>;
+
+// ─── Timeline ─────────────────────────────────────────────────────────────
+
+const TIMELINE_STEPS: Record<V2Status, string[]> = {
+  upcoming: ['booked', 'confirmed', 'enroute', 'inprogress', 'done'],
+  active: ['booked', 'confirmed', 'enroute', 'inprogress', 'done'],
+  completed: ['booked', 'confirmed', 'enroute', 'inprogress', 'done', 'paid'],
+  cancelled: ['booked', 'cancelled'],
+};
+
+type StepKey = keyof typeof STEP_META;
+const STEP_META = {
+  booked: { label: 'Réservation créée', icon: 'calendar' as const },
+  confirmed: { label: 'Devis accepté', icon: 'check' as const },
+  enroute: { label: 'En route', icon: 'mapPin' as const },
+  inprogress: { label: 'Intervention', icon: 'wrench' as const },
+  done: { label: 'Terminée', icon: 'badgeCheck' as const },
+  paid: { label: 'Payée', icon: 'coins' as const },
+  cancelled: { label: 'Annulée', icon: 'x' as const },
+};
+
+const currentStepIndex = (backend: string, v2: V2Status): number => {
+  if (v2 === 'upcoming') return backend === 'PENDING' ? 0 : 1;
+  if (v2 === 'active') return 3;
+  if (v2 === 'completed') return 5;
+  if (v2 === 'cancelled') return 1;
+  return 0;
+};
+
+// ─── Screen ───────────────────────────────────────────────────────────────
 
 export function BookingDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -30,240 +75,1115 @@ export function BookingDetailScreen() {
     queryFn: () => api.bookings.getById(params.bookingId),
   });
 
-  const updateBooking = useMutation({
+  const updateMutation = useMutation({
     mutationFn: (status: string) =>
-      api.bookings.update(params.bookingId, { status: status as any }),
+      api.bookings.update(params.bookingId, { status: status as never }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(params.bookingId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(params.bookingId),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
     },
   });
 
-  const cancelBooking = useMutation({
+  const cancelMutation = useMutation({
     mutationFn: () => api.bookings.cancel(params.bookingId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(params.bookingId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(params.bookingId),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      Alert.alert('Succès', 'Réservation annulée');
+      Alert.alert('Annulée', 'Votre réservation a été annulée.');
     },
   });
 
-  if (isLoading) return <LoadingScreen />;
-  if (error || !data) return <ErrorState onRetry={() => refetch()} />;
+  if (isLoading) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
-  const booking = data.booking as any;
-  const providerName = booking.provider
-    ? [booking.provider.user?.firstName, booking.provider.user?.lastName]
-        .filter(Boolean)
-        .join(' ')
-    : 'Prestataire';
+  if (error || !data?.booking) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <Text style={styles.errorTitle}>Réservation introuvable</Text>
+        <Pressable
+          style={styles.primaryBtn}
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              refetch();
+            }
+          }}
+        >
+          <Text style={styles.primaryBtnText}>Retour</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
-  const isProvider = user?.role === 'PROVIDER';
-  const canConfirm = isProvider && booking.status === 'PENDING';
-  const canStart = isProvider && booking.status === 'CONFIRMED';
-  const canComplete = isProvider && booking.status === 'IN_PROGRESS';
-  const canCancel =
-    booking.status === 'PENDING' || booking.status === 'CONFIRMED';
-  const canReview = booking.status === 'COMPLETED' && !isProvider;
+  const booking = data.booking as Booking;
+  const v2 = toV2Status(booking.status);
+  const isClient = user?.role !== 'PROVIDER';
+  const perspective: 'client' | 'pro' = isClient ? 'client' : 'pro';
+  const steps = TIMELINE_STEPS[v2];
+  const step = currentStepIndex(booking.status ?? '', v2);
+
+  const counterparty = isClient
+    ? {
+        first: booking.provider?.user?.firstName ?? '',
+        last: booking.provider?.user?.lastName ?? '',
+        role: booking.provider?.profession ?? 'Votre pro',
+        verified: !!booking.provider?.user?.isVerified,
+      }
+    : {
+        first: booking.client?.firstName ?? '',
+        last: booking.client?.lastName ?? '',
+        role: 'Client',
+        verified: false,
+      };
+
+  const counterName = `${counterparty.first} ${counterparty.last}`.trim() || '—';
+
+  const onCancel = () =>
+    Alert.alert(
+      isClient ? 'Annuler' : 'Se désister',
+      'Voulez-vous vraiment annuler cette réservation ?',
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui',
+          style: 'destructive',
+          onPress: () => cancelMutation.mutate(),
+        },
+      ],
+    );
+
+  const onComplete = () =>
+    Alert.alert('Terminer', 'Confirmer que la mission est terminée ?', [
+      { text: 'Non', style: 'cancel' },
+      { text: 'Oui', onPress: () => updateMutation.mutate('COMPLETED') },
+    ]);
+
+  const onReview = () => {
+    if (!booking.providerId) return;
+    navigation.navigate('Review', {
+      bookingId: booking.id,
+      providerId: booking.providerId,
+      providerName: counterName,
+    });
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Status */}
-      <View style={styles.statusSection}>
-        <BookingStatusBadge status={booking.status} />
-      </View>
-
-      {/* Title & provider */}
-      <View style={styles.section}>
-        <Text style={styles.title}>{booking.title}</Text>
-        <View style={styles.infoRow}>
-          <Ionicons name="person-outline" size={16} color={colors.text.tertiary} />
-          <Text style={styles.infoText}>{providerName}</Text>
-        </View>
-        {booking.scheduledDate && (
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={16} color={colors.text.tertiary} />
-            <Text style={styles.infoText}>
-              {formatDateTime(String(booking.scheduledDate))}
+    <View style={styles.screen}>
+      {/* Sticky top bar */}
+      <SafeAreaView edges={['top']} style={styles.topBarSafe}>
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.iconBtn}
+            hitSlop={8}
+          >
+            <I.arrowLeft size={17} color={theme.colors.textBody} />
+          </Pressable>
+          <View style={styles.topBarCenter}>
+            <Text style={styles.topBarTitle}>Réservation</Text>
+            <Text style={styles.topBarId}>
+              #{booking.id.slice(0, 8).toUpperCase()}
             </Text>
           </View>
-        )}
-        {booking.city && (
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={16} color={colors.text.tertiary} />
-            <Text style={styles.infoText}>
-              {booking.address ? `${booking.address}, ${booking.city}` : booking.city}
-            </Text>
+          <BdStatusChip status={v2} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Hero — service + when + price */}
+        <View style={styles.section}>
+          <View style={styles.heroCard}>
+            <Text style={styles.heroOverline}>{formatWhen(booking.scheduledDate)}</Text>
+            <Text style={styles.heroTitle}>{booking.title}</Text>
+            <View style={styles.heroPriceRow}>
+              <Text style={styles.heroPriceLabel}>{priceLabelFor(booking)}</Text>
+              <Text style={styles.heroPriceValue}>
+                {(booking.price ?? 0).toLocaleString('fr-FR')} FC
+              </Text>
+            </View>
           </View>
-        )}
-        {booking.price != null && (
-          <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={16} color={colors.text.tertiary} />
-            <Text style={styles.infoText}>{booking.price.toLocaleString()} CDF</Text>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.section}>
+          <ActionButtons
+            v2={v2}
+            isClient={isClient}
+            reviewed={!!booking.reviewed}
+            busy={updateMutation.isPending || cancelMutation.isPending}
+            onMessage={() => {
+              const userId = booking.provider?.userId;
+              if (!userId) return;
+              const parent = navigation.getParent();
+              (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
+                'Messages',
+                {
+                  screen: 'Chat',
+                  params: { recipientId: userId, recipientName: counterName },
+                },
+              );
+            }}
+            onCancel={onCancel}
+            onComplete={onComplete}
+            onReview={onReview}
+          />
+        </View>
+
+        {/* Counterparty */}
+        <View style={styles.section}>
+          <View style={styles.counterpartyCard}>
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <Text style={styles.avatarText}>
+                {initialsFromName(counterparty.first, counterparty.last)}
+              </Text>
+            </View>
+            <View style={styles.counterpartyText}>
+              <Text style={styles.counterpartyRole}>{counterparty.role}</Text>
+              <View style={styles.nameLine}>
+                <Text style={styles.counterpartyName}>{counterName}</Text>
+                {counterparty.verified && (
+                  <I.badgeCheck size={14} color={theme.colors.success} />
+                )}
+              </View>
+              <Text style={styles.counterpartyMeta}>
+                {isClient ? 'Messagez-le directement' : 'Client'}
+              </Text>
+            </View>
+            <View style={styles.counterpartyActions}>
+              <Pressable style={styles.smallIconBtn}>
+                <I.phone size={15} color={theme.colors.textBody} />
+              </Pressable>
+              <Pressable style={styles.smallIconBtn}>
+                <I.messageCircle size={15} color={theme.colors.textBody} />
+              </Pressable>
+            </View>
           </View>
-        )}
-        {booking.duration != null && (
-          <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={16} color={colors.text.tertiary} />
-            <Text style={styles.infoText}>{booking.duration} min</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Description */}
-      {booking.description && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.bodyText}>{booking.description}</Text>
         </View>
-      )}
 
-      {/* Notes */}
-      {booking.clientNotes && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes client</Text>
-          <Text style={styles.bodyText}>{booking.clientNotes}</Text>
-        </View>
-      )}
-      {booking.providerNotes && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes prestataire</Text>
-          <Text style={styles.bodyText}>{booking.providerNotes}</Text>
-        </View>
-      )}
+        {/* Timeline */}
+        <MobileSection title="Suivi">
+          <Timeline steps={steps} step={step} progress={booking.progress ?? null} />
+        </MobileSection>
 
-      {/* Cancel reason */}
-      {booking.cancelReason && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Raison d'annulation</Text>
-          <Text style={styles.bodyText}>{booking.cancelReason}</Text>
-        </View>
-      )}
+        {/* Address */}
+        <MobileSection title={isClient ? 'Où' : 'Adresse'}>
+          <AddressBlock booking={booking} isClient={isClient} />
+        </MobileSection>
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        {canConfirm && (
-          <Button
-            title="Confirmer la réservation"
-            loading={updateBooking.isPending}
-            onPress={() =>
-              Alert.alert(
-                'Confirmer',
-                'Voulez-vous confirmer cette réservation ?',
-                [
-                  { text: 'Non', style: 'cancel' },
-                  { text: 'Oui', onPress: () => updateBooking.mutate('CONFIRMED') },
-                ],
-              )
-            }
+        {/* Quote */}
+        <MobileSection
+          title="Devis"
+          subtitle={booking.quote ? 'Accepté' : 'Estimation'}
+        >
+          <QuoteBreakdown booking={booking} isClient={isClient} />
+        </MobileSection>
+
+        {/* Meta */}
+        <MobileSection title="Détails">
+          <MetaRow
+            label="N° de réservation"
+            value={`#${booking.id.slice(0, 8).toUpperCase()}`}
+            mono
           />
-        )}
-        {canStart && (
-          <Button
-            title="Démarrer la mission"
-            loading={updateBooking.isPending}
-            onPress={() => updateBooking.mutate('IN_PROGRESS')}
+          <MetaRow
+            label="Créée"
+            value={formatRelativeFR(booking.createdAt) || '—'}
           />
-        )}
-        {canComplete && (
-          <Button
-            title="Marquer comme terminée"
-            loading={updateBooking.isPending}
-            onPress={() =>
-              Alert.alert(
-                'Terminer',
-                'Confirmer que la mission est terminée ?',
-                [
-                  { text: 'Non', style: 'cancel' },
-                  { text: 'Oui', onPress: () => updateBooking.mutate('COMPLETED') },
-                ],
-              )
-            }
-          />
-        )}
-        {canReview && (
-          <Button
-            title="Laisser un avis"
-            onPress={() =>
-              navigation.navigate('Review', {
-                bookingId: booking.id,
-                providerId: booking.providerId ?? '',
-                providerName,
-              })
-            }
-          />
-        )}
-        {canCancel && (
-          <Button
-            title="Annuler la réservation"
-            variant="outline"
-            loading={cancelBooking.isPending}
-            onPress={() =>
-              Alert.alert(
-                'Annuler',
-                'Voulez-vous vraiment annuler cette réservation ?',
-                [
-                  { text: 'Non', style: 'cancel' },
-                  { text: 'Oui', onPress: () => cancelBooking.mutate(), style: 'destructive' },
-                ],
-              )
-            }
-            textStyle={{ color: colors.error.DEFAULT }}
-            style={{ borderColor: colors.error.DEFAULT }}
-          />
-        )}
-      </View>
-    </ScrollView>
+          {isClient ? (
+            <MetaRow
+              label="Moyen de paiement"
+              value={booking.paymentMethod ?? 'Via KAYOU'}
+            />
+          ) : (
+            <MetaRow label="Paiement" value="Via KAYOU" />
+          )}
+        </MobileSection>
+
+        {/* Help */}
+        <View style={styles.helpWrap}>
+          <Pressable style={styles.helpBtn}>
+            <I.shieldCheck size={16} color={theme.colors.primary} />
+            <Text style={styles.helpText}>Un problème ? Contactez KAYOU</Text>
+            <I.chevronRight size={13} color={theme.colors.textMuted} />
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
+// ─── Subcomponents ────────────────────────────────────────────────────────
+
+function BdStatusChip({ status }: { status: V2Status }) {
+  const map: Record<V2Status, { label: string; bg: string; fg: string }> = {
+    upcoming: {
+      label: 'À venir',
+      bg: theme.colors.primarySubtle,
+      fg: theme.colors.primaryHover,
+    },
+    active: {
+      label: 'En cours',
+      bg: theme.colors.successSubtle,
+      fg: theme.colors.success,
+    },
+    completed: {
+      label: 'Terminée',
+      bg: theme.colors.surfaceMuted,
+      fg: theme.colors.textBody,
+    },
+    cancelled: {
+      label: 'Annulée',
+      bg: theme.colors.dangerSubtle,
+      fg: '#BE123C',
+    },
+  };
+  const c = map[status];
+  return (
+    <View
+      style={[
+        styles.statusChip,
+        { backgroundColor: c.bg },
+      ]}
+    >
+      <Text style={[styles.statusChipText, { color: c.fg }]}>{c.label}</Text>
+    </View>
+  );
+}
+
+function MobileSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
+}
+
+function Timeline({
+  steps,
+  step,
+  progress,
+}: {
+  steps: string[];
+  step: number;
+  progress: string | null;
+}) {
+  return (
+    <View>
+      {steps.map((s, i) => {
+        const meta = STEP_META[s as StepKey];
+        const done = i < step;
+        const current = i === step;
+        const IconCmp = I[meta.icon];
+        const isLast = i === steps.length - 1;
+        return (
+          <View
+            key={s}
+            style={[styles.tlRow, { paddingBottom: isLast ? 0 : 16 }]}
+          >
+            {!isLast && (
+              <View
+                style={[
+                  styles.tlConnector,
+                  {
+                    backgroundColor: done
+                      ? theme.colors.success
+                      : theme.colors.border,
+                  },
+                ]}
+              />
+            )}
+            <View
+              style={[
+                styles.tlCircle,
+                {
+                  backgroundColor: done
+                    ? theme.colors.success
+                    : current
+                      ? theme.colors.primary
+                      : theme.colors.surface,
+                  borderColor: done
+                    ? theme.colors.success
+                    : current
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                },
+                current ? styles.tlCircleCurrent : null,
+              ]}
+            >
+              <IconCmp
+                size={14}
+                color={done || current ? '#fff' : theme.colors.textMuted}
+                strokeWidth={2}
+              />
+            </View>
+            <View style={styles.tlLabelWrap}>
+              <Text
+                style={[
+                  styles.tlLabel,
+                  {
+                    fontWeight: current ? '600' : '500',
+                    color:
+                      done || current
+                        ? theme.colors.textPrimary
+                        : theme.colors.textMuted,
+                  },
+                ]}
+              >
+                {meta.label}
+              </Text>
+              {current && (
+                <Text style={styles.tlHint}>
+                  {progress || 'En cours · maintenant'}
+                </Text>
+              )}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function QuoteBreakdown({
+  booking,
+  isClient,
+}: {
+  booking: Booking;
+  isClient: boolean;
+}) {
+  const lines = booking.quote?.lines ?? [
+    { label: 'Diagnostic + déplacement', qty: 1, unit: 'Forfait', unitPrice: 5000 },
+    { label: "Main-d'œuvre", qty: 1.5, unit: 'Heure', unitPrice: 8000 },
+    { label: 'Joint + raccord', qty: 1, unit: 'Pièce', unitPrice: 2000 },
+  ];
+  const subtotal = lines.reduce((a, b) => a + b.qty * b.unitPrice, 0);
+  const total = booking.price ?? subtotal;
+  const commission = Math.round(total * 0.1);
+  return (
+    <View>
+      {lines.map((l, i) => (
+        <View key={i} style={styles.qbRow}>
+          <View style={styles.qbLabelCol}>
+            <Text style={styles.qbLabel}>{l.label}</Text>
+            <Text style={styles.qbMeta}>
+              {l.qty} × {l.unit}
+            </Text>
+          </View>
+          <Text style={styles.qbUnit}>
+            {l.unitPrice.toLocaleString('fr-FR')} FC
+          </Text>
+          <Text style={styles.qbTotal}>
+            {(l.qty * l.unitPrice).toLocaleString('fr-FR')} FC
+          </Text>
+        </View>
+      ))}
+      <View style={styles.qbGrand}>
+        <Text style={styles.qbGrandLabel}>Total</Text>
+        <Text style={styles.qbGrandValue}>
+          {total.toLocaleString('fr-FR')} FC
+        </Text>
+      </View>
+      {!isClient && (
+        <>
+          <View style={styles.qbExtraRow}>
+            <Text style={styles.qbExtraLabel}>Commission KAYOU (10%)</Text>
+            <Text style={styles.qbExtraValue}>
+              −{commission.toLocaleString('fr-FR')} FC
+            </Text>
+          </View>
+          <View style={styles.qbExtraRow}>
+            <Text
+              style={[styles.qbExtraLabel, { color: theme.colors.textBody, fontWeight: '600' }]}
+            >
+              Votre payout
+            </Text>
+            <Text style={[styles.qbExtraValue, styles.qbPayout]}>
+              {(total - commission).toLocaleString('fr-FR')} FC
+            </Text>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function AddressBlock({
+  booking,
+  isClient,
+}: {
+  booking: Booking;
+  isClient: boolean;
+}) {
+  const address = fullAddress(booking);
+  const pin = (booking.city ?? address.split(',').slice(-1)[0] ?? 'Kinshasa').trim();
+  return (
+    <View>
+      <View style={styles.addrRow}>
+        <I.mapPin size={16} color={theme.colors.textMuted} />
+        <View style={styles.addrText}>
+          <Text style={styles.addrLine}>{address}</Text>
+          <Text style={styles.addrHint}>
+            {isClient ? "Adresse d'intervention" : 'Adresse client'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.miniMap}>
+        <Svg width="100%" height="100%" viewBox="0 0 400 110" preserveAspectRatio="none" style={styles.miniMapSvg}>
+          <Path
+            d="M0 70 Q 100 30 200 60 T 400 50"
+            stroke="#9CA3AF"
+            strokeWidth={1.5}
+            fill="none"
+            strokeDasharray="3,3"
+          />
+          <Path d="M0 90 L 400 90" stroke="#D1D5DB" strokeWidth={0.8} fill="none" />
+          <Circle cx={80} cy={55} r={3} fill="#9CA3AF" />
+          <Circle cx={250} cy={65} r={3} fill="#9CA3AF" />
+          <Circle cx={350} cy={40} r={3} fill="#9CA3AF" />
+        </Svg>
+        <View style={styles.mapPinLabel}>
+          <I.mapPin size={11} color="#fff" />
+          <Text style={styles.mapPinText}>{pin}</Text>
+        </View>
+        <Pressable style={styles.routeBtn}>
+          <Text style={styles.routeBtnText}>Itinéraire ↗</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function MetaRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <View style={styles.metaRow}>
+      <Text style={styles.metaLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.metaValue,
+          mono ? { fontFamily: theme.fonts.mono, fontSize: 12 } : null,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function ActionButtons({
+  v2,
+  isClient,
+  reviewed,
+  busy,
+  onMessage,
+  onCancel,
+  onComplete,
+  onReview,
+}: {
+  v2: V2Status;
+  isClient: boolean;
+  reviewed: boolean;
+  busy: boolean;
+  onMessage: () => void;
+  onCancel: () => void;
+  onComplete: () => void;
+  onReview: () => void;
+}) {
+  if (v2 === 'upcoming') {
+    return (
+      <View style={{ gap: 8 }}>
+        <Pressable style={styles.primaryBtn} onPress={onMessage}>
+          <I.messageCircle size={15} color="#fff" />
+          <Text style={styles.primaryBtnText}>
+            {isClient ? 'Contacter le pro' : 'Contacter le client'}
+          </Text>
+        </Pressable>
+        <Pressable style={styles.secondaryBtn} onPress={onCancel} disabled={busy}>
+          <Text style={styles.secondaryBtnText}>
+            {isClient ? 'Annuler' : 'Se désister'}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+  if (v2 === 'active') {
+    return (
+      <View style={{ gap: 8 }}>
+        {!isClient && (
+          <Pressable
+            style={[styles.primaryBtn, styles.primaryBtnLg]}
+            onPress={onComplete}
+            disabled={busy}
+          >
+            <I.check size={15} color="#fff" />
+            <Text style={styles.primaryBtnText}>Marquer comme terminée</Text>
+          </Pressable>
+        )}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable
+            style={[styles.secondaryBtn, { flex: 1 }]}
+            onPress={onMessage}
+          >
+            <I.messageCircle size={14} color={theme.colors.textPrimary} />
+            <Text style={styles.secondaryBtnText}>Message</Text>
+          </Pressable>
+          {isClient && (
+            <Pressable style={[styles.secondaryBtn, { flex: 1 }]}>
+              <I.mapPin size={14} color={theme.colors.textPrimary} />
+              <Text style={styles.secondaryBtnText}>Suivre</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    );
+  }
+  if (v2 === 'completed') {
+    return (
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {isClient && !reviewed && (
+          <Pressable style={[styles.primaryBtn, { flex: 1 }]} onPress={onReview}>
+            <I.star size={14} color="#fff" />
+            <Text style={styles.primaryBtnText}>Laisser un avis</Text>
+          </Pressable>
+        )}
+        {isClient && reviewed && (
+          <Pressable style={[styles.primaryBtn, { flex: 1 }]}>
+            <Text style={styles.primaryBtnText}>Réserver à nouveau</Text>
+          </Pressable>
+        )}
+        <Pressable style={styles.secondaryBtn}>
+          <I.fileText size={14} color={theme.colors.textPrimary} />
+          <Text style={styles.secondaryBtnText}>Facture</Text>
+        </Pressable>
+      </View>
+    );
+  }
+  return (
+    <Pressable style={styles.secondaryBtn} onPress={onMessage}>
+      <Text style={styles.secondaryBtnText}>Contacter</Text>
+    </Pressable>
+  );
+}
+
+// ─── Types + styles ───────────────────────────────────────────────────────
+
+interface Booking {
+  id: string;
+  title: string;
+  status?: string | null;
+  scheduledDate?: string | Date | null;
+  createdAt?: string | Date | null;
+  address?: string | null;
+  city?: string | null;
+  price?: number | null;
+  isPaid?: boolean | null;
+  paymentMethod?: string | null;
+  providerId?: string | null;
+  provider?: {
+    id?: string | null;
+    userId?: string | null;
+    profession?: string | null;
+    user?: {
+      firstName?: string | null;
+      lastName?: string | null;
+      isVerified?: boolean | null;
+    } | null;
+  } | null;
+  client?: {
+    id?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  progress?: string | null;
+  reviewed?: boolean | null;
+  quote?: {
+    lines: { label: string; qty: number; unit: string; unitPrice: number }[];
+  } | null;
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surface,
+  screen: { flex: 1, backgroundColor: theme.colors.bg },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
-  content: {
-    paddingBottom: spacing.xxl,
+  errorTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 20,
+    color: theme.colors.textPrimary,
+    marginBottom: 16,
   },
-  statusSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+  scrollContent: { paddingBottom: 48 },
+
+  // Top bar
+  topBarSafe: {
+    backgroundColor:
+      Platform.OS === 'ios' ? 'rgba(250,250,249,0.94)' : theme.colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
   },
-  section: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
-  title: {
-    fontSize: fontSizes.xl,
-    fontWeight: fontWeights.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  infoRow: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 12,
   },
-  infoText: {
-    fontSize: fontSizes.md,
-    color: colors.text.secondary,
+  topBarCenter: { flex: 1, minWidth: 0 },
+  topBarTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  topBarId: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 11,
+    color: theme.colors.textMuted,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  statusChip: {
+    paddingHorizontal: 9,
+    height: 22,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusChipText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  // Sections
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: theme.colors.textMuted,
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    fontFamily: theme.fonts.bodyMed,
+  },
+  sectionBody: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 14,
+  },
+
+  // Hero
+  heroCard: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 16,
+    padding: 18,
+  },
+  heroOverline: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    color: theme.colors.textMuted,
+    marginBottom: 6,
+  },
+  heroTitle: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 22,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+    marginBottom: 14,
+    lineHeight: 26,
+  },
+  heroPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  heroPriceLabel: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  heroPriceValue: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 22,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+  },
+
+  // Counterparty
+  counterpartyCard: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  counterpartyText: { flex: 1, minWidth: 0 },
+  counterpartyRole: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: theme.colors.textMuted,
+    marginBottom: 2,
+  },
+  nameLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  counterpartyName: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 15.5,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  counterpartyMeta: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  counterpartyActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  smallIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Timeline
+  tlRow: {
+    flexDirection: 'row',
+    gap: 12,
+    position: 'relative',
+  },
+  tlConnector: {
+    position: 'absolute',
+    left: 15,
+    top: 28,
+    bottom: 0,
+    width: 2,
+  },
+  tlCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tlCircleCurrent: {
+    shadowColor: theme.colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  tlLabelWrap: { flex: 1, paddingTop: 4 },
+  tlLabel: { fontSize: 13.5 },
+  tlHint: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+
+  // Quote
+  qbRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+    alignItems: 'baseline',
+  },
+  qbLabelCol: { flex: 1, minWidth: 0 },
+  qbLabel: {
+    fontSize: 13.5,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+  },
+  qbMeta: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+  },
+  qbUnit: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  qbTotal: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 13,
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
+  },
+  qbGrand: {
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 2,
+    borderTopColor: theme.colors.textPrimary,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  qbGrandLabel: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  qbGrandValue: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 20,
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+  },
+  qbExtraRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  qbExtraLabel: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  qbExtraValue: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  qbPayout: {
+    color: theme.colors.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  // Address
+  addrRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  addrText: { flex: 1 },
+  addrLine: {
+    fontSize: 13.5,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    lineHeight: 19,
+  },
+  addrHint: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+  miniMap: {
+    height: 110,
+    borderRadius: 10,
+    backgroundColor: '#ECFDF5',
+    overflow: 'hidden',
+  },
+  miniMapSvg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  mapPinLabel: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  mapPinText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  routeBtn: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  routeBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+
+  // Meta
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+  },
+  metaLabel: { fontSize: 13, color: theme.colors.textMuted },
+  metaValue: {
+    fontSize: 13,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+  },
+
+  // Action buttons
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primary,
+    height: 46,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+  },
+  primaryBtnLg: { height: 50 },
+  primaryBtnText: {
+    color: '#fff',
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    height: 46,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+  },
+  secondaryBtnText: {
+    color: theme.colors.textPrimary,
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  // Help
+  helpWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  helpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 14,
+  },
+  helpText: {
     flex: 1,
-  },
-  bodyText: {
-    fontSize: fontSizes.md,
-    color: colors.text.secondary,
-    lineHeight: 22,
-  },
-  actions: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    gap: spacing.sm,
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.textBody,
   },
 });

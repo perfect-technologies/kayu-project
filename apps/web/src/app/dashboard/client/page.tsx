@@ -92,7 +92,7 @@ export default function ClientDashboardPage() {
   const quickActions = [
     { label: 'Rechercher un service', icon: Search, href: '/services' },
     { label: 'Nouvelle réservation', icon: Plus, href: '/services' },
-    { label: 'Mes réservations', icon: Calendar, href: '/dashboard/client/bookings' },
+    { label: 'Mes réservations', icon: Calendar, href: '/bookings' },
     { label: 'Mes avis', icon: Star, href: '/dashboard/client/reviews' },
   ];
 
@@ -139,7 +139,7 @@ export default function ClientDashboardPage() {
               Réservations récentes
             </CardTitle>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/client/bookings">
+              <Link href="/bookings">
                 Voir tout
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>

@@ -78,7 +78,7 @@ export function clientQuickActions(): QuickAction[] {
   return [
     { label: 'Rechercher un service', icon: Search, href: '/services' },
     { label: 'Nouvelle réservation', icon: Plus, href: '/services' },
-    { label: 'Mes réservations', icon: Calendar, href: '/dashboard/client/bookings' },
+    { label: 'Mes réservations', icon: Calendar, href: '/bookings' },
     { label: 'Mes favoris', icon: Star, href: '/dashboard/client/favorites' },
   ];
 }

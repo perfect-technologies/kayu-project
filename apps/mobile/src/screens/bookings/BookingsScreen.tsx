@@ -1,208 +1,334 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
+  ActivityIndicator,
+  Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { formatDate } from '@kayu/utils';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import { I } from '@kayu/ui/mobile';
 import { api } from '@/lib/api';
-import { colors, spacing, borderRadius, fontSizes, fontWeights, shadowStyles } from '@/lib/theme';
-import { BookingStatusBadge } from '@/components/bookings/BookingStatusBadge';
-import { EmptyState } from '@/components/common/EmptyState';
-import { LoadingScreen } from '@/components/common/LoadingScreen';
-import type { BookingsStackParamList } from '@/navigation/AppNavigator';
+import { useAuth } from '@/lib/auth';
+import { theme } from '@/lib/theme';
+import { BookingCard, type MobileBookingCardData } from '@/components/bookings/BookingCard';
+import { toV2Status, type V2Status } from '@/lib/bookingV2';
+import type {
+  BookingsStackParamList,
+  MainTabParamList,
+} from '@/navigation/AppNavigator';
 
-type Nav = NativeStackNavigationProp<BookingsStackParamList, 'BookingsMain'>;
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<BookingsStackParamList, 'BookingsMain'>,
+  BottomTabNavigationProp<MainTabParamList>
+>;
 
-const TABS = [
-  { key: undefined, label: 'Toutes' },
-  { key: 'PENDING', label: 'En attente' },
-  { key: 'CONFIRMED', label: 'Confirmées' },
-  { key: 'COMPLETED', label: 'Terminées' },
-  { key: 'CANCELLED', label: 'Annulées' },
-] as const;
+const TABS: { id: V2Status; label: string }[] = [
+  { id: 'upcoming', label: 'À venir' },
+  { id: 'active', label: 'En cours' },
+  { id: 'completed', label: 'Terminées' },
+  { id: 'cancelled', label: 'Annulées' },
+];
+
+const EMPTY_COPY: Record<V2Status, { title: string; sub: string; cta: string | null }> = {
+  upcoming: {
+    title: 'Aucune réservation à venir',
+    sub: 'Quand vous réservez un pro, il apparaîtra ici.',
+    cta: 'Trouver un pro',
+  },
+  active: {
+    title: 'Rien en cours',
+    sub: 'Les missions actives apparaissent ici, avec le suivi en temps réel.',
+    cta: 'Parcourir les catégories',
+  },
+  completed: {
+    title: 'Pas encore de missions terminées',
+    sub: 'Votre historique vit ici.',
+    cta: 'Réserver un pro',
+  },
+  cancelled: {
+    title: 'Aucune annulation',
+    sub: 'Bon signe — tout roule.',
+    cta: null,
+  },
+};
 
 export function BookingsScreen() {
   const navigation = useNavigation<Nav>();
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const { user } = useAuth();
+  const [tab, setTab] = useState<V2Status>('upcoming');
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: queryKeys.bookings.all({ status: statusFilter as any }),
-    queryFn: () => api.bookings.getAll({ status: statusFilter as any }),
+    queryKey: queryKeys.bookings.all(),
+    queryFn: () => api.bookings.getAll(),
   });
 
-  const [refreshing, setRefreshing] = useState(false);
+  const bookings = (data?.bookings ?? []) as MobileBookingCardData[];
+  const perspective: 'client' | 'pro' = user?.role === 'PROVIDER' ? 'pro' : 'client';
+
+  const counts = useMemo(() => {
+    const c: Record<V2Status, number> = {
+      upcoming: 0,
+      active: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+    for (const b of bookings) c[toV2Status(b.status)]++;
+    return c;
+  }, [bookings]);
+
+  const filtered = useMemo(
+    () => bookings.filter((b) => toV2Status(b.status) === tab),
+    [bookings, tab],
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   };
 
-  const bookings = data?.bookings ?? [];
-
   return (
-    <View style={styles.container}>
-      {/* Status tabs */}
-      <FlatList
-        data={TABS}
+    <View style={styles.screen}>
+      {/* Sticky title */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Mes réservations</Text>
+      </View>
+
+      {/* Scrollable tab pills */}
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabList}
-        keyExtractor={(item) => item.label}
-        renderItem={({ item }) => {
-          const isActive = statusFilter === item.key;
+        contentContainerStyle={styles.tabsRow}
+        style={styles.tabsScroll}
+      >
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          const count = counts[t.id];
           return (
-            <TouchableOpacity
-              style={[styles.tab, isActive && styles.tabActive]}
-              onPress={() => setStatusFilter(item.key)}
+            <Pressable
+              key={t.id}
+              onPress={() => setTab(t.id)}
+              style={[styles.pill, active && styles.pillActive]}
             >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                {item.label}
+              <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                {t.label}
               </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
-
-      {isLoading ? (
-        <LoadingScreen />
-      ) : (
-        <FlatList
-          data={bookings}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary.DEFAULT}
-            />
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="calendar-outline"
-              title="Aucune réservation"
-              message="Vous n'avez pas encore de réservation"
-            />
-          }
-          renderItem={({ item }) => {
-            const providerName = item.provider
-              ? [item.provider.user.firstName, item.provider.user.lastName]
-                  .filter(Boolean)
-                  .join(' ')
-              : 'Prestataire';
-
-            return (
-              <TouchableOpacity
-                style={[styles.bookingCard, shadowStyles.sm]}
-                activeOpacity={0.7}
-                onPress={() =>
-                  navigation.navigate('BookingDetail', { bookingId: item.id })
-                }
-              >
-                <View style={styles.bookingHeader}>
-                  <Text style={styles.bookingTitle} numberOfLines={1}>
-                    {item.title}
+              {count > 0 && (
+                <View
+                  style={[
+                    styles.countBadge,
+                    active && styles.countBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.countText,
+                      active && styles.countTextActive,
+                    ]}
+                  >
+                    {count}
                   </Text>
-                  <BookingStatusBadge status={item.status} />
                 </View>
-                <Text style={styles.providerName}>{providerName}</Text>
-                {item.scheduledDate && (
-                  <View style={styles.dateRow}>
-                    <Ionicons name="calendar-outline" size={14} color={colors.text.tertiary} />
-                    <Text style={styles.dateText}>
-                      {formatDate(String(item.scheduledDate))}
-                    </Text>
-                  </View>
-                )}
-                {item.price != null && (
-                  <Text style={styles.price}>{item.price.toLocaleString()} CDF</Text>
-                )}
-              </TouchableOpacity>
-            );
-          }}
-        />
+              )}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {isLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          </View>
+        ) : filtered.length === 0 ? (
+          <EmptyBookings
+            tab={tab}
+            onBrowse={() => navigation.navigate('Search')}
+          />
+        ) : (
+          <View style={styles.list}>
+            {filtered.map((b) => (
+              <BookingCard
+                key={b.id}
+                booking={b}
+                perspective={perspective}
+                onPress={() =>
+                  navigation.navigate('BookingDetail', { bookingId: b.id })
+                }
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+function EmptyBookings({
+  tab,
+  onBrowse,
+}: {
+  tab: V2Status;
+  onBrowse: () => void;
+}) {
+  const copy = EMPTY_COPY[tab];
+  return (
+    <View style={styles.empty}>
+      <View style={styles.emptyIcon}>
+        <I.calendar size={28} color={theme.colors.primary} />
+      </View>
+      <Text style={styles.emptyTitle}>{copy.title}</Text>
+      <Text style={styles.emptySub}>{copy.sub}</Text>
+      {copy.cta && (
+        <Pressable style={styles.emptyCta} onPress={onBrowse}>
+          <Text style={styles.emptyCtaText}>{copy.cta}</Text>
+        </Pressable>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.bg,
   },
-  tabList: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+    backgroundColor: theme.colors.bg,
   },
-  tab: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.neutral[100],
+  title: {
+    fontFamily: theme.fonts.display,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: theme.colors.textPrimary,
   },
-  tabActive: {
-    backgroundColor: colors.primary.DEFAULT,
+  tabsScroll: {
+    maxHeight: 48,
+    flexGrow: 0,
   },
-  tabText: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.medium,
-    color: colors.text.secondary,
+  tabsRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 8,
+    flexDirection: 'row',
   },
-  tabTextActive: {
-    color: colors.text.inverse,
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  pillActive: {
+    backgroundColor: theme.colors.textPrimary,
+    borderColor: theme.colors.textPrimary,
+  },
+  pillText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: theme.colors.textBody,
+  },
+  pillTextActive: {
+    color: '#fff',
+  },
+  countBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  countBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+  countTextActive: {
+    color: '#fff',
   },
   listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 120,
   },
-  bookingCard: {
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+  list: {
+    gap: 12,
   },
-  bookingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loading: {
+    paddingVertical: 80,
     alignItems: 'center',
   },
-  bookingTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
-    color: colors.text.primary,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  providerName: {
-    fontSize: fontSizes.sm,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-  },
-  dateRow: {
-    flexDirection: 'row',
+  empty: {
+    padding: 32,
     alignItems: 'center',
-    gap: 4,
-    marginTop: spacing.xs,
   },
-  dateText: {
-    fontSize: fontSizes.xs,
-    color: colors.text.tertiary,
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: theme.colors.surfacePrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  price: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.primary.DEFAULT,
-    marginTop: spacing.xs,
+  emptyTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 280,
+    marginBottom: 18,
+    lineHeight: 20,
+  },
+  emptyCta: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 20,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyCtaText: {
+    color: '#fff',
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

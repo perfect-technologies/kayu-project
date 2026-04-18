@@ -140,7 +140,7 @@ export function Header() {
                   </DropdownMenuItem>
                   {user?.role === "CLIENT" && (
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/client" className="cursor-pointer">
+                      <Link href="/bookings" className="cursor-pointer">
                         <Calendar className="mr-2 h-4 w-4" />
                         Mes réservations
                       </Link>
