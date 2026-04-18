@@ -12,8 +12,7 @@ import { colors } from '@/lib/theme';
 import { MobileTabBar } from '@/components/shell';
 
 // Auth screens
-import { LoginScreen } from '@/screens/auth/LoginScreen';
-import { RegisterScreen } from '@/screens/auth/RegisterScreen';
+import { AuthScreen } from '@/screens/auth/AuthScreen';
 
 // Design-system smoke test (D01). Remove when D09 passes.
 import { DesignProbeScreen } from '@/screens/DesignProbeScreen';
@@ -54,8 +53,7 @@ import {
 // --- Type definitions ---
 
 export type AuthStackParamList = {
-  Login: undefined;
-  Register: undefined;
+  Auth: undefined;
   DesignProbe: undefined;
 };
 
@@ -115,8 +113,7 @@ const MainTab = createBottomTabNavigator<MainTabParamList>();
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-      <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen name="Register" component={RegisterScreen} />
+      <AuthStack.Screen name="Auth" component={AuthScreen} />
       <AuthStack.Screen
         name="DesignProbe"
         component={DesignProbeScreen}

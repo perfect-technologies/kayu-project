@@ -399,6 +399,25 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes kScaleIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes kPulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-auth-pulse,
+  .k-auth-feed,
+  .k-auth-success {
+    animation: none !important;
+  }
+}
+
 @layer utilities {
   .animate-k-shimmer {
     background: linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.10) 50%, rgba(15,23,42,0.04) 100%);

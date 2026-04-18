@@ -5,7 +5,7 @@
 - **Track:** KAYOU Design v2 Iteration — new screens
 - **Primary reference:** `./00-overview.md` + `../DESIGN_SYSTEM.md` (unchanged)
 - **Visual source of truth:** `./prototype/`
-- **Status:** in_progress (DS01 done)
+- **Status:** in_progress (DS01, DS02 done)
 - **Last updated:** 2026-04-18
 
 ---
@@ -15,7 +15,7 @@
 | ID | Chunk | Priority | Depends on | Platforms | Status | Notes |
 |---|---|---|---|---|---|---|
 | DS01 | Shared upgrades — icons, tab bar, routing | P0 | v1 shipped | web + mobile + `@kayu/ui` | done | Icons, role-aware tabs, booking→review routing, KayouMoment polish all landed |
-| DS02 | Auth — phone OTP + role picker | P0 | DS01 | web + mobile | not_started | Replaces v1 Login/Register |
+| DS02 | Auth — phone OTP + role picker | P0 | DS01 | web + mobile | done | UI shipped on web (`/auth`) and mobile (`AuthScreen`). V1 Login/Register retired. OTP backend wiring deferred — see Blockers. |
 | DS03 | My Bookings + Booking Detail (client) | P0 | DS01 | web + mobile | not_started | Tightly coupled; single chunk |
 | DS04 | Messages upgrade | P1 | DS01 | web + mobile | not_started | Rewrites v1 conv/chat screens |
 | DS05 | Write Review upgrade | P1 | DS03 (linked nav) | web + mobile | not_started | Rewrites v1 ReviewScreen |
@@ -69,7 +69,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 
 | Date | Chunk | Blocker | Next action |
 |---|---|---|---|
-| — | — | — | — |
+| 2026-04-18 | DS02 | Supabase SMS provider not confirmed configured for CD/CG dial codes. UI currently mocks OTP send/verify (step progression is client-side). A dev-only "Accès rapide" panel on both platforms signs in with the three seeded email accounts (Client / Prestataire / Admin) so each role can be exercised end-to-end; DoneStep also falls back to the matching demo account. Hidden when `NODE_ENV === 'production'`. | Confirm `supabase.auth.signInWithOtp` + `verifyOtp` work against the project's SMS provider, then replace the mock in `AuthFlow.tsx` (web) and `AuthScreen.tsx` (mobile) with real calls, plus a `setRole` + `refreshUser` step on DoneStep for first-time users. Keep the dev demo panel until phone+OTP seed accounts exist. |
 
 ---
 
@@ -103,7 +103,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 ## Launch-critical checklist
 
 - [x] DS01 shared upgrades landed
-- [ ] Auth replaces v1 login across web + mobile
+- [x] Auth replaces v1 login across web + mobile *(UI complete; OTP backend wiring tracked in Blockers)*
 - [ ] Client sees MyBookings + BookingDetail + Messages + WriteReview, all v2
 - [ ] Pro sees Dashboard + Requests + Quote + Earnings + Onboarding + Verify
 - [ ] Admin has Ops dashboard on desktop
