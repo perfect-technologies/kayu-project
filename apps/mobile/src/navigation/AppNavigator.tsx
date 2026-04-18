@@ -30,8 +30,9 @@ import { AllReviewsScreen } from '@/screens/search/AllReviewsScreen';
 // Bookings tab
 import { BookingsScreen } from '@/screens/bookings/BookingsScreen';
 import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
-import { CreateBookingScreen } from '@/screens/bookings/CreateBookingScreen';
 import { ReviewScreen } from '@/screens/bookings/ReviewScreen';
+
+import { BookingScreen } from '@/screens/booking/BookingScreen';
 
 // Messages tab
 import { ConversationsScreen } from '@/screens/messages/ConversationsScreen';
@@ -145,8 +146,8 @@ function SearchNavigator() {
       />
       <SearchStack.Screen
         name="CreateBooking"
-        component={CreateBookingScreen}
-        options={{ title: 'Nouvelle réservation', presentation: 'modal' }}
+        component={BookingScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
       />
       <SearchStack.Screen
         name="Chat"
@@ -226,8 +227,8 @@ function ProfileNavigator() {
       />
       <ProfileStack.Screen
         name="CreateBooking"
-        component={CreateBookingScreen}
-        options={{ title: 'Nouvelle réservation', presentation: 'modal' }}
+        component={BookingScreen}
+        options={{ headerShown: false, presentation: 'fullScreenModal' }}
       />
       <ProfileStack.Screen
         name="Chat"
