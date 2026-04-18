@@ -4,13 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import {
   Menu,
   X,
-  MapPin,
-  User,
   ChevronDown,
   LogOut,
   Settings,
@@ -29,11 +25,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { RegisterDialog } from "@/components/auth/RegisterDialog";
+import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Accueil", href: "/" },
-  { name: "Services", href: "/services" },
+  { name: "Trouver un pro", href: "/services" },
+  { name: "Catégories", href: "/services" },
   { name: "Comment ça marche", href: "/#how-it-works" },
+  { name: "Devenir pro", href: "/services" },
 ];
 
 export function Header() {
@@ -48,266 +46,256 @@ export function Header() {
     router.push("/");
   };
 
-  const getInitials = () => {
-    if (user) {
-      return `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U";
-    }
-    return "U";
-  };
+  const initials = user
+    ? `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.toUpperCase() || "U"
+    : "U";
 
-  const getDashboardLink = () => {
-    if (!user) return "/dashboard";
-    switch (user.role) {
-      case "ADMIN":
-        return "/dashboard/admin";
-      case "PROVIDER":
-        return "/dashboard/provider";
-      default:
-        return "/dashboard/client";
-    }
-  };
+  const dashboardHref =
+    user?.role === "ADMIN"
+      ? "/dashboard/admin"
+      : user?.role === "PROVIDER"
+        ? "/dashboard/provider"
+        : "/dashboard/client";
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4">
-          {/* Top bar with location - visible on larger screens */}
-          <div className="hidden md:flex items-center justify-between py-2 text-sm border-b border-border/40">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-4 w-4 text-primary" />
-              <span className="font-medium text-foreground">Kinshasa</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="font-medium text-foreground">Brazzaville</span>
-            </div>
-            <div className="flex items-center gap-4 text-muted-foreground">
-              <span>Disponible 24h/24, 7j/7</span>
-            </div>
-          </div>
-
-          {/* Main navigation */}
-          <nav className="flex items-center justify-between py-4">
-            {/* Logo */}
-            <Link href="/" className="flex items-center">
-              <Image
-                src="/kayou-logo-transparent.png"
-                alt="KAYOU - Trouver un service à proximité"
-                width={140}
-                height={48}
-                className="h-12 w-auto"
-                priority
-              />
-            </Link>
-
-            {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center gap-8">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </div>
-
-            {/* Desktop Auth buttons */}
-            <div className="hidden lg:flex items-center gap-3">
-              {isAuthenticated ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-2 pl-2 pr-4">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user?.avatar || undefined} />
-                        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                          {getInitials()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="hidden xl:inline">{user?.firstName}</span>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <div className="px-2 py-1.5">
-                      <p className="font-medium">{user?.firstName} {user?.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{user?.email}</p>
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href={getDashboardLink()} className="cursor-pointer">
-                        <LayoutDashboard className="mr-2 h-4 w-4" />
-                        Tableau de bord
-                      </Link>
-                    </DropdownMenuItem>
-                    {user?.role === "CLIENT" && (
-                      <DropdownMenuItem asChild>
-                        {/* /dashboard/client/bookings not yet implemented — links to client dashboard */}
-                        <Link href="/dashboard/client" className="cursor-pointer">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          Mes réservations
-                        </Link>
-                      </DropdownMenuItem>
-                    )}
-                    {user?.role === "CLIENT" && (
-                      <DropdownMenuItem asChild>
-                        {/* /dashboard/client/favorites not yet implemented — links to client dashboard */}
-                        <Link href="/dashboard/client" className="cursor-pointer">
-                          <Heart className="mr-2 h-4 w-4" />
-                          Mes favoris
-                        </Link>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard/settings" className="cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        Paramètres
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Déconnexion
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => setLoginOpen(true)}
-                  >
-                    <User className="h-4 w-4" />
-                    Connexion
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-primary hover:bg-primary/90"
-                    onClick={() => setRegisterOpen(true)}
-                  >
-                    Inscription
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Mobile location indicator */}
-            <div className="flex md:hidden items-center gap-2 text-sm text-muted-foreground mr-2">
-              <MapPin className="h-4 w-4 text-primary" />
-              <span className="font-medium text-foreground">Kinshasa • Brazzaville</span>
-            </div>
-
-            {/* Mobile menu button */}
-            <button
-              type="button"
-              className="lg:hidden p-2 rounded-lg hover:bg-accent transition-colors"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+      <header
+        className="sticky top-0 z-40 w-full"
+        style={{
+          background: "rgba(250,250,249,0.85)",
+          backdropFilter: "saturate(140%) blur(8px)",
+          WebkitBackdropFilter: "saturate(140%) blur(8px)",
+          borderBottom: "1px solid var(--k-border)",
+        }}
+      >
+        <div className="mx-auto flex max-w-[1240px] items-center gap-6 px-5 py-3.5 md:px-10">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+            <Image
+              src="/kayou-logo-transparent.png"
+              alt="KAYOU"
+              width={30}
+              height={30}
+              className="h-[30px] w-auto"
+              priority
+            />
+            <span
+              style={{
+                fontFamily: "var(--k-font-display)",
+                fontWeight: 800,
+                fontSize: 22,
+                letterSpacing: "-0.02em",
+                color: "var(--k-text-primary)",
+              }}
             >
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
-            </button>
+              KAYOU
+            </span>
+          </Link>
+
+          <nav className="hidden flex-1 items-center gap-7 lg:flex">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="text-[14px] font-medium transition-colors"
+                style={{ color: "var(--k-text-body)" }}
+              >
+                {item.name}
+              </Link>
+            ))}
           </nav>
-        </div>
 
-        {/* Mobile menu */}
-        <div
-          className={cn(
-            "lg:hidden border-t border-border/40 bg-background overflow-hidden transition-all duration-300 ease-in-out",
-            mobileMenuOpen ? "max-h-96" : "max-h-0"
-          )}
-        >
-          <div className="container mx-auto px-4 py-4 space-y-4">
-            {/* Mobile Navigation Links */}
-            <div className="space-y-2">
-              {navigation.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="flex items-center justify-between py-3 px-4 rounded-lg text-foreground hover:bg-accent transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="font-medium">{item.name}</span>
-                  <ChevronDown className="h-4 w-4 rotate-[-90deg] text-muted-foreground" />
-                </Link>
-              ))}
-            </div>
-
-            {/* Mobile Auth buttons */}
-            <div className="flex flex-col gap-2 pt-4 border-t border-border/40">
-              {isAuthenticated ? (
-                <>
-                  <div className="flex items-center gap-3 px-4 py-2">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={user?.avatar || undefined} />
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {getInitials()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{user?.firstName} {user?.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{user?.email}</p>
-                    </div>
+          <div className="ml-auto hidden items-center gap-2 lg:flex">
+            {isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="k-btn k-btn-secondary h-10 gap-2 pl-1.5 pr-3">
+                  <Avatar className="h-7 w-7">
+                    <AvatarImage src={user?.avatar || undefined} />
+                    <AvatarFallback
+                      style={{
+                        background: "var(--k-primary-subtle)",
+                        color: "var(--k-primary-hover)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden text-[13px] xl:inline">{user?.firstName}</span>
+                  <ChevronDown className="h-4 w-4 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="font-medium">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => {
-                      router.push(getDashboardLink());
-                      setMobileMenuOpen(false);
-                    }}
-                  >
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Tableau de bord
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full text-red-600 hover:text-red-700"
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={dashboardHref} className="cursor-pointer">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Tableau de bord
+                    </Link>
+                  </DropdownMenuItem>
+                  {user?.role === "CLIENT" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/client" className="cursor-pointer">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Mes réservations
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  {user?.role === "CLIENT" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/client" className="cursor-pointer">
+                        <Heart className="mr-2 h-4 w-4" />
+                        Mes favoris
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard/settings" className="cursor-pointer">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Paramètres
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
                     onClick={handleLogout}
+                    className="cursor-pointer"
+                    style={{ color: "var(--k-danger)" }}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Déconnexion
-                  </Button>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <button
+                  className="k-btn k-btn-ghost"
+                  onClick={() => setLoginOpen(true)}
+                >
+                  Se connecter
+                </button>
+                <button
+                  className="k-btn k-btn-primary"
+                  onClick={() => setRegisterOpen(true)}
+                >
+                  S&apos;inscrire
+                </button>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="ml-auto p-2 lg:hidden"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            style={{ color: "var(--k-text-primary)" }}
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
+
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300 lg:hidden",
+            mobileMenuOpen ? "max-h-[32rem]" : "max-h-0",
+          )}
+          style={{ borderTop: mobileMenuOpen ? "1px solid var(--k-border)" : "none", background: "var(--k-surface)" }}
+        >
+          <div className="mx-auto max-w-[1240px] space-y-3 px-5 py-4">
+            <div className="space-y-1">
+              {navigation.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between rounded-[var(--k-r-md)] px-3 py-3 text-[15px] font-medium"
+                  style={{ color: "var(--k-text-primary)" }}
+                >
+                  <span>{item.name}</span>
+                  <ChevronDown className="h-4 w-4 -rotate-90 opacity-40" />
+                </Link>
+              ))}
+            </div>
+
+            <div
+              className="flex flex-col gap-2 pt-3"
+              style={{ borderTop: "1px solid var(--k-border-subtle)" }}
+            >
+              {isAuthenticated ? (
+                <>
+                  <div className="flex items-center gap-3 px-2 py-1">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user?.avatar || undefined} />
+                      <AvatarFallback
+                        style={{
+                          background: "var(--k-primary-subtle)",
+                          color: "var(--k-primary-hover)",
+                        }}
+                      >
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">
+                        {user?.firstName} {user?.lastName}
+                      </p>
+                      <p className="text-xs" style={{ color: "var(--k-text-muted)" }}>
+                        {user?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    className="k-btn k-btn-secondary w-full"
+                    onClick={() => {
+                      router.push(dashboardHref);
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Tableau de bord
+                  </button>
+                  <button
+                    className="k-btn k-btn-secondary w-full"
+                    style={{ color: "var(--k-danger)" }}
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Déconnexion
+                  </button>
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2"
+                  <button
+                    className="k-btn k-btn-secondary w-full"
                     onClick={() => {
                       setLoginOpen(true);
                       setMobileMenuOpen(false);
                     }}
                   >
-                    <User className="h-4 w-4" />
-                    Connexion
-                  </Button>
-                  <Button
-                    className="w-full bg-primary hover:bg-primary/90"
+                    Se connecter
+                  </button>
+                  <button
+                    className="k-btn k-btn-primary w-full"
                     onClick={() => {
                       setRegisterOpen(true);
                       setMobileMenuOpen(false);
                     }}
                   >
-                    Inscription
-                  </Button>
+                    S&apos;inscrire
+                  </button>
                 </>
               )}
-            </div>
-
-            {/* Mobile availability */}
-            <div className="text-center text-sm text-muted-foreground pt-2">
-              Disponible 24h/24, 7j/7
             </div>
           </div>
         </div>
       </header>
 
-      {/* Login Dialog */}
       <LoginDialog
         open={loginOpen}
         onOpenChange={setLoginOpen}
@@ -316,11 +304,13 @@ export function Header() {
           setRegisterOpen(true);
         }}
       />
-
-      {/* Register Dialog */}
       <RegisterDialog
         open={registerOpen}
         onOpenChange={setRegisterOpen}
+        onSwitchToLogin={() => {
+          setRegisterOpen(false);
+          setLoginOpen(true);
+        }}
       />
     </>
   );

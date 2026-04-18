@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { Layout } from "@/components/layout";
 import { ServicesPageContent } from "./ServicesPageContent";
 
-// Server-side metadata for SEO
 export const metadata = {
   title: "Services - Trouvez des prestataires | KAYOU",
   description:
@@ -27,22 +26,31 @@ export default function ServicesPage() {
 
 function ServicesPageSkeleton() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar skeleton */}
-          <div className="hidden lg:block w-72 shrink-0">
-            <div className="h-[600px] bg-muted rounded-xl animate-pulse" />
-          </div>
-          {/* Content skeleton */}
-          <div className="flex-1">
-            <div className="h-12 bg-muted rounded-lg animate-pulse mb-6" />
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-[280px] bg-muted rounded-xl animate-pulse" />
-              ))}
-            </div>
-          </div>
+    <div
+      style={{ background: "var(--k-bg)" }}
+      className="mx-auto flex max-w-[1400px] gap-6 px-5 py-6 md:px-8"
+    >
+      <div
+        className="hidden w-[260px] shrink-0 rounded-[var(--k-r-lg)] lg:block"
+        style={{
+          height: 520,
+          background: "var(--k-surface)",
+          border: "1px solid var(--k-border)",
+        }}
+      />
+      <div className="flex-1">
+        <div
+          className="mb-4 h-8 w-64 rounded-[8px]"
+          style={{ background: "var(--k-surface-muted)" }}
+        />
+        <div className="space-y-3.5">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="animate-k-shimmer rounded-[var(--k-r-xl)]"
+              style={{ height: 260 }}
+            />
+          ))}
         </div>
       </div>
     </div>

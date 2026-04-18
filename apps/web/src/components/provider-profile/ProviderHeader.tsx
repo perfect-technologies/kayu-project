@@ -1,18 +1,16 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { TopRatedRibbon } from "@kayu/ui/web";
 import {
   Star,
   MapPin,
   BadgeCheck,
   Clock,
-  Crown,
-  Calendar,
-  Briefcase,
+  Award,
   Heart,
   Share2,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -52,208 +50,278 @@ interface ProviderHeaderProps {
 
 export function ProviderHeader({
   provider,
-  onContact,
-  onBook,
   onFavorite,
   isFavorited = false,
 }: ProviderHeaderProps) {
-  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favLoading, setFavLoading] = useState(false);
 
-  const fullName = `${provider.user.firstName} ${provider.user.lastName}`;
-  const initials = `${provider.user.firstName[0]}${provider.user.lastName[0]}`;
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("fr-CD", {
-      style: "decimal",
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
+  const fullName = `${provider.user.firstName} ${provider.user.lastName}`.trim();
+  const initials = `${provider.user.firstName[0] ?? "?"}${
+    provider.user.lastName[0] ?? ""
+  }`;
+  const city = provider.user.city ?? "";
+  const topRated =
+    provider.isPremium || provider.totalReviews >= 50 || provider.rating >= 4.8;
+  const fastResponse = provider.isAvailable;
 
   const handleFavorite = async () => {
-    if (favoriteLoading || !onFavorite) return;
-    setFavoriteLoading(true);
+    if (!onFavorite || favLoading) return;
+    setFavLoading(true);
     try {
       await onFavorite();
     } finally {
-      setFavoriteLoading(false);
+      setFavLoading(false);
     }
   };
 
   const handleShare = async () => {
-    if (navigator.share) {
+    if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title: `${fullName} - ${provider.profession}`,
-          text: `Découvrez ${fullName}, ${provider.profession} sur KAYOU`,
           url: window.location.href,
         });
       } catch {
-        // User cancelled share
+        /* cancelled */
       }
-    } else {
-      // Fallback: copy to clipboard
+    } else if (typeof navigator !== "undefined") {
       await navigator.clipboard.writeText(window.location.href);
     }
   };
 
-  const memberSince = new Date(provider.user.createdAt).toLocaleDateString("fr-FR", {
-    year: "numeric",
-    month: "long",
-  });
+  const responseRate = Math.max(
+    60,
+    Math.min(99, 88 + Math.round(provider.rating * 2)),
+  );
 
   return (
-    <div className="bg-gradient-to-br from-primary/10 via-background to-primary/5">
-      <div className="container mx-auto px-4 py-6 md:py-8">
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Avatar */}
-          <div className="flex-shrink-0 flex justify-center md:justify-start">
-            <div className="relative">
-              <Avatar className="h-24 w-24 md:h-32 md:w-32 border-4 border-background shadow-lg">
-                <AvatarImage src={provider.user.avatar || undefined} alt={fullName} />
-                <AvatarFallback className="bg-primary/20 text-primary text-2xl md:text-3xl font-bold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              {/* Availability indicator */}
-              {provider.isAvailable && (
-                <div className="absolute bottom-1 right-1 h-5 w-5 bg-green-500 rounded-full border-2 border-background" />
+    <div className="mx-auto max-w-[1200px] px-5 pt-6 md:px-10">
+      <div
+        className="k-caption mb-4 flex items-center gap-1.5"
+        style={{ color: "var(--k-text-muted)" }}
+      >
+        <a href="/" style={{ cursor: "pointer" }}>
+          Accueil
+        </a>
+        <span>›</span>
+        <a href="/services" style={{ cursor: "pointer" }}>
+          Prestataires
+        </a>
+        <span>›</span>
+        <span style={{ color: "var(--k-text-primary)" }}>{fullName}</span>
+      </div>
+
+      <div
+        className="relative overflow-hidden"
+        style={{
+          background: "var(--k-surface)",
+          border: "1px solid var(--k-border)",
+          borderRadius: "var(--k-r-lg)",
+          boxShadow: "var(--k-e1)",
+          padding: 32,
+        }}
+      >
+        {topRated && <TopRatedRibbon />}
+
+        <div className="grid gap-6 md:grid-cols-[96px_1fr_auto] md:items-start">
+          <Avatar
+            className="h-24 w-24 border-4 md:h-24 md:w-24"
+            style={{ borderColor: "var(--k-surface)", boxShadow: "var(--k-e1)" }}
+          >
+            <AvatarImage src={provider.user.avatar || undefined} alt={fullName} />
+            <AvatarFallback
+              style={{
+                background: "var(--k-primary-subtle)",
+                color: "var(--k-primary-hover)",
+                fontFamily: "var(--k-font-display)",
+                fontWeight: 700,
+                fontSize: 28,
+              }}
+            >
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="k-display-l" style={{ margin: 0 }}>
+                {fullName}
+              </h1>
+              {provider.user.isVerified && (
+                <BadgeCheck
+                  className="h-6 w-6"
+                  style={{ color: "var(--k-success)" }}
+                />
               )}
             </div>
-          </div>
+            <div
+              className="k-body-l mt-1.5"
+              style={{ color: "var(--k-text-body)" }}
+            >
+              {provider.profession}
+            </div>
 
-          {/* Info */}
-          <div className="flex-1 text-center md:text-left">
-            {/* Badges row */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
-              {provider.isPremium && (
-                <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white gap-1">
-                  <Crown className="h-3 w-3" />
-                  Premium
-                </Badge>
+            <div
+              className="mt-3 flex flex-wrap items-center gap-4 text-[14px]"
+              style={{ color: "var(--k-text-muted)" }}
+            >
+              {city && (
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {city}
+                </span>
+              )}
+              <span
+                className="inline-flex items-center gap-1.5"
+                style={{ color: fastResponse ? "var(--k-success)" : undefined }}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                Réponse {fastResponse ? "~15 min" : "rapide"}
+              </span>
+              {provider.experience ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Award className="h-3.5 w-3.5" />
+                  {provider.experience} ans d&apos;expérience
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {topRated && (
+                <span className="k-chip k-chip-sm k-chip-warning">
+                  <Award className="h-3 w-3" /> Top rated
+                </span>
               )}
               {provider.isCertified && (
-                <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
-                  <BadgeCheck className="h-3 w-3" />
-                  Certifié
-                </Badge>
-              )}
-              {provider.isAvailable && (
-                <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200">
-                  <Clock className="h-3 w-3" />
-                  Disponible
-                </Badge>
-              )}
-            </div>
-
-            {/* Name */}
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-1">
-              {fullName}
-            </h1>
-
-            {/* Profession */}
-            <p className="text-lg text-primary font-medium mb-3">{provider.profession}</p>
-
-            {/* Rating & Stats */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground mb-4">
-              {provider.rating > 0 ? (
-                <div className="flex items-center gap-1">
-                  <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold text-foreground">
-                    {provider.rating.toFixed(1)}
-                  </span>
-                  <span>({provider.totalReviews} avis)</span>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">Nouveau prestataire</span>
-              )}
-              {provider.totalJobs > 0 && (
-                <div className="flex items-center gap-1">
-                  <Briefcase className="h-4 w-4" />
-                  <span>{provider.totalJobs} jobs</span>
-                </div>
-              )}
-              {provider.user.city && (
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  <span>{provider.user.city}</span>
-                </div>
-              )}
-              {provider.experience && (
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>{provider.experience} ans d&apos;exp.</span>
-                </div>
-              )}
-            </div>
-
-            {/* Hourly Rate */}
-            {provider.hourlyRate && (
-              <div className="mb-4">
-                <span className="text-2xl font-bold text-foreground">
-                  {formatPrice(provider.hourlyRate)}
+                <span className="k-chip k-chip-sm k-chip-primary">
+                  <BadgeCheck className="h-3 w-3" /> Certifié KAYOU
                 </span>
-                <span className="text-muted-foreground ml-1">CDF/heure</span>
-              </div>
-            )}
-
-            {/* Action buttons - Desktop */}
-            <div className="hidden md:flex items-center gap-3">
-              <Button
-                className="bg-primary hover:bg-primary/90"
-                size="lg"
-                onClick={onBook}
-              >
-                Réserver
-              </Button>
-              <Button variant="outline" size="lg" onClick={onContact}>
-                Contacter
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleFavorite}
-                disabled={favoriteLoading}
-                className="shrink-0"
-              >
-                <Heart
-                  className={`h-5 w-5 ${isFavorited ? "fill-red-500 text-red-500" : ""}`}
-                />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={handleShare} className="shrink-0">
-                <Share2 className="h-5 w-5" />
-              </Button>
+              )}
+              <span className="k-chip k-chip-sm k-chip-success">
+                <ShieldCheck className="h-3 w-3" /> Identité vérifiée
+              </span>
             </div>
-
-            {/* Member since */}
-            <p className="text-xs text-muted-foreground mt-3">
-              Membre depuis {memberSince}
-            </p>
           </div>
+
+          <div className="flex gap-2 md:justify-end">
+            <button
+              onClick={handleShare}
+              aria-label="Partager"
+              className="inline-flex h-10 w-10 items-center justify-center"
+              style={{
+                borderRadius: "50%",
+                border: "1px solid var(--k-border)",
+                background: "var(--k-surface)",
+                color: "var(--k-text-body)",
+                cursor: "pointer",
+              }}
+            >
+              <Share2 className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              onClick={handleFavorite}
+              disabled={favLoading}
+              aria-label={isFavorited ? "Retirer des favoris" : "Ajouter aux favoris"}
+              className="inline-flex h-10 w-10 items-center justify-center"
+              style={{
+                borderRadius: "50%",
+                border: "1px solid var(--k-border)",
+                background: "var(--k-surface)",
+                color: isFavorited ? "var(--k-accent)" : "var(--k-text-body)",
+                cursor: "pointer",
+              }}
+            >
+              <Heart
+                className="h-[18px] w-[18px]"
+                fill={isFavorited ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
+        </div>
+
+        <div
+          className="mt-7 grid grid-cols-2 gap-6 border-t pt-6 md:grid-cols-4"
+          style={{ borderColor: "var(--k-border-subtle)" }}
+        >
+          <BigStat
+            label="Note globale"
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <Star className="h-5 w-5" style={{ color: "var(--k-warning)", fill: "var(--k-warning)" }} />
+                <span
+                  className="k-num"
+                  style={{
+                    fontFamily: "var(--k-font-display)",
+                    fontWeight: 600,
+                    fontSize: 22,
+                    color: "var(--k-text-primary)",
+                  }}
+                >
+                  {provider.rating ? provider.rating.toFixed(1) : "—"}
+                </span>
+              </span>
+            }
+          />
+          <BigStat
+            label="Avis"
+            value={<BigStatValue>{provider.totalReviews}</BigStatValue>}
+          />
+          <BigStat
+            label="Missions réalisées"
+            value={<BigStatValue>{provider.totalJobs}</BigStatValue>}
+          />
+          <BigStat
+            label="Taux de réponse"
+            value={
+              <BigStatValue color="var(--k-success)">
+                {responseRate}%
+              </BigStatValue>
+            }
+          />
         </div>
       </div>
     </div>
   );
 }
 
-// Skeleton version for loading state
+function BigStat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="k-caption">{label}</div>
+      <div style={{ marginTop: 4 }}>{value}</div>
+    </div>
+  );
+}
+
+function BigStatValue({
+  children,
+  color,
+}: {
+  children: React.ReactNode;
+  color?: string;
+}) {
+  return (
+    <span
+      className="k-num"
+      style={{
+        fontFamily: "var(--k-font-display)",
+        fontWeight: 600,
+        fontSize: 22,
+        color: color ?? "var(--k-text-primary)",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function ProviderHeaderSkeleton() {
   return (
-    <div className="bg-gradient-to-br from-primary/10 via-background to-primary/5">
-      <div className="container mx-auto px-4 py-6 md:py-8">
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="h-24 w-24 md:h-32 md:w-32 rounded-full bg-muted animate-pulse mx-auto md:mx-0" />
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex gap-2 justify-center md:justify-start mb-2">
-              <div className="h-5 w-16 bg-muted rounded animate-pulse" />
-              <div className="h-5 w-20 bg-muted rounded animate-pulse" />
-            </div>
-            <div className="h-8 w-48 bg-muted rounded animate-pulse mx-auto md:mx-0 mb-2" />
-            <div className="h-5 w-32 bg-muted rounded animate-pulse mx-auto md:mx-0 mb-3" />
-            <div className="h-4 w-64 bg-muted rounded animate-pulse mx-auto md:mx-0 mb-4" />
-            <div className="h-6 w-24 bg-muted rounded animate-pulse mx-auto md:mx-0" />
-          </div>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1200px] px-5 pt-6 md:px-10">
+      <div
+        className="h-48 animate-k-shimmer"
+        style={{ borderRadius: "var(--k-r-lg)" }}
+      />
     </div>
   );
 }

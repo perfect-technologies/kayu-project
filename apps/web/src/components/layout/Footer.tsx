@@ -1,217 +1,102 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Facebook,
-  Twitter,
-  Instagram,
-  Linkedin,
-  Mail,
-  Phone,
-  MapPin,
-  Send,
-  ArrowRight,
-} from "lucide-react";
 
-const footerLinks = {
-  services: {
-    title: "Services",
+const columns: Array<{ title: string; links: Array<{ name: string; href: string }> }> = [
+  {
+    title: "Clients",
     links: [
-      { name: "Plomberie", href: "#" },
-      { name: "Électricité", href: "#" },
-      { name: "Ménage", href: "#" },
-      { name: "Jardinage", href: "#" },
-      { name: "Réparation", href: "#" },
-      { name: "Transport", href: "#" },
+      { name: "Trouver un pro", href: "/services" },
+      { name: "Catégories", href: "/services" },
+      { name: "Comment ça marche", href: "/#how-it-works" },
+      { name: "Avis", href: "#" },
     ],
   },
-  entreprise: {
-    title: "Entreprise",
+  {
+    title: "Pros",
     links: [
-      { name: "À propos de nous", href: "#" },
-      { name: "Comment ça marche", href: "#" },
-      { name: "Devenir prestataire", href: "#" },
-      { name: "Carrières", href: "#" },
+      { name: "Devenir pro", href: "/services" },
+      { name: "Tarifs", href: "#" },
+      { name: "Ressources", href: "#" },
+      { name: "Communauté", href: "#" },
+    ],
+  },
+  {
+    title: "KAYOU",
+    links: [
+      { name: "À propos", href: "#" },
       { name: "Blog", href: "#" },
+      { name: "Carrières", href: "#" },
+      { name: "Contact", href: "#" },
     ],
   },
-  support: {
-    title: "Support",
-    links: [
-      { name: "Centre d'aide", href: "#" },
-      { name: "Contactez-nous", href: "#" },
-      { name: "FAQ", href: "#" },
-      { name: "Signaler un problème", href: "#" },
-    ],
-  },
-  legal: {
-    title: "Légal",
-    links: [
-      { name: "Conditions d'utilisation", href: "#" },
-      { name: "Politique de confidentialité", href: "#" },
-      { name: "Politique de cookies", href: "#" },
-      { name: "Mentions légales", href: "#" },
-    ],
-  },
-};
-
-const socialLinks = [
-  { name: "Facebook", icon: Facebook, href: "#" },
-  { name: "Twitter", icon: Twitter, href: "#" },
-  { name: "Instagram", icon: Instagram, href: "#" },
-  { name: "LinkedIn", icon: Linkedin, href: "#" },
 ];
 
 export function Footer() {
-  const [email, setEmail] = useState("");
-  const [isSubscribing, setIsSubscribing] = useState(false);
-
-  const handleSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-
-    setIsSubscribing(true);
-    // Simulate subscription
-    setTimeout(() => {
-      setIsSubscribing(false);
-      setEmail("");
-      alert("Merci pour votre inscription !");
-    }, 1000);
-  };
-
   return (
-    <footer className="w-full border-t border-border/40 bg-background mt-auto">
-      {/* Newsletter Section */}
-      <div className="bg-primary/5 border-b border-border/40">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-center md:text-left">
-              <h3 className="text-lg font-semibold text-foreground">
-                Restez informé
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Recevez nos dernières offres et actualités
-              </p>
-            </div>
-            <form onSubmit={handleSubscribe} className="flex w-full md:w-auto gap-2">
-              <Input
-                type="email"
-                placeholder="Votre adresse email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full md:w-64"
-                required
-              />
-              <Button
-                type="submit"
-                className="bg-primary hover:bg-primary/90 shrink-0"
-                disabled={isSubscribing}
-              >
-                {isSubscribing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin">⏳</span>
-                  </span>
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </form>
-          </div>
+    <footer
+      style={{
+        background: "var(--k-surface)",
+        borderTop: "1px solid var(--k-border)",
+      }}
+    >
+      <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-10 px-5 py-12 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-10">
+        <div>
+          <Link href="/" className="mb-3.5 inline-flex items-center gap-2.5">
+            <Image
+              src="/kayou-logo-transparent.png"
+              alt="KAYOU"
+              width={28}
+              height={28}
+              className="h-7 w-auto"
+            />
+            <span
+              style={{
+                fontFamily: "var(--k-font-display)",
+                fontWeight: 800,
+                fontSize: 20,
+                color: "var(--k-text-primary)",
+              }}
+            >
+              KAYOU
+            </span>
+          </Link>
+          <p className="k-body" style={{ color: "var(--k-text-muted)", maxWidth: 320, margin: 0 }}>
+            Trouvez la bonne personne. Kinshasa · Brazzaville · Lubumbashi · Matadi · Pointe-Noire.
+          </p>
         </div>
-      </div>
 
-      {/* Main Footer Content */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
-          {/* Brand Column */}
-          <div className="col-span-2 md:col-span-3 lg:col-span-1">
-            <Link href="/" className="flex items-center mb-4">
-              <Image
-                src="/kayou-logo-transparent.png"
-                alt="KAYOU"
-                width={140}
-                height={48}
-                className="h-12 w-auto"
-              />
-            </Link>
-            <p className="text-muted-foreground text-sm mb-4">
-              Un service à portée de main
-            </p>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-primary shrink-0" />
-                <span>Kinshasa & Brazzaville</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-primary shrink-0" />
-                <span>+243 XXX XXX XXX</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-primary shrink-0" />
-                <span>contact@kayou.cd</span>
-              </div>
+        {columns.map((col) => (
+          <div key={col.title}>
+            <div className="k-overline" style={{ marginBottom: 12 }}>
+              {col.title}
             </div>
-
-            {/* Social Links */}
-            <div className="flex items-center gap-3 mt-6">
-              {socialLinks.map((social) => (
+            <div className="flex flex-col gap-2.5">
+              {col.links.map((l) => (
                 <Link
-                  key={social.name}
-                  href={social.href}
-                  className="p-2 rounded-lg bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
-                  aria-label={social.name}
+                  key={l.name}
+                  href={l.href}
+                  className="text-[14px]"
+                  style={{ color: "var(--k-text-body)" }}
                 >
-                  <social.icon className="h-4 w-4" />
+                  {l.name}
                 </Link>
               ))}
             </div>
           </div>
-
-          {/* Links Columns */}
-          {Object.values(footerLinks).map((section) => (
-            <div key={section.title}>
-              <h4 className="font-semibold text-foreground mb-4">{section.title}</h4>
-              <ul className="space-y-2">
-                {section.links.map((link) => (
-                  <li key={link.name}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 group"
-                    >
-                      <ArrowRight className="h-3 w-3 opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t border-border/40">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>
-              © {new Date().getFullYear()} KAYOU. Tous droits réservés.
-            </p>
-            <div className="flex items-center gap-4">
-              <Link href="#" className="hover:text-primary transition-colors">
-                Conditions
-              </Link>
-              <Link href="#" className="hover:text-primary transition-colors">
-                Confidentialité
-              </Link>
-              <Link href="#" className="hover:text-primary transition-colors">
-                Cookies
-              </Link>
-            </div>
-          </div>
+      <div
+        style={{ borderTop: "1px solid var(--k-border)" }}
+      >
+        <div
+          className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-2 px-5 py-5 md:flex-row md:px-10"
+          style={{ color: "var(--k-text-muted)" }}
+        >
+          <span className="k-caption">© {new Date().getFullYear()} KAYOU · Tous droits réservés</span>
+          <span className="k-caption">Fait à Kinshasa, avec soin.</span>
         </div>
       </div>
     </footer>
