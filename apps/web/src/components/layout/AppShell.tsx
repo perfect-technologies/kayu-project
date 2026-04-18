@@ -51,7 +51,7 @@ const clientNavItems: NavItem[] = [
   { name: 'Tableau de bord', href: '/dashboard/client', icon: LayoutDashboard },
   { name: 'Mes réservations', href: '/bookings', icon: Calendar },
   { name: 'Favoris', href: '/dashboard/client/favorites', icon: Star },
-  { name: 'Messages', href: '/dashboard/client/messages', icon: MessageSquare },
+  { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -60,7 +60,7 @@ const providerNavItems: NavItem[] = [
   { name: 'Mes réservations', href: '/bookings', icon: Calendar },
   { name: 'Mon profil', href: '/dashboard/provider/profile', icon: User },
   { name: 'Services', href: '/dashboard/provider/services', icon: Briefcase },
-  { name: 'Messages', href: '/dashboard/provider/messages', icon: MessageSquare },
+  { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Avis', href: '/dashboard/provider/reviews', icon: Star },
   { name: 'Statistiques', href: '/dashboard/provider/stats', icon: TrendingUp },
   { name: 'Paiements', href: '/dashboard/provider/payments', icon: Wallet },

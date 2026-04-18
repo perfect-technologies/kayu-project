@@ -161,7 +161,7 @@ function SearchNavigator() {
       <SearchStack.Screen
         name="Chat"
         component={ChatScreen}
-        options={({ route }) => ({ title: route.params.recipientName })}
+        options={{ headerShown: false }}
       />
     </SearchStack.Navigator>
   );
@@ -195,12 +195,12 @@ function MessagesNavigator() {
       <MessagesStack.Screen
         name="ConversationsMain"
         component={ConversationsScreen}
-        options={{ title: 'Messages' }}
+        options={{ headerShown: false }}
       />
       <MessagesStack.Screen
         name="Chat"
         component={ChatScreen}
-        options={({ route }) => ({ title: route.params.recipientName })}
+        options={{ headerShown: false }}
       />
     </MessagesStack.Navigator>
   );
@@ -242,7 +242,7 @@ function ProfileNavigator() {
       <ProfileStack.Screen
         name="Chat"
         component={ChatScreen}
-        options={({ route }) => ({ title: route.params.recipientName })}
+        options={{ headerShown: false }}
       />
       <ProfileStack.Screen
         name="Settings"
@@ -264,6 +264,8 @@ const HIDE_TAB_BAR_ROUTES = new Set([
   'ProviderProfile',
   // review
   'Review',
+  // chat thread (composer sits at the bottom)
+  'Chat',
   // onboarding + quote land here when DS07/DS09 register them; listed now
   // so the shell doesn't need another change then.
   'ProviderOnboarding',
