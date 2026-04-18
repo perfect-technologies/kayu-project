@@ -6,7 +6,7 @@
 - **Status:** not_started
 - **Primary reference:** `../DESIGN_SYSTEM.md`
 - **Visual source of truth:** `prototype/`
-- **Last updated:** 2026-04-18 (D05 shipped)
+- **Last updated:** 2026-04-18 (D06 shipped)
 
 ---
 
@@ -19,7 +19,7 @@
 | D03 | Canonical cards — photo-forward system | P0 | D02 | web + mobile + `@kayu/ui` | done | The whole marketplace leans on this |
 | D04 | Web redesign — home, search, profile, booking | P0 | D03, migration 10 | web | done | Brings web from v1 → v2 |
 | D05 | Mobile shell — navigation, headers, icons | P0 | D03, migration 11 | mobile | done | Floating pill tab bar |
-| D06 | Mobile screens — home, search, profile | P0 | D05 | mobile | not_started | Airbnb patterns |
+| D06 | Mobile screens — home, search, profile | P0 | D05 | mobile | done | Airbnb patterns |
 | D07 | Booking flow — web stepper + mobile full-screen sheet | P0 | D04, D06 | web + mobile | not_started | |
 | D08 | Kayou Moment + states (empty, loading, error) | P1 | D07 | web + mobile | not_started | The animation + all the small surfaces |
 | D09 | QA, accessibility, cross-platform audit | P0 | D08 | web + mobile | not_started | Closes the gap web/mobile |
@@ -100,7 +100,7 @@ Kayou Moment ships. Empty/loading/error states done. Accessibility + cross-platf
 - [x] Abstract work-tile pattern implemented (deterministic per category)
 - [x] Web home / search / profile / booking redesigned
 - [x] Mobile shell (tab bar, shrinking search, icon buttons) in place
-- [ ] Mobile home / search / profile built
+- [x] Mobile home / search / profile built
 - [ ] Booking flow on both platforms (stepper + sheet)
 - [ ] Kayou Moment animation implemented, reduced-motion safe
 - [ ] Empty / loading / error states on every list and form view

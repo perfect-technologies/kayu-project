@@ -52,7 +52,7 @@ export type AuthStackParamList = {
 };
 
 export type SearchStackParamList = {
-  SearchMain: undefined;
+  SearchMain: { category?: string } | undefined;
   CategoryDetail: { categoryId: string; categoryName: string };
   ProviderProfile: { providerId: string };
   AllReviews: { providerId: string; providerName: string };
@@ -136,7 +136,7 @@ function SearchNavigator() {
       <SearchStack.Screen
         name="ProviderProfile"
         component={ProviderProfileScreen}
-        options={{ title: 'Profil' }}
+        options={{ headerShown: false }}
       />
       <SearchStack.Screen
         name="AllReviews"
@@ -217,7 +217,7 @@ function ProfileNavigator() {
       <ProfileStack.Screen
         name="ProviderProfile"
         component={ProviderProfileScreen}
-        options={{ title: 'Profil' }}
+        options={{ headerShown: false }}
       />
       <ProfileStack.Screen
         name="AllReviews"

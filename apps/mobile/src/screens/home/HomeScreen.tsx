@@ -1,34 +1,55 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
+  Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
-  ActivityIndicator,
+  Text,
+  View,
+  useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useAuth } from '@/lib/auth';
+import {
+  CategoryStrip,
+  FeaturedProviderCard,
+  FeaturedProviderCardSkeleton,
+  I,
+  NearbyCard,
+  NearbyCardSkeleton,
+  type CategoryStripItem,
+} from '@kayu/ui/mobile';
+import type { CategorySlug } from '@kayu/ui';
 import { api } from '@/lib/api';
-import { colors, spacing, fontSizes, fontWeights, borderRadius } from '@/lib/theme';
-import { CategoryGrid } from '@/components/home/CategoryGrid';
-import { FeaturedProviders } from '@/components/home/FeaturedProviders';
+import { theme } from '@/lib/theme';
+import { useShrinkOnScroll } from '@/hooks/useShrinkOnScroll';
+import { ShrinkingSearchHeader } from '@/components/shell';
+import { providerToCardData, toCategorySlug } from '@/lib/providerAdapter';
 import type { MainTabParamList } from '@/navigation/AppNavigator';
 
-export function HomeScreen() {
-  const { user } = useAuth();
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+type HomeNav = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 
-  const {
-    data: categoriesData,
-    isLoading: categoriesLoading,
-    refetch: refetchCategories,
-  } = useQuery({
+// Default category strip when the API hasn't returned yet. Mirrors the prototype
+// ordering and ensures each slug has a portfolio pair in @kayu/ui tokens.
+const FALLBACK_STRIP: CategoryStripItem[] = [
+  { slug: 'plomberie' },
+  { slug: 'electricite' },
+  { slug: 'menage' },
+  { slug: 'coiffure' },
+  { slug: 'jardinage' },
+  { slug: 'informatique' },
+  { slug: 'peinture' },
+  { slug: 'menuiserie' },
+];
+
+export function HomeScreen() {
+  const navigation = useNavigation<HomeNav>();
+  const { width } = useWindowDimensions();
+  const { scrolled, onScroll } = useShrinkOnScroll(40);
+
+  const { data: categoriesData } = useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: () => api.categories.getAll(),
   });
@@ -42,220 +63,352 @@ export function HomeScreen() {
     queryFn: () => api.providers.search({ limit: 10 }),
   });
 
-  const {
-    data: statsData,
-    refetch: refetchStats,
-  } = useQuery({
-    queryKey: queryKeys.stats.global,
-    queryFn: () => api.stats.getGlobal(),
-  });
-
   const [refreshing, setRefreshing] = React.useState(false);
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchCategories(), refetchProviders(), refetchStats()]);
+    await refetchProviders();
     setRefreshing(false);
   };
 
-  const categories = categoriesData?.categories ?? [];
-  const providers = providersData?.providers ?? [];
-  const stats = statsData;
+  const stripItems: CategoryStripItem[] = useMemo(() => {
+    const apiCategories = categoriesData?.categories ?? [];
+    if (apiCategories.length === 0) return FALLBACK_STRIP;
+    const seen = new Set<CategorySlug>();
+    const items: CategoryStripItem[] = [];
+    for (const c of apiCategories) {
+      const slug = toCategorySlug(c.slug);
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      items.push({ slug, label: c.name });
+      if (items.length >= 8) break;
+    }
+    return items.length > 0 ? items : FALLBACK_STRIP;
+  }, [categoriesData]);
 
-  const greeting = user?.firstName
-    ? `Bonjour, ${user.firstName}`
-    : 'Bonjour';
+  const providers = providersData?.providers ?? [];
+  const cards = useMemo(() => providers.map(providerToCardData), [providers]);
+  const featured = cards.slice(0, 4);
+  const nearby = cards.slice(0, 4);
+
+  const goToSearch = (category?: CategorySlug) => {
+    navigation.navigate('Search', { screen: 'SearchMain', params: { category } } as never);
+  };
+
+  const goToProfile = (providerId: string) => {
+    navigation.navigate('Search', {
+      screen: 'ProviderProfile',
+      params: { providerId },
+    } as never);
+  };
+
+  const carouselWidth = Math.min(320, Math.round(width * 0.78));
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={colors.primary.DEFAULT}
-        />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{greeting}</Text>
-          <Text style={styles.subtitle}>
-            Que recherchez-vous aujourd'hui ?
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        stickyHeaderIndices={[0]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+        }
+      >
+        <ShrinkingSearchHeader scrolled={scrolled} onSearchTap={() => goToSearch()} />
+
+        {/* Category strip */}
+        <View style={styles.stripWrap}>
+          <CategoryStrip items={stripItems} onSelect={(slug) => goToSearch(slug)} />
+        </View>
+
+        {/* Hero intro */}
+        <View style={styles.heroBlock}>
+          <Text style={styles.heroTitle}>
+            Le bon pro,{'\n'}près de toi.
+          </Text>
+          <Text style={styles.heroBody}>
+            Des pros vérifiés à Kinshasa, prêts à intervenir.
           </Text>
         </View>
-        <View style={styles.avatarPlaceholder}>
-          <Ionicons name="person" size={22} color={colors.primary.DEFAULT} />
+
+        {/* Featured carousel */}
+        <View style={styles.featuredSection}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Top pros cette semaine</Text>
+            <Pressable hitSlop={6} onPress={() => goToSearch()}>
+              <Text style={styles.linkText}>Tout voir</Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={carouselWidth + 14}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            contentContainerStyle={styles.carouselContent}
+          >
+            {providersLoading && featured.length === 0
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <View key={i} style={{ marginRight: 14 }}>
+                    <FeaturedProviderCardSkeleton width={carouselWidth} />
+                  </View>
+                ))
+              : featured.map((p, i) => (
+                  <View
+                    key={p.id}
+                    style={{ marginRight: i === featured.length - 1 ? 0 : 14 }}
+                  >
+                    <FeaturedProviderCard
+                      provider={p}
+                      width={carouselWidth}
+                      onPress={goToProfile}
+                    />
+                  </View>
+                ))}
+          </ScrollView>
         </View>
-      </View>
 
-      {/* Search bar */}
-      <TouchableOpacity
-        style={styles.searchBar}
-        activeOpacity={0.7}
-        onPress={() => navigation.navigate('Search')}
-      >
-        <Ionicons name="search" size={20} color={colors.text.tertiary} />
-        <Text style={styles.searchPlaceholder}>
-          Rechercher un prestataire...
-        </Text>
-      </TouchableOpacity>
+        {/* Nearby grouped card */}
+        <View style={styles.nearbySection}>
+          <View style={[styles.sectionHead, styles.nearbyHead]}>
+            <Text style={styles.sectionTitle}>Près de toi</Text>
+            <Pressable hitSlop={6} onPress={() => goToSearch()}>
+              <Text style={styles.linkText}>Carte</Text>
+            </Pressable>
+          </View>
+          {providersLoading && nearby.length === 0 ? (
+            <NearbyCardSkeleton rows={4} />
+          ) : nearby.length > 0 ? (
+            <NearbyCard providers={nearby} onSelect={goToProfile} />
+          ) : null}
+        </View>
 
-      {/* Stats banner */}
-      {stats && (
-        <View style={styles.statsBanner}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {stats.totalProviders}
-            </Text>
-            <Text style={styles.statLabel}>Prestataires</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {stats.totalClients}
-            </Text>
-            <Text style={styles.statLabel}>Clients</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>
-              {stats.totalCategories}
-            </Text>
-            <Text style={styles.statLabel}>Catégories</Text>
+        {/* How it works */}
+        <View style={styles.howSection}>
+          <Text style={styles.sectionTitle}>Comment ça marche</Text>
+          <View style={styles.howList}>
+            {HOW_STEPS.map((step) => (
+              <View key={step.number} style={styles.howCard}>
+                <View style={styles.howNumber}>
+                  <Text style={styles.howNumberText}>{step.number}</Text>
+                </View>
+                <View style={styles.howBody}>
+                  <Text style={styles.howTitle}>{step.title}</Text>
+                  <Text style={styles.howDesc}>{step.desc}</Text>
+                </View>
+              </View>
+            ))}
           </View>
         </View>
-      )}
 
-      {/* Categories */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Catégories</Text>
-        {categoriesLoading ? (
-          <ActivityIndicator color={colors.primary.DEFAULT} style={styles.loader} />
-        ) : (
-          <CategoryGrid
-            categories={categories}
-            onPress={(cat) =>
-              (navigation as any).navigate('Search', {
-                screen: 'CategoryDetail',
-                params: { categoryId: cat.id, categoryName: cat.name },
-              })
-            }
-          />
-        )}
-      </View>
-
-      {/* Featured Providers */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Prestataires populaires</Text>
-        {providersLoading ? (
-          <ActivityIndicator color={colors.primary.DEFAULT} style={styles.loader} />
-        ) : (
-          <FeaturedProviders
-            providers={providers}
-            onPress={(provider) =>
-              (navigation as any).navigate('Search', {
-                screen: 'ProviderProfile',
-                params: { providerId: provider.id },
-              })
-            }
-          />
-        )}
-      </View>
-    </ScrollView>
+        {/* Provider CTA — coral gradient */}
+        <View style={styles.ctaWrap}>
+          <View style={styles.ctaCard}>
+            <View style={styles.ctaBlob} />
+            <Text style={styles.ctaOverline}>Pour les pros</Text>
+            <Text style={styles.ctaTitle}>Tu es un pro ? Rejoins-nous.</Text>
+            <Text style={styles.ctaBody}>
+              Crée ton profil, reçois des demandes qualifiées.
+            </Text>
+            <Pressable style={styles.ctaButton}>
+              <Text style={styles.ctaButtonText}>Devenir pro</Text>
+              <I.arrowRight size={14} color={theme.colors.textInverse} />
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
+const HOW_STEPS = [
+  { number: '01', title: 'Trouve', desc: 'Parcours les pros vérifiés autour de toi.' },
+  { number: '02', title: 'Réserve', desc: 'Choisis un créneau et décris ton besoin.' },
+  { number: '03', title: 'Paie protégé', desc: 'Le paiement est débloqué une fois le travail validé.' },
+];
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: theme.colors.bg,
   },
-  content: {
-    paddingBottom: spacing.xxl,
+  scroll: {
+    flex: 1,
   },
-  header: {
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  stripWrap: {
+    paddingTop: 4,
+  },
+  heroBlock: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 4,
+  },
+  heroTitle: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 26,
+    lineHeight: 30,
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.6,
+  },
+  heroBody: {
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.textMuted,
+    marginTop: 8,
+  },
+  featuredSection: {
+    marginTop: 22,
+  },
+  sectionHead: {
+    paddingHorizontal: 20,
+    paddingBottom: 10,
     flexDirection: 'row',
+    alignItems: 'baseline',
     justifyContent: 'space-between',
+  },
+  nearbyHead: {
+    paddingHorizontal: 0,
+    marginBottom: 2,
+  },
+  sectionTitle: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 20,
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.4,
+  },
+  linkText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '600',
+    fontSize: 13,
+    color: theme.colors.textPrimary,
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
+  },
+  carouselContent: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  nearbySection: {
+    marginTop: 26,
+    paddingHorizontal: 20,
+  },
+  howSection: {
+    marginTop: 28,
+    paddingHorizontal: 20,
+  },
+  howList: {
+    marginTop: 12,
+    gap: 10,
+  },
+  howCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    gap: 14,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    padding: 16,
+    ...theme.shadow.e1,
   },
-  greeting: {
-    fontSize: fontSizes['2xl'],
-    fontWeight: fontWeights.bold,
-    color: colors.text.primary,
-  },
-  subtitle: {
-    fontSize: fontSizes.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary[50],
+  howNumber: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    marginHorizontal: spacing.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.neutral[200],
-    gap: spacing.sm,
+  howNumberText: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primaryHover,
   },
-  searchPlaceholder: {
-    fontSize: fontSizes.md,
-    color: colors.text.tertiary,
-  },
-  statsBanner: {
-    flexDirection: 'row',
-    backgroundColor: colors.primary.DEFAULT,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  statItem: {
+  howBody: {
     flex: 1,
-    alignItems: 'center',
   },
-  statNumber: {
-    fontSize: fontSizes.xl,
-    fontWeight: fontWeights.bold,
-    color: colors.text.inverse,
+  howTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontWeight: '600',
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    letterSpacing: -0.2,
   },
-  statLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.primary[200],
+  howDesc: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
     marginTop: 2,
   },
-  statDivider: {
-    width: 1,
-    backgroundColor: colors.primary[400],
+  ctaWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 20,
   },
-  section: {
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
+  ctaCard: {
+    borderRadius: theme.radius.lg,
+    padding: 22,
+    backgroundColor: '#FFE4E6',
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
   },
-  sectionTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
+  ctaBlob: {
+    position: 'absolute',
+    right: -30,
+    top: -30,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(251,113,133,0.2)',
   },
-  loader: {
-    paddingVertical: spacing.xl,
+  ctaOverline: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.88,
+    textTransform: 'uppercase',
+    color: '#BE123C',
+    marginBottom: 8,
+  },
+  ctaTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontWeight: '600',
+    fontSize: 22,
+    color: theme.colors.textPrimary,
+    marginBottom: 8,
+    letterSpacing: -0.4,
+  },
+  ctaBody: {
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#9F1239',
+    marginBottom: 14,
+  },
+  ctaButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: theme.radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ctaButtonText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textInverse,
   },
 });
