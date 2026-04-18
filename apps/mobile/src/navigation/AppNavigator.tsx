@@ -11,6 +11,9 @@ import { colors } from '@/lib/theme';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { RegisterScreen } from '@/screens/auth/RegisterScreen';
 
+// Design-system smoke test (D01). Remove when D09 passes.
+import { DesignProbeScreen } from '@/screens/DesignProbeScreen';
+
 // Home
 import { HomeScreen } from '@/screens/home/HomeScreen';
 
@@ -41,6 +44,7 @@ import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
+  DesignProbe: undefined;
 };
 
 export type SearchStackParamList = {
@@ -96,6 +100,11 @@ function AuthNavigator() {
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
+      <AuthStack.Screen
+        name="DesignProbe"
+        component={DesignProbeScreen}
+        options={{ headerShown: true, title: 'Design probe' }}
+      />
     </AuthStack.Navigator>
   );
 }

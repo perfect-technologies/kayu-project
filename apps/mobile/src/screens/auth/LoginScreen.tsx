@@ -271,6 +271,15 @@ export function LoginScreen({ navigation }: Props) {
               <Text style={styles.footerLink}>S'inscrire</Text>
             </TouchableOpacity>
           </View>
+
+          {showDemoAccounts ? (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('DesignProbe')}
+              style={styles.toggleButton}
+            >
+              <Text style={styles.toggleText}>Design probe (dev)</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

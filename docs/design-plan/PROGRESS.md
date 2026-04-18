@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|---|
 | D01 | Foundations — tokens, fonts, base styles | P0 | migration 01 scaffold | web + mobile + `@kayu/ui` | not_started | Source of truth for every token |
 | D02 | Primitives — button, input, avatar, chip, icon, shimmer | P0 | D01 | web + mobile | not_started | Atomic layer |
-| D03 | Canonical cards — photo-forward system | P0 | D02 | web + mobile + `@kayu/ui` | not_started | The whole marketplace leans on this |
+| D03 | Canonical cards — photo-forward system | P0 | D02 | web + mobile + `@kayu/ui` | done | The whole marketplace leans on this |
 | D04 | Web redesign — home, search, profile, booking | P0 | D03, migration 10 | web | not_started | Brings web from v1 → v2 |
 | D05 | Mobile shell — navigation, headers, icons | P0 | D03, migration 11 | mobile | not_started | Floating pill tab bar |
 | D06 | Mobile screens — home, search, profile | P0 | D05 | mobile | not_started | Airbnb patterns |
@@ -96,8 +96,8 @@ Kayou Moment ships. Empty/loading/error states done. Accessibility + cross-platf
 - [ ] Tokens live in `@kayu/ui` and nothing in apps references raw hex values
 - [ ] Plus Jakarta Sans + Inter + JetBrains Mono load on web and mobile
 - [ ] Primitives (Button, Input, Avatar, Chip, Icon, Shimmer) exported
-- [ ] `FeaturedProviderCard`, `WideProviderCard`, `NearbyRow` implemented
-- [ ] Abstract work-tile pattern implemented (deterministic per category)
+- [x] `FeaturedProviderCard`, `WideProviderCard`, `NearbyRow` implemented
+- [x] Abstract work-tile pattern implemented (deterministic per category)
 - [ ] Web home / search / profile / booking redesigned
 - [ ] Mobile shell (tab bar, shrinking search, icon buttons) in place
 - [ ] Mobile home / search / profile built

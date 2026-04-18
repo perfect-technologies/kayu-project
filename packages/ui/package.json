@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "default": "./dist/web/index.js"
+    },
+    "./mobile": {
+      "types": "./dist/mobile/index.d.ts",
+      "default": "./dist/mobile/index.js"
     }
   },
   "scripts": {
@@ -17,7 +25,39 @@
     "lint": "echo 'no linter configured'",
     "clean": "rm -rf dist"
   },
+  "peerDependencies": {
+    "lucide-react": ">=0.400.0",
+    "lucide-react-native": ">=0.400.0",
+    "react": ">=18",
+    "react-dom": ">=18",
+    "react-native": ">=0.74",
+    "react-native-svg": ">=15.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-svg": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "lucide-react-native": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "lucide-react": "^0.525.0",
+    "lucide-react-native": "^0.525.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.2.5",
+    "react-native": "^0.81.6",
+    "react-native-svg": "^15.12.1",
     "typescript": "^5.8.0"
   }
 }
