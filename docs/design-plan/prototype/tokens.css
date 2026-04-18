@@ -1,0 +1,138 @@
+/* KAYOU design tokens — mirrors packages/ui/src/tokens.ts */
+:root {
+  /* surfaces */
+  --k-bg: #FAFAF9;
+  --k-surface: #FFFFFF;
+  --k-surface-muted: #F1F5F9;
+  --k-surface-primary: #F0F9FF;
+  --k-surface-emerald: #ECFDF5;
+  --k-surface-coral: #FFF1F2;
+  --k-surface-amber: #FFFBEB;
+  --k-surface-rose: #FEF2F2;
+  --k-surface-expert: #EEF2FF;
+
+  /* text */
+  --k-text-primary: #0F172A;
+  --k-text-body: #334155;
+  --k-text-muted: #64748B;
+  --k-text-subtle: #94A3B8;
+  --k-text-inverse: #FFFFFF;
+
+  /* borders */
+  --k-border: #E2E8F0;
+  --k-border-subtle: #F1F5F9;
+  --k-border-strong: #CBD5E1;
+
+  /* intent */
+  --k-primary: #0EA5E9;
+  --k-primary-hover: #0284C7;
+  --k-primary-subtle: #F0F9FF;
+  --k-accent: #FB7185;
+  --k-accent-subtle: #FFF1F2;
+  --k-success: #10B981;
+  --k-success-subtle: #ECFDF5;
+  --k-warning: #F59E0B;
+  --k-warning-subtle: #FFFBEB;
+  --k-danger: #E11D48;
+  --k-danger-subtle: #FEF2F2;
+  --k-expert: #4F46E5;
+  --k-expert-subtle: #EEF2FF;
+
+  /* radius */
+  --k-r-sm: 8px;
+  --k-r-md: 12px;
+  --k-r-lg: 20px;
+  --k-r-xl: 28px;
+
+  /* elevation — sky tinted */
+  --k-e1: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(14,165,233,0.06);
+  --k-e2: 0 4px 8px rgba(15,23,42,0.04), 0 8px 24px rgba(14,165,233,0.08);
+  --k-e3: 0 8px 16px rgba(15,23,42,0.05), 0 20px 48px rgba(14,165,233,0.12);
+
+  /* fonts */
+  --k-font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --k-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --k-font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* ease */
+  --k-ease-std: cubic-bezier(0.2, 0, 0, 1);
+  --k-ease-emph: cubic-bezier(0.3, 0, 0, 1);
+  --k-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: #E7E5E4;
+  font-family: var(--k-font-body);
+  color: var(--k-text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* type scale */
+.k-display-xl { font-family: var(--k-font-display); font-weight: 700; font-size: 56px; line-height: 1.02; letter-spacing: -0.035em; }
+.k-display-l  { font-family: var(--k-font-display); font-weight: 700; font-size: 40px; line-height: 1.06; letter-spacing: -0.028em; }
+.k-display-m  { font-family: var(--k-font-display); font-weight: 600; font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; }
+.k-heading    { font-family: var(--k-font-display); font-weight: 600; font-size: 20px; line-height: 1.25; letter-spacing: -0.01em; }
+.k-body-l     { font-size: 17px; line-height: 1.55; }
+.k-body       { font-size: 15px; line-height: 1.5; }
+.k-body-m     { font-size: 14px; line-height: 1.45; font-weight: 500; }
+.k-caption    { font-size: 12px; line-height: 1.35; font-weight: 500; color: var(--k-text-muted); }
+.k-overline   { font-size: 11px; line-height: 1.2; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-text-muted); }
+.k-price      { font-family: var(--k-font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.k-num        { font-variant-numeric: tabular-nums; }
+
+/* components */
+.k-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--k-font-body); font-weight: 600; font-size: 15px;
+  border-radius: var(--k-r-md); height: 40px; padding: 0 16px; border: 0;
+  cursor: pointer; transition: background 120ms var(--k-ease-std), transform 120ms var(--k-ease-std), box-shadow 120ms var(--k-ease-std);
+  white-space: nowrap;
+}
+.k-btn:active { transform: scale(0.98); }
+.k-btn-primary { background: var(--k-primary); color: white; }
+.k-btn-primary:hover { background: var(--k-primary-hover); }
+.k-btn-secondary { background: var(--k-surface); color: var(--k-text-primary); border: 1px solid var(--k-border); }
+.k-btn-secondary:hover { background: var(--k-surface-muted); }
+.k-btn-ghost { background: transparent; color: var(--k-primary-hover); }
+.k-btn-ghost:hover { background: var(--k-primary-subtle); }
+.k-btn-lg { height: 48px; padding: 0 22px; font-size: 16px; }
+.k-btn-sm { height: 32px; padding: 0 12px; font-size: 13px; }
+
+.k-input { display: block; width: 100%; height: 44px; border-radius: var(--k-r-md);
+  border: 1px solid var(--k-border); background: var(--k-surface);
+  padding: 0 14px; font: inherit; font-size: 15px; color: var(--k-text-primary);
+  outline: none; transition: border-color 120ms, box-shadow 120ms;
+}
+.k-input:focus { border-color: var(--k-primary); box-shadow: 0 0 0 3px rgba(14,165,233,0.12); }
+
+.k-card { background: var(--k-surface); border: 1px solid var(--k-border);
+  border-radius: var(--k-r-md); box-shadow: var(--k-e1);
+}
+.k-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+  border-radius: 9999px; font-size: 13px; font-weight: 500;
+  background: var(--k-surface-muted); color: var(--k-text-body);
+}
+.k-chip-sm { height: 22px; padding: 0 10px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em; }
+.k-chip-success { background: var(--k-success-subtle); color: #047857; }
+.k-chip-primary { background: var(--k-primary-subtle); color: var(--k-primary-hover); }
+.k-chip-accent  { background: var(--k-accent-subtle); color: #BE123C; }
+.k-chip-warning { background: var(--k-warning-subtle); color: #B45309; }
+.k-chip-expert  { background: var(--k-expert-subtle); color: var(--k-expert); }
+
+/* shimmer */
+@keyframes kshimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }
+.k-shimmer { background: linear-gradient(90deg, #F1F5F9, #E2E8F0, #F1F5F9);
+  background-size: 800px 100%; animation: kshimmer 1600ms linear infinite;
+}
+
+/* focus */
+:focus-visible { outline: 2px solid var(--k-primary); outline-offset: 2px; border-radius: 4px; }
+button { font-family: inherit; }
+
+/* scrollbar polish */
+.k-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.k-scroll::-webkit-scrollbar-thumb { background: var(--k-border); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.k-scroll::-webkit-scrollbar-thumb:hover { background: var(--k-border-strong); background-clip: padding-box; border: 2px solid transparent; }
