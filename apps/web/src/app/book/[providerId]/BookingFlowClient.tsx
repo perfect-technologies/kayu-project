@@ -9,8 +9,6 @@ import {
   Check,
   ShieldCheck,
   Star,
-  MessageCircle,
-  MapPin,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Layout } from "@/components/layout";
@@ -19,6 +17,7 @@ import { apiClient } from "@/lib/api";
 import { bookingsApi } from "@kayu/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginDialog } from "@/components/auth/LoginDialog";
+import { KayouMoment } from "@kayu/ui/web";
 
 interface ProviderMini {
   id: string;
@@ -86,11 +85,30 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   };
 
   if (step === 3) {
+    const providerInitials =
+      `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
+    const scheduled = new Date();
+    scheduled.setDate(day);
+    const [h, m] = time.split(":").map(Number);
+    scheduled.setHours(h, m, 0, 0);
+    const dateLabel = new Intl.DateTimeFormat("fr-FR", {
+      weekday: "short",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(scheduled);
     return (
       <Layout>
         <KayouMoment
-          providerName={provider.firstName}
-          onDone={() => router.push("/dashboard/client")}
+          provider={{
+            firstName: provider.firstName,
+            initials: providerInitials,
+            response: "15 min",
+          }}
+          dateLabel={dateLabel.replace(",", " ·")}
+          onMessage={() => router.push("/dashboard/client")}
+          onViewBooking={() => router.push("/dashboard/client")}
         />
       </Layout>
     );
@@ -613,92 +631,3 @@ function MiniCalendar({
   );
 }
 
-function KayouMoment({
-  providerName,
-  onDone,
-}: {
-  providerName: string;
-  onDone: () => void;
-}) {
-  return (
-    <div
-      className="flex flex-col items-center justify-center py-16 text-center"
-      style={{ background: "var(--k-bg)", minHeight: "70vh" }}
-    >
-      <div
-        className="mb-6 flex h-24 w-24 items-center justify-center animate-k-fade-in"
-        style={{
-          background: "var(--k-success-subtle)",
-          borderRadius: "50%",
-        }}
-      >
-        <div
-          className="flex h-[72px] w-[72px] items-center justify-center"
-          style={{
-            background: "var(--k-success)",
-            color: "white",
-            borderRadius: "50%",
-          }}
-        >
-          <Check className="h-9 w-9" strokeWidth={2.5} />
-        </div>
-      </div>
-      <h1 className="k-display-l" style={{ margin: "0 0 10px" }}>
-        C&apos;est noté&nbsp;!
-      </h1>
-      <p
-        className="k-body-l"
-        style={{ color: "var(--k-text-body)", maxWidth: 420, margin: "0 0 28px" }}
-      >
-        <b>{providerName}</b> te recontacte sous <b className="k-num">~15 min</b>{" "}
-        pour confirmer les détails.
-      </p>
-
-      <div
-        className="p-4"
-        style={{
-          background: "var(--k-surface)",
-          border: "1px solid var(--k-border)",
-          borderRadius: "var(--k-r-md)",
-          width: "min(420px, 100%)",
-        }}
-      >
-        <div className="grid grid-cols-2 gap-3 text-left">
-          <div>
-            <div className="k-caption">Référence</div>
-            <div className="k-price" style={{ fontSize: 14 }}>
-              #KY-{Math.floor(1000 + Math.random() * 9000)}
-            </div>
-          </div>
-          <div>
-            <div className="k-caption">Statut</div>
-            <div className="k-body-m" style={{ fontWeight: 600 }}>
-              En attente de confirmation
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="mt-6 flex gap-2.5"
-        style={{ width: "min(420px, 100%)" }}
-      >
-        <button
-          className="k-btn k-btn-secondary flex-1"
-          onClick={onDone}
-        >
-          <MessageCircle className="h-4 w-4" />
-          Message
-        </button>
-        <button
-          className="k-btn k-btn-primary"
-          style={{ flex: 1.2 }}
-          onClick={onDone}
-        >
-          <MapPin className="h-4 w-4" />
-          Voir ma réservation
-        </button>
-      </div>
-    </div>
-  );
-}

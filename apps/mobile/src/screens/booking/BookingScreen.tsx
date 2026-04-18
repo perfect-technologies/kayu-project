@@ -15,7 +15,8 @@ import { queryKeys } from '@kayu/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { Avatar, I } from '@kayu/ui/mobile';
+import * as SecureStore from 'expo-secure-store';
+import { Avatar, I, KayouMoment } from '@kayu/ui/mobile';
 import { tokens, formatHourly, type CategorySlug } from '@kayu/ui';
 import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
@@ -26,7 +27,8 @@ import type {
   SearchStackParamList,
   ProfileStackParamList,
 } from '@/navigation/AppNavigator';
-import { KayouMomentPlaceholder } from './KayouMomentPlaceholder';
+
+const FIRST_BOOKING_KEY = 'kayou:firstBookingShown';
 
 type ParamList = SearchStackParamList & ProfileStackParamList;
 type Nav = NativeStackNavigationProp<ParamList, 'CreateBooking'>;
@@ -62,6 +64,7 @@ export function BookingScreen() {
   const [time, setTime] = React.useState<string>('10:00');
   const [address, setAddress] = React.useState<string>('');
   const [note, setNote] = React.useState<string>('');
+  const [showArc, setShowArc] = React.useState<boolean>(false);
 
   const { data: provider, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.providers.detail(params.providerId),
@@ -86,7 +89,17 @@ export function BookingScreen() {
         clientNotes: note || undefined,
       });
     },
-    onSuccess: () => setStep(3),
+    onSuccess: async () => {
+      try {
+        const seen = await SecureStore.getItemAsync(FIRST_BOOKING_KEY);
+        setShowArc(seen !== '1');
+        if (seen !== '1') await SecureStore.setItemAsync(FIRST_BOOKING_KEY, '1');
+      } catch {
+        // SecureStore unavailable — still play arc
+        setShowArc(true);
+      }
+      setStep(3);
+    },
   });
 
   const handleBack = () => {
@@ -112,10 +125,35 @@ export function BookingScreen() {
   if (error || !provider) return <ErrorState onRetry={() => refetch()} />;
 
   if (step === 3) {
+    const firstName = provider.user.firstName ?? 'Jean';
+    const lastName = provider.user.lastName ?? '';
+    const providerInitials = `${firstName[0] ?? '?'}${lastName[0] ?? ''}`.toUpperCase();
+    const scheduled = new Date();
+    scheduled.setDate(date);
+    const [h, m] = time.split(':').map(Number);
+    scheduled.setHours(h, m, 0, 0);
+    const dateLabel = new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+      .format(scheduled)
+      .replace(',', ' ·');
     return (
-      <KayouMomentPlaceholder
-        providerName={provider.user.firstName ?? 'Jean'}
-        onDone={() => {
+      <KayouMoment
+        provider={{
+          firstName,
+          initials: providerInitials,
+          response: '15 min',
+        }}
+        dateLabel={dateLabel}
+        showArc={showArc}
+        onMessage={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
+        onViewBooking={() => {
           if (navigation.canGoBack()) navigation.goBack();
         }}
       />

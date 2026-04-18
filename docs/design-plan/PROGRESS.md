@@ -6,7 +6,7 @@
 - **Status:** not_started
 - **Primary reference:** `../DESIGN_SYSTEM.md`
 - **Visual source of truth:** `prototype/`
-- **Last updated:** 2026-04-18 (D07 shipped)
+- **Last updated:** 2026-04-18 (D08 shipped)
 
 ---
 
@@ -21,7 +21,7 @@
 | D05 | Mobile shell — navigation, headers, icons | P0 | D03, migration 11 | mobile | done | Floating pill tab bar |
 | D06 | Mobile screens — home, search, profile | P0 | D05 | mobile | done | Airbnb patterns |
 | D07 | Booking flow — web stepper + mobile full-screen sheet | P0 | D04, D06 | web + mobile | done | |
-| D08 | Kayou Moment + states (empty, loading, error) | P1 | D07 | web + mobile | not_started | The animation + all the small surfaces |
+| D08 | Kayou Moment + states (empty, loading, error) | P1 | D07 | web + mobile | done | Kayou Moment (arc + reduced-motion), EmptyState/ErrorState/Toast primitives, page-level skeletons — all shipped via `@kayu/ui` web+mobile |
 | D09 | QA, accessibility, cross-platform audit | P0 | D08 | web + mobile | not_started | Closes the gap web/mobile |
 
 ---
@@ -42,7 +42,7 @@ Mobile app home / search / profile / booking all reach the prototype's visual ba
 
 ### M4 — Delight & polish (D08–D09)
 Kayou Moment ships. Empty/loading/error states done. Accessibility + cross-platform audit pass.
-**Status:** not_started
+**Status:** in_progress (D08 complete, D09 remaining)
 
 ---
 
@@ -80,14 +80,16 @@ Kayou Moment ships. Empty/loading/error states done. Accessibility + cross-platf
 | 2026-04-18 | Provider profile on mobile is full-bleed photo hero | D06 | Airbnb listing-detail pattern; the right way to introduce a person |
 | 2026-04-18 | Kayou Moment arc fires only on **first** booking | D08 | Gimmick on repeat use; magic on first use |
 | 2026-04-18 | Light mode only — no dark theme branching | all | Market + product constraints; reinforced throughout |
+| 2026-04-18 | KayouMoment first-booking flag persisted in `localStorage` (web) / `expo-secure-store` (mobile) under key `kayou:firstBookingShown` | D08 | Arc only plays on the first confirmed booking; caller owns storage on mobile while web auto-detects |
+| 2026-04-18 | EmptyState/ErrorState/Skeleton/Toast primitives live in `@kayu/ui/{web,mobile}`; legacy `apps/mobile/src/components/common/{EmptyState,ErrorState,LoadingScreen}` retained as legacy adapters | D08 | Forward-facing code should import from `@kayu/ui` — the ActivityIndicator-based `LoadingScreen` is a v1 holdover that D09/follow-up chunks should retire |
 
 ---
 
 ## Current focus
 
-**Objective:** get D01 (foundations) ready and verified so D02/D03 can start.
+**Objective:** run D09 — cross-platform QA + accessibility audit now that D08 primitives ship.
 
-**Definition of done for D01:** tokens exported from `@kayu/ui`, Tailwind config consumes them on web, RN theme object consumes them on mobile, three fonts load on both, a smoke-test page renders type scale + button variants + card with correct shadow on both platforms.
+**Definition of done for D09:** every list/form/fetch surface on web and mobile routes through the `@kayu/ui` Empty/Error/Skeleton primitives (no ActivityIndicator, no bare text fallbacks), `KayouMoment` verified on both platforms under `prefers-reduced-motion`, and the §15 checklist passes on every touched screen.
 
 ---
 
@@ -102,8 +104,8 @@ Kayou Moment ships. Empty/loading/error states done. Accessibility + cross-platf
 - [x] Mobile shell (tab bar, shrinking search, icon buttons) in place
 - [x] Mobile home / search / profile built
 - [x] Booking flow on both platforms (stepper + sheet)
-- [ ] Kayou Moment animation implemented, reduced-motion safe
-- [ ] Empty / loading / error states on every list and form view
+- [x] Kayou Moment animation implemented, reduced-motion safe
+- [x] Empty / loading / error states on every list and form view
 - [ ] Cross-platform audit passes (D09)
 
 ---
