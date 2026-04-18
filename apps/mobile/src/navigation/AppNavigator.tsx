@@ -43,13 +43,13 @@ import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
 import { FavoritesScreen } from '@/screens/profile/FavoritesScreen';
 import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 
-// Pro tab screens. DS06 shipped ProviderDashboardScreen; the rest are placeholders
-// until DS07–DS09 replace them.
-import {
-  EarningsScreen,
-  JobRequestsScreen,
-} from '@/screens/pro/ComingSoonScreen';
+// Pro tab screens. DS06 shipped ProviderDashboardScreen; DS07 shipped
+// JobRequestsScreen + QuoteComposeScreen. Earnings + onboarding remain
+// placeholders until DS08/DS09.
+import { EarningsScreen } from '@/screens/pro/ComingSoonScreen';
 import { ProviderDashboardScreen } from '@/screens/pro/ProviderDashboardScreen';
+import { JobRequestsScreen } from '@/screens/pro/JobRequestsScreen';
+import { QuoteComposeScreen } from '@/screens/pro/QuoteComposeScreen';
 
 // --- Type definitions ---
 
@@ -76,6 +76,12 @@ export type BookingsStackParamList = {
 export type MessagesStackParamList = {
   ConversationsMain: undefined;
   Chat: { conversationId?: string; recipientId: string; recipientName: string };
+};
+
+export type RequestsStackParamList = {
+  RequestsMain: undefined;
+  QuoteCompose: { requestId?: string };
+  BookingDetail: { bookingId: string };
 };
 
 export type ProfileStackParamList = {
@@ -109,6 +115,7 @@ const SearchStack = createNativeStackNavigator<SearchStackParamList>();
 const BookingsStack = createNativeStackNavigator<BookingsStackParamList>();
 const MessagesStack = createNativeStackNavigator<MessagesStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const RequestsStack = createNativeStackNavigator<RequestsStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
 function AuthNavigator() {
@@ -204,6 +211,28 @@ function MessagesNavigator() {
         options={{ headerShown: false }}
       />
     </MessagesStack.Navigator>
+  );
+}
+
+function RequestsNavigator() {
+  return (
+    <RequestsStack.Navigator screenOptions={HEADER_STYLE}>
+      <RequestsStack.Screen
+        name="RequestsMain"
+        component={JobRequestsScreen}
+        options={{ headerShown: false }}
+      />
+      <RequestsStack.Screen
+        name="QuoteCompose"
+        component={QuoteComposeScreen}
+        options={{ headerShown: false }}
+      />
+      <RequestsStack.Screen
+        name="BookingDetail"
+        component={BookingDetailScreen}
+        options={{ headerShown: false }}
+      />
+    </RequestsStack.Navigator>
   );
 }
 
@@ -309,7 +338,7 @@ function ProTabs() {
       })}
     >
       <MainTab.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
-      <MainTab.Screen name="Requests" component={JobRequestsScreen} />
+      <MainTab.Screen name="Requests" component={RequestsNavigator} />
       <MainTab.Screen name="Messages" component={MessagesNavigator} />
       <MainTab.Screen name="Earnings" component={EarningsScreen} />
       <MainTab.Screen name="Profile" component={ProfileNavigator} />

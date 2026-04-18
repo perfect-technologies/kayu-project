@@ -33,16 +33,8 @@ export function ComingSoonScreen({
   );
 }
 
-// ProviderDashboardScreen is now shipped in ./ProviderDashboardScreen (DS06).
-// Navigator imports it directly; this placeholder is retained for DS07/DS08.
-
-export const JobRequestsScreen = () => (
-  <ComingSoonScreen
-    title="Demandes"
-    iconName="inbox"
-    description="Les nouvelles demandes apparaîtront ici (DS07)."
-  />
-);
+// ProviderDashboardScreen (DS06) and JobRequestsScreen (DS07) ship their own
+// files. Earnings + Onboarding remain placeholders until DS08/DS09.
 
 export const EarningsScreen = () => (
   <ComingSoonScreen

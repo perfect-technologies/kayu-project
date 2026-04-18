@@ -5,7 +5,7 @@
 - **Track:** KAYOU Design v2 Iteration — new screens
 - **Primary reference:** `./00-overview.md` + `../DESIGN_SYSTEM.md` (unchanged)
 - **Visual source of truth:** `./prototype/`
-- **Status:** in_progress (DS01, DS02, DS03, DS04, DS05, DS06 done)
+- **Status:** in_progress (DS01, DS02, DS03, DS04, DS05, DS06, DS07 done)
 - **Last updated:** 2026-04-19
 
 ---
@@ -20,7 +20,7 @@
 | DS04 | Messages upgrade | P1 | DS01 | web + mobile | done | `/messages` split layout (360px list + thread) on web; mobile `ConversationsScreen` + `ChatScreen` rewritten in place. System messages (emerald pill), mission banner, suggested replies, status chips + unread badges. Composer send enables only when draft is non-empty. Backend wiring (status/online/profession) still fixture-driven — see Blockers. |
 | DS05 | Write Review upgrade | P1 | DS03 (linked nav) | web + mobile | done | Web `/review/[providerId]` single-page form with live overall-score banner; mobile 3-step wizard rewritten in `ReviewScreen.tsx`. 5-dim KAYOU ratings, QuickTags chip cloud, dashed photo uploader (UI-only), success screen with emerald check. BookingDetail now passes `?bookingId=` to scope the review. Photo upload endpoint deferred — see Blockers. |
 | DS06 | Provider Dashboard | P0 (pro) | DS01 | web + mobile | done | Web `/pro` (role-gated — CLIENT/ADMIN redirected) + mobile `ProviderDashboardScreen` (replaces `ComingSoonScreen` placeholder). `StatCard` + `Sparkline` promoted to `@kayu/ui` for reuse by DS08. JobCard/RequestCard stay local to the dashboard. Data is mocked (TODAY_JOBS/NEW_REQUESTS/STATS) — pro-dashboard backend wiring blocked until DS07 ships. |
-| DS07 | Job Requests + Quote Compose (pro) | P0 (pro) | DS06 | web + mobile | not_started | Share request data |
+| DS07 | Job Requests + Quote Compose (pro) | P0 (pro) | DS06 | web + mobile | done | `/pro/requests` (JobRequestsClient, urgent-first sort, InboundRequestCard + ActiveJobsCard grouped card) and `/pro/devis/new?requestId=…` (QuoteComposeClient, line-items + presets per métier, discount %, start-date radio, validity days, live totals with KAYOU 10% commission + payout, QuoteSent success) on web; mobile `JobRequestsScreen` + `QuoteComposeScreen` shipped in new `RequestsNavigator` (RequestsMain / QuoteCompose / BookingDetail). Shared fixtures (`INCOMING_REQUESTS`, `PRO_ACTIVE_JOBS`, `PRESET_LINE_ITEMS`) duplicated across web/mobile. Backend wiring (requests DTO + quote submit) deferred to a later chunk. |
 | DS08 | Earnings (pro, Mobile Money) | P1 (pro) | DS06 | web + mobile | not_started | Payout flow is placeholder until backend |
 | DS09 | Provider Onboarding + Verification | P0 (pro) | DS06 | web + mobile | not_started | Gates the pro role |
 | DS10 | Admin Ops | P1 | DS01 | web only | not_started | Desktop-first, dense layout |
@@ -40,7 +40,7 @@ Client can auth with phone OTP, see their bookings and details, chat with pros (
 
 ### M3 — Pro v2 complete (DS06–DS09)
 Pro has a dashboard with today's schedule + requests, can accept/decline requests, compose quotes with line items + commission visibility, view weekly earnings and request Mobile Money payouts, onboard in 6 steps, complete verification.
-**Status:** not_started
+**Status:** in_progress — DS06 + DS07 landed. DS08 (Earnings) and DS09 (Onboarding/Verification) remain.
 
 ### M4 — Admin Ops (DS10)
 Internal team has a desktop tool for dispute resolution, verification review, and weekly payout batches.
@@ -72,6 +72,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 | 2026-04-18 | DS02 | Supabase SMS provider not confirmed configured for CD/CG dial codes. UI currently mocks OTP send/verify (step progression is client-side). A dev-only "Accès rapide" panel on both platforms signs in with the three seeded email accounts (Client / Prestataire / Admin) so each role can be exercised end-to-end; DoneStep also falls back to the matching demo account. Hidden when `NODE_ENV === 'production'`. | Confirm `supabase.auth.signInWithOtp` + `verifyOtp` work against the project's SMS provider, then replace the mock in `AuthFlow.tsx` (web) and `AuthScreen.tsx` (mobile) with real calls, plus a `setRole` + `refreshUser` step on DoneStep for first-time users. Keep the dev demo panel until phone+OTP seed accounts exist. |
 | 2026-04-19 | DS04 | Conversation schema lacks `status` (active/quote/completed), `profession`, and `online` — all three drive new DS04 visuals (status chip, mission banner, presence dot). Mobile + web currently render from a local `DEMO_THREADS` fixture so the UI is complete, but nothing is wired to `/messaging`. | Backend: derive `status` from linked booking/quote state and add `profession` + `online` (or `lastSeenAt`) to the conversation DTO. Then replace `DEMO_THREADS` in `apps/web/src/app/messages/MessagesClient.tsx` and `apps/mobile/src/screens/messages/fixtures.ts` with real `api.messages.getConversations()` data, and wire send to `api.messages.send`. |
 | 2026-04-19 | DS05 | Photo upload for reviews is UI-only — the dashed "Ajouter" tile pushes a placeholder entry to the photos array but no multipart upload endpoint exists. Photo count is stitched into `comment` text as a placeholder note. `CreateReviewDto` also requires `bookingId`, so the booking → review chain coming from `KayouMoment` (web only has `?fromBooking=1`, no id) will currently submit a review without persisting when no bookingId is captured. | Backend: add a review-media upload endpoint (likely `/reviews/:id/photos` with S3-signed URL) and extend `CreateReviewDto` with `photoUrls: string[]`. Frontend: capture the `bookingId` from `bookingsApi.create` in `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx` and `apps/mobile/src/screens/booking/BookingScreen.tsx` so the review chain has an id to attach to. |
+| 2026-04-19 | DS07 | Both `JobRequestsClient` / `JobRequestsScreen` and `QuoteComposeClient` / `QuoteComposeScreen` are driven by the `INCOMING_REQUESTS` / `PRO_ACTIVE_JOBS` / `PRESET_LINE_ITEMS` fixtures in `apps/web/src/components/pro/fixtures.ts` and `apps/mobile/src/screens/pro/fixtures.ts`. Decline + submit are optimistic UI with no network calls. Quote submit does not persist — it only flips `sent=true` to show `QuoteSent`. | Backend: expose a provider-requests endpoint (rich shape with category, budget, expiration, photos count, competing count) and a `POST /quotes` endpoint that accepts line items, discount %, validity days, start date, message, linked requestId. Frontend: replace fixtures with real queries on both platforms and wire submit to `api.quotes.create`. |
 
 ---
 
@@ -96,7 +97,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 
 ## Current focus
 
-**Objective:** client track is complete (DS02–DS05 all landed). Start the pro track with DS06 (ProviderDashboard), then branch into DS07–DS09 in parallel. DS10 (Admin Ops) is independent and can run any time after DS01.
+**Objective:** client track is complete (DS02–DS05 all landed). Pro track in progress: DS06 (dashboard) and DS07 (requests + quote) landed. Next up: DS08 (Earnings) and DS09 (Onboarding/Verification) in parallel. DS10 (Admin Ops) is independent and can run any time after DS01.
 
 **Definition of done for DS03 (shipped):** MyBookings list with 4 tabs (À venir / En cours / Terminées / Annulées) on web (`/bookings`) and mobile; unified `BookingDetail` (web `/bookings/[id]`; mobile screen) with Timeline, QuoteBreakdown (+ commission split for pro), CounterpartyCard, AddressCard mini-map and context-aware ActionButtons. V1 `BookingsScreen.tsx` + `BookingDetailScreen.tsx` rewritten in place.
 
