@@ -287,7 +287,10 @@ export function BookingDetail({
                 busy={cancelMutation.isPending || updateMutation.isPending}
                 onMessage={() => router.push("/messages")}
                 onReview={() =>
-                  booking.providerId && router.push(`/review/${booking.providerId}`)
+                  booking.providerId &&
+                  router.push(
+                    `/review/${booking.providerId}?bookingId=${booking.id}`,
+                  )
                 }
                 onRebook={() =>
                   booking.providerId && router.push(`/providers/${booking.providerId}`)
