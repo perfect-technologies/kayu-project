@@ -13,11 +13,16 @@ import { theme } from '@/lib/theme';
 
 // Icon-only: labels feed accessibilityLabel but never render.
 const TAB_CONFIG: Record<string, { icon: IconName; label: string }> = {
+  // Client tabs
   Home: { icon: 'home', label: 'Accueil' },
   Search: { icon: 'search', label: 'Rechercher' },
   Bookings: { icon: 'calendar', label: 'Réservations' },
-  Messages: { icon: 'inbox', label: 'Messages' },
+  Messages: { icon: 'messageCircle', label: 'Messages' },
   Profile: { icon: 'user', label: 'Moi' },
+  // Pro tabs
+  ProviderDashboard: { icon: 'home', label: 'Espace pro' },
+  Requests: { icon: 'inbox', label: 'Demandes' },
+  Earnings: { icon: 'coins', label: 'Gains' },
 };
 
 type TabButtonProps = PressableProps & {

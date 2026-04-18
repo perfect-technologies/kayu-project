@@ -44,6 +44,13 @@ import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
 import { FavoritesScreen } from '@/screens/profile/FavoritesScreen';
 import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 
+// Pro tab placeholders (DS06–DS09 fill these in).
+import {
+  EarningsScreen,
+  JobRequestsScreen,
+  ProviderDashboardScreen,
+} from '@/screens/pro/ComingSoonScreen';
+
 // --- Type definitions ---
 
 export type AuthStackParamList = {
@@ -89,6 +96,11 @@ export type MainTabParamList = {
   Bookings: undefined;
   Messages: undefined;
   Profile: undefined;
+  // Pro tabs — present in the shared param list so MobileTabBar can resolve
+  // icons via a single config; only PRO_TABS registers them as screens.
+  ProviderDashboard: undefined;
+  Requests: undefined;
+  Earnings: undefined;
 };
 
 // --- Navigators ---
@@ -244,15 +256,21 @@ function ProfileNavigator() {
   );
 }
 
-// Routes that should suppress the floating tab pill. Sticky bottom CTAs on
-// provider profile and the full-screen booking sheet take its place.
+// Routes that should suppress the floating tab pill. Sticky bottom CTAs
+// (booking, review, quote) or full-screen flows (auth, onboarding) or the
+// sticky price bar on a provider profile replace it. Matches the v2 prototype
+// hide-tab-bar list.
 const HIDE_TAB_BAR_ROUTES = new Set([
-  'ProviderProfile',
+  // booking
   'CreateBooking',
-  'BookingDetail',
+  // profile (viewing a provider — sticky price bar takes over)
+  'ProviderProfile',
+  // review
   'Review',
-  'Chat',
-  'AllReviews',
+  // onboarding + quote land here when DS07/DS09 register them; listed now
+  // so the shell doesn't need another change then.
+  'ProviderOnboarding',
+  'QuoteCompose',
 ]);
 
 function tabBarVisibility(route: RouteProp<MainTabParamList, keyof MainTabParamList>) {
@@ -263,7 +281,7 @@ function tabBarVisibility(route: RouteProp<MainTabParamList, keyof MainTabParamL
   return undefined;
 }
 
-function MainNavigator() {
+function ClientTabs() {
   return (
     <MainTab.Navigator
       tabBar={(props) => <MobileTabBar {...props} />}
@@ -279,6 +297,31 @@ function MainNavigator() {
       <MainTab.Screen name="Profile" component={ProfileNavigator} />
     </MainTab.Navigator>
   );
+}
+
+function ProTabs() {
+  return (
+    <MainTab.Navigator
+      tabBar={(props) => <MobileTabBar {...props} />}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarStyle: tabBarVisibility(route),
+      })}
+    >
+      <MainTab.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
+      <MainTab.Screen name="Requests" component={JobRequestsScreen} />
+      <MainTab.Screen name="Messages" component={MessagesNavigator} />
+      <MainTab.Screen name="Earnings" component={EarningsScreen} />
+      <MainTab.Screen name="Profile" component={ProfileNavigator} />
+    </MainTab.Navigator>
+  );
+}
+
+function MainNavigator() {
+  const { user } = useAuth();
+  // Providers see the pro tab set; CLIENT + ADMIN (TODO: DS10) use client tabs.
+  if (user?.role === 'PROVIDER') return <ProTabs />;
+  return <ClientTabs />;
 }
 
 export function AppNavigator() {

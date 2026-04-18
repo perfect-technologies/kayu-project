@@ -65,6 +65,7 @@ export function BookingScreen() {
   const [address, setAddress] = React.useState<string>('');
   const [note, setNote] = React.useState<string>('');
   const [showArc, setShowArc] = React.useState<boolean>(false);
+  const [createdBookingId, setCreatedBookingId] = React.useState<string>('');
 
   const { data: provider, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.providers.detail(params.providerId),
@@ -89,7 +90,9 @@ export function BookingScreen() {
         clientNotes: note || undefined,
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      const id = (result as { id?: string } | undefined)?.id;
+      if (id) setCreatedBookingId(id);
       try {
         const seen = await SecureStore.getItemAsync(FIRST_BOOKING_KEY);
         setShowArc(seen !== '1');
@@ -141,6 +144,26 @@ export function BookingScreen() {
     })
       .format(scheduled)
       .replace(',', ' ·');
+    const goToReview = () => {
+      // Dismiss the booking modal, then navigate into the Bookings tab's
+      // Review screen. Using the parent tab navigator leaves no trace of the
+      // booking form in the back stack.
+      const parent = navigation.getParent();
+      if (navigation.canGoBack()) navigation.goBack();
+      // React Navigation's typed nested-navigation signature is noisy across
+      // param lists — the runtime accepts the nested form.
+      (parent?.navigate as unknown as ((
+        name: string,
+        params: { screen: string; params: Record<string, unknown> },
+      ) => void) | undefined)?.('Bookings', {
+        screen: 'Review',
+        params: {
+          bookingId: createdBookingId,
+          providerId: params.providerId,
+          providerName: params.providerName,
+        },
+      });
+    };
     return (
       <KayouMoment
         provider={{
@@ -151,11 +174,10 @@ export function BookingScreen() {
         dateLabel={dateLabel}
         showArc={showArc}
         onMessage={() => {
+          // DS04 wires Message routing; for now dismiss the modal.
           if (navigation.canGoBack()) navigation.goBack();
         }}
-        onViewBooking={() => {
-          if (navigation.canGoBack()) navigation.goBack();
-        }}
+        onViewBooking={goToReview}
       />
     );
   }

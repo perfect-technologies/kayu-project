@@ -5,7 +5,7 @@
 - **Track:** KAYOU Design v2 Iteration — new screens
 - **Primary reference:** `./00-overview.md` + `../DESIGN_SYSTEM.md` (unchanged)
 - **Visual source of truth:** `./prototype/`
-- **Status:** not_started
+- **Status:** in_progress (DS01 done)
 - **Last updated:** 2026-04-18
 
 ---
@@ -14,7 +14,7 @@
 
 | ID | Chunk | Priority | Depends on | Platforms | Status | Notes |
 |---|---|---|---|---|---|---|
-| DS01 | Shared upgrades — icons, tab bar, routing | P0 | v1 shipped | web + mobile + `@kayu/ui` | not_started | Unblocks everything; cheapest + highest leverage |
+| DS01 | Shared upgrades — icons, tab bar, routing | P0 | v1 shipped | web + mobile + `@kayu/ui` | done | Icons, role-aware tabs, booking→review routing, KayouMoment polish all landed |
 | DS02 | Auth — phone OTP + role picker | P0 | DS01 | web + mobile | not_started | Replaces v1 Login/Register |
 | DS03 | My Bookings + Booking Detail (client) | P0 | DS01 | web + mobile | not_started | Tightly coupled; single chunk |
 | DS04 | Messages upgrade | P1 | DS01 | web + mobile | not_started | Rewrites v1 conv/chat screens |
@@ -32,7 +32,7 @@
 
 ### M1 — Shared upgrades ready (DS01)
 Mobile tab bar navigates correctly to `bookings/messages/provider`. Icons available in `@kayu/ui`. Booking→review routing chain works. Hide-tab-bar list updated.
-**Status:** not_started
+**Status:** done
 
 ### M2 — Client v2 complete (DS02–DS05)
 Client can auth with phone OTP, see their bookings and details, chat with pros (system messages + suggested replies), leave a 5-dim review.
@@ -87,6 +87,8 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 | 2026-04-18 | V1 `/dashboard/{admin,client,provider,settings}` retired | DS11 | Replaced by `/admin`, `/bookings`+`/messages`+profile, `/pro`, and in-profile settings respectively. |
 | 2026-04-18 | `apps/mobile/src/screens/auth/{Login,Register}Screen.tsx` retired | DS02 | Replaced by a single `AuthScreen` running the phone-OTP flow. |
 | 2026-04-18 | 30+ new icons added to `@kayu/ui` (list in DS01) | DS01 | Driven by new screens. Adds no runtime cost (lucide is tree-shakeable). |
+| 2026-04-18 | Mobile ADMIN role falls through to CLIENT tabs for now (TODO in DS10) | DS01, DS10 | Admin is desktop-only; mobile needs some sensible fallback, and CLIENT is least surprising. |
+| 2026-04-18 | Pro-tab placeholder screens (`ProviderDashboard`, `Requests`, `Earnings`) live in `apps/mobile/src/screens/pro/` | DS01, DS06–DS08 | Ships the role-aware tab structure without blocking on pro content; those chunks replace the placeholders in place. |
 
 ---
 
@@ -100,7 +102,7 @@ Most realistic team throughput: DS01 sequentially → then DS02/DS03/DS06/DS10 i
 
 ## Launch-critical checklist
 
-- [ ] DS01 shared upgrades landed
+- [x] DS01 shared upgrades landed
 - [ ] Auth replaces v1 login across web + mobile
 - [ ] Client sees MyBookings + BookingDetail + Messages + WriteReview, all v2
 - [ ] Pro sees Dashboard + Requests + Quote + Earnings + Onboarding + Verify

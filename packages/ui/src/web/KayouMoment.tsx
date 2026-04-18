@@ -3,7 +3,6 @@
 import * as React from "react";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
-import { Button } from "./Button.js";
 import { I } from "./Icon.js";
 
 // localStorage key — mirrored by mobile's secure-store key.
@@ -122,35 +121,26 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
     >
       <style>{KEYFRAMES}</style>
 
-      {/* success circle */}
+      {/* success circle — v2 drops the successSubtle ring in favor of an
+          emerald downward glow. */}
       <div
         style={{
-          width: 96,
-          height: 96,
+          width: 72,
+          height: 72,
           borderRadius: "50%",
-          background: tokens.color.successSubtle,
+          background: tokens.color.success,
+          color: "#FFFFFF",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           marginBottom: 24,
-          animation: animate ? "kmPop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both" : undefined,
+          boxShadow: "0 12px 36px -12px rgba(16,185,129,0.45)",
+          animation: animate
+            ? `kmPop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both, kmPulse 2400ms ${tokens.ease.standard} 500ms infinite`
+            : undefined,
         }}
       >
-        <div
-          style={{
-            width: 72,
-            height: 72,
-            borderRadius: "50%",
-            background: tokens.color.success,
-            color: "#FFFFFF",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            animation: animate ? `kmPulse 2400ms ${tokens.ease.standard} infinite` : undefined,
-          }}
-        >
-          <I.check size={36} stroke={2.5} />
-        </div>
+        <I.check size={36} stroke={2.5} />
       </div>
 
       <h1
@@ -279,11 +269,12 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
       <div
         style={{
           marginTop: renderArc ? 36 : 4,
-          background: tokens.color.surface,
-          border: `1px solid ${tokens.color.border}`,
-          borderRadius: tokens.radius.md,
-          padding: 16,
+          background: "#FFFFFF",
+          borderRadius: 18,
+          padding: "16px 18px",
           width: "min(420px, 100%)",
+          boxShadow:
+            "0 10px 28px -12px rgba(15,23,42,0.14), 0 2px 6px -2px rgba(15,23,42,0.05)",
           animation: animate ? "kmRise 600ms 600ms both" : undefined,
         }}
       >
@@ -354,21 +345,47 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
           animation: animate ? "kmRise 600ms 720ms both" : undefined,
         }}
       >
-        <Button
-          variant="secondary"
-          style={{ flex: 1 }}
-          leadingIcon={<I.messageCircle size={16} />}
+        <button
           onClick={onMessage}
+          style={{
+            flex: 1,
+            height: 48,
+            borderRadius: 14,
+            border: 0,
+            cursor: "pointer",
+            background: "#FFFFFF",
+            color: tokens.color.textPrimary,
+            fontFamily: tokens.font.body,
+            fontWeight: 600,
+            fontSize: 14,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            boxShadow:
+              "0 4px 14px -6px rgba(15,23,42,0.12), 0 1px 3px -1px rgba(15,23,42,0.05)",
+          }}
         >
+          <I.messageCircle size={16} />
           Message
-        </Button>
-        <Button
-          variant="primary"
-          style={{ flex: 1.2 }}
+        </button>
+        <button
           onClick={onViewBooking}
+          style={{
+            flex: 1.2,
+            height: 48,
+            borderRadius: 14,
+            border: 0,
+            cursor: "pointer",
+            background: tokens.color.primary,
+            color: tokens.color.textOnPrimary,
+            fontFamily: tokens.font.body,
+            fontWeight: 600,
+            fontSize: 14,
+          }}
         >
           Voir ma réservation
-        </Button>
+        </button>
       </div>
     </div>
   );

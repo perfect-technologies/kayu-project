@@ -108,7 +108,9 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
           }}
           dateLabel={dateLabel.replace(",", " ·")}
           onMessage={() => router.push("/dashboard/client")}
-          onViewBooking={() => router.push("/dashboard/client")}
+          onViewBooking={() =>
+            router.replace(`/review/${provider.id}?fromBooking=1`)
+          }
         />
       </Layout>
     );

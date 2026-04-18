@@ -23,6 +23,7 @@ import {
   Hammer,
   ArrowRight,
   ArrowLeft,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Menu,
@@ -31,14 +32,43 @@ import {
   SlidersHorizontal,
   Home,
   User,
+  Users,
   Calendar,
   Inbox,
   Plus,
   Check,
+  CheckCircle,
+  XCircle,
   Share,
   Phone,
   Send,
   AlertCircle,
+  AlertTriangle,
+  Trash2,
+  Pencil,
+  FileText,
+  FileCheck,
+  Percent,
+  Copy,
+  Info,
+  Eye,
+  Camera,
+  Upload,
+  Flag,
+  Bell,
+  Settings,
+  Globe,
+  Lock,
+  LogOut,
+  RefreshCw,
+  RotateCw,
+  Wifi,
+  WifiOff,
+  CreditCard,
+  TrendingUp,
+  TrendingDown,
+  MoreVertical,
+  Server,
   type LucideProps,
 } from "lucide-react";
 
@@ -70,6 +100,56 @@ const wrap = (
   return C;
 };
 
+// Custom SVG icons — not in lucide. Paths lifted verbatim from the v2 prototype.
+const Selfie: React.FC<IconProps> = ({
+  size = 20,
+  stroke = 1.75,
+  strokeColor,
+  ...rest
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth={stroke}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...(rest as React.SVGProps<SVGSVGElement>)}
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <circle cx="12" cy="9" r="4" />
+    <path d="M8 13c1 1 2.5 2 4 2s3-1 4-2" />
+  </svg>
+);
+Selfie.displayName = "Selfie";
+
+const IdCard: React.FC<IconProps> = ({
+  size = 20,
+  stroke = 1.75,
+  strokeColor,
+  ...rest
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={strokeColor ?? "currentColor"}
+    strokeWidth={stroke}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...(rest as React.SVGProps<SVGSVGElement>)}
+  >
+    <rect width="18" height="14" x="3" y="5" rx="2" />
+    <circle cx="9" cy="11" r="2" />
+    <line x1="15" x2="19" y1="10" y2="10" />
+    <line x1="15" x2="19" y1="14" y2="14" />
+  </svg>
+);
+IdCard.displayName = "IdCard";
+
 export const I = {
   search: wrap(Search),
   mapPin: wrap(MapPin),
@@ -92,6 +172,7 @@ export const I = {
   hammer: wrap(Hammer),
   arrowRight: wrap(ArrowRight),
   arrowLeft: wrap(ArrowLeft),
+  chevronLeft: wrap(ChevronLeft),
   chevronRight: wrap(ChevronRight),
   chevronDown: wrap(ChevronDown),
   menu: wrap(Menu),
@@ -100,14 +181,45 @@ export const I = {
   sliders: wrap(SlidersHorizontal),
   home: wrap(Home),
   user: wrap(User),
+  users: wrap(Users),
   calendar: wrap(Calendar),
   inbox: wrap(Inbox),
   plus: wrap(Plus),
   check: wrap(Check),
+  checkCircle: wrap(CheckCircle),
+  xCircle: wrap(XCircle),
   share: wrap(Share),
   phone: wrap(Phone),
   send: wrap(Send),
   alertCircle: wrap(AlertCircle),
+  alertTriangle: wrap(AlertTriangle),
+  trash: wrap(Trash2),
+  pencil: wrap(Pencil),
+  fileText: wrap(FileText),
+  fileCheck: wrap(FileCheck),
+  percent: wrap(Percent),
+  copy: wrap(Copy),
+  info: wrap(Info),
+  eye: wrap(Eye),
+  camera: wrap(Camera),
+  upload: wrap(Upload),
+  flag: wrap(Flag),
+  bell: wrap(Bell),
+  settings: wrap(Settings),
+  globe: wrap(Globe),
+  lock: wrap(Lock),
+  logout: wrap(LogOut),
+  refresh: wrap(RefreshCw),
+  rotate: wrap(RotateCw),
+  wifi: wrap(Wifi),
+  wifiOff: wrap(WifiOff),
+  creditCard: wrap(CreditCard),
+  trendingUp: wrap(TrendingUp),
+  trendingDown: wrap(TrendingDown),
+  moreVertical: wrap(MoreVertical),
+  server: wrap(Server),
+  selfie: Selfie,
+  idCard: IdCard,
 } as const;
 
 export type IconName = keyof typeof I;

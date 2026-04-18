@@ -12,7 +12,6 @@ import {
 import Svg, { Circle, Path } from "react-native-svg";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
-import { Button } from "./Button.js";
 import { I } from "./Icon.js";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -242,16 +241,14 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
     <View style={[styles.root, style]}>
       <Animated.View
         style={[
-          styles.successOuter,
+          styles.successCircle,
           {
-            transform: [{ scale: popScale }],
+            transform: [{ scale: Animated.multiply(popScale, pulseScale) }],
             opacity: popOpacity,
           },
         ]}
       >
-        <Animated.View style={[styles.successInner, { transform: [{ scale: pulseScale }] }]}>
-          <I.check size={36} color={tokens.color.textInverse} strokeWidth={2.5} />
-        </Animated.View>
+        <I.check size={36} color={tokens.color.textInverse} strokeWidth={2.5} />
       </Animated.View>
 
       <Animated.Text style={[styles.title, riseTitle.style]}>C&apos;est noté&nbsp;!</Animated.Text>
@@ -316,15 +313,18 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
       </Animated.View>
 
       <Animated.View style={[styles.actions, riseButtons.style]}>
-        <Button
-          variant="secondary"
-          style={{ flex: 1 }}
-          leadingIcon={<I.messageCircle size={16} color={tokens.color.textPrimary} />}
-          onPress={onMessage ? () => onMessage() : undefined}
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Message"
+          onPress={onMessage}
+          style={({ pressed }) => [
+            styles.secondaryBtn,
+            pressed && { opacity: 0.9 },
+          ]}
         >
-          Message
-        </Button>
+          <I.messageCircle size={16} color={tokens.color.textPrimary} />
+          <Text style={styles.secondaryBtnText}>Message</Text>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Voir ma réservation"
@@ -384,28 +384,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 40,
   },
-  successOuter: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: tokens.color.successSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  successInner: {
+  successCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
     backgroundColor: tokens.color.success,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 24,
+    // Emerald downward glow — matches v2 prototype.
+    shadowColor: tokens.color.success,
+    shadowOpacity: 0.45,
+    shadowOffset: { width: 0, height: 12 },
+    shadowRadius: 18,
+    elevation: 8,
   },
   title: {
     fontFamily: "PlusJakartaSans-Bold",
     fontWeight: "700",
     fontSize: 28,
     lineHeight: 32,
+    letterSpacing: -0.56,
     color: tokens.color.textPrimary,
     marginBottom: 10,
     textAlign: "center",
@@ -450,12 +449,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: "100%",
     maxWidth: 420,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     gap: 12,
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.md,
-    borderWidth: 1,
-    borderColor: tokens.color.border,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    // Borderless; soft two-layer shadow stands in for the 1px border.
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.14,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 14,
+    elevation: 4,
   },
   summaryCell: {
     flex: 1,
@@ -491,7 +495,7 @@ const styles = StyleSheet.create({
     flex: 1.2,
     height: 48,
     backgroundColor: tokens.color.primary,
-    borderRadius: tokens.radius.md,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 22,
@@ -499,7 +503,29 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     fontFamily: "Inter-SemiBold",
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: 14,
     color: tokens.color.textInverse,
+  },
+  secondaryBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    // Borderless soft shadow matches v2 prototype.
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  secondaryBtnText: {
+    fontFamily: "Inter-SemiBold",
+    fontWeight: "600",
+    fontSize: 14,
+    color: tokens.color.textPrimary,
   },
 });
