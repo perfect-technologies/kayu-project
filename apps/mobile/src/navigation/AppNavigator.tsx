@@ -1,11 +1,15 @@
 import React from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  getFocusedRouteNameFromRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { MobileTabBar } from '@/components/shell';
 
 // Auth screens
 import { LoginScreen } from '@/screens/auth/LoginScreen';
@@ -239,37 +243,32 @@ function ProfileNavigator() {
   );
 }
 
-const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
-  Home: 'home',
-  Search: 'search',
-  Bookings: 'calendar',
-  Messages: 'chatbubbles',
-  Profile: 'person',
-};
+// Routes that should suppress the floating tab pill. Sticky bottom CTAs on
+// provider profile and the full-screen booking sheet take its place.
+const HIDE_TAB_BAR_ROUTES = new Set([
+  'ProviderProfile',
+  'CreateBooking',
+  'BookingDetail',
+  'Review',
+  'Chat',
+  'AllReviews',
+]);
 
-const TAB_LABELS: Record<keyof MainTabParamList, string> = {
-  Home: 'Accueil',
-  Search: 'Recherche',
-  Bookings: 'Réservations',
-  Messages: 'Messages',
-  Profile: 'Profil',
-};
+function tabBarVisibility(route: RouteProp<MainTabParamList, keyof MainTabParamList>) {
+  const focused = getFocusedRouteNameFromRoute(route);
+  if (focused && HIDE_TAB_BAR_ROUTES.has(focused)) {
+    return { display: 'none' as const };
+  }
+  return undefined;
+}
 
 function MainNavigator() {
   return (
     <MainTab.Navigator
+      tabBar={(props) => <MobileTabBar {...props} />}
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />
-        ),
-        tabBarLabel: TAB_LABELS[route.name],
-        tabBarActiveTintColor: colors.primary.DEFAULT,
-        tabBarInactiveTintColor: colors.neutral[400],
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.neutral[200],
-        },
         headerShown: false,
+        tabBarStyle: tabBarVisibility(route),
       })}
     >
       <MainTab.Screen name="Home" component={HomeScreen} />
