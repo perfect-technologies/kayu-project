@@ -33,13 +33,8 @@ export function ComingSoonScreen({
   );
 }
 
-export const ProviderDashboardScreen = () => (
-  <ComingSoonScreen
-    title="Espace pro"
-    iconName="home"
-    description="Ton tableau de bord arrive avec DS06."
-  />
-);
+// ProviderDashboardScreen is now shipped in ./ProviderDashboardScreen (DS06).
+// Navigator imports it directly; this placeholder is retained for DS07/DS08.
 
 export const JobRequestsScreen = () => (
   <ComingSoonScreen

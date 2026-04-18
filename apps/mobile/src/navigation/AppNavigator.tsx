@@ -43,12 +43,13 @@ import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
 import { FavoritesScreen } from '@/screens/profile/FavoritesScreen';
 import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 
-// Pro tab placeholders (DS06–DS09 fill these in).
+// Pro tab screens. DS06 shipped ProviderDashboardScreen; the rest are placeholders
+// until DS07–DS09 replace them.
 import {
   EarningsScreen,
   JobRequestsScreen,
-  ProviderDashboardScreen,
 } from '@/screens/pro/ComingSoonScreen';
+import { ProviderDashboardScreen } from '@/screens/pro/ProviderDashboardScreen';
 
 // --- Type definitions ---
 

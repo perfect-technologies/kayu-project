@@ -24,6 +24,12 @@ export { TopRatedRibbon } from "./TopRatedRibbon.js";
 export { Shimmer, ShimmerStyles } from "./Shimmer.js";
 export type { ShimmerProps } from "./Shimmer.js";
 
+export { Sparkline } from "./Sparkline.js";
+export type { SparklineProps } from "./Sparkline.js";
+
+export { StatCard } from "./StatCard.js";
+export type { StatCardProps } from "./StatCard.js";
+
 // ─── D03 photo-forward card system ──────────────────────────────────────────
 
 export { PhotoTile } from "./PhotoTile.js";

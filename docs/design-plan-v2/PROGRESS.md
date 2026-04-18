@@ -5,7 +5,7 @@
 - **Track:** KAYOU Design v2 Iteration — new screens
 - **Primary reference:** `./00-overview.md` + `../DESIGN_SYSTEM.md` (unchanged)
 - **Visual source of truth:** `./prototype/`
-- **Status:** in_progress (DS01, DS02, DS03, DS04, DS05 done)
+- **Status:** in_progress (DS01, DS02, DS03, DS04, DS05, DS06 done)
 - **Last updated:** 2026-04-19
 
 ---
@@ -19,7 +19,7 @@
 | DS03 | My Bookings + Booking Detail (client) | P0 | DS01 | web + mobile | done | `/bookings` + `/bookings/[id]` on web; mobile v1 BookingsScreen + BookingDetailScreen rewritten in place. `BookingDetail` is one component with `perspective: "client" \| "pro"` — pro sees Commission KAYOU + payout in QuoteBreakdown. |
 | DS04 | Messages upgrade | P1 | DS01 | web + mobile | done | `/messages` split layout (360px list + thread) on web; mobile `ConversationsScreen` + `ChatScreen` rewritten in place. System messages (emerald pill), mission banner, suggested replies, status chips + unread badges. Composer send enables only when draft is non-empty. Backend wiring (status/online/profession) still fixture-driven — see Blockers. |
 | DS05 | Write Review upgrade | P1 | DS03 (linked nav) | web + mobile | done | Web `/review/[providerId]` single-page form with live overall-score banner; mobile 3-step wizard rewritten in `ReviewScreen.tsx`. 5-dim KAYOU ratings, QuickTags chip cloud, dashed photo uploader (UI-only), success screen with emerald check. BookingDetail now passes `?bookingId=` to scope the review. Photo upload endpoint deferred — see Blockers. |
-| DS06 | Provider Dashboard | P0 (pro) | DS01 | web + mobile | not_started | Opens the pro surface |
+| DS06 | Provider Dashboard | P0 (pro) | DS01 | web + mobile | done | Web `/pro` (role-gated — CLIENT/ADMIN redirected) + mobile `ProviderDashboardScreen` (replaces `ComingSoonScreen` placeholder). `StatCard` + `Sparkline` promoted to `@kayu/ui` for reuse by DS08. JobCard/RequestCard stay local to the dashboard. Data is mocked (TODAY_JOBS/NEW_REQUESTS/STATS) — pro-dashboard backend wiring blocked until DS07 ships. |
 | DS07 | Job Requests + Quote Compose (pro) | P0 (pro) | DS06 | web + mobile | not_started | Share request data |
 | DS08 | Earnings (pro, Mobile Money) | P1 (pro) | DS06 | web + mobile | not_started | Payout flow is placeholder until backend |
 | DS09 | Provider Onboarding + Verification | P0 (pro) | DS06 | web + mobile | not_started | Gates the pro role |
