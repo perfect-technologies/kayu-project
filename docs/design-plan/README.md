@@ -74,6 +74,7 @@ A practical sequence: migration chunks 01-09 (backend complete) → start design
 | `README.md` | This file |
 | `00-overview.md` | What changed in design v2, why, consequences |
 | `PROGRESS.md` | Live status tracker |
+| `AGENT-HANDOFFS.md` | Copy-paste prompts for handing off each chunk to an agent |
 | `D01-foundations.md` | Tokens, fonts, Tailwind config, RN theme |
 | `D02-primitives.md` | Button, Input, Avatar, Chip, Icon, StarRating, TrustChip |
 | `D03-canonical-cards.md` | FeaturedProviderCard, WideProviderCard, NearbyRow, CategoryTile, CategoryStrip, work-tile pattern |
