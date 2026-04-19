@@ -28,6 +28,7 @@ import type {
   DistanceParams,
   GeocodeParams,
   // Response types
+  Booking,
   MeResponse,
   CategoriesResponse,
   CategoryHierarchyResponse,
@@ -80,6 +81,8 @@ import type {
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
+type BookingMutationResponse = { success: boolean; booking: Booking };
+
 // ---------- Identity ----------
 
 export const identityApi = (client: ApiClient) => ({
@@ -123,13 +126,13 @@ export const bookingsApi = (client: ApiClient) => ({
   getAll: (params?: Partial<BookingSearchParams>) =>
     client.get<BookingsResponse>("/bookings", params as Record<string, string | number | boolean | undefined>),
   create: (data: CreateBookingDto) =>
-    client.post<{ success: boolean; booking: unknown }>("/bookings", data),
+    client.post<BookingMutationResponse>("/bookings", data),
   getById: (id: string) =>
-    client.get<{ booking: unknown }>(`/bookings/${id}`),
+    client.get<BookingMutationResponse>(`/bookings/${id}`),
   update: (id: string, data: UpdateBookingDto) =>
-    client.patch<{ success: boolean }>(`/bookings/${id}`, data),
+    client.patch<BookingMutationResponse>(`/bookings/${id}`, data),
   cancel: (id: string) =>
-    client.delete<{ success: boolean }>(`/bookings/${id}`),
+    client.delete<BookingMutationResponse>(`/bookings/${id}`),
 });
 
 // ---------- Reviews ----------

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -55,6 +55,7 @@ export function BookingScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const scrollRef = React.useRef<ScrollView>(null);
 
   const [step, setStep] = React.useState(0);
@@ -91,8 +92,11 @@ export function BookingScreen() {
       });
     },
     onSuccess: async (result) => {
-      const id = (result as { id?: string } | undefined)?.id;
-      if (id) setCreatedBookingId(id);
+      const booking = result.booking;
+      const id = booking.id;
+      setCreatedBookingId(id);
+      queryClient.setQueryData(queryKeys.bookings.detail(id), result);
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
       try {
         const seen = await SecureStore.getItemAsync(FIRST_BOOKING_KEY);
         setShowArc(seen !== '1');
@@ -144,24 +148,30 @@ export function BookingScreen() {
     })
       .format(scheduled)
       .replace(',', ' ·');
-    const goToReview = () => {
-      // Dismiss the booking modal, then navigate into the Bookings tab's
-      // Review screen. Using the parent tab navigator leaves no trace of the
-      // booking form in the back stack.
+    const goToBooking = () => {
+      if (!createdBookingId) return;
       const parent = navigation.getParent();
       if (navigation.canGoBack()) navigation.goBack();
-      // React Navigation's typed nested-navigation signature is noisy across
-      // param lists — the runtime accepts the nested form.
       (parent?.navigate as unknown as ((
         name: string,
         params: { screen: string; params: Record<string, unknown> },
       ) => void) | undefined)?.('Bookings', {
-        screen: 'Review',
+        screen: 'BookingDetail',
         params: {
           bookingId: createdBookingId,
-          providerId: params.providerId,
-          providerName: params.providerName,
         },
+      });
+    };
+    const goToMessage = () => {
+      const recipientId = provider.user.id;
+      const parent = navigation.getParent();
+      if (navigation.canGoBack()) navigation.goBack();
+      (parent?.navigate as unknown as ((
+        name: string,
+        params: { screen: string; params: Record<string, unknown> },
+      ) => void) | undefined)?.('Messages', {
+        screen: 'Chat',
+        params: { recipientId, recipientName: params.providerName },
       });
     };
     return (
@@ -173,11 +183,8 @@ export function BookingScreen() {
         }}
         dateLabel={dateLabel}
         showArc={showArc}
-        onMessage={() => {
-          // DS04 wires Message routing; for now dismiss the modal.
-          if (navigation.canGoBack()) navigation.goBack();
-        }}
-        onViewBooking={goToReview}
+        onMessage={goToMessage}
+        onViewBooking={goToBooking}
       />
     );
   }
@@ -189,8 +196,6 @@ export function BookingScreen() {
   const portfolio = tokens.portfolio[categorySlug];
   const hourly = provider.hourlyRate ?? 0;
   const total = hourly * duration;
-  const fee = Math.round(total * 0.07);
-  const grand = total + fee;
   const rating = provider.rating ?? 0;
 
   const stepTitle = ['Quel service ?', 'Quand ça t\u2019arrange ?', 'Récapitulatif'][step];
@@ -303,8 +308,6 @@ export function BookingScreen() {
             note={note}
             hourly={hourly}
             total={total}
-            fee={fee}
-            grand={grand}
           />
         )}
       </ScrollView>
@@ -322,7 +325,7 @@ export function BookingScreen() {
             ]}
           >
             {step === 2
-              ? `${formatHourly(grand)} FC`
+              ? `${formatHourly(total)} FC`
               : `${formatHourly(total)} FC`}
           </Text>
         </View>
@@ -587,8 +590,6 @@ function Step2({
   note,
   hourly,
   total,
-  fee,
-  grand,
 }: {
   service: string;
   duration: number;
@@ -598,8 +599,6 @@ function Step2({
   note: string;
   hourly: number;
   total: number;
-  fee: number;
-  grand: number;
 }) {
   return (
     <>
@@ -625,15 +624,10 @@ function Step2({
           label={`${formatHourly(hourly)} FC × ${duration}h`}
           value={`${formatHourly(total)} FC`}
         />
-        <MbPriceRow
-          label="Frais de service (7%)"
-          value={`${formatHourly(fee)} FC`}
-          muted
-        />
         <View style={styles.priceDivider} />
         <MbPriceRow
           label="Total estimé"
-          value={`${formatHourly(grand)} FC`}
+          value={`${formatHourly(total)} FC`}
           bold
         />
       </View>
@@ -1154,4 +1148,3 @@ const styles = StyleSheet.create({
     color: theme.colors.textInverse,
   },
 });
-

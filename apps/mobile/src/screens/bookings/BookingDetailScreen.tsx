@@ -33,6 +33,11 @@ import type { BookingsStackParamList } from '@/navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<BookingsStackParamList, 'BookingDetail'>;
 type Route = RouteProp<BookingsStackParamList, 'BookingDetail'>;
+type BackendBookingStatus = 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+type BookingUpdateInput = {
+  status: BackendBookingStatus;
+  cancelReason?: string;
+};
 
 // ─── Timeline ─────────────────────────────────────────────────────────────
 
@@ -46,7 +51,7 @@ const TIMELINE_STEPS: Record<V2Status, string[]> = {
 type StepKey = keyof typeof STEP_META;
 const STEP_META = {
   booked: { label: 'Réservation créée', icon: 'calendar' as const },
-  confirmed: { label: 'Devis accepté', icon: 'check' as const },
+  confirmed: { label: 'Réservation confirmée', icon: 'check' as const },
   enroute: { label: 'En route', icon: 'mapPin' as const },
   inprogress: { label: 'Intervention', icon: 'wrench' as const },
   done: { label: 'Terminée', icon: 'badgeCheck' as const },
@@ -75,25 +80,44 @@ export function BookingDetailScreen() {
     queryFn: () => api.bookings.getById(params.bookingId),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (status: string) =>
-      api.bookings.update(params.bookingId, { status: status as never }),
-    onSuccess: () => {
+  const syncBookingCaches = React.useCallback(
+    (result: { success: boolean; booking: Booking }) => {
+      const nextBooking = result.booking;
+      queryClient.setQueryData(queryKeys.bookings.detail(params.bookingId), result);
+      queryClient.setQueriesData<{ bookings: Booking[] }>(
+        { queryKey: ['bookings'] },
+        (old) => {
+          if (!old?.bookings) return old;
+          return {
+            ...old,
+            bookings: old.bookings.map((item) =>
+              item.id === nextBooking.id ? { ...item, ...nextBooking } : item,
+            ),
+          };
+        },
+      );
       queryClient.invalidateQueries({
         queryKey: queryKeys.bookings.detail(params.bookingId),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
     },
-  });
+    [params.bookingId, queryClient],
+  );
 
-  const cancelMutation = useMutation({
-    mutationFn: () => api.bookings.cancel(params.bookingId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.bookings.detail(params.bookingId),
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      Alert.alert('Annulée', 'Votre réservation a été annulée.');
+  const updateMutation = useMutation({
+    mutationFn: (input: BookingUpdateInput) =>
+      api.bookings.update(params.bookingId, input),
+    onSuccess: (result, input) => {
+      syncBookingCaches(result);
+      if (input.status === 'CANCELLED') {
+        Alert.alert('Annulée', 'La réservation a été annulée.');
+      }
+    },
+    onError: (err: Error) => {
+      Alert.alert(
+        'Action impossible',
+        err.message || "Cette réservation ne peut pas être modifiée maintenant.",
+      );
     },
   });
 
@@ -128,6 +152,7 @@ export function BookingDetailScreen() {
   const booking = data.booking as Booking;
   const v2 = toV2Status(booking.status);
   const isClient = user?.role !== 'PROVIDER';
+  const reviewed = Boolean(booking.reviewed ?? booking.review);
   const perspective: 'client' | 'pro' = isClient ? 'client' : 'pro';
   const steps = TIMELINE_STEPS[v2];
   const step = currentStepIndex(booking.status ?? '', v2);
@@ -148,28 +173,48 @@ export function BookingDetailScreen() {
 
   const counterName = `${counterparty.first} ${counterparty.last}`.trim() || '—';
 
-  const onCancel = () =>
+  const cancelWithReason = (reason: string) =>
+    updateMutation.mutate({ status: 'CANCELLED', cancelReason: reason });
+
+  const onCancel = () => {
+    const reasons = isClient
+      ? ['Je ne suis plus disponible', 'Mon besoin a changé', 'J’ai trouvé une autre solution']
+      : ['Je ne suis plus disponible', 'Hors zone ou hors compétence', 'Planning incompatible'];
+
     Alert.alert(
-      isClient ? 'Annuler' : 'Se désister',
-      'Voulez-vous vraiment annuler cette réservation ?',
+      isClient ? 'Annuler la réservation' : 'Décliner la réservation',
+      'Sélectionnez la raison à transmettre à l’autre partie.',
       [
-        { text: 'Non', style: 'cancel' },
-        {
-          text: 'Oui',
-          style: 'destructive',
-          onPress: () => cancelMutation.mutate(),
-        },
+        ...reasons.map((reason) => ({
+          text: reason,
+          style: 'destructive' as const,
+          onPress: () => cancelWithReason(reason),
+        })),
+        { text: 'Retour', style: 'cancel' as const },
       ],
     );
+  };
+
+  const onConfirm = () =>
+    Alert.alert('Confirmer', 'Accepter cette demande de réservation ?', [
+      { text: 'Non', style: 'cancel' },
+      { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'CONFIRMED' }) },
+    ]);
+
+  const onStart = () =>
+    Alert.alert('Démarrer', 'Marquer cette intervention comme démarrée ?', [
+      { text: 'Non', style: 'cancel' },
+      { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'IN_PROGRESS' }) },
+    ]);
 
   const onComplete = () =>
     Alert.alert('Terminer', 'Confirmer que la mission est terminée ?', [
       { text: 'Non', style: 'cancel' },
-      { text: 'Oui', onPress: () => updateMutation.mutate('COMPLETED') },
+      { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'COMPLETED' }) },
     ]);
 
   const onReview = () => {
-    if (!booking.providerId) return;
+    if (!booking.providerId || booking.status !== 'COMPLETED' || reviewed) return;
     navigation.navigate('Review', {
       bookingId: booking.id,
       providerId: booking.providerId,
@@ -195,7 +240,7 @@ export function BookingDetailScreen() {
               #{booking.id.slice(0, 8).toUpperCase()}
             </Text>
           </View>
-          <BdStatusChip status={v2} />
+          <BdStatusChip status={v2} backendStatus={booking.status} />
         </View>
       </SafeAreaView>
 
@@ -218,11 +263,12 @@ export function BookingDetailScreen() {
         <View style={styles.section}>
           <ActionButtons
             v2={v2}
+            backendStatus={booking.status}
             isClient={isClient}
-            reviewed={!!booking.reviewed}
-            busy={updateMutation.isPending || cancelMutation.isPending}
+            reviewed={reviewed}
+            busy={updateMutation.isPending}
             onMessage={() => {
-              const userId = booking.provider?.userId;
+              const userId = isClient ? booking.provider?.userId : booking.client?.id;
               if (!userId) return;
               const parent = navigation.getParent();
               (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
@@ -234,6 +280,8 @@ export function BookingDetailScreen() {
               );
             }}
             onCancel={onCancel}
+            onConfirm={onConfirm}
+            onStart={onStart}
             onComplete={onComplete}
             onReview={onReview}
           />
@@ -312,6 +360,9 @@ export function BookingDetailScreen() {
           ) : (
             <MetaRow label="Paiement" value="Via KAYOU" />
           )}
+          {booking.status === 'CANCELLED' && booking.cancelReason ? (
+            <MetaRow label="Raison d’annulation" value={booking.cancelReason} />
+          ) : null}
         </MobileSection>
 
         {/* Help */}
@@ -329,10 +380,16 @@ export function BookingDetailScreen() {
 
 // ─── Subcomponents ────────────────────────────────────────────────────────
 
-function BdStatusChip({ status }: { status: V2Status }) {
+function BdStatusChip({
+  status,
+  backendStatus,
+}: {
+  status: V2Status;
+  backendStatus?: string | null;
+}) {
   const map: Record<V2Status, { label: string; bg: string; fg: string }> = {
     upcoming: {
-      label: 'À venir',
+      label: backendStatus === 'PENDING' ? 'En attente' : 'Confirmée',
       bg: theme.colors.primarySubtle,
       fg: theme.colors.primaryHover,
     },
@@ -478,11 +535,44 @@ function QuoteBreakdown({
   booking: Booking;
   isClient: boolean;
 }) {
-  const lines = booking.quote?.lines ?? [
-    { label: 'Diagnostic + déplacement', qty: 1, unit: 'Forfait', unitPrice: 5000 },
-    { label: "Main-d'œuvre", qty: 1.5, unit: 'Heure', unitPrice: 8000 },
-    { label: 'Joint + raccord', qty: 1, unit: 'Pièce', unitPrice: 2000 },
-  ];
+  if (!booking.quote) {
+    const total = booking.price ?? 0;
+    const commission = Math.round(total * 0.1);
+    const durationHours =
+      typeof booking.duration === 'number' ? Math.round((booking.duration / 60) * 10) / 10 : null;
+
+    return (
+      <View>
+        <MetaRow label="Prix estimé" value={`${total.toLocaleString('fr-FR')} FC`} />
+        <MetaRow
+          label="Durée estimée"
+          value={durationHours ? `${durationHours} h` : 'À confirmer'}
+        />
+        {!isClient && total > 0 ? (
+          <>
+            <View style={styles.qbExtraRow}>
+              <Text style={styles.qbExtraLabel}>Commission KAYOU estimée (10%)</Text>
+              <Text style={styles.qbExtraValue}>
+                −{commission.toLocaleString('fr-FR')} FC
+              </Text>
+            </View>
+            <View style={styles.qbExtraRow}>
+              <Text
+                style={[styles.qbExtraLabel, { color: theme.colors.textBody, fontWeight: '600' }]}
+              >
+                Payout estimé
+              </Text>
+              <Text style={[styles.qbExtraValue, styles.qbPayout]}>
+                {(total - commission).toLocaleString('fr-FR')} FC
+              </Text>
+            </View>
+          </>
+        ) : null}
+      </View>
+    );
+  }
+
+  const lines = booking.quote.lines;
   const subtotal = lines.reduce((a, b) => a + b.qty * b.unitPrice, 0);
   const total = booking.price ?? subtotal;
   const commission = Math.round(total * 0.1);
@@ -606,26 +696,42 @@ function MetaRow({
 
 function ActionButtons({
   v2,
+  backendStatus,
   isClient,
   reviewed,
   busy,
   onMessage,
   onCancel,
+  onConfirm,
+  onStart,
   onComplete,
   onReview,
 }: {
   v2: V2Status;
+  backendStatus?: string | null;
   isClient: boolean;
   reviewed: boolean;
   busy: boolean;
   onMessage: () => void;
   onCancel: () => void;
+  onConfirm: () => void;
+  onStart: () => void;
   onComplete: () => void;
   onReview: () => void;
 }) {
-  if (v2 === 'upcoming') {
+  if (backendStatus === 'PENDING') {
     return (
       <View style={{ gap: 8 }}>
+        {!isClient && (
+          <Pressable
+            style={[styles.primaryBtn, styles.primaryBtnLg]}
+            onPress={onConfirm}
+            disabled={busy}
+          >
+            <I.check size={15} color="#fff" />
+            <Text style={styles.primaryBtnText}>Confirmer la demande</Text>
+          </Pressable>
+        )}
         <Pressable style={styles.primaryBtn} onPress={onMessage}>
           <I.messageCircle size={15} color="#fff" />
           <Text style={styles.primaryBtnText}>
@@ -634,9 +740,40 @@ function ActionButtons({
         </Pressable>
         <Pressable style={styles.secondaryBtn} onPress={onCancel} disabled={busy}>
           <Text style={styles.secondaryBtnText}>
-            {isClient ? 'Annuler' : 'Se désister'}
+            {isClient ? 'Annuler' : 'Décliner'}
           </Text>
         </Pressable>
+      </View>
+    );
+  }
+  if (backendStatus === 'CONFIRMED') {
+    return (
+      <View style={{ gap: 8 }}>
+        {!isClient && (
+          <Pressable
+            style={[styles.primaryBtn, styles.primaryBtnLg]}
+            onPress={onStart}
+            disabled={busy}
+          >
+            <I.wrench size={15} color="#fff" />
+            <Text style={styles.primaryBtnText}>Démarrer l’intervention</Text>
+          </Pressable>
+        )}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable style={[styles.secondaryBtn, { flex: 1 }]} onPress={onMessage}>
+            <I.messageCircle size={14} color={theme.colors.textPrimary} />
+            <Text style={styles.secondaryBtnText}>Message</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryBtn, { flex: 1 }]}
+            onPress={onCancel}
+            disabled={busy}
+          >
+            <Text style={styles.secondaryBtnText}>
+              {isClient ? 'Annuler' : 'Annuler'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -709,9 +846,13 @@ interface Booking {
   createdAt?: string | Date | null;
   address?: string | null;
   city?: string | null;
+  duration?: number | null;
   price?: number | null;
   isPaid?: boolean | null;
   paymentMethod?: string | null;
+  cancelReason?: string | null;
+  cancelledBy?: string | null;
+  cancelledByRole?: 'client' | 'provider' | 'admin' | null;
   providerId?: string | null;
   provider?: {
     id?: string | null;
@@ -730,6 +871,12 @@ interface Booking {
   } | null;
   progress?: string | null;
   reviewed?: boolean | null;
+  myRating?: number | null;
+  review?: {
+    id?: string | null;
+    rating?: number | null;
+    overallScore?: number | null;
+  } | null;
   quote?: {
     lines: { label: string; qty: number; unit: string; unitPrice: number }[];
   } | null;

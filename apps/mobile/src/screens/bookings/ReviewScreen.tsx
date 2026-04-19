@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -119,6 +120,10 @@ export function ReviewScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
   const queryClient = useQueryClient();
+  const { data: bookingData, isLoading: isBookingLoading } = useQuery({
+    queryKey: queryKeys.bookings.detail(params.bookingId),
+    queryFn: () => api.bookings.getById(params.bookingId),
+  });
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [ratings, setRatings] = useState<Ratings>({});
@@ -135,7 +140,10 @@ export function ReviewScreen() {
   }, [ratings]);
 
   const allRated = Object.keys(ratings).length === REVIEW_DIMENSIONS.length;
-  const canFinish = allRated && text.trim().length >= 10;
+  const booking = bookingData?.booking;
+  const alreadyReviewed = Boolean(booking?.reviewed ?? booking?.review);
+  const canReviewBooking = booking?.status === 'COMPLETED' && !alreadyReviewed;
+  const canFinish = canReviewBooking && allRated && text.trim().length >= 10;
   const canAdvance = step === 1 ? allRated : step === 2 ? true : canFinish;
 
   const toggleTag = (t: string) =>
@@ -195,6 +203,37 @@ export function ReviewScreen() {
         providerFirstName={firstNameFrom(params.providerName)}
         onDone={goHome}
       />
+    );
+  }
+
+  if (isBookingLoading) {
+    return (
+      <SafeAreaView edges={['top']} style={[styles.screen, styles.centered]}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!canReviewBooking) {
+    const message =
+      alreadyReviewed
+        ? 'Un avis a déjà été publié pour cette réservation.'
+        : 'Vous pourrez laisser un avis quand la réservation sera terminée.';
+
+    return (
+      <SafeAreaView edges={['top']} style={[styles.screen, styles.centered]}>
+        <Text style={styles.guardTitle}>Avis indisponible</Text>
+        <Text style={styles.guardText}>{message}</Text>
+        <Pressable
+          style={styles.guardButton}
+          onPress={() => {
+            if (navigation.canGoBack()) navigation.goBack();
+            else navigation.navigate('BookingDetail', { bookingId: params.bookingId });
+          }}
+        >
+          <Text style={styles.guardButtonText}>Retour à la réservation</Text>
+        </Pressable>
+      </SafeAreaView>
     );
   }
 
@@ -437,6 +476,35 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.bg,
+  },
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  guardTitle: {
+    ...theme.text.displayM,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  guardText: {
+    ...theme.text.body,
+    color: theme.colors.textBody,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  guardButton: {
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guardButtonText: {
+    color: '#fff',
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingHorizontal: 20,

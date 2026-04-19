@@ -3,11 +3,18 @@ import { Animated, AccessibilityInfo, StyleSheet, Text, View } from 'react-nativ
 import { theme } from '@/lib/theme';
 import type { V2Status } from '@/lib/bookingV2';
 
-export function BookingStatusChip({ status }: { status: V2Status }) {
+export function BookingStatusChip({
+  status,
+  backendStatus,
+}: {
+  status: V2Status;
+  backendStatus?: string | null;
+}) {
   if (status === 'upcoming') {
+    const label = backendStatus === 'PENDING' ? 'En attente' : 'Confirmée';
     return (
       <View style={[styles.chip, styles.primary]}>
-        <Text style={[styles.chipText, styles.primaryText]}>À venir</Text>
+        <Text style={[styles.chipText, styles.primaryText]}>{label}</Text>
       </View>
     );
   }

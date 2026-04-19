@@ -39,7 +39,7 @@ export interface MobileBookingCardData {
   progress?: string | null;
   reviewed?: boolean | null;
   myRating?: number | null;
-  cancelledBy?: 'provider' | 'client' | null;
+  cancelledByRole?: 'provider' | 'client' | 'admin' | null;
 }
 
 export function BookingCard({
@@ -87,7 +87,7 @@ export function BookingCard({
           <I.calendar size={14} color={theme.colors.textMuted} />
           <Text style={styles.dateText}>{when}</Text>
         </View>
-        <BookingStatusChip status={v2} />
+        <BookingStatusChip status={v2} backendStatus={booking.status} />
       </View>
 
       {/* Body */}
@@ -151,7 +151,7 @@ export function BookingCard({
           v2={v2}
           reviewed={booking.reviewed}
           myRating={booking.myRating}
-          cancelledBy={booking.cancelledBy}
+          cancelledByRole={booking.cancelledByRole}
           perspective={perspective}
         />
       </View>
@@ -163,13 +163,13 @@ function FooterAction({
   v2,
   reviewed,
   myRating,
-  cancelledBy,
+  cancelledByRole,
   perspective,
 }: {
   v2: V2Status;
   reviewed?: boolean | null;
   myRating?: number | null;
-  cancelledBy?: 'provider' | 'client' | null;
+  cancelledByRole?: 'provider' | 'client' | 'admin' | null;
   perspective: 'client' | 'pro';
 }) {
   if (v2 === 'completed' && perspective === 'client' && !reviewed) {
@@ -188,10 +188,12 @@ function FooterAction({
       </View>
     );
   }
-  if (v2 === 'cancelled' && cancelledBy) {
+  if (v2 === 'cancelled' && cancelledByRole) {
     return (
       <Text style={styles.cancelledBy}>
-        {cancelledBy === 'provider'
+        {cancelledByRole === 'admin'
+          ? 'Par KAYOU'
+          : cancelledByRole === 'provider'
           ? perspective === 'client'
             ? 'Par le pro'
             : 'Par vous'

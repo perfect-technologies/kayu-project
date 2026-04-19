@@ -39,6 +39,7 @@ const participantUserSelect = {
   firstName: true,
   lastName: true,
   avatar: true,
+  isVerified: true,
 } satisfies Prisma.UserSelect;
 
 const bookingInclude = {
@@ -59,6 +60,18 @@ const bookingInclude = {
     select: {
       id: true,
       name: true,
+    },
+  },
+  review: {
+    select: {
+      id: true,
+      bookingId: true,
+      clientId: true,
+      providerId: true,
+      overallScore: true,
+      comment: true,
+      isPublic: true,
+      createdAt: true,
     },
   },
 } satisfies Prisma.BookingInclude;
@@ -245,7 +258,7 @@ export class BookingsService {
       const saved = await tx.booking.update({
         where: { id },
         data: updateData,
-        include: bookingInclude,
+        include: bookingDetailInclude,
       });
 
       if (
@@ -284,7 +297,7 @@ export class BookingsService {
           cancelledAt: new Date(),
           cancelledBy: actor.id,
         },
-        include: bookingInclude,
+        include: bookingDetailInclude,
       });
 
       await this.createStatusNotification(tx, booking, actor, "CANCELLED");
@@ -551,6 +564,9 @@ export class BookingsService {
       cancelledAt: booking.cancelledAt,
       cancelReason: booking.cancelReason,
       cancelledBy: booking.cancelledBy,
+      cancelledByRole: this.getCancelledByRole(booking),
+      reviewed: Boolean(booking.review),
+      myRating: booking.review ? this.roundRating(booking.review.overallScore) : null,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
       client: booking.client,
@@ -595,6 +611,26 @@ export class BookingsService {
 
   private roundRating(value: number) {
     return Math.round(value * 10) / 10;
+  }
+
+  private getCancelledByRole(booking: {
+    cancelledBy: string | null;
+    clientId: string;
+    provider: { userId: string };
+  }) {
+    if (!booking.cancelledBy) {
+      return null;
+    }
+
+    if (booking.cancelledBy === booking.clientId) {
+      return "client";
+    }
+
+    if (booking.cancelledBy === booking.provider.userId) {
+      return "provider";
+    }
+
+    return "admin";
   }
 
   private getDisplayName(actor: Actor) {

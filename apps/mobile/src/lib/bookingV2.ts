@@ -52,7 +52,7 @@ export const priceLabelFor = (booking: {
     return booking.isPaid ? 'Payé' : 'Terminée';
   }
   if (s === 'CANCELLED') return 'Remboursé';
-  if (s === 'CONFIRMED' || s === 'IN_PROGRESS') return 'Devis validé';
+  if (s === 'CONFIRMED' || s === 'IN_PROGRESS') return 'Confirmée';
   return 'Estimation';
 };
 
