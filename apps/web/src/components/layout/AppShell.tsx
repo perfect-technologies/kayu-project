@@ -63,7 +63,7 @@ const providerNavItems: NavItem[] = [
   { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Avis', href: '/dashboard/provider/reviews', icon: Star },
   { name: 'Statistiques', href: '/dashboard/provider/stats', icon: TrendingUp },
-  { name: 'Paiements', href: '/dashboard/provider/payments', icon: Wallet },
+  { name: 'Gains', href: '/pro/earnings', icon: Wallet },
   { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -95,8 +95,14 @@ function SidebarContent({
 
   const isItemActive = (href: string) => {
     if (href === currentPath) return true;
-    // Exact match on dashboard root so it doesn't swallow sibling routes.
-    if (href === '/dashboard/client' || href === '/dashboard/provider' || href === '/dashboard/admin') {
+    // Exact match on dashboard roots so they don't swallow sibling routes
+    // (e.g. /pro/earnings shouldn't also light up /pro).
+    if (
+      href === '/pro' ||
+      href === '/dashboard/client' ||
+      href === '/dashboard/provider' ||
+      href === '/dashboard/admin'
+    ) {
       return currentPath === href;
     }
     return currentPath.startsWith(href + '/');

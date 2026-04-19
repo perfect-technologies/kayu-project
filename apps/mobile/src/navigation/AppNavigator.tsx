@@ -44,9 +44,9 @@ import { FavoritesScreen } from '@/screens/profile/FavoritesScreen';
 import { SettingsScreen } from '@/screens/profile/SettingsScreen';
 
 // Pro tab screens. DS06 shipped ProviderDashboardScreen; DS07 shipped
-// JobRequestsScreen + QuoteComposeScreen. Earnings + onboarding remain
-// placeholders until DS08/DS09.
-import { EarningsScreen } from '@/screens/pro/ComingSoonScreen';
+// JobRequestsScreen + QuoteComposeScreen; DS08 ships EarningsScreen.
+// Onboarding + verification remain placeholders until DS09.
+import { EarningsScreen } from '@/screens/pro/EarningsScreen';
 import { ProviderDashboardScreen } from '@/screens/pro/ProviderDashboardScreen';
 import { JobRequestsScreen } from '@/screens/pro/JobRequestsScreen';
 import { QuoteComposeScreen } from '@/screens/pro/QuoteComposeScreen';

@@ -33,16 +33,8 @@ export function ComingSoonScreen({
   );
 }
 
-// ProviderDashboardScreen (DS06) and JobRequestsScreen (DS07) ship their own
-// files. Earnings + Onboarding remain placeholders until DS08/DS09.
-
-export const EarningsScreen = () => (
-  <ComingSoonScreen
-    title="Gains"
-    iconName="coins"
-    description="Tes revenus hebdomadaires et paiements Mobile Money (DS08)."
-  />
-);
+// ProviderDashboardScreen (DS06), JobRequestsScreen (DS07), and EarningsScreen
+// (DS08) ship their own files. Onboarding remains a placeholder until DS09.
 
 const styles = StyleSheet.create({
   root: {
