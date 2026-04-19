@@ -2,6 +2,8 @@
 
 These workstreams are intentionally scoped so parallel agents can implement and test them with limited conflicts.
 
+Web note: the first audit pass focused on backend and mobile. `08-web-flow-audit.md` adds the Next.js web surface. If web is launch-facing, assign `WS-13` and make sure shared P0 fixes are reflected in `apps/web`.
+
 ## WS-01 Auth Role And Profile Completion
 
 Severity: P0
@@ -298,3 +300,50 @@ Acceptance:
 - CI catches the P0 bugs documented in this audit.
 - A release branch cannot merge with broken direct booking or messaging flow.
 
+## WS-13 Web Launch Parity And Route Hygiene
+
+Severity: P0 if web is launch-facing; P1 if web is internal/deferred.
+
+Owns:
+
+- `apps/web/src/app/auth/AuthFlow.tsx`
+- `apps/web/src/contexts/AuthContext.tsx`
+- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx`
+- `apps/web/src/components/provider-profile/BookingForm.tsx`
+- `apps/web/src/app/bookings/*`
+- `apps/web/src/components/bookings/*`
+- `apps/web/src/app/messages/*`
+- `apps/web/src/components/provider-profile/ContactDialog.tsx`
+- `apps/web/src/app/review/[providerId]/*`
+- `apps/web/src/app/pro/*`
+- `apps/web/src/app/dashboard/*`
+- `apps/web/src/app/services/ServicesPageContent.tsx`
+- `apps/web/src/components/layout/AppShell.tsx`
+- shared API/schema/backend files only where web needs a contract already being fixed by another workstream
+
+Tasks:
+
+- Make web signup use the explicit role-selection contract from WS-01 and route admins to `/dashboard/admin`.
+- Fix direct booking success so the web stores the created booking id and routes to booking detail/list, not review.
+- Add provider confirm/start/complete booking actions that match backend status transitions.
+- Make the review screen require a completed booking id and remove fake success for missing `bookingId`.
+- Make first contact from a provider profile bind to the created conversation and make `/messages` open that conversation.
+- Remove, redirect, or implement web dashboard/sidebar links that currently point to missing routes.
+- Add an admin role guard before enabling admin dashboard queries.
+- Wire or hide web search sort, distance/top-rated/expert filters, and synthetic map behavior.
+- Hide unsendable standalone quote composer entry points unless standalone quotes are implemented.
+- Replace placeholder avatar/verification upload behavior or document and present it as a launch stub.
+- Align payment, refund, and payout copy with the actual launch payment policy.
+
+Acceptance:
+
+- `pnpm --filter @kayu/web type-check` passes.
+- New provider web signup lands in `/pro/onboarding`.
+- New client web signup lands in a client-safe route after required profile capture.
+- Web direct booking creates a real booking and routes to `/bookings/[id]` or `/bookings`.
+- Provider can confirm, start, and complete a web-created direct booking.
+- Client can review only after completion and the review persists.
+- First provider-profile message is visible in `/messages`.
+- Admin users land on `/dashboard/admin`; non-admin users cannot view admin UI.
+- No visible web navigation item points to a 404.
+- Visible web filters/map/payment/verification features match implemented backend behavior.

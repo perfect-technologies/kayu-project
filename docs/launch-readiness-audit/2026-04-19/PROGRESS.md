@@ -33,6 +33,7 @@ WS-01 complete. Remaining launch remediation not started.
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | not_started | | Admin users and moderation workflow. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | not_started | | Cash/offline vs paid booking policy. |
 | WS-12 | P1 | Yes | Test Harness | Can start after first P0 | not_started | | Regression coverage for launch-critical flows. |
+| WS-13 | P0/P1 | Yes if web launches | Web Launch Parity And Route Hygiene | WS-01/WS-02/WS-03 helpful | not_started | | Bring `apps/web` into parity with launch backend/mobile flows or hide unfinished web surfaces. |
 
 ## Current P0 Blockers
 
@@ -41,9 +42,13 @@ WS-01 complete. Remaining launch remediation not started.
 | Booking | Mobile direct booking reads `result.id`, but backend returns `{ success, booking }`. | `03-client-flow-audit.md` |
 | Booking | Direct booking success navigates to review before booking is complete. | `03-client-flow-audit.md` |
 | Booking | Provider has no UI path to confirm/start direct bookings before completing them. | `04-provider-flow-audit.md` |
+| Web booking | Web booking success routes to review without a booking id; review can fake success without backend write. | `08-web-flow-audit.md` |
+| Web booking | Web provider booking detail has no confirm/start actions for direct bookings. | `08-web-flow-audit.md` |
 | Messaging | First message from provider profile can create a conversation without the UI binding to the new conversation. | `03-client-flow-audit.md` |
 | Messaging | Booking detail uses provider recipient even for provider users, causing providers to message themselves. | `04-provider-flow-audit.md` |
+| Web messaging | Web first-contact dialog sends and closes without selecting or showing the created conversation. | `08-web-flow-audit.md` |
 | Quotes | Client request/quote acceptance path is not available in mobile despite backend/provider quote support. | `03-client-flow-audit.md`, `04-provider-flow-audit.md` |
+| Web auth/admin | Web auth/admin routing still has launch gaps, including `/admin` redirect and web role-selection parity. | `08-web-flow-audit.md` |
 
 ## Decisions Log
 
@@ -53,6 +58,7 @@ WS-01 complete. Remaining launch remediation not started.
 | 2026-04-19 | Treat direct booking as the minimum launch-critical marketplace flow. | A client must be able to book a provider and a provider must be able to complete the booking reliably. |
 | 2026-04-19 | Treat job request/quote as launch-critical only if the product intends to expose it at launch. | The backend/provider pieces exist, but client acceptance is missing. Half-exposed flows should be completed or hidden. |
 | 2026-04-19 | Agents must update this file before handing back work. | Parallel remediation needs a single coordination surface. |
+| 2026-04-19 | Add web as a launch surface if public at launch. | `apps/web` implements client, provider, booking, messages, quote, and admin routes; it cannot be treated as marketing-only. |
 
 ## Validation Evidence
 
@@ -63,6 +69,7 @@ pnpm --filter @kayu/schemas type-check
 pnpm --filter @kayu/api type-check
 pnpm --filter @kayu/backend type-check
 pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
 ```
 
 Result: passed during audit. These checks do not prove end-to-end flow correctness.

@@ -9,16 +9,18 @@ pnpm --filter @kayu/schemas type-check
 pnpm --filter @kayu/api type-check
 pnpm --filter @kayu/backend type-check
 pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
 ```
 
-There are no meaningful automated E2E tests observed for the marketplace flows. Passing type checks currently misses the main defects because the mobile app uses casts, local interfaces, placeholder UI, and runtime navigation flows.
+There are no meaningful automated E2E tests observed for the marketplace flows. Passing type checks currently misses the main defects because the mobile and web apps use casts, local interfaces, placeholder UI, and runtime navigation flows.
 
 ## Required Test Environments
 
 1. Local API with Postgres seeded.
 2. Supabase test project with seeded auth users, or a mock auth strategy for E2E.
 3. Expo mobile test target.
-4. Stable demo accounts:
+4. Next.js web test target.
+5. Stable demo accounts:
    - Client with no profile.
    - Client with completed profile.
    - Provider with no provider profile.
@@ -77,6 +79,20 @@ Add tests around service/controller behavior first. Recommended priority:
 - non-participant cannot read conversation.
 - unread count updates when recipient reads.
 - messaging respects `allowMessages` if product keeps that setting.
+
+## Web E2E Tests
+
+If `apps/web` is launch-facing, add Playwright or equivalent tests for:
+
+- signup as client and provider with OTP/test auth.
+- admin login routes to `/dashboard/admin`.
+- direct booking creates a real booking and routes to booking detail/list.
+- provider confirms, starts, and completes the booking from web.
+- client review is available only after completion and persists.
+- first provider-profile message opens or appears in `/messages`.
+- dashboard/sidebar visible links do not 404.
+- non-admin users cannot view admin UI.
+- visible search filters and sort either affect results or are hidden.
 
 ### Reviews
 

@@ -18,6 +18,7 @@ Before editing code, each agent must read:
    - Admin/ops work: `05-admin-and-operations-audit.md`
    - Data/API work: `02-data-model-audit.md`
    - Testing work: `06-test-and-release-plan.md`
+   - Web work: `08-web-flow-audit.md`
 
 ## Coordination Rules
 
@@ -54,6 +55,7 @@ Then assign the P1 launch-hardening work:
 10. `WS-10` Admin / Ops MVP
 11. `WS-11` Payments And Earnings Policy
 12. `WS-12` Test Harness
+13. `WS-13` Web Launch Parity And Route Hygiene, if web is launch-facing
 
 `WS-12` can begin once the first P0 fix lands, but the agent should focus on reusable E2E/test infrastructure and avoid blocking feature agents.
 
@@ -66,6 +68,7 @@ pnpm --filter @kayu/schemas type-check
 pnpm --filter @kayu/api type-check
 pnpm --filter @kayu/backend type-check
 pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
 ```
 
 When backend behavior changes, run or add backend tests for the touched module.
@@ -224,3 +227,12 @@ Read the required launch audit docs and add a practical test harness for the lau
 Do not block feature agents with broad refactors. Run the new tests and relevant type checks. Update docs/launch-readiness-audit/2026-04-19/PROGRESS.md before finishing.
 ```
 
+### WS-13 Web Launch Parity And Route Hygiene
+
+```text
+Implement WS-13 Web Launch Parity And Route Hygiene from docs/launch-readiness-audit/2026-04-19/07-agent-workstreams.md.
+
+Read docs/launch-readiness-audit/2026-04-19/08-web-flow-audit.md in addition to the required launch audit docs. Treat apps/web as a launch-facing marketplace client. Bring web auth, direct booking, booking status transitions, messaging bootstrap, reviews, admin routing/access, discovery filters/map, quote entry points, verification placeholders, and dashboard navigation into parity with the shared backend/mobile launch fixes.
+
+Do not make broad visual rewrites. Remove or hide unfinished web routes/controls if they are not launch scope. Run pnpm --filter @kayu/web type-check plus any shared package/backend checks required by your changes. Update docs/launch-readiness-audit/2026-04-19/PROGRESS.md before finishing.
+```

@@ -1,6 +1,6 @@
 # Executive Summary
 
-KAYOU is not launch-ready yet. The backend has a broad marketplace schema and many modules, and the mobile app has substantial UI coverage, but multiple core paths do not work end to end. The biggest issue is not lack of code; it is mismatch between intended marketplace behavior, backend state machines, mobile navigation, and what users can actually complete.
+KAYOU is not launch-ready yet. The backend has a broad marketplace schema and many modules, and the mobile and web apps have substantial UI coverage, but multiple core paths do not work end to end. The biggest issue is not lack of code; it is mismatch between intended marketplace behavior, backend state machines, frontend navigation, and what users can actually complete.
 
 ## Launch Recommendation
 
@@ -19,6 +19,8 @@ The MVP should be narrowed to one reliable path:
 
 The current implementation partially supports this path but has several blockers.
 
+Web note: `apps/web` is a full launch surface, not just marketing. It includes auth, booking, messages, quotes, provider dashboard, verification, earnings, and admin routes. If web is public at launch, it must be fixed alongside mobile. See `08-web-flow-audit.md`.
+
 ## P0 Findings
 
 | Area | Finding | Impact | Evidence |
@@ -31,6 +33,7 @@ The current implementation partially supports this path but has several blockers
 | Messaging wrong recipient | Booking detail always uses `booking.provider.userId` for message target. Providers viewing a client booking attempt to message themselves instead of the client. | Provider cannot message client from booking detail; self-message is rejected by backend. | `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx:224-233`; backend rejects self-message. |
 | Quotes | Provider can send quotes, but client has no mobile UI to view, accept, or decline quotes. | Quote marketplace path cannot complete in app. | `packages/api/src/endpoints.ts` exposes client quote APIs; `rg` shows no mobile usage outside pro screens. |
 | Client job requests | Backend supports broad job requests, provider inbox, and quote responses, but mobile has no client screen to create/manage job requests. | Thumbtack-style request flow is absent for clients. | `apps/backend/src/modules/job-requests/*`; `rg` shows mobile only uses pro-side job request APIs. |
+| Web launch parity | Web direct booking routes to review before completion, review can fake success without a booking id, provider booking actions skip confirm/start, and admin auth routes to `/admin` even though the real route is `/dashboard/admin`. | Web users can hit the same launch blockers plus web-specific 404/prototype paths. | `docs/launch-readiness-audit/2026-04-19/08-web-flow-audit.md`. |
 
 ## High-Impact P1 Findings
 
@@ -66,4 +69,4 @@ The current implementation partially supports this path but has several blockers
 5. Implement real map/distance or remove map claims.
 6. Add E2E coverage for direct booking and quote-created booking.
 7. Add admin/ops path for verification and account moderation.
-
+8. If web is public, complete `WS-13` so web auth, booking, messaging, reviews, admin, discovery, and verification match the launch backend/mobile behavior.

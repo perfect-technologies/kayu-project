@@ -12,6 +12,7 @@ This folder is a deep investigation of the current marketplace implementation, f
 - [05 Admin And Operations Audit](./05-admin-and-operations-audit.md): admin/moderation readiness, verification, disputes, and operational gaps.
 - [06 Test And Release Plan](./06-test-and-release-plan.md): practical E2E/regression plan before launch.
 - [07 Agent Workstreams](./07-agent-workstreams.md): fix-ready work packets for parallel implementation.
+- [08 Web Flow Audit](./08-web-flow-audit.md): Next.js web app launch gaps and route/API mismatches.
 - [Agent Handoffs](./AGENT-HANDOFFS.md): ready-to-send prompts and coordination rules for implementation agents.
 - [Progress](./PROGRESS.md): launch remediation status tracker.
 
@@ -24,6 +25,7 @@ pnpm --filter @kayu/schemas type-check
 pnpm --filter @kayu/api type-check
 pnpm --filter @kayu/backend type-check
 pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
 ```
 
 Passing type checks do not mean the app is launch-ready. The main risks are broken runtime flows, missing screens, incomplete state transitions, and features represented in the database but not reachable in the app.
