@@ -7,12 +7,12 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useAuth } from '@/lib/auth';
+import { needsClientProfileCompletion, useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 import { MobileTabBar } from '@/components/shell';
 
 // Auth screens
-import { AuthScreen } from '@/screens/auth/AuthScreen';
+import { AuthScreen, ProfileCompletionScreen } from '@/screens/auth/AuthScreen';
 
 // Design-system smoke test (D01). Remove when D09 passes.
 import { DesignProbeScreen } from '@/screens/DesignProbeScreen';
@@ -57,6 +57,7 @@ import { ProVerificationScreen } from '@/screens/pro/ProVerificationScreen';
 
 export type AuthStackParamList = {
   Auth: { mode?: 'signup' | 'login' } | undefined;
+  ProfileCompletion: undefined;
   DesignProbe: undefined;
 };
 
@@ -135,6 +136,17 @@ function AuthNavigator() {
         name="DesignProbe"
         component={DesignProbeScreen}
         options={{ headerShown: true, title: 'Design probe' }}
+      />
+    </AuthStack.Navigator>
+  );
+}
+
+function ProfileCompletionNavigator() {
+  return (
+    <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen
+        name="ProfileCompletion"
+        component={ProfileCompletionScreen}
       />
     </AuthStack.Navigator>
   );
@@ -224,8 +236,15 @@ function MessagesNavigator() {
 }
 
 function ProviderNavigator() {
+  const { user } = useAuth();
+
   return (
-    <ProviderStack.Navigator screenOptions={{ ...HEADER_STYLE, headerShown: false }}>
+    <ProviderStack.Navigator
+      initialRouteName={
+        user?.hasProviderProfile ? 'ProviderDashboardMain' : 'ProviderOnboarding'
+      }
+      screenOptions={{ ...HEADER_STYLE, headerShown: false }}
+    >
       <ProviderStack.Screen
         name="ProviderDashboardMain"
         component={ProviderDashboardScreen}
@@ -382,7 +401,7 @@ function MainNavigator() {
 }
 
 export function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -394,7 +413,15 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      {isAuthenticated ? (
+        needsClientProfileCompletion(user) ? (
+          <ProfileCompletionNavigator />
+        ) : (
+          <MainNavigator />
+        )
+      ) : (
+        <AuthNavigator />
+      )}
     </NavigationContainer>
   );
 }

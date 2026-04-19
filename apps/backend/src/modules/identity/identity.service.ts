@@ -87,13 +87,41 @@ export class IdentityService implements IActorResolver {
       throw new ConflictException("Admin role cannot be changed here");
     }
 
-    if (actor.role !== "CLIENT" && actor.role !== role) {
+    const existing = await this.repo.findById(actor.id);
+    if (!existing) throw new NotFoundException("User not found");
+
+    if (existing.role === "ADMIN") {
+      throw new ConflictException("Admin role cannot be changed here");
+    }
+
+    if (existing.role === role && existing.roleSelectedAt) {
+      return {
+        success: true,
+        user: this.toMeUser(existing),
+      };
+    }
+
+    if (existing.role !== role) {
+      const roleLocked =
+        Boolean(existing.roleSelectedAt) ||
+        Boolean(existing.provider) ||
+        this.hasCompletedProfile(existing) ||
+        (await this.repo.hasRoleBlockingActivity(existing.id));
+
+      if (roleLocked) {
+        throw new ConflictException("User role has already been set");
+      }
+    }
+
+    if (existing.role !== "CLIENT" && existing.role !== role) {
       throw new ConflictException("User role has already been set");
     }
 
-    const user = await this.repo.setRole(actor.id, role).catch((error) => {
-      throw this.toConflict(error, "Unable to update role");
-    });
+    const user = await this.repo
+      .setRole(existing.id, role, existing.roleSelectedAt ?? new Date())
+      .catch((error) => {
+        throw this.toConflict(error, "Unable to update role");
+      });
 
     return {
       success: true,
@@ -212,9 +240,13 @@ export class IdentityService implements IActorResolver {
   private toMeUser(user: UserWithProvider): MeUser {
     return {
       ...user,
-      profileComplete: Boolean(user.firstName && user.lastName && user.role),
+      profileComplete: this.hasCompletedProfile(user),
       provider: user.provider ? this.toProviderResponse(user.provider) : null,
     };
+  }
+
+  private hasCompletedProfile(user: Pick<UserWithProvider, "firstName" | "lastName">): boolean {
+    return Boolean(user.firstName?.trim() && user.lastName?.trim());
   }
 
   private toProviderResponse(provider: ProviderWithRelations): ProviderResponse {

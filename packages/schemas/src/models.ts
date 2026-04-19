@@ -37,6 +37,7 @@ export const UserSchema = UserSummarySchema.extend({
   email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
   role: UserRole,
+  roleSelectedAt: NullableDateTimeSchema.optional(),
   city: z.string().nullable().optional(),
   country: z.string().default("RDC"),
   address: z.string().nullable().optional(),
@@ -57,6 +58,7 @@ export const UserSchema = UserSummarySchema.extend({
 export const AuthUserSchema = UserSummarySchema.extend({
   email: z.string().email().nullable().optional(),
   role: UserRole,
+  roleSelectedAt: NullableDateTimeSchema.optional(),
   isVerified: z.boolean(),
   city: z.string().nullable().optional(),
   country: z.string(),

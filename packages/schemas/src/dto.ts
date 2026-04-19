@@ -52,7 +52,7 @@ export const SkillInputSchema = z.object({
 export const CompleteProfileDto = z.object({
   firstName: z.string().min(2),
   lastName: z.string().min(2),
-  role: z.enum(["CLIENT", "PROVIDER"]),
+  role: z.enum(["CLIENT", "PROVIDER"]).optional(),
   city: z.string().optional(),
   country: z.string().default("RDC"),
   phone: z.string().optional(),
@@ -64,6 +64,7 @@ export const CompleteProfileDto = z.object({
 
 export const RegisterDto = CompleteProfileDto.extend({
   email: z.string().email(),
+  role: z.enum(["CLIENT", "PROVIDER"]),
   password: z.string().min(6).optional(),
   profession: z.string().optional(),
   categoryIds: z.array(IdSchema).optional(),

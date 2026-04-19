@@ -122,12 +122,44 @@ export class IdentityRepository {
     });
   }
 
-  setRole(userId: string, role: "CLIENT" | "PROVIDER"): Promise<UserWithProvider> {
+  setRole(
+    userId: string,
+    role: "CLIENT" | "PROVIDER",
+    roleSelectedAt: Date,
+  ): Promise<UserWithProvider> {
     return this.prisma.user.update({
       where: { id: userId },
-      data: { role },
+      data: { role, roleSelectedAt },
       include: { provider: { include: providerInclude } },
     });
+  }
+
+  async hasRoleBlockingActivity(userId: string): Promise<boolean> {
+    const [
+      bookingsAsClient,
+      quotesAsClient,
+      jobRequests,
+      reviewsGiven,
+      messages,
+      favorites,
+    ] = await Promise.all([
+      this.prisma.booking.count({ where: { clientId: userId } }),
+      this.prisma.quote.count({ where: { clientId: userId } }),
+      this.prisma.jobRequest.count({ where: { clientId: userId } }),
+      this.prisma.review.count({ where: { clientId: userId } }),
+      this.prisma.message.count({ where: { senderId: userId } }),
+      this.prisma.favorite.count({ where: { userId } }),
+    ]);
+
+    return (
+      bookingsAsClient +
+        quotesAsClient +
+        jobRequests +
+        reviewsGiven +
+        messages +
+        favorites >
+      0
+    );
   }
 
   countCategories(categoryIds: string[]): Promise<number> {

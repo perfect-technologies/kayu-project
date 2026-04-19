@@ -136,6 +136,39 @@ function supabaseErrorCopy(err: unknown): string {
   return "Impossible d'envoyer le code. Réessaie dans un instant.";
 }
 
+function authFlowErrorCopy(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  if (/role has already been set|rôle|role/i.test(msg)) {
+    return 'Ce compte a déjà un rôle. Connectez-vous avec le parcours correspondant.';
+  }
+  return supabaseErrorCopy(err);
+}
+
+function hasRequiredName(user: {
+  firstName?: string | null;
+  lastName?: string | null;
+} | null | undefined): boolean {
+  return Boolean(user?.firstName?.trim() && user?.lastName?.trim());
+}
+
+function hasEstablishedRole(user: {
+  role?: string | null;
+  roleSelectedAt?: string | Date | null;
+  provider?: unknown;
+  firstName?: string | null;
+  lastName?: string | null;
+} | null | undefined): boolean {
+  return Boolean(user?.role && (user.roleSelectedAt || user.provider || hasRequiredName(user)));
+}
+
+function readRoleSelectedAt(user: unknown): string | Date | null {
+  if (!user || typeof user !== 'object' || !('roleSelectedAt' in user)) {
+    return null;
+  }
+
+  return (user as { roleSelectedAt?: string | Date | null }).roleSelectedAt ?? null;
+}
+
 type AuthRoute = RouteProp<AuthStackParamList, 'Auth'>;
 
 export function AuthScreen() {
@@ -283,19 +316,28 @@ export function AuthScreen() {
       if (!tokenStr) throw new Error('No session returned');
       apiClient.setAccessToken(tokenStr);
 
-      const me = await identityApi(apiClient).me();
+      const identity = identityApi(apiClient);
+      let me = await identity.me();
       const userRole = me.user?.role as 'CLIENT' | 'PROVIDER' | 'ADMIN' | null | undefined;
-      const userFirstName = me.user?.firstName ?? null;
 
       // SIGNUP
-      if (mode === 'signup' && chosenRole && !userRole) {
-        await identityApi(apiClient).setRole({ role: chosenRole });
+      if (mode === 'signup' && chosenRole) {
+        if (userRole !== chosenRole || !readRoleSelectedAt(me.user)) {
+          me = await identity.setRole({ role: chosenRole });
+        }
+
         if (chosenRole === 'PROVIDER') {
           await refreshUser();
-          // Navigator will swap to ProTabs; ProviderDashboard banner (I03) routes
-          // to onboarding when incomplete.
+          // Navigator swaps to the pro app; users without a provider profile
+          // start on onboarding.
           return;
         }
+
+        if (hasRequiredName(me.user)) {
+          await refreshUser();
+          return;
+        }
+
         setFallbackKind('name');
         setStep(3);
         setSubmitting(false);
@@ -303,21 +345,21 @@ export function AuthScreen() {
       }
 
       // LOGIN: no role → fallback role picker
-      if (!userRole) {
+      if (!userRole || !hasEstablishedRole(me.user)) {
         setFallbackKind('rolePicker');
         setStep(3);
         setSubmitting(false);
         return;
       }
 
-      // Returning pro — dashboard banner handles incomplete onboarding
+      // Returning pro — pro navigator handles onboarding when no profile exists.
       if (userRole === 'PROVIDER') {
         await refreshUser();
         return;
       }
 
-      // Returning client missing firstName
-      if (userRole === 'CLIENT' && !userFirstName) {
+      // Returning client missing profile names.
+      if (userRole === 'CLIENT' && !hasRequiredName(me.user)) {
         setFallbackKind('name');
         setStep(3);
         setSubmitting(false);
@@ -326,7 +368,7 @@ export function AuthScreen() {
 
       await refreshUser();
     } catch (err) {
-      setOtpError(supabaseErrorCopy(err));
+      setOtpError(authFlowErrorCopy(err));
       setOtp(Array.from({ length: OTP_LENGTH }, () => ''));
       otpRefs.current[0]?.focus();
       setSubmitting(false);
@@ -366,11 +408,10 @@ export function AuthScreen() {
       await identityApi(apiClient).completeProfile({
         firstName: nameFirst.trim(),
         lastName: nameLast.trim(),
-        role: 'CLIENT',
         city: nameCity || undefined,
         email: nameEmail.trim() || undefined,
         country: country === 'cd' ? 'RDC' : 'CG',
-      } as Parameters<ReturnType<typeof identityApi>['completeProfile']>[0]);
+      });
       await refreshUser();
     } catch (err) {
       setNameError(
@@ -492,6 +533,128 @@ export function AuthScreen() {
   );
 }
 
+export function ProfileCompletionScreen() {
+  const insets = useSafeAreaInsets();
+  const { user, refreshUser, signOut } = useAuth();
+  const initialCountry: CountryCode = user?.country === 'CG' ? 'cg' : 'cd';
+  const [firstName, setFirstName] = React.useState(user?.firstName ?? '');
+  const [lastName, setLastName] = React.useState(user?.lastName ?? '');
+  const [city, setCity] = React.useState(user?.city ?? 'Kinshasa');
+  const [email, setEmail] = React.useState(user?.email ?? '');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [roleSelectionDone, setRoleSelectionDone] = React.useState(
+    Boolean(user?.roleSelectedAt) || hasRequiredName(user),
+  );
+
+  const cities = initialCountry === 'cd' ? CITIES_CD : CITIES_CG;
+  const needsRoleSelection =
+    user?.role === 'CLIENT' &&
+    !roleSelectionDone &&
+    !user.hasProviderProfile &&
+    !hasRequiredName(user);
+
+  const handleRoleSelect = async (role: Role) => {
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await identityApi(apiClient).setRole({ role });
+      if (role === 'PROVIDER') {
+        await refreshUser();
+        return;
+      }
+      setRoleSelectionDone(true);
+      setSubmitting(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Une erreur est survenue. Réessaie.',
+      );
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+      setError('Le prénom et le nom sont requis (2 caractères min).');
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      await identityApi(apiClient).completeProfile({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        city: city || undefined,
+        email: email.trim() || undefined,
+        country: initialCountry === 'cd' ? 'RDC' : 'CG',
+      });
+      await refreshUser();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Une erreur est survenue. Réessaie.',
+      );
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 24) + 24,
+            paddingBottom: Math.max(insets.bottom, 24) + 8,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ flexGrow: 1 }}>
+          {needsRoleSelection ? (
+            <RolePickerStep
+              onSelect={handleRoleSelect}
+              mode="fallback"
+              error={error}
+            />
+          ) : (
+            <NameStep
+              firstName={firstName}
+              lastName={lastName}
+              city={city}
+              email={email}
+              cities={cities}
+              onFirstName={setFirstName}
+              onLastName={setLastName}
+              onCity={setCity}
+              onEmail={setEmail}
+              onSubmit={handleSubmit}
+              submitting={submitting}
+              error={error}
+            />
+          )}
+
+          <Pressable
+            onPress={signOut}
+            disabled={submitting}
+            accessibilityRole="button"
+            style={styles.signOutLink}
+          >
+            <Text style={styles.signOutText}>Utiliser un autre compte</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
 // ─── Step dots ────────────────────────────────────────────────────────────────
 
 function StepDots({ step, total }: { step: number; total: number }) {
@@ -536,7 +699,7 @@ function RolePickerStep({
       </Text>
       <Text style={styles.body}>
         {mode === 'signup'
-          ? 'Choisissez votre rôle. Vous pourrez le changer plus tard.'
+          ? 'Choisissez votre rôle pour configurer le bon espace.'
           : 'Comment voulez-vous utiliser KAYOU ?'}
       </Text>
       <View style={styles.roleStack}>
@@ -1389,6 +1552,18 @@ const styles = StyleSheet.create({
   cityChipLabelActive: {
     color: theme.colors.primaryHover,
     fontWeight: '600',
+  },
+  signOutLink: {
+    marginTop: 20,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  signOutText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
   },
 
   errorRow: {

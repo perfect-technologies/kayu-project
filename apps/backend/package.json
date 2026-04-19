@@ -10,6 +10,7 @@
     "start:prod": "node dist/main.js",
     "build": "nest build",
     "type-check": "tsc -p tsconfig.json --noEmit",
+    "test:identity": "node --test -r ts-node/register src/modules/identity/identity.service.spec.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:reset": "prisma db push --force-reset && pnpm run db:seed",

@@ -17,11 +17,14 @@ export interface AuthUser {
   firstName: string | null;
   lastName: string | null;
   role: 'CLIENT' | 'PROVIDER' | 'ADMIN';
+  roleSelectedAt: string | Date | null;
   avatar: string | null;
   isVerified: boolean;
   city: string | null;
   country: string;
   phone?: string | null;
+  profileComplete: boolean;
+  hasProviderProfile: boolean;
 }
 
 interface AuthContextValue {
@@ -39,6 +42,15 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function readRoleSelectedAt(user: unknown): string | Date | null {
+  if (!user || typeof user !== 'object' || !('roleSelectedAt' in user)) {
+    return null;
+  }
+
+  const value = (user as { roleSelectedAt?: string | Date | null }).roleSelectedAt;
+  return value ?? null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -58,11 +70,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firstName: u.firstName ?? null,
           lastName: u.lastName ?? null,
           role: u.role as 'CLIENT' | 'PROVIDER' | 'ADMIN',
+          roleSelectedAt: readRoleSelectedAt(u),
           avatar: u.avatar ?? null,
           isVerified: u.isVerified ?? false,
           city: u.city ?? null,
           country: u.country ?? 'CD',
           phone: u.phone ?? null,
+          profileComplete: u.profileComplete ?? false,
+          hasProviderProfile: Boolean(u.provider),
         };
       }
     } catch {
@@ -203,4 +218,12 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return ctx;
+}
+
+export function hasRequiredProfileName(user: Pick<AuthUser, 'firstName' | 'lastName'>): boolean {
+  return Boolean(user.firstName?.trim() && user.lastName?.trim());
+}
+
+export function needsClientProfileCompletion(user: AuthUser | null): boolean {
+  return Boolean(user && user.role === 'CLIENT' && !hasRequiredProfileName(user));
 }

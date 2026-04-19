@@ -6,7 +6,7 @@ This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`
 
 ## Current Phase
 
-Audit complete. Remediation not started.
+WS-01 complete. Remaining launch remediation not started.
 
 ## Status Legend
 
@@ -21,7 +21,7 @@ Audit complete. Remediation not started.
 
 | ID | Priority | Launch Critical | Workstream | Depends On | Status | Owner | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| WS-01 | P0 | Yes | Auth Role And Profile Completion | None | not_started | | Provider signup/login role consistency. |
+| WS-01 | P0 | Yes | Auth Role And Profile Completion | None | done | Codex | Changed `apps/mobile/src/screens/auth/AuthScreen.tsx`, `apps/mobile/src/lib/auth.tsx`, `apps/mobile/src/navigation/AppNavigator.tsx`, `apps/backend/src/modules/identity/*`, `apps/backend/prisma/schema.prisma`, `packages/schemas/src/*`. |
 | WS-02 | P0 | Yes | Direct Booking Lifecycle | WS-01 helpful | not_started | | Create response, review gating, provider confirm/start/complete. |
 | WS-03 | P0 | Yes | Messaging Bootstrap And Role Recipients | WS-01 helpful | not_started | | Conversation creation and correct client/provider recipients. |
 | WS-04 | P0/P1 | Decision required | Client Job Request And Quote Acceptance | WS-01 | not_started | | Finish for launch or hide/defer. |
@@ -38,7 +38,6 @@ Audit complete. Remediation not started.
 
 | Area | Blocker | Source |
 | --- | --- | --- |
-| Auth | Provider signup can leave local user role as `CLIENT`, breaking provider onboarding and pro routing. | `03-client-flow-audit.md`, `04-provider-flow-audit.md` |
 | Booking | Mobile direct booking reads `result.id`, but backend returns `{ success, booking }`. | `03-client-flow-audit.md` |
 | Booking | Direct booking success navigates to review before booking is complete. | `03-client-flow-audit.md` |
 | Booking | Provider has no UI path to confirm/start direct bookings before completing them. | `04-provider-flow-audit.md` |
@@ -68,6 +67,21 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed during audit. These checks do not prove end-to-end flow correctness.
 
+WS-01 validation:
+
+```bash
+pnpm --filter @kayu/backend prisma:generate
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend test:identity
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+```
+
+Result: passed on 2026-04-19.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -86,5 +100,11 @@ When handing back:
 
 ## Completed Work Log
 
-No remediation work completed yet.
+### 2026-04-19 — WS-01 Auth Role And Profile Completion
 
+- Added explicit `User.roleSelectedAt` state so backend-created default `CLIENT` rows are distinguishable from deliberate client signup.
+- Made `/me/role` idempotent for the same role and safe for fresh signup while rejecting role changes after explicit selection, completed profile, provider profile, or marketplace activity.
+- Changed mobile OTP signup to persist the chosen role for both client and provider signup, even when `/me` initially returns default `CLIENT`.
+- Added an authenticated client profile/name guard and a restored-session role picker for users whose role was not selected yet.
+- Routed provider users without a provider profile directly into provider onboarding.
+- Added focused identity regression tests in `apps/backend/src/modules/identity/identity.service.spec.ts`.
