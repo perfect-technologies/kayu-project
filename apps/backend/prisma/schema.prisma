@@ -144,6 +144,7 @@ model Provider {
   transactions           Transaction[]
   payouts                Payout[]
   quotes                 Quote[]
+  verificationDocs       VerificationDoc[]
 
   // Indexes pour performance
   @@index([profession])
@@ -607,6 +608,7 @@ model Booking {
   portfolioProject PortfolioProject?
   transactions     Transaction[]
   quote            Quote?            @relation("BookingFromQuote")
+  disputes         Dispute[]
 
   // Indexes pour performance
   @@index([clientId])
@@ -1109,4 +1111,101 @@ model QuoteLineItem {
   order     Int    @default(0)
 
   @@index([quoteId])
+}
+
+// ==================== VÉRIFICATION (KYC) ====================
+
+enum VerificationDocKind {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+  ADDRESS
+  CERT_OPTIONAL
+}
+
+enum VerificationDecision {
+  APPROVED
+  REJECTED
+}
+
+model VerificationDoc {
+  id         String   @id @default(cuid())
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  kind     VerificationDocKind
+  url      String
+  fileName String?
+  fileSize Int?
+  mimeType String?
+
+  uploadedAt      DateTime              @default(now())
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  decision        VerificationDecision?
+  rejectionReason String?
+
+  @@index([providerId, kind])
+}
+
+// ==================== LITIGES (Disputes) ====================
+
+enum DisputeStatus {
+  NEW
+  PENDING_PRO
+  PENDING_CLIENT
+  INVESTIGATING
+  ESCALATED
+  RESOLVED
+}
+
+enum DisputeSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum DisputeOrigin {
+  CLIENT
+  PROVIDER
+}
+
+model Dispute {
+  id         String  @id @default(cuid())
+  bookingId  String
+  booking    Booking @relation(fields: [bookingId], references: [id])
+  origin     DisputeOrigin
+  openedById String
+  reason     String
+
+  clientStatement String?
+  proStatement    String?
+
+  status   DisputeStatus   @default(NEW)
+  severity DisputeSeverity @default(MEDIUM)
+
+  resolution    String?
+  resolutionPct Int?
+  resolvedAt    DateTime?
+  deadlineAt    DateTime?
+
+  evidences DisputeEvidence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([status, deadlineAt])
+}
+
+model DisputeEvidence {
+  id           String  @id @default(cuid())
+  disputeId    String
+  dispute      Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  uploadedById String
+  url          String
+  note         String?
+  uploadedAt   DateTime @default(now())
+
+  @@index([disputeId])
 }

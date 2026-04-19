@@ -16,6 +16,7 @@ import {
   earningsApi,
   quotesApi,
   onboardingApi,
+  verificationApi,
 } from '@kayu/api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -39,4 +40,5 @@ export const api = {
   earnings: earningsApi(apiClient),
   quotes: quotesApi(apiClient),
   onboarding: onboardingApi(apiClient),
+  verification: verificationApi(apiClient),
 };

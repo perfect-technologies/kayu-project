@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -14,16 +15,32 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Avatar, I, StepIndicator, type StepIndicatorStep } from '@kayu/ui/mobile';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@kayu/api';
+import type {
+  Dispute,
+  UploadVerificationDocDtoType,
+  VerificationDocKind,
+  VerificationState,
+  VerificationStateResponse,
+} from '@kayu/schemas';
+import {
+  Avatar,
+  I,
+  StepIndicator,
+  type StepIndicatorStep,
+} from '@kayu/ui/mobile';
 import { tokens } from '@kayu/ui';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 import type { ProviderStackParamList } from '@/navigation/AppNavigator';
 import {
-  PRO_DISPUTE,
   STATUS_CONFIG,
   VERIFY_BENEFITS,
   VERIFY_STEPS,
-  type VerifyState,
+  pretendUploadUrl,
+  type VerifyStep,
 } from './verifyData';
 
 type Nav = NativeStackNavigationProp<ProviderStackParamList, 'ProVerification'>;
@@ -33,33 +50,123 @@ type Flow = null | 'wizard' | 'dispute';
 export function ProVerificationScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const [state, setState] = useState<VerifyState>('not_started');
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [flow, setFlow] = useState<Flow>(null);
+
+  const enabled = !!user && user.role === 'PROVIDER';
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role !== 'PROVIDER') {
+      navigation.goBack();
+    }
+  }, [user, navigation]);
+
+  const stateQuery = useQuery({
+    queryKey: queryKeys.verification.state,
+    queryFn: () => api.verification.getState(),
+    enabled,
+  });
+  const disputeQuery = useQuery({
+    queryKey: queryKeys.verification.dispute,
+    queryFn: () => api.verification.getDispute(),
+    enabled,
+  });
+
+  const invalidateState = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.verification.state });
+
+  const uploadMut = useMutation({
+    mutationFn: (data: UploadVerificationDocDtoType) => api.verification.uploadDoc(data),
+    onSuccess: invalidateState,
+    onError: (err) => Alert.alert('Erreur', err instanceof Error ? err.message : 'Téléversement impossible'),
+  });
+  const removeMut = useMutation({
+    mutationFn: (id: string) => api.verification.removeDoc(id),
+    onSuccess: invalidateState,
+  });
+  const submitMut = useMutation({
+    mutationFn: () => api.verification.submit(),
+    onSuccess: () => {
+      invalidateState();
+      Alert.alert('Merci', "Votre dossier est en cours d'examen.");
+    },
+    onError: (err) => Alert.alert('Erreur', err instanceof Error ? err.message : 'Soumission impossible'),
+  });
+
+  if (!user) {
+    return (
+      <View style={styles.loadingCenter}>
+        <ActivityIndicator color={tokens.color.primary} />
+      </View>
+    );
+  }
+
+  if (stateQuery.isLoading) {
+    return (
+      <View style={styles.loadingCenter}>
+        <ActivityIndicator color={tokens.color.primary} />
+      </View>
+    );
+  }
+
+  if (stateQuery.isError || !stateQuery.data) {
+    return (
+      <View style={styles.loadingCenter}>
+        <Text style={{ color: theme.colors.textBody, marginBottom: 12 }}>
+          Impossible de charger votre vérification.
+        </Text>
+        <TouchableOpacity onPress={() => stateQuery.refetch()} style={styles.primaryBtn}>
+          <Text style={styles.primaryBtnText}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const liveState = stateQuery.data;
+  const dispute = disputeQuery.data?.dispute ?? null;
 
   if (flow === 'wizard') {
     return (
       <VerifyWizard
-        onDone={() => {
+        liveState={liveState}
+        isUploading={uploadMut.isPending}
+        isSubmitting={submitMut.isPending}
+        onUpload={async (data) => {
+          await uploadMut.mutateAsync(data);
+        }}
+        onSubmitForReview={async () => {
+          await submitMut.mutateAsync();
           setFlow(null);
-          setState('in_review');
         }}
         onExit={() => setFlow(null)}
       />
     );
   }
-  if (flow === 'dispute') {
-    return <DisputeView onBack={() => setFlow(null)} />;
+  if (flow === 'dispute' && dispute) {
+    return (
+      <DisputeView
+        dispute={dispute}
+        onBack={() => setFlow(null)}
+        onResolved={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.verification.dispute });
+          setFlow(null);
+        }}
+      />
+    );
   }
 
   return (
     <VerifyStatusView
-      state={state}
-      setState={setState}
+      liveState={liveState}
+      hasDispute={Boolean(dispute)}
       onStart={() => {
-        if (state === 'verified') return;
+        if (liveState.state === 'VERIFIED') return;
         setFlow('wizard');
       }}
       onOpenDispute={() => setFlow('dispute')}
+      onRemoveDoc={(id) => removeMut.mutate(id)}
       onBack={() => navigation.goBack()}
       insetTop={insets.top}
       insetBottom={insets.bottom}
@@ -70,26 +177,34 @@ export function ProVerificationScreen() {
 // ─── Status screen ────────────────────────────────────────────────────────
 
 type StatusProps = {
-  state: VerifyState;
-  setState: (s: VerifyState) => void;
+  liveState: VerificationStateResponse;
+  hasDispute: boolean;
   onStart: () => void;
   onOpenDispute: () => void;
+  onRemoveDoc: (id: string) => void;
   onBack: () => void;
   insetTop: number;
   insetBottom: number;
 };
 
 function VerifyStatusView({
-  state,
-  setState,
+  liveState,
+  hasDispute,
   onStart,
   onOpenDispute,
+  onRemoveDoc,
   onBack,
   insetTop,
   insetBottom,
 }: StatusProps) {
+  const state = liveState.state;
   const cfg = STATUS_CONFIG[state];
   const StatusIcon = I[cfg.icon] ?? I.shieldCheck;
+  const uploadedByKind = useMemo(
+    () => new Map(liveState.docs.map((d) => [d.kind, d])),
+    [liveState.docs],
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <View style={[styles.header, { paddingTop: insetTop + 10 }]}>
@@ -97,32 +212,32 @@ function VerifyStatusView({
           <I.arrowLeft size={20} color={theme.colors.textBody} />
         </Pressable>
         <Text style={styles.headerTitle}>Vérification</Text>
-        {/* Tiny debug toggle for dev preview of states */}
-        <DebugToggle state={state} setState={setState} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insetBottom + 40 }}>
-        {/* Dispute banner */}
-        <DisputeBanner onOpen={onOpenDispute} />
+        {hasDispute && <DisputeBanner onOpen={onOpenDispute} />}
 
-        {/* Hero status card */}
         <View style={styles.heroCard}>
           <View style={[styles.heroIcon, { backgroundColor: cfg.tintBg }]}>
             <StatusIcon size={30} color={cfg.tint} />
           </View>
           <Text style={styles.heroTitle}>{cfg.title}</Text>
-          <Text style={styles.heroSub}>{cfg.sub}</Text>
-          {cfg.progress > 0 && (
+          <Text style={styles.heroSub}>
+            {state === 'REJECTED' && liveState.rejectionReason
+              ? liveState.rejectionReason
+              : cfg.sub}
+          </Text>
+          {liveState.progress > 0 && (
             <View style={{ marginTop: 16 }}>
               <View style={styles.progressRow}>
                 <Text style={styles.progressLabel}>Progression</Text>
-                <Text style={styles.progressValue}>{cfg.progress}%</Text>
+                <Text style={styles.progressValue}>{liveState.progress}%</Text>
               </View>
               <View style={styles.progressBar}>
                 <View
                   style={[
                     styles.progressFill,
-                    { width: `${cfg.progress}%`, backgroundColor: cfg.tint },
+                    { width: `${liveState.progress}%`, backgroundColor: cfg.tint },
                   ]}
                 />
               </View>
@@ -136,34 +251,26 @@ function VerifyStatusView({
           )}
         </View>
 
-        {/* Docs list */}
         <View style={styles.card}>
           <Text style={styles.cardOverline}>Vos documents</Text>
           <Text style={styles.cardSubtitle}>
-            {state === 'verified'
+            {state === 'VERIFIED'
               ? 'Tous vos documents ont été approuvés'
               : '4 documents demandés (dont 3 obligatoires)'}
           </Text>
-          {VERIFY_STEPS.map((step, i) => {
-            const done =
-              state === 'verified' ||
-              (state === 'in_review' && i < 3) ||
-              (state === 'in_progress' && i < 2);
-            const pending = state === 'in_review' && i < 3;
-            return (
-              <DocRow
-                key={step.id}
-                step={step}
-                done={done}
-                pending={pending}
-                last={i === VERIFY_STEPS.length - 1}
-              />
-            );
-          })}
+          {VERIFY_STEPS.map((step, i) => (
+            <DocRow
+              key={step.id}
+              step={step}
+              state={state}
+              uploadedDoc={pickUploadedForStep(step, uploadedByKind)}
+              onRemove={onRemoveDoc}
+              last={i === VERIFY_STEPS.length - 1}
+            />
+          ))}
         </View>
 
-        {/* Benefits */}
-        {state !== 'verified' && (
+        {state !== 'VERIFIED' && (
           <View style={styles.card}>
             <Text style={styles.cardHeading}>Pourquoi se vérifier ?</Text>
             {VERIFY_BENEFITS.map((b) => {
@@ -183,20 +290,29 @@ function VerifyStatusView({
           </View>
         )}
 
-        {/* Security */}
         <View style={styles.securityRow}>
           <I.lock size={16} color={tokens.color.primary} />
           <View style={{ flex: 1 }}>
             <Text style={styles.securityTitle}>Vos données sont sécurisées.</Text>
             <Text style={styles.securityBody}>
-              Chiffrées et stockées conformément aux réglementations RDC et
-              Congo-B.
+              Chiffrées et stockées conformément aux réglementations RDC et Congo-B.
             </Text>
           </View>
         </View>
       </ScrollView>
     </View>
   );
+}
+
+function pickUploadedForStep(
+  step: VerifyStep,
+  map: Map<VerificationDocKind, VerificationStateResponse['docs'][number]>,
+) {
+  for (const kind of step.kinds) {
+    const doc = map.get(kind);
+    if (doc) return doc;
+  }
+  return null;
 }
 
 function DisputeBanner({ onOpen }: { onOpen: () => void }) {
@@ -208,7 +324,7 @@ function DisputeBanner({ onOpen }: { onOpen: () => void }) {
       <View style={{ flex: 1 }}>
         <Text style={styles.disputeTitle}>Un client a ouvert un litige</Text>
         <Text style={styles.disputeSub}>
-          Réservation #{PRO_DISPUTE.ref} · {PRO_DISPUTE.deadline}
+          Réponse attendue — ouvrez le litige pour répondre
         </Text>
       </View>
       <I.chevronRight size={16} color="#92400E" />
@@ -218,25 +334,32 @@ function DisputeBanner({ onOpen }: { onOpen: () => void }) {
 
 function DocRow({
   step,
-  done,
-  pending,
+  state,
+  uploadedDoc,
+  onRemove,
   last,
 }: {
-  step: (typeof VERIFY_STEPS)[number];
-  done: boolean;
-  pending: boolean;
+  step: VerifyStep;
+  state: VerificationState;
+  uploadedDoc: VerificationStateResponse['docs'][number] | null;
+  onRemove: (id: string) => void;
   last: boolean;
 }) {
   const Icon = I[step.icon] ?? I.fileText;
-  const tag = done
+  const isApproved = uploadedDoc?.decision === 'APPROVED' || state === 'VERIFIED';
+  const isUploaded = Boolean(uploadedDoc);
+  const isUnderReview = isUploaded && state === 'IN_REVIEW';
+  const tag = isApproved
     ? { bg: '#ECFDF5', fg: '#047857', label: 'Vérifié' }
-    : pending
+    : isUnderReview
       ? { bg: '#EDE9FE', fg: '#6D28D9', label: 'En cours' }
-      : {
-          bg: theme.colors.surfaceMuted,
-          fg: theme.colors.textMuted,
-          label: 'À fournir',
-        };
+      : isUploaded
+        ? { bg: '#E0F2FE', fg: '#0369A1', label: 'Téléversé' }
+        : {
+            bg: theme.colors.surfaceMuted,
+            fg: theme.colors.textMuted,
+            label: 'À fournir',
+          };
   return (
     <View
       style={[
@@ -257,36 +380,15 @@ function DocRow({
         </View>
         <Text style={styles.docCaption}>{step.caption}</Text>
       </View>
+      {isUploaded && !isApproved && state !== 'IN_REVIEW' && uploadedDoc && (
+        <Pressable onPress={() => onRemove(uploadedDoc.id)} hitSlop={8}>
+          <Text style={styles.removeLink}>Retirer</Text>
+        </Pressable>
+      )}
       <View style={[styles.docTag, { backgroundColor: tag.bg }]}>
         <Text style={[styles.docTagText, { color: tag.fg }]}>{tag.label}</Text>
       </View>
     </View>
-  );
-}
-
-function DebugToggle({
-  state,
-  setState,
-}: {
-  state: VerifyState;
-  setState: (s: VerifyState) => void;
-}) {
-  const states: VerifyState[] = [
-    'not_started',
-    'in_progress',
-    'in_review',
-    'verified',
-    'rejected',
-  ];
-  const next = () => {
-    const idx = states.indexOf(state);
-    setState(states[(idx + 1) % states.length]);
-  };
-  if (!__DEV__) return null;
-  return (
-    <Pressable onPress={next} style={styles.debugBtn} hitSlop={6}>
-      <Text style={styles.debugText}>{state}</Text>
-    </Pressable>
   );
 }
 
@@ -298,25 +400,57 @@ const WIZARD_STEPS: StepIndicatorStep[] = VERIFY_STEPS.map((s, i) => ({
   icon: s.icon,
 }));
 
-function VerifyWizard({
-  onDone,
-  onExit,
-}: {
-  onDone: () => void;
+type WizardProps = {
+  liveState: VerificationStateResponse;
+  isUploading: boolean;
+  isSubmitting: boolean;
+  onUpload: (data: UploadVerificationDocDtoType) => Promise<void>;
+  onSubmitForReview: () => Promise<void>;
   onExit: () => void;
-}) {
+};
+
+function VerifyWizard({
+  liveState,
+  isUploading,
+  isSubmitting,
+  onUpload,
+  onSubmitForReview,
+  onExit,
+}: WizardProps) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const total = VERIFY_STEPS.length;
   const current = VERIFY_STEPS[step];
+  const uploadedSet = useMemo(
+    () => new Set(liveState.docs.map((d) => d.kind)),
+    [liveState.docs],
+  );
 
-  const next = () => {
-    if (step < total - 1) setStep(step + 1);
-    else onDone();
+  const next = async () => {
+    if (step < total - 1) {
+      setStep(step + 1);
+      return;
+    }
+    const missing = VERIFY_STEPS.filter((s) => s.required).flatMap((s) =>
+      s.kinds.filter((k) => !uploadedSet.has(k)),
+    );
+    if (missing.length > 0) {
+      Alert.alert('Documents manquants', 'Il manque un ou plusieurs documents obligatoires.');
+      return;
+    }
+    await onSubmitForReview();
   };
   const back = () => {
     if (step > 0) setStep(step - 1);
     else onExit();
+  };
+
+  const handleUpload = async (kind: VerificationDocKind, fileName: string) => {
+    await onUpload({
+      kind,
+      url: pretendUploadUrl(kind),
+      fileName,
+    });
   };
 
   return (
@@ -350,47 +484,89 @@ function VerifyWizard({
         <Text style={styles.wizardTitle}>{current.label}</Text>
         <Text style={styles.wizardSub}>{current.caption}</Text>
 
-        {step === 0 && <WizardIdentity />}
-        {step === 1 && <WizardSelfie />}
-        {step === 2 && <WizardAddress />}
-        {step === 3 && <WizardCert />}
+        {step === 0 && (
+          <WizardIdentity
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 1 && (
+          <WizardSelfie
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 2 && (
+          <WizardAddress
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 3 && (
+          <WizardCert
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
       </ScrollView>
 
-      <View
-        style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}
-      >
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
         {!current.required && step < total - 1 && (
           <TouchableOpacity onPress={next} style={styles.secondaryBtnWide}>
             <Text style={styles.secondaryBtnText}>Passer</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={next} style={[styles.primaryBtn, { flex: 2 }]}>
-          <Text style={styles.primaryBtnText}>
-            {step === total - 1 ? 'Soumettre pour examen' : 'Continuer'}
-          </Text>
-          <I.arrowRight size={15} color={theme.colors.textInverse} />
+        <TouchableOpacity
+          onPress={next}
+          style={[styles.primaryBtn, { flex: 2 }]}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color={theme.colors.textInverse} />
+          ) : (
+            <>
+              <Text style={styles.primaryBtnText}>
+                {step === total - 1 ? 'Soumettre pour examen' : 'Continuer'}
+              </Text>
+              <I.arrowRight size={15} color={theme.colors.textInverse} />
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
+type UploadTargetProps = {
+  label: string;
+  sub: string;
+  icon: import('@kayu/ui/mobile').IconName;
+  kind: VerificationDocKind;
+  done: boolean;
+  isUploading: boolean;
+  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+};
+
 function UploadTarget({
   label,
   sub,
   icon,
-  initialDone,
-}: {
-  label: string;
-  sub: string;
-  icon: import('@kayu/ui/mobile').IconName;
-  initialDone?: boolean;
-}) {
-  const [done, setDone] = useState(Boolean(initialDone));
+  kind,
+  done,
+  isUploading,
+  onUpload,
+}: UploadTargetProps) {
   const Icon = I[icon] ?? I.upload;
   return (
     <Pressable
-      onPress={() => setDone((d) => !d)}
+      onPress={() => {
+        if (isUploading) return;
+        onUpload(kind, `${kind.toLowerCase()}-${Date.now()}.jpg`);
+      }}
       style={[styles.uploadTarget, done && styles.uploadTargetDone]}
     >
       <View
@@ -408,11 +584,9 @@ function UploadTarget({
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.uploadLabel}>
-          {done ? `✓ ${label}` : label}
-        </Text>
+        <Text style={styles.uploadLabel}>{done ? `✓ ${label}` : label}</Text>
         <Text style={styles.uploadSub}>
-          {done ? 'Photo enregistrée · appuyez pour remplacer' : sub}
+          {done ? 'Document enregistré · appuyez pour remplacer' : sub}
         </Text>
       </View>
       <I.camera size={18} color={theme.colors.textMuted} />
@@ -420,19 +594,32 @@ function UploadTarget({
   );
 }
 
-function WizardIdentity() {
+type StepProps = {
+  uploadedSet: Set<VerificationDocKind>;
+  isUploading: boolean;
+  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+};
+
+function WizardIdentity({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <View style={{ gap: 10 }}>
       <UploadTarget
         label="Photo du recto"
         sub="Appuyez pour ouvrir l'appareil photo"
         icon="idCard"
-        initialDone
+        kind="ID_FRONT"
+        done={uploadedSet.has('ID_FRONT')}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
       <UploadTarget
         label="Photo du verso"
         sub="Retournez votre pièce et photographiez l'autre face"
         icon="idCard"
+        kind="ID_BACK"
+        done={uploadedSet.has('ID_BACK')}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
       <View style={styles.tipBox}>
         <I.info size={15} color="#B45309" />
@@ -444,69 +631,50 @@ function WizardIdentity() {
   );
 }
 
-function WizardSelfie() {
+function WizardSelfie({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <View style={{ gap: 16 }}>
-      <View style={styles.selfieFrame}>
-        <View style={styles.selfieOval} />
-        <View style={styles.selfieHint}>
-          <Text style={styles.selfieHintText}>
-            Tenez votre ID sous votre menton
-          </Text>
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TouchableOpacity style={[styles.secondaryBtnWide, { flex: 1 }]}>
-          <I.refresh size={14} color={theme.colors.textPrimary} />
-          <Text style={[styles.secondaryBtnText, { marginLeft: 6 }]}>Reprendre</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.primaryBtn, { flex: 2 }]}>
-          <I.camera size={14} color={theme.colors.textInverse} />
-          <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>
-            Prendre la photo
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <UploadTarget
+        label="Prendre le selfie"
+        sub="Tenez votre ID sous votre menton"
+        icon="selfie"
+        kind="SELFIE"
+        done={uploadedSet.has('SELFIE')}
+        isUploading={isUploading}
+        onUpload={onUpload}
+      />
     </View>
   );
 }
 
-function WizardAddress() {
+function WizardAddress({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <View style={{ gap: 16 }}>
       <UploadTarget
         label="Photo de la facture"
         sub="JPEG, PNG ou PDF · max 10 Mo"
         icon="fileText"
+        kind="ADDRESS"
+        done={uploadedSet.has('ADDRESS')}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
-      <View>
-        <Text style={styles.wizardFieldLabel}>Ou confirmez votre adresse</Text>
-        <TextInput
-          defaultValue="Av. Kasa-Vubu 42, Gombe, Kinshasa"
-          style={styles.input}
-          placeholderTextColor={theme.colors.textSubtle}
-        />
-      </View>
     </View>
   );
 }
 
-function WizardCert() {
+function WizardCert({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <View style={{ gap: 16 }}>
       <UploadTarget
         label="Photo de votre certificat"
         sub="Diplôme, attestation, licence"
         icon="award"
+        kind="CERT_OPTIONAL"
+        done={uploadedSet.has('CERT_OPTIONAL')}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
-      <View>
-        <Text style={styles.wizardFieldLabel}>Nom de la certification</Text>
-        <TextInput
-          placeholder="Ex: Diplôme INPP Plomberie 2018"
-          style={styles.input}
-          placeholderTextColor={theme.colors.textSubtle}
-        />
-      </View>
       <View style={styles.certBonus}>
         <View style={styles.certBonusIcon}>
           <I.sparkles size={15} color={tokens.color.primary} />
@@ -531,27 +699,58 @@ const MIN_RESPONSE_LEN = 20;
 const DISPUTE_OPTIONS = [
   { id: 'revisit', label: 'Je peux revenir réparer gratuitement', desc: 'Solution préférée' },
   { id: 'partial', label: 'Remboursement partiel', desc: 'À définir avec le client' },
-  {
-    id: 'full',
-    label: 'Remboursement intégral',
-    desc: `${PRO_DISPUTE.amount.toLocaleString('fr-FR')} FC`,
-  },
   { id: 'contest', label: 'Je conteste — le travail était conforme', desc: 'KAYOU arbitrera' },
 ];
 
-function DisputeView({ onBack }: { onBack: () => void }) {
-  const insets = useSafeAreaInsets();
-  const [msg, setMsg] = useState('');
-  const [option, setOption] = useState<string>('');
-  const d = PRO_DISPUTE;
+type DisputeProps = {
+  dispute: Dispute;
+  onBack: () => void;
+  onResolved: () => void;
+};
 
-  const canSubmit = msg.length >= MIN_RESPONSE_LEN && option.length > 0;
+function DisputeView({ dispute, onBack, onResolved }: DisputeProps) {
+  const insets = useSafeAreaInsets();
+  const [msg, setMsg] = useState(dispute.proStatement ?? '');
+  const [option, setOption] = useState<string>('');
+  const clientName = formatClientName(dispute);
+  const amount = dispute.booking?.price ?? null;
+
+  const options = useMemo(() => {
+    if (amount == null) return DISPUTE_OPTIONS;
+    return [
+      ...DISPUTE_OPTIONS.slice(0, 2),
+      {
+        id: 'full',
+        label: 'Remboursement intégral',
+        desc: `${amount.toLocaleString('fr-FR')} FC`,
+      },
+      ...DISPUTE_OPTIONS.slice(2),
+    ];
+  }, [amount]);
+
+  const respondMut = useMutation({
+    mutationFn: () =>
+      api.verification.respondDispute(dispute.id, {
+        statement: `[${option}] ${msg}`,
+        evidenceUrls: [],
+      }),
+    onSuccess: () => {
+      Alert.alert('Envoyé', "Votre version est transmise à l'équipe KAYOU.");
+      onResolved();
+    },
+    onError: (err) =>
+      Alert.alert('Erreur', err instanceof Error ? err.message : 'Envoi impossible'),
+  });
+
+  const canSubmit =
+    msg.length >= MIN_RESPONSE_LEN && option.length > 0 && !respondMut.isPending;
 
   const submit = () => {
     if (!canSubmit) return;
-    Alert.alert('Réponse envoyée', "Votre version est transmise à l'équipe KAYOU.");
-    onBack();
+    respondMut.mutate();
   };
+
+  const deadline = dispute.deadlineAt ? formatDeadline(dispute.deadlineAt) : null;
 
   return (
     <KeyboardAvoidingView
@@ -563,58 +762,62 @@ function DisputeView({ onBack }: { onBack: () => void }) {
           <I.arrowLeft size={20} color={theme.colors.textBody} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Litige #{d.ref}</Text>
-          <Text style={styles.headerSubtle}>{d.opened.toLowerCase()}</Text>
+          <Text style={styles.headerTitle}>
+            Litige #{dispute.id.slice(-6).toUpperCase()}
+          </Text>
+          <Text style={styles.headerSubtle}>{formatRelative(dispute.createdAt)}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
-        <View style={styles.deadlineBanner}>
-          <I.clock size={16} color="#B45309" />
-          <Text style={styles.deadlineText}>
-            <Text style={{ fontWeight: '700' }}>{d.deadline}</Text> pour
-            répondre au client.
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardOverline}>Réservation concernée</Text>
-          <Text style={styles.cardHeading}>{d.service}</Text>
-          <Text style={styles.cardSubtitle}>
-            Client : {d.client} ·{' '}
-            <Text style={{ color: theme.colors.textPrimary, fontWeight: '600' }}>
-              {d.amount.toLocaleString('fr-FR')} FC
+        {deadline && (
+          <View style={styles.deadlineBanner}>
+            <I.clock size={16} color="#B45309" />
+            <Text style={styles.deadlineText}>
+              <Text style={{ fontWeight: '700' }}>{deadline}</Text> pour répondre au client.
             </Text>
-          </Text>
-        </View>
+          </View>
+        )}
+
+        {dispute.booking && (
+          <View style={styles.card}>
+            <Text style={styles.cardOverline}>Réservation concernée</Text>
+            <Text style={styles.cardHeading}>{dispute.booking.title}</Text>
+            <Text style={styles.cardSubtitle}>
+              Client : {clientName}
+              {amount != null && (
+                <>
+                  {' · '}
+                  <Text style={{ color: theme.colors.textPrimary, fontWeight: '600' }}>
+                    {amount.toLocaleString('fr-FR')} FC
+                  </Text>
+                </>
+              )}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.card}>
           <View
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}
           >
-            <Avatar name={d.client} size={36} />
+            <Avatar name={clientName} size={36} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.docLabel}>{d.client}</Text>
+              <Text style={styles.docLabel}>{clientName}</Text>
               <Text style={styles.docCaption}>Version du client</Text>
             </View>
             <View style={styles.reasonTag}>
-              <Text style={styles.reasonTagText}>{d.reason}</Text>
+              <Text style={styles.reasonTagText}>{dispute.reason}</Text>
             </View>
           </View>
-          <View style={styles.clientQuote}>
-            <Text style={styles.clientQuoteText}>« {d.clientSide} »</Text>
-          </View>
-          {d.evidence > 0 && (
-            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 10 }}>
-              {Array.from({ length: d.evidence }).map((_, i) => (
-                <View key={i} style={styles.evidenceTile}>
-                  <I.camera size={18} color="#FFFFFF" />
-                </View>
-              ))}
-              <Text style={{ fontSize: 11, color: theme.colors.textMuted, marginLeft: 4 }}>
-                {d.evidence} photos
-              </Text>
+          {dispute.clientStatement ? (
+            <View style={styles.clientQuote}>
+              <Text style={styles.clientQuoteText}>« {dispute.clientStatement} »</Text>
             </View>
+          ) : (
+            <Text style={{ fontSize: 13, color: theme.colors.textMuted }}>
+              Le client n'a pas encore fourni de déclaration écrite.
+            </Text>
           )}
         </View>
 
@@ -636,8 +839,7 @@ function DisputeView({ onBack }: { onBack: () => void }) {
               msg.length < MIN_RESPONSE_LEN && { color: theme.colors.textSubtle },
             ]}
           >
-            {msg.length}/1000{' '}
-            {msg.length < MIN_RESPONSE_LEN ? `(min ${MIN_RESPONSE_LEN})` : ''}
+            {msg.length}/1000 {msg.length < MIN_RESPONSE_LEN ? `(min ${MIN_RESPONSE_LEN})` : ''}
           </Text>
         </View>
 
@@ -645,7 +847,7 @@ function DisputeView({ onBack }: { onBack: () => void }) {
           <Text style={[styles.cardHeading, { marginBottom: 10 }]}>
             Que souhaitez-vous proposer ?
           </Text>
-          {DISPUTE_OPTIONS.map((o) => {
+          {options.map((o) => {
             const isSel = option === o.id;
             return (
               <Pressable
@@ -679,19 +881,57 @@ function DisputeView({ onBack }: { onBack: () => void }) {
           style={[styles.primaryBtn, { flex: 1 }, !canSubmit && { opacity: 0.4 }]}
           disabled={!canSubmit}
         >
-          <I.send size={14} color={theme.colors.textInverse} />
-          <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>
-            Envoyer ma réponse
-          </Text>
+          {respondMut.isPending ? (
+            <ActivityIndicator color={theme.colors.textInverse} />
+          ) : (
+            <>
+              <I.send size={14} color={theme.colors.textInverse} />
+              <Text style={[styles.primaryBtnText, { marginLeft: 6 }]}>Envoyer ma réponse</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
+function formatClientName(d: Dispute): string {
+  const first = d.client?.firstName ?? '';
+  const last = d.client?.lastName ?? '';
+  const full = `${first} ${last}`.trim();
+  return full || 'Client';
+}
+
+function formatDeadline(deadline: string | Date): string | null {
+  const date = typeof deadline === 'string' ? new Date(deadline) : deadline;
+  const diffMs = date.getTime() - Date.now();
+  if (diffMs <= 0) return 'Délai dépassé';
+  const hours = Math.round(diffMs / 3_600_000);
+  if (hours < 24) return `Il vous reste ${hours}h pour répondre`;
+  const days = Math.round(hours / 24);
+  return `Il vous reste ${days}j pour répondre`;
+}
+
+function formatRelative(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const hours = Math.round(diffMs / 3_600_000);
+  if (hours < 1) return 'Ouvert il y a quelques minutes';
+  if (hours < 24) return `Ouvert il y a ${hours}h`;
+  const days = Math.round(hours / 24);
+  return `Ouvert il y a ${days}j`;
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  loadingCenter: {
+    flex: 1,
+    backgroundColor: theme.colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -864,6 +1104,11 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
   },
+  removeLink: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
+  },
   benefitRow: {
     flexDirection: 'row',
     gap: 12,
@@ -998,34 +1243,6 @@ const styles = StyleSheet.create({
     color: '#78350F',
     lineHeight: 18,
   },
-  selfieFrame: {
-    aspectRatio: 3 / 4,
-    borderRadius: 16,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selfieOval: {
-    width: 160,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.5)',
-    borderStyle: 'dashed',
-  },
-  selfieHint: {
-    position: 'absolute',
-    bottom: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 999,
-  },
-  selfieHintText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
-  },
   secondaryBtnWide: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1041,14 +1258,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
     color: theme.colors.textPrimary,
-  },
-  wizardFieldLabel: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.44,
-    color: theme.colors.textMuted,
-    marginBottom: 6,
   },
   input: {
     height: 44,
@@ -1127,14 +1336,6 @@ const styles = StyleSheet.create({
     color: '#7F1D1D',
     lineHeight: 19,
   },
-  evidenceTile: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   counter: {
     marginTop: 6,
     fontSize: 11,
@@ -1195,16 +1396,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.colors.borderSubtle,
     backgroundColor: theme.colors.surface,
-  },
-  debugBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: theme.colors.surfaceMuted,
-    borderRadius: 6,
-  },
-  debugText: {
-    fontSize: 10,
-    fontFamily: theme.fonts.mono,
-    color: theme.colors.textMuted,
   },
 });

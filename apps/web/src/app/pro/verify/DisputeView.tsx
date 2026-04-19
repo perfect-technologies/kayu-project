@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { verificationApi } from "@kayu/api";
+import type { Dispute, RespondDisputeDtoType } from "@kayu/schemas";
 import { Avatar, I } from "@kayu/ui/web";
 import { tokens } from "@kayu/ui";
-import { PRO_DISPUTE } from "./fixtures";
+import { apiClient } from "@/lib/api";
 
 const MIN_RESPONSE_LEN = 20;
 
-const OPTIONS = [
+const OPTION_DEFS = [
   {
     id: "revisit",
     label: "Je peux revenir réparer gratuitement",
@@ -20,32 +23,68 @@ const OPTIONS = [
     desc: "Montant à définir avec le client",
   },
   {
-    id: "full",
-    label: "Remboursement intégral",
-    desc: `${PRO_DISPUTE.amount.toLocaleString("fr-FR")} FC · Vos gains seront ajustés`,
-  },
-  {
     id: "contest",
     label: "Je conteste — le travail était conforme",
     desc: "Un agent KAYOU arbitrera",
   },
 ];
 
-export function DisputeView({ onBack }: { onBack: () => void }) {
-  const [msg, setMsg] = useState("");
+type Props = {
+  dispute: Dispute;
+  onBack: () => void;
+  onResolved: () => void;
+};
+
+export function DisputeView({ dispute, onBack, onResolved }: Props) {
+  const [msg, setMsg] = useState(dispute.proStatement ?? "");
   const [option, setOption] = useState<string>("");
-  const [submitted, setSubmitted] = useState(false);
-  const d = PRO_DISPUTE;
+  const clientName = formatClientName(dispute);
+  const amount = dispute.booking?.price ?? null;
 
-  const canSubmit = msg.length >= MIN_RESPONSE_LEN && option.length > 0;
+  const options = useMemo(() => {
+    if (amount == null) return OPTION_DEFS;
+    return [
+      ...OPTION_DEFS.slice(0, 2),
+      {
+        id: "full",
+        label: "Remboursement intégral",
+        desc: `${amount.toLocaleString("fr-FR")} FC · Vos gains seront ajustés`,
+      },
+      ...OPTION_DEFS.slice(2),
+    ];
+  }, [amount]);
 
-  const submit = async () => {
+  const respondMut = useMutation({
+    mutationFn: (data: RespondDisputeDtoType) =>
+      verificationApi(apiClient).respondDispute(dispute.id, data),
+    onSuccess: () => {
+      toast.success("Votre réponse est envoyée à l'équipe KAYOU.");
+      onResolved();
+    },
+    onError: (err) => {
+      const fallback = "Envoi impossible. Réessayez.";
+      toast.error(err instanceof Error ? err.message : fallback);
+    },
+  });
+
+  const canSubmit =
+    msg.length >= MIN_RESPONSE_LEN && option.length > 0 && !respondMut.isPending;
+
+  const submit = () => {
     if (!canSubmit) return;
-    setSubmitted(true);
-    await new Promise((r) => setTimeout(r, 400));
-    toast.success("Votre réponse est envoyée à l'équipe KAYOU.");
-    onBack();
+    respondMut.mutate({
+      statement: `[${option}] ${msg}`,
+      evidenceUrls: [],
+    });
   };
+
+  const clientEvidences = dispute.evidences.filter(
+    (e) => e.uploadedByRole === "client",
+  );
+
+  const deadline = dispute.deadlineAt
+    ? formatDeadline(dispute.deadlineAt)
+    : null;
 
   return (
     <div style={{ maxWidth: 780, margin: "0 auto", padding: "8px 0 60px" }}>
@@ -83,10 +122,10 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
               color: tokens.color.textPrimary,
             }}
           >
-            Litige #{d.ref}
+            Litige #{dispute.id.slice(-6).toUpperCase()}
           </div>
           <div style={{ fontSize: 11.5, color: tokens.color.textMuted }}>
-            Ouvert {d.opened.toLowerCase()}
+            {formatRelative(dispute.createdAt)}
           </div>
         </div>
         <span
@@ -99,81 +138,84 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
             borderRadius: 999,
           }}
         >
-          Réponse attendue
+          {dispute.status === "PENDING_CLIENT"
+            ? "Réponse envoyée"
+            : "Réponse attendue"}
         </span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <div
-          style={{
-            background: "#FEF3C7",
-            border: "1px solid #FDE68A",
-            borderRadius: 12,
-            padding: 14,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <I.clock size={16} strokeColor="#B45309" />
-          <div style={{ fontSize: 13, color: "#78350F", flex: 1 }}>
-            <strong>{d.deadline}</strong> pour répondre au client, sinon la
-            décision sera prise sans votre version.
+        {deadline && (
+          <div
+            style={{
+              background: "#FEF3C7",
+              border: "1px solid #FDE68A",
+              borderRadius: 12,
+              padding: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <I.clock size={16} strokeColor="#B45309" />
+            <div style={{ fontSize: 13, color: "#78350F", flex: 1 }}>
+              <strong>{deadline}</strong> pour répondre au client, sinon la
+              décision sera prise sans votre version.
+            </div>
           </div>
-        </div>
+        )}
 
-        <div
-          style={{
-            background: tokens.color.surface,
-            border: `1px solid ${tokens.color.border}`,
-            borderRadius: 12,
-            padding: 16,
-          }}
-        >
+        {dispute.booking && (
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: tokens.color.textMuted,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              marginBottom: 10,
+              background: tokens.color.surface,
+              border: `1px solid ${tokens.color.border}`,
+              borderRadius: 12,
+              padding: 16,
             }}
           >
-            Réservation concernée
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: tokens.color.textMuted,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                marginBottom: 10,
+              }}
+            >
+              Réservation concernée
+            </div>
+            <div
+              style={{
+                fontFamily: tokens.font.display,
+                fontWeight: 600,
+                fontSize: 16,
+                color: tokens.color.textPrimary,
+                marginBottom: 4,
+              }}
+            >
+              {dispute.booking.title}
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: tokens.color.textMuted,
+              }}
+            >
+              Client : {clientName}
+              {amount != null && (
+                <>
+                  {" "}
+                  · Montant :{" "}
+                  <strong style={{ color: tokens.color.textPrimary }}>
+                    {amount.toLocaleString("fr-FR")} FC
+                  </strong>
+                </>
+              )}
+            </div>
           </div>
-          <div
-            style={{
-              fontFamily: tokens.font.display,
-              fontWeight: 600,
-              fontSize: 16,
-              color: tokens.color.textPrimary,
-              marginBottom: 4,
-            }}
-          >
-            {d.service}
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.color.textMuted,
-              marginBottom: 10,
-            }}
-          >
-            Client : {d.client} · Montant :{" "}
-            <strong style={{ color: tokens.color.textPrimary }}>
-              {d.amount.toLocaleString("fr-FR")} FC
-            </strong>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="k-btn k-btn-secondary k-btn-sm">
-              <I.fileText size={12} /> Voir le devis
-            </button>
-            <button className="k-btn k-btn-secondary k-btn-sm">
-              <I.messageCircle size={12} /> Historique chat
-            </button>
-          </div>
-        </div>
+        )}
 
         <div
           style={{
@@ -191,9 +233,9 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
               marginBottom: 12,
             }}
           >
-            <Avatar name={d.client} size={36} />
+            <Avatar name={clientName} size={36} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 13.5 }}>{d.client}</div>
+              <div style={{ fontWeight: 600, fontSize: 13.5 }}>{clientName}</div>
               <div style={{ fontSize: 11.5, color: tokens.color.textMuted }}>
                 Version du client
               </div>
@@ -208,26 +250,41 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
                 borderRadius: 6,
               }}
             >
-              {d.reason}
+              {dispute.reason}
             </span>
           </div>
-          <div
-            style={{
-              padding: 14,
-              background: "#FEF2F2",
-              borderRadius: 10,
-              border: "1px solid #FECACA",
-              fontSize: 13.5,
-              color: "#7F1D1D",
-              lineHeight: 1.55,
-              marginBottom: 10,
-            }}
-          >
-            « {d.clientSide} »
-          </div>
-          {d.evidence > 0 && (
+          {dispute.clientStatement ? (
+            <div
+              style={{
+                padding: 14,
+                background: "#FEF2F2",
+                borderRadius: 10,
+                border: "1px solid #FECACA",
+                fontSize: 13.5,
+                color: "#7F1D1D",
+                lineHeight: 1.55,
+                marginBottom: 10,
+              }}
+            >
+              « {dispute.clientStatement} »
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: 14,
+                background: tokens.color.surfaceMuted,
+                borderRadius: 10,
+                fontSize: 13,
+                color: tokens.color.textMuted,
+                marginBottom: 10,
+              }}
+            >
+              Le client n'a pas encore fourni de déclaration écrite.
+            </div>
+          )}
+          {clientEvidences.length > 0 && (
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {Array.from({ length: d.evidence }).map((_, i) => (
+              {clientEvidences.map((_, i) => (
                 <div
                   key={i}
                   style={{
@@ -252,7 +309,7 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
                   marginLeft: 4,
                 }}
               >
-                {d.evidence} photos fournies par le client
+                {clientEvidences.length} photos fournies par le client
               </div>
             </div>
           )}
@@ -302,12 +359,6 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
               alignItems: "center",
             }}
           >
-            <button className="k-btn k-btn-secondary k-btn-sm" type="button">
-              <I.camera size={13} /> Joindre des photos
-            </button>
-            <button className="k-btn k-btn-secondary k-btn-sm" type="button">
-              <I.fileText size={13} /> Joindre un document
-            </button>
             <div style={{ flex: 1 }} />
             <span
               style={{
@@ -338,7 +389,7 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
             Que souhaitez-vous proposer ?
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {OPTIONS.map((o) => {
+            {options.map((o) => {
               const isSel = option === o.id;
               return (
                 <label
@@ -391,15 +442,12 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button className="k-btn k-btn-secondary" type="button">
-            Escalader à KAYOU
-          </button>
           <div style={{ flex: 1 }} />
           <button
             className="k-btn k-btn-primary k-btn-lg"
             type="button"
             onClick={submit}
-            disabled={!canSubmit || submitted}
+            disabled={!canSubmit}
             style={{ minWidth: 220, justifyContent: "center" }}
           >
             <I.send size={14} /> Envoyer ma réponse
@@ -408,4 +456,31 @@ export function DisputeView({ onBack }: { onBack: () => void }) {
       </div>
     </div>
   );
+}
+
+function formatClientName(d: Dispute): string {
+  const first = d.client?.firstName ?? "";
+  const last = d.client?.lastName ?? "";
+  const full = `${first} ${last}`.trim();
+  return full || "Client";
+}
+
+function formatDeadline(deadline: string | Date): string | null {
+  const date = typeof deadline === "string" ? new Date(deadline) : deadline;
+  const diffMs = date.getTime() - Date.now();
+  if (diffMs <= 0) return "Délai dépassé";
+  const hours = Math.round(diffMs / 3_600_000);
+  if (hours < 24) return `Il vous reste ${hours}h pour répondre`;
+  const days = Math.round(hours / 24);
+  return `Il vous reste ${days}j pour répondre`;
+}
+
+function formatRelative(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const hours = Math.round(diffMs / 3_600_000);
+  if (hours < 1) return "Ouvert il y a quelques minutes";
+  if (hours < 24) return `Ouvert il y a ${hours}h`;
+  const days = Math.round(hours / 24);
+  return `Ouvert il y a ${days}j`;
 }

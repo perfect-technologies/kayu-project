@@ -1,9 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { I, StepIndicator, type StepIndicatorStep, type IconName } from "@kayu/ui/web";
+import { toast } from "sonner";
+import {
+  I,
+  StepIndicator,
+  type StepIndicatorStep,
+  type IconName,
+} from "@kayu/ui/web";
 import { tokens } from "@kayu/ui";
-import { VERIFY_STEPS } from "./fixtures";
+import type {
+  UploadVerificationDocDtoType,
+  VerificationDocKind,
+} from "@kayu/schemas";
+import { VERIFY_STEPS, pretendUploadUrl } from "./fixtures";
 
 const INDICATOR_STEPS: StepIndicatorStep[] = VERIFY_STEPS.map((s, i) => ({
   key: s.id,
@@ -13,22 +23,41 @@ const INDICATOR_STEPS: StepIndicatorStep[] = VERIFY_STEPS.map((s, i) => ({
 }));
 
 type WizardProps = {
-  onDone: () => void;
+  uploadedKinds: VerificationDocKind[];
+  isUploading: boolean;
+  isSubmitting: boolean;
+  onUpload: (data: UploadVerificationDocDtoType) => Promise<void>;
+  onSubmitForReview: () => Promise<void>;
   onExit: () => void;
 };
 
-export function VerifyWizard({ onDone, onExit }: WizardProps) {
+export function VerifyWizard({
+  uploadedKinds,
+  isUploading,
+  isSubmitting,
+  onUpload,
+  onSubmitForReview,
+  onExit,
+}: WizardProps) {
   const [step, setStep] = useState(0);
   const total = VERIFY_STEPS.length;
   const current = VERIFY_STEPS[step];
+  const uploadedSet = new Set(uploadedKinds);
 
-  const next = () => {
+  const next = async () => {
     if (step < total - 1) {
       setStep(step + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } else {
-      onDone();
+      return;
     }
+    const requiredMissing = VERIFY_STEPS.filter((s) => s.required).flatMap(
+      (s) => s.kinds.filter((k) => !uploadedSet.has(k)),
+    );
+    if (requiredMissing.length > 0) {
+      toast.error("Il manque un ou plusieurs documents obligatoires.");
+      return;
+    }
+    await onSubmitForReview();
   };
   const back = () => {
     if (step > 0) {
@@ -37,6 +66,14 @@ export function VerifyWizard({ onDone, onExit }: WizardProps) {
     } else {
       onExit();
     }
+  };
+
+  const handleUpload = async (kind: VerificationDocKind, fileName: string) => {
+    await onUpload({
+      kind,
+      url: pretendUploadUrl(kind),
+      fileName,
+    });
   };
 
   return (
@@ -98,10 +135,34 @@ export function VerifyWizard({ onDone, onExit }: WizardProps) {
           boxShadow: tokens.shadow.e1,
         }}
       >
-        {step === 0 && <StepDocIdentity />}
-        {step === 1 && <StepDocSelfie />}
-        {step === 2 && <StepDocAddress />}
-        {step === 3 && <StepDocCert />}
+        {step === 0 && (
+          <StepDocIdentity
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 1 && (
+          <StepDocSelfie
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 2 && (
+          <StepDocAddress
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
+        {step === 3 && (
+          <StepDocCert
+            uploadedSet={uploadedSet}
+            isUploading={isUploading}
+            onUpload={handleUpload}
+          />
+        )}
       </div>
 
       <div
@@ -112,20 +173,12 @@ export function VerifyWizard({ onDone, onExit }: WizardProps) {
           alignItems: "center",
         }}
       >
-        <button
-          type="button"
-          className="k-btn k-btn-secondary"
-          onClick={back}
-        >
+        <button type="button" className="k-btn k-btn-secondary" onClick={back}>
           <I.arrowLeft size={14} /> Retour
         </button>
         <div style={{ flex: 1 }} />
         {current && !current.required && step < total - 1 && (
-          <button
-            type="button"
-            className="k-btn k-btn-ghost"
-            onClick={next}
-          >
+          <button type="button" className="k-btn k-btn-ghost" onClick={next}>
             Passer
           </button>
         )}
@@ -133,6 +186,7 @@ export function VerifyWizard({ onDone, onExit }: WizardProps) {
           type="button"
           className="k-btn k-btn-primary k-btn-lg"
           onClick={next}
+          disabled={isSubmitting}
         >
           {step === total - 1 ? "Soumettre pour examen" : "Continuer"}
           <I.arrowRight size={15} />
@@ -171,27 +225,40 @@ function StepHeading({ title, sub }: { title: string; sub: string }) {
   );
 }
 
+type UploadTargetProps = {
+  label: string;
+  sub: string;
+  icon: IconName;
+  kind: VerificationDocKind;
+  done: boolean;
+  isUploading: boolean;
+  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+};
+
 function UploadTarget({
   label,
   sub,
   icon,
-  initialDone,
-}: {
-  label: string;
-  sub: string;
-  icon: IconName;
-  initialDone?: boolean;
-}) {
-  const [done, setDone] = useState(initialDone ?? false);
+  kind,
+  done,
+  isUploading,
+  onUpload,
+}: UploadTargetProps) {
   const Icon = I[icon] ?? I.upload;
+  const handleClick = async () => {
+    if (isUploading) return;
+    const fileName = `${kind.toLowerCase()}-${Date.now()}.jpg`;
+    await onUpload(kind, fileName);
+  };
   return (
     <button
       type="button"
-      onClick={() => setDone((d) => !d)}
+      onClick={handleClick}
+      disabled={isUploading}
       style={{
         width: "100%",
         textAlign: "left",
-        cursor: "pointer",
+        cursor: isUploading ? "wait" : "pointer",
         display: "flex",
         alignItems: "center",
         gap: 14,
@@ -232,7 +299,7 @@ function UploadTarget({
           {done ? `✓ ${label}` : label}
         </div>
         <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
-          {done ? "Photo enregistrée · cliquez pour remplacer" : sub}
+          {done ? "Document enregistré · cliquez pour remplacer" : sub}
         </div>
       </div>
       <div
@@ -254,7 +321,13 @@ function UploadTarget({
   );
 }
 
-function StepDocIdentity() {
+type StepProps = {
+  uploadedSet: Set<VerificationDocKind>;
+  isUploading: boolean;
+  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+};
+
+function StepDocIdentity({ uploadedSet, isUploading, onUpload }: StepProps) {
   const [docType, setDocType] = useState<"id" | "passport" | "permit">("id");
   return (
     <div>
@@ -303,11 +376,19 @@ function StepDocIdentity() {
         label="Photo du recto"
         sub="Cliquez pour ouvrir l'appareil photo"
         icon="idCard"
+        kind="ID_FRONT"
+        done={uploadedSet.has("ID_FRONT")}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
       <UploadTarget
         label="Photo du verso"
         sub="Retournez votre pièce et photographiez l'autre face"
         icon="idCard"
+        kind="ID_BACK"
+        done={uploadedSet.has("ID_BACK")}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
       <div
         style={{
@@ -333,65 +414,22 @@ function StepDocIdentity() {
   );
 }
 
-function StepDocSelfie() {
+function StepDocSelfie({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <div>
       <StepHeading
         title="Selfie avec votre pièce"
         sub="Tenez votre pièce d'identité à côté de votre visage. Cela nous permet de confirmer que c'est bien vous."
       />
-      <div
-        style={{
-          aspectRatio: "3 / 4",
-          maxHeight: 360,
-          width: "100%",
-          background: "linear-gradient(135deg, #1E293B, #0F172A)",
-          borderRadius: 16,
-          position: "relative",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 20,
-        }}
-      >
-        <div
-          style={{
-            width: 160,
-            height: 200,
-            borderRadius: "50%",
-            border: "3px dashed rgba(255,255,255,0.5)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(255,255,255,0.15)",
-            backdropFilter: "blur(8px)",
-            padding: "8px 14px",
-            borderRadius: 999,
-            color: "white",
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          Tenez votre ID sous votre menton
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button className="k-btn k-btn-secondary" style={{ flex: 1 }}>
-          <I.refresh size={14} /> Reprendre
-        </button>
-        <button
-          className="k-btn k-btn-primary"
-          style={{ flex: 2, justifyContent: "center" }}
-        >
-          <I.camera size={14} /> Prendre la photo
-        </button>
-      </div>
+      <UploadTarget
+        label="Prendre le selfie"
+        sub="Tenez votre ID sous votre menton, visage bien éclairé"
+        icon="selfie"
+        kind="SELFIE"
+        done={uploadedSet.has("SELFIE")}
+        isUploading={isUploading}
+        onUpload={onUpload}
+      />
       <div
         style={{
           marginTop: 16,
@@ -408,7 +446,7 @@ function StepDocSelfie() {
   );
 }
 
-function StepDocAddress() {
+function StepDocAddress({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <div>
       <StepHeading
@@ -419,27 +457,11 @@ function StepDocAddress() {
         label="Photo de la facture"
         sub="JPEG, PNG ou PDF · max 10 Mo"
         icon="fileText"
+        kind="ADDRESS"
+        done={uploadedSet.has("ADDRESS")}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
-      <div style={{ marginTop: 20 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 600,
-            color: tokens.color.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            marginBottom: 6,
-          }}
-        >
-          Ou confirmez votre adresse
-        </label>
-        <input
-          type="text"
-          defaultValue="Av. Kasa-Vubu 42, Gombe, Kinshasa"
-          className="k-input"
-        />
-      </div>
       <div
         style={{
           marginTop: 20,
@@ -477,10 +499,12 @@ function StepDocAddress() {
   );
 }
 
-function StepDocCert() {
+function StepDocCert({ uploadedSet, isUploading, onUpload }: StepProps) {
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+      >
         <h2
           style={{
             fontFamily: tokens.font.display,
@@ -524,27 +548,11 @@ function StepDocCert() {
         label="Photo de votre certificat"
         sub="Diplôme, attestation, licence… un seul document à la fois"
         icon="award"
+        kind="CERT_OPTIONAL"
+        done={uploadedSet.has("CERT_OPTIONAL")}
+        isUploading={isUploading}
+        onUpload={onUpload}
       />
-      <div style={{ marginTop: 20 }}>
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            fontWeight: 600,
-            color: tokens.color.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            marginBottom: 6,
-          }}
-        >
-          Nom de la certification
-        </label>
-        <input
-          type="text"
-          placeholder="Ex: Diplôme INPP Plomberie 2018"
-          className="k-input"
-        />
-      </div>
       <div
         style={{
           marginTop: 20,

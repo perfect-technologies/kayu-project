@@ -21,6 +21,7 @@ import { GeoModule } from "./modules/geo/geo.module";
 import { JobRequestsModule } from "./modules/job-requests/job-requests.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
+import { VerificationModule } from "./modules/verification/verification.module";
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
     JobRequestsModule,
     QuotesModule,
     OnboardingModule,
+    VerificationModule,
   ],
   controllers: [AppController],
 })

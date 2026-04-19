@@ -69,6 +69,14 @@ import type {
   ProviderDraftDto,
   DraftResponse,
   ProviderPublishResponse,
+  // Verification (I08)
+  UploadVerificationDocDtoType,
+  UploadVerificationDocResponse,
+  VerificationStateResponse,
+  SubmitVerificationResponse,
+  DisputeEnvelopeResponse,
+  RespondDisputeDtoType,
+  RespondDisputeResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -272,6 +280,29 @@ export const onboardingApi = (client: ApiClient) => ({
   patchDraft: (data: ProviderDraftDto) =>
     client.patch<DraftResponse>("/me/provider-draft", data),
   publish: () => client.post<ProviderPublishResponse>("/me/provider-publish"),
+});
+
+// ---------- Verification (I08) ----------
+
+export const verificationApi = (client: ApiClient) => ({
+  getState: () =>
+    client.get<VerificationStateResponse>("/pro/verification/state"),
+  uploadDoc: (data: UploadVerificationDocDtoType) =>
+    client.post<UploadVerificationDocResponse>(
+      "/pro/verification/documents",
+      data,
+    ),
+  removeDoc: (id: string) =>
+    client.delete<{ success: true }>(`/pro/verification/documents/${id}`),
+  submit: () =>
+    client.post<SubmitVerificationResponse>("/pro/verification/submit"),
+  getDispute: () =>
+    client.get<DisputeEnvelopeResponse>("/pro/verification/dispute"),
+  respondDispute: (id: string, data: RespondDisputeDtoType) =>
+    client.post<RespondDisputeResponse>(
+      `/pro/verification/dispute/${id}/respond`,
+      data,
+    ),
 });
 
 // ---------- Admin ----------

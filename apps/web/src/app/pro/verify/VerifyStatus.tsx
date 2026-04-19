@@ -2,33 +2,45 @@
 
 import { I } from "@kayu/ui/web";
 import { tokens } from "@kayu/ui";
+import type {
+  VerificationDocKind,
+  VerificationState,
+  VerificationStateResponse,
+} from "@kayu/schemas";
 import {
   STATUS_CONFIG,
   VERIFIED_TIPS,
   VERIFY_BENEFITS,
   VERIFY_STEPS,
-  type VerifyState,
+  type VerifyStep,
 } from "./fixtures";
 
 type VerifyStatusProps = {
-  state: VerifyState;
-  setState: (s: VerifyState) => void;
+  state: VerificationState;
+  liveState: VerificationStateResponse;
+  hasDispute: boolean;
   onStart: () => void;
   onOpenDispute: () => void;
-  hasDispute: boolean;
+  onRemoveDoc: (id: string) => void;
   showDebug: boolean;
+  debugState: VerificationState | null;
+  onDebugState: (s: VerificationState | null) => void;
 };
 
 export function VerifyStatus({
   state,
-  setState,
+  liveState,
+  hasDispute,
   onStart,
   onOpenDispute,
-  hasDispute,
+  onRemoveDoc,
   showDebug,
+  debugState,
+  onDebugState,
 }: VerifyStatusProps) {
   const cfg = STATUS_CONFIG[state];
   const StatusIcon = I[cfg.icon] ?? I.shieldCheck;
+  const uploadedByKind = new Map(liveState.docs.map((d) => [d.kind, d]));
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "8px 0 40px" }}>
@@ -51,7 +63,9 @@ export function VerifyStatus({
         >
           Vérification
         </div>
-        {showDebug && <DebugStateSwitch state={state} setState={setState} />}
+        {showDebug && (
+          <DebugStateSwitch state={debugState} setState={onDebugState} />
+        )}
       </div>
 
       {hasDispute && <DisputeBanner onOpen={onOpenDispute} />}
@@ -126,10 +140,12 @@ export function VerifyStatus({
                 maxWidth: 520,
               }}
             >
-              {cfg.sub}
+              {state === "REJECTED" && liveState.rejectionReason
+                ? liveState.rejectionReason
+                : cfg.sub}
             </p>
           </div>
-          {cfg.progress > 0 && (
+          {liveState.progress > 0 && (
             <div>
               <div
                 style={{
@@ -145,7 +161,7 @@ export function VerifyStatus({
               >
                 <span>Progression</span>
                 <span style={{ fontFamily: tokens.font.mono }}>
-                  {cfg.progress}%
+                  {liveState.progress}%
                 </span>
               </div>
               <div
@@ -159,7 +175,7 @@ export function VerifyStatus({
                 <div
                   style={{
                     height: "100%",
-                    width: `${cfg.progress}%`,
+                    width: `${liveState.progress}%`,
                     background: cfg.tint,
                     transition: "width 500ms cubic-bezier(0.2, 0, 0, 1)",
                     borderRadius: 3,
@@ -178,7 +194,7 @@ export function VerifyStatus({
               {cfg.cta} <I.arrowRight size={15} />
             </button>
           )}
-          {state === "in_review" && (
+          {state === "IN_REVIEW" && (
             <div
               style={{
                 display: "flex",
@@ -236,26 +252,20 @@ export function VerifyStatus({
             marginBottom: 14,
           }}
         >
-          {state === "verified"
+          {state === "VERIFIED"
             ? "Tous vos documents ont été approuvés"
             : "4 documents demandés (dont 3 obligatoires)"}
         </div>
-        {VERIFY_STEPS.map((step, i) => {
-          const done =
-            state === "verified" ||
-            (state === "in_review" && i < 3) ||
-            (state === "in_progress" && i < 2);
-          const pending = state === "in_review" && i < 3;
-          return (
-            <DocStatusRow
-              key={step.id}
-              step={step}
-              done={done}
-              pending={pending}
-              last={i === VERIFY_STEPS.length - 1}
-            />
-          );
-        })}
+        {VERIFY_STEPS.map((step, i) => (
+          <DocStatusRow
+            key={step.id}
+            step={step}
+            state={state}
+            uploadedDoc={pickUploadedForStep(step, uploadedByKind)}
+            onRemove={onRemoveDoc}
+            last={i === VERIFY_STEPS.length - 1}
+          />
+        ))}
       </div>
 
       {/* Benefits or tips */}
@@ -276,7 +286,7 @@ export function VerifyStatus({
             margin: "0 0 14px",
           }}
         >
-          {state === "verified"
+          {state === "VERIFIED"
             ? "Décroche plus de missions"
             : "Pourquoi se vérifier ?"}
         </h3>
@@ -287,7 +297,7 @@ export function VerifyStatus({
             gap: 14,
           }}
         >
-          {(state === "verified" ? VERIFIED_TIPS : VERIFY_BENEFITS).map((b) => {
+          {(state === "VERIFIED" ? VERIFIED_TIPS : VERIFY_BENEFITS).map((b) => {
             const Icon = I[b.icon] ?? I.check;
             return (
               <div
@@ -386,6 +396,17 @@ export function VerifyStatus({
   );
 }
 
+function pickUploadedForStep(
+  step: VerifyStep,
+  map: Map<VerificationDocKind, VerificationStateResponse["docs"][number]>,
+) {
+  for (const kind of step.kinds) {
+    const doc = map.get(kind);
+    if (doc) return doc;
+  }
+  return null;
+}
+
 function DisputeBanner({ onOpen }: { onOpen: () => void }) {
   return (
     <button
@@ -425,7 +446,7 @@ function DisputeBanner({ onOpen }: { onOpen: () => void }) {
           Un client a ouvert un litige
         </div>
         <div style={{ fontSize: 12.5, color: "#92400E", marginTop: 2 }}>
-          Réservation #B-2847 · Il vous reste 22h pour répondre
+          Réponse attendue — ouvrez le litige pour répondre
         </div>
       </div>
       <I.chevronRight size={16} strokeColor="#92400E" />
@@ -435,21 +456,34 @@ function DisputeBanner({ onOpen }: { onOpen: () => void }) {
 
 function DocStatusRow({
   step,
-  done,
-  pending,
+  state,
+  uploadedDoc,
+  onRemove,
   last,
 }: {
-  step: (typeof VERIFY_STEPS)[number];
-  done: boolean;
-  pending: boolean;
+  step: VerifyStep;
+  state: VerificationState;
+  uploadedDoc: VerificationStateResponse["docs"][number] | null;
+  onRemove: (id: string) => void;
   last: boolean;
 }) {
   const Icon = I[step.icon] ?? I.fileText;
-  const tag = done
+  const isApproved =
+    uploadedDoc?.decision === "APPROVED" || state === "VERIFIED";
+  const isUploaded = Boolean(uploadedDoc);
+  const isUnderReview = isUploaded && state === "IN_REVIEW";
+
+  const tag = isApproved
     ? { bg: "#ECFDF5", fg: "#047857", label: "Vérifié" }
-    : pending
+    : isUnderReview
       ? { bg: "#EDE9FE", fg: "#6D28D9", label: "En cours" }
-      : { bg: tokens.color.surfaceMuted, fg: tokens.color.textMuted, label: "À fournir" };
+      : isUploaded
+        ? { bg: "#E0F2FE", fg: "#0369A1", label: "Téléversé" }
+        : {
+            bg: tokens.color.surfaceMuted,
+            fg: tokens.color.textMuted,
+            label: "À fournir",
+          };
 
   return (
     <div
@@ -513,6 +547,16 @@ function DocStatusRow({
           {step.caption}
         </div>
       </div>
+      {isUploaded && !isApproved && state !== "IN_REVIEW" && (
+        <button
+          type="button"
+          className="k-btn k-btn-ghost k-btn-sm"
+          onClick={() => uploadedDoc && onRemove(uploadedDoc.id)}
+          style={{ marginRight: 6 }}
+        >
+          Retirer
+        </button>
+      )}
       <span
         style={{
           fontSize: 11.5,
@@ -533,13 +577,15 @@ function DebugStateSwitch({
   state,
   setState,
 }: {
-  state: VerifyState;
-  setState: (s: VerifyState) => void;
+  state: VerificationState | null;
+  setState: (s: VerificationState | null) => void;
 }) {
   return (
     <select
-      value={state}
-      onChange={(e) => setState(e.target.value as VerifyState)}
+      value={state ?? ""}
+      onChange={(e) =>
+        setState((e.target.value || null) as VerificationState | null)
+      }
       title="État (debug)"
       style={{
         fontSize: 11,
@@ -552,11 +598,12 @@ function DebugStateSwitch({
         fontFamily: tokens.font.mono,
       }}
     >
-      <option value="not_started">not_started</option>
-      <option value="in_progress">in_progress</option>
-      <option value="in_review">in_review</option>
-      <option value="verified">verified</option>
-      <option value="rejected">rejected</option>
+      <option value="">live</option>
+      <option value="NOT_STARTED">NOT_STARTED</option>
+      <option value="IN_PROGRESS">IN_PROGRESS</option>
+      <option value="IN_REVIEW">IN_REVIEW</option>
+      <option value="VERIFIED">VERIFIED</option>
+      <option value="REJECTED">REJECTED</option>
     </select>
   );
 }

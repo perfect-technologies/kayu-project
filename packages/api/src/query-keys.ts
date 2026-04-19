@@ -83,6 +83,10 @@ export const queryKeys = {
   onboarding: {
     draft: ["onboarding", "draft"] as const,
   },
+  verification: {
+    state: ["verification", "state"] as const,
+    dispute: ["verification", "dispute"] as const,
+  },
   admin: {
     users: (params?: Partial<AdminUserSearchParams>) =>
       ["admin", "users", params] as const,
