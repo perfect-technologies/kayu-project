@@ -16,7 +16,6 @@ import { useMutation } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { bookingsApi } from "@kayu/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { LoginDialog } from "@/components/auth/LoginDialog";
 import { KayouMoment } from "@kayu/ui/web";
 
 interface ProviderMini {
@@ -35,7 +34,6 @@ interface ProviderMini {
 export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const [loginOpen, setLoginOpen] = useState(false);
 
   const [step, setStep] = useState(0); // 0..2 content, 3 celebrate
   const [service, setService] = useState("Dépannage urgent");
@@ -64,7 +62,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
 
   const handleConfirm = () => {
     if (!isAuthenticated) {
-      setLoginOpen(true);
+      router.push("/auth");
       return;
     }
     const scheduled = new Date();
@@ -491,13 +489,6 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
           )}
         </div>
 
-        <LoginDialog
-          open={loginOpen}
-          onOpenChange={setLoginOpen}
-          onSwitchToRegister={() => {
-            setLoginOpen(false);
-          }}
-        />
       </div>
     </Layout>
   );

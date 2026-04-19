@@ -14,8 +14,6 @@ import {
 import { CategoryTile, FeaturedProviderCard } from "@kayu/ui/web";
 import type { ProviderCardData } from "@kayu/ui";
 import { Layout } from "@/components/layout";
-import { RegisterDialog } from "@/components/auth/RegisterDialog";
-import { LoginDialog } from "@/components/auth/LoginDialog";
 import { resolveCategorySlug } from "@/lib/provider-card";
 import type { PublicStatsResponse } from "@kayu/schemas";
 
@@ -479,8 +477,6 @@ export default function HomePageClient({
   featuredProviders,
 }: HomePageClientProps) {
   const router = useRouter();
-  const [registerOpen, setRegisterOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
 
   const goSearch = (query: string, where: string) => {
     const params = new URLSearchParams();
@@ -500,24 +496,7 @@ export default function HomePageClient({
       <CategoryGrid categories={initialCategories} onSelect={openCategory} />
       <FeaturedProviders providers={featuredProviders} onOpen={openProvider} />
       <HowItWorks />
-      <ProviderCTA onJoin={() => setRegisterOpen(true)} />
-
-      <RegisterDialog
-        open={registerOpen}
-        onOpenChange={setRegisterOpen}
-        onSwitchToLogin={() => {
-          setRegisterOpen(false);
-          setLoginOpen(true);
-        }}
-      />
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSwitchToRegister={() => {
-          setLoginOpen(false);
-          setRegisterOpen(true);
-        }}
-      />
+      <ProviderCTA onJoin={() => router.push("/auth?mode=signup")} />
     </Layout>
   );
 }

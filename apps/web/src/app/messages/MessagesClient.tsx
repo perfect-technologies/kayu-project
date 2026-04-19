@@ -1,116 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Chip, I } from "@kayu/ui/web";
-
-type ThreadStatus = "active" | "quote" | "completed";
-type MsgFrom = "me" | "pro" | "system";
-
-type DemoMsg = {
-  id: string;
-  from: MsgFrom;
-  text: string;
-  at: string;
-};
-
-type DemoThread = {
-  id: string;
-  providerId: string;
-  providerName: string;
-  profession: string;
-  avatarBg: string;
-  initials: string;
-  online: boolean;
-  unread: number;
-  lastAt: string;
-  status: ThreadStatus;
-  missionSummary?: string;
-  missionBookingId?: string;
-  preview: string;
-  messages: DemoMsg[];
-};
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { messagesApi, queryKeys } from "@kayu/api";
+import type { Conversation, Message, UserSummary } from "@kayu/schemas";
+import { Avatar, EmptyState, ErrorState, I } from "@kayu/ui/web";
+import { Inbox as InboxIcon } from "lucide-react";
+import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SUGGESTED_REPLIES = [
   "Merci beaucoup !",
   "Pouvez-vous m'envoyer un devis ?",
   "À quelle heure serez-vous disponible ?",
   "Ça marche pour moi.",
-];
-
-const DEMO_THREADS: DemoThread[] = [
-  {
-    id: "t1",
-    providerId: "p1",
-    providerName: "Jean Mubake",
-    profession: "Plombier",
-    avatarBg: "#0EA5E9",
-    initials: "JM",
-    online: true,
-    unread: 2,
-    lastAt: "à l'instant",
-    status: "active",
-    missionSummary: "Mission confirmée · demain 9h00",
-    missionBookingId: "b_demo_1",
-    preview: "D'accord, je passe demain à 9h. Préparez les clés.",
-    messages: [
-      { id: "m1", from: "pro", text: "Bonjour ! J'ai vu votre demande. Pouvez-vous me décrire la fuite ?", at: "14:12" },
-      { id: "m2", from: "me", text: "Salut Jean. C'est sous l'évier de la cuisine, ça goutte depuis ce matin.", at: "14:15" },
-      { id: "m3", from: "me", text: "J'ai mis un seau en dessous pour le moment.", at: "14:15" },
-      { id: "m4", from: "pro", text: "Pas de souci. Ce genre de fuite se règle vite, souvent un joint à changer.", at: "14:18" },
-      { id: "m5", from: "system", text: "Réservation confirmée · demain 9h00 · 15 000 FC estimé", at: "14:22" },
-      { id: "m6", from: "pro", text: "D'accord, je passe demain à 9h. Préparez les clés.", at: "14:22" },
-    ],
-  },
-  {
-    id: "t2",
-    providerId: "p4",
-    providerName: "Lucie Ngalamulume",
-    profession: "Coiffeuse",
-    avatarBg: "#FB7185",
-    initials: "LN",
-    online: false,
-    unread: 0,
-    lastAt: "il y a 2h",
-    status: "completed",
-    preview: "Merci pour la super coiffure ! À très vite 💛",
-    messages: [
-      { id: "m1", from: "me", text: "Merci Lucie, tu as fait un travail super.", at: "11:40" },
-      { id: "m2", from: "pro", text: "Merci pour la super coiffure ! À très vite 💛", at: "12:05" },
-    ],
-  },
-  {
-    id: "t3",
-    providerId: "p2",
-    providerName: "Patrick Kabongo",
-    profession: "Électricien",
-    avatarBg: "#F59E0B",
-    initials: "PK",
-    online: true,
-    unread: 0,
-    lastAt: "hier",
-    status: "quote",
-    preview: "Je vous envoie un devis ce soir.",
-    messages: [
-      { id: "m1", from: "me", text: "Bonjour, j'ai 3 prises à remplacer dans le salon.", at: "hier 18:03" },
-      { id: "m2", from: "pro", text: "Bonjour ! Je vous envoie un devis ce soir.", at: "hier 18:10" },
-    ],
-  },
-  {
-    id: "t4",
-    providerId: "p6",
-    providerName: "Sarah Mokonzi",
-    profession: "Jardinière",
-    avatarBg: "#10B981",
-    initials: "SM",
-    online: false,
-    unread: 0,
-    lastAt: "lun.",
-    status: "completed",
-    preview: "Parfait, à jeudi alors !",
-    messages: [
-      { id: "m1", from: "me", text: "Parfait, à jeudi alors !", at: "lun. 10:22" },
-    ],
-  },
 ];
 
 type FilterKey = "all" | "unread" | "active";
@@ -121,41 +24,150 @@ const FILTERS: { k: FilterKey; label: string }[] = [
   { k: "active", label: "En cours" },
 ];
 
+type ConversationsQueryData = { success?: boolean; conversations: Conversation[] };
+type MessagesQueryData = { success?: boolean; messages: Message[] };
+
+function getOtherName(u?: UserSummary | null) {
+  if (!u) return "Utilisateur";
+  const full = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+  return full || "Utilisateur";
+}
+
+function formatListTime(iso?: string | Date | null) {
+  if (!iso) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+  if (isYesterday) return "hier";
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
+  if (diffDays < 7) return d.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "");
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+
+function formatBubbleTime(iso?: string | Date | null) {
+  if (!iso) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
 export function MessagesClient() {
-  const [activeId, setActiveId] = useState<string | null>(DEMO_THREADS[0]?.id ?? null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
-  const [threads, setThreads] = useState<DemoThread[]>(DEMO_THREADS);
+
+  const {
+    data: convData,
+    isLoading: convLoading,
+    error: convError,
+    refetch: refetchConvs,
+  } = useQuery<ConversationsQueryData>({
+    queryKey: queryKeys.messages.conversations(),
+    queryFn: () => messagesApi(apiClient).getConversations() as Promise<ConversationsQueryData>,
+    refetchInterval: 15_000,
+  });
+
+  const conversations = useMemo(() => convData?.conversations ?? [], [convData]);
+
+  useEffect(() => {
+    if (!activeId && conversations.length > 0) {
+      setActiveId(conversations[0]!.id);
+    }
+  }, [conversations, activeId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return threads.filter((t) => {
-      if (filter === "unread" && t.unread === 0) return false;
-      if (filter === "active" && t.status !== "active") return false;
-      if (q && !t.providerName.toLowerCase().includes(q)) return false;
+    return conversations.filter((c) => {
+      const name = getOtherName(c.otherUser).toLowerCase();
+      if (filter === "unread" && (c.unreadCount ?? 0) === 0) return false;
+      // "En cours" pill: without a backend status, fall back to unread-bearing threads
+      if (filter === "active" && (c.unreadCount ?? 0) === 0) return false;
+      if (q && !name.includes(q)) return false;
       return true;
     });
-  }, [threads, filter, query]);
+  }, [conversations, filter, query]);
 
-  const active = threads.find((t) => t.id === activeId) ?? null;
+  const active = conversations.find((c) => c.id === activeId) ?? null;
 
-  const handleSend = (threadId: string, text: string) => {
-    setThreads((prev) =>
-      prev.map((t) =>
-        t.id === threadId
-          ? {
-              ...t,
-              preview: text,
-              lastAt: "maintenant",
-              messages: [
-                ...t.messages,
-                { id: `x${t.messages.length + 1}`, from: "me", text, at: "maintenant" },
-              ],
-            }
-          : t,
-      ),
-    );
-  };
+  const {
+    data: msgData,
+    isLoading: msgLoading,
+    error: msgError,
+    refetch: refetchMsgs,
+  } = useQuery<MessagesQueryData>({
+    queryKey: queryKeys.messages.conversation(activeId ?? ""),
+    queryFn: () =>
+      messagesApi(apiClient).getMessages(activeId!) as Promise<MessagesQueryData>,
+    enabled: !!activeId,
+    refetchInterval: 5_000,
+  });
+
+  const messages = msgData?.messages ?? [];
+
+  const sendMut = useMutation({
+    mutationFn: (text: string) => {
+      if (!active?.otherUser?.id) throw new Error("Aucun destinataire");
+      return messagesApi(apiClient).send({
+        recipientId: active.otherUser.id,
+        content: text,
+        type: "TEXT",
+      });
+    },
+    onMutate: async (text: string) => {
+      if (!activeId || !user) return {};
+      const key = queryKeys.messages.conversation(activeId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<MessagesQueryData>(key);
+      const optimistic: Message = {
+        id: `optimistic-${Date.now()}`,
+        conversationId: activeId,
+        senderId: user.id,
+        type: "TEXT",
+        content: text,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData<MessagesQueryData>(key, (old) => {
+        if (!old) return { success: true, messages: [optimistic] };
+        return { ...old, messages: [...old.messages, optimistic] };
+      });
+      return { prev, key };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.key && ctx.prev) {
+        queryClient.setQueryData(ctx.key, ctx.prev);
+      }
+    },
+    onSettled: () => {
+      if (activeId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversation(activeId) });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+    },
+  });
 
   return (
     <div
@@ -183,10 +195,7 @@ export function MessagesClient() {
             borderBottom: "1px solid var(--k-border-subtle)",
           }}
         >
-          <h1
-            className="k-display-m"
-            style={{ margin: "0 0 12px", fontSize: 24 }}
-          >
+          <h1 className="k-display-m" style={{ margin: "0 0 12px", fontSize: 24 }}>
             Messages
           </h1>
           <div style={{ position: "relative" }}>
@@ -235,15 +244,40 @@ export function MessagesClient() {
           </div>
         </div>
         <div className="k-scroll" style={{ flex: 1, overflowY: "auto" }}>
-          {filtered.length === 0 ? (
-            <EmptyList />
+          {convLoading ? (
+            <ConversationListSkeleton />
+          ) : convError ? (
+            <div style={{ padding: 20 }}>
+              <ErrorState
+                title="Erreur de chargement"
+                subtitle="Impossible de récupérer vos conversations."
+                cta={{ label: "Réessayer", onClick: () => refetchConvs() }}
+              />
+            </div>
+          ) : conversations.length === 0 ? (
+            <EmptyState
+              icon={InboxIcon}
+              title="Aucun message"
+              subtitle="Tes échanges avec les pros apparaîtront ici."
+            />
+          ) : filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "40px 20px",
+                textAlign: "center",
+                color: "var(--k-text-muted)",
+                fontSize: 13,
+              }}
+            >
+              Aucune conversation ne correspond.
+            </div>
           ) : (
-            filtered.map((t) => (
+            filtered.map((c) => (
               <ThreadListItem
-                key={t.id}
-                thread={t}
-                active={t.id === activeId}
-                onClick={() => setActiveId(t.id)}
+                key={c.id}
+                conversation={c}
+                active={c.id === activeId}
+                onClick={() => setActiveId(c.id)}
               />
             ))
           )}
@@ -260,7 +294,29 @@ export function MessagesClient() {
         }}
       >
         {active ? (
-          <ThreadView thread={active} onSend={(text) => handleSend(active.id, text)} />
+          <ThreadView
+            conversation={active}
+            messages={messages}
+            isLoading={msgLoading}
+            error={msgError}
+            onRetry={() => refetchMsgs()}
+            myId={user?.id ?? null}
+            onSend={(text) => sendMut.mutate(text)}
+            sending={sendMut.isPending}
+          />
+        ) : convLoading ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--k-text-muted)",
+              fontSize: 14,
+            }}
+          >
+            Chargement…
+          </div>
         ) : (
           <div
             style={{
@@ -280,15 +336,66 @@ export function MessagesClient() {
   );
 }
 
+function ConversationListSkeleton() {
+  return (
+    <div>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "14px 16px",
+            borderBottom: "1px solid var(--k-border-subtle)",
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              background: "var(--k-surface-muted)",
+            }}
+          />
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                height: 12,
+                background: "var(--k-surface-muted)",
+                borderRadius: 4,
+                width: "60%",
+                marginBottom: 8,
+              }}
+            />
+            <div
+              style={{
+                height: 10,
+                background: "var(--k-surface-muted)",
+                borderRadius: 4,
+                width: "90%",
+              }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ThreadListItem({
-  thread,
+  conversation,
   active,
   onClick,
 }: {
-  thread: DemoThread;
+  conversation: Conversation;
   active: boolean;
   onClick: () => void;
 }) {
+  const name = getOtherName(conversation.otherUser);
+  const unread = conversation.unreadCount ?? 0;
+  const preview = conversation.lastMessage?.content ?? "";
+  const lastAt = formatListTime(conversation.lastMessageAt);
+
   return (
     <button
       onClick={onClick}
@@ -306,13 +413,7 @@ function ThreadListItem({
         borderBottom: "1px solid var(--k-border-subtle)",
       }}
     >
-      <Avatar
-        name={thread.providerName}
-        bg={thread.avatarBg}
-        size={44}
-        initials={thread.initials}
-        online={thread.online}
-      />
+      <Avatar name={name} size={44} src={conversation.otherUser?.avatar ?? undefined} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -333,62 +434,32 @@ function ThreadListItem({
               whiteSpace: "nowrap",
             }}
           >
-            {thread.providerName}
+            {name}
           </span>
           <span
             className="k-caption"
             style={{ flexShrink: 0, color: "var(--k-text-muted)" }}
           >
-            {thread.lastAt}
+            {lastAt}
           </span>
-        </div>
-        <div
-          className="k-caption"
-          style={{ color: "var(--k-text-muted)", marginTop: 1 }}
-        >
-          {thread.profession}
         </div>
         <div
           style={{
             marginTop: 4,
             fontSize: 13,
             lineHeight: 1.4,
-            color: thread.unread
-              ? "var(--k-text-primary)"
-              : "var(--k-text-muted)",
-            fontWeight: thread.unread ? 500 : 400,
+            color: unread > 0 ? "var(--k-text-primary)" : "var(--k-text-muted)",
+            fontWeight: unread > 0 ? 500 : 400,
             display: "-webkit-box",
             WebkitBoxOrient: "vertical",
             WebkitLineClamp: 2,
             overflow: "hidden",
           }}
         >
-          {thread.preview}
+          {preview || "—"}
         </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginTop: 6,
-          }}
-        >
-          {thread.status === "active" && (
-            <Chip size="sm" variant="success">
-              Mission en cours
-            </Chip>
-          )}
-          {thread.status === "quote" && (
-            <Chip size="sm" variant="warning">
-              Devis en attente
-            </Chip>
-          )}
-          {thread.status === "completed" && (
-            <Chip size="sm" variant="neutral">
-              Terminé
-            </Chip>
-          )}
-          {thread.unread > 0 && (
+        {unread > 0 && (
+          <div style={{ display: "flex", marginTop: 6 }}>
             <span
               style={{
                 marginLeft: "auto",
@@ -403,36 +474,33 @@ function ThreadListItem({
                 textAlign: "center",
               }}
             >
-              {thread.unread}
+              {unread}
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </button>
   );
 }
 
-function EmptyList() {
-  return (
-    <div
-      style={{
-        padding: "40px 20px",
-        textAlign: "center",
-        color: "var(--k-text-muted)",
-        fontSize: 13,
-      }}
-    >
-      Aucune conversation ne correspond.
-    </div>
-  );
-}
-
 function ThreadView({
-  thread,
+  conversation,
+  messages,
+  isLoading,
+  error,
+  onRetry,
+  myId,
   onSend,
+  sending,
 }: {
-  thread: DemoThread;
+  conversation: Conversation;
+  messages: Message[];
+  isLoading: boolean;
+  error: unknown;
+  onRetry: () => void;
+  myId: string | null;
   onSend: (text: string) => void;
+  sending: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -440,10 +508,11 @@ function ThreadView({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread.id, thread.messages.length]);
+  }, [conversation.id, messages.length]);
 
   const trimmed = draft.trim();
-  const canSend = trimmed.length > 0;
+  const canSend = trimmed.length > 0 && !sending;
+  const name = getOtherName(conversation.otherUser);
 
   const submit = (text: string) => {
     const t = text.trim();
@@ -483,13 +552,7 @@ function ThreadView({
             minWidth: 0,
           }}
         >
-          <Avatar
-            name={thread.providerName}
-            bg={thread.avatarBg}
-            size={40}
-            initials={thread.initials}
-            online={thread.online}
-          />
+          <Avatar name={name} size={40} src={conversation.otherUser?.avatar ?? undefined} />
           <div style={{ minWidth: 0 }}>
             <div
               style={{
@@ -502,17 +565,7 @@ function ThreadView({
                 whiteSpace: "nowrap",
               }}
             >
-              {thread.providerName}
-            </div>
-            <div
-              className="k-caption"
-              style={{
-                color: thread.online
-                  ? "var(--k-success)"
-                  : "var(--k-text-muted)",
-              }}
-            >
-              {thread.online ? "En ligne" : "Vu il y a 20 min"}
+              {name}
             </div>
           </div>
         </div>
@@ -537,42 +590,6 @@ function ThreadView({
         </button>
       </div>
 
-      {/* Mission banner */}
-      {thread.status === "active" && (
-        <div
-          style={{
-            padding: "10px 20px",
-            background: "var(--k-surface-primary)",
-            borderBottom: "1px solid #BAE6FD",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            fontSize: 13,
-            color: "var(--k-primary-hover)",
-            fontWeight: 500,
-            flexShrink: 0,
-          }}
-        >
-          <I.calendar size={14} />
-          <span style={{ flex: 1 }}>
-            {thread.missionSummary ?? "Mission en cours"}
-          </span>
-          {thread.missionBookingId && (
-            <a
-              href={`/bookings/${thread.missionBookingId}`}
-              style={{
-                color: "var(--k-primary-hover)",
-                fontWeight: 600,
-                fontSize: 13,
-                textDecoration: "none",
-              }}
-            >
-              Voir
-            </a>
-          )}
-        </div>
-      )}
-
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -584,45 +601,79 @@ function ThreadView({
           background: "var(--k-bg)",
         }}
       >
-        {thread.messages.map((m) => (
-          <MessageBubble key={m.id} m={m} />
-        ))}
+        {isLoading && messages.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--k-text-muted)",
+              fontSize: 13,
+            }}
+          >
+            Chargement des messages…
+          </div>
+        ) : error ? (
+          <ErrorState
+            title="Erreur de chargement"
+            subtitle="Impossible de récupérer les messages."
+            cta={{ label: "Réessayer", onClick: onRetry }}
+          />
+        ) : messages.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--k-text-muted)",
+              fontSize: 14,
+              textAlign: "center",
+              padding: "0 24px",
+            }}
+          >
+            Envoyez le premier message pour démarrer la conversation.
+          </div>
+        ) : (
+          messages.map((m) => <MessageBubble key={m.id} m={m} myId={myId} />)
+        )}
       </div>
 
       {/* Suggested replies */}
-      {thread.status === "active" && (
-        <div
-          className="k-scroll"
-          style={{
-            padding: "8px 20px 0",
-            background: "var(--k-bg)",
-            display: "flex",
-            gap: 8,
-            overflowX: "auto",
-            flexShrink: 0,
-          }}
-        >
-          {SUGGESTED_REPLIES.map((s) => (
-            <button
-              key={s}
-              onClick={() => submit(s)}
-              style={{
-                flexShrink: 0,
-                padding: "8px 14px",
-                borderRadius: 999,
-                border: "1px solid var(--k-border)",
-                background: "var(--k-surface)",
-                fontSize: 13,
-                color: "var(--k-text-body)",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
+      <div
+        className="k-scroll"
+        style={{
+          padding: "8px 20px 0",
+          background: "var(--k-bg)",
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+          flexShrink: 0,
+        }}
+      >
+        {SUGGESTED_REPLIES.map((s) => (
+          <button
+            key={s}
+            onClick={() => submit(s)}
+            disabled={sending}
+            style={{
+              flexShrink: 0,
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: "1px solid var(--k-border)",
+              background: "var(--k-surface)",
+              fontSize: 13,
+              color: "var(--k-text-body)",
+              cursor: sending ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap",
+              opacity: sending ? 0.6 : 1,
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
 
       {/* Composer */}
       <div
@@ -702,37 +753,9 @@ function ThreadView({
   );
 }
 
-function MessageBubble({ m }: { m: DemoMsg }) {
-  if (m.from === "system") {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          margin: "12px 0",
-        }}
-      >
-        <div
-          style={{
-            padding: "8px 14px",
-            borderRadius: 999,
-            background: "var(--k-success-subtle)",
-            color: "#047857",
-            fontSize: 12.5,
-            fontWeight: 500,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            border: "1px solid #A7F3D0",
-          }}
-        >
-          <I.check size={13} /> {m.text}
-        </div>
-      </div>
-    );
-  }
-
-  const isMe = m.from === "me";
+function MessageBubble({ m, myId }: { m: Message; myId: string | null }) {
+  const isMe = !!myId && m.senderId === myId;
+  const at = formatBubbleTime(m.createdAt);
   return (
     <div
       style={{
@@ -753,12 +776,10 @@ function MessageBubble({ m }: { m: DemoMsg }) {
           padding: "10px 14px",
           fontSize: 14.5,
           lineHeight: 1.45,
-          boxShadow: isMe
-            ? "0 2px 8px rgba(14,165,233,0.2)"
-            : "var(--k-e1)",
+          boxShadow: isMe ? "0 2px 8px rgba(14,165,233,0.2)" : "var(--k-e1)",
         }}
       >
-        {m.text}
+        {m.content}
         <div
           style={{
             fontSize: 11,
@@ -768,7 +789,7 @@ function MessageBubble({ m }: { m: DemoMsg }) {
             fontFamily: "var(--k-font-mono)",
           }}
         >
-          {m.at}
+          {at}
         </div>
       </div>
     </div>

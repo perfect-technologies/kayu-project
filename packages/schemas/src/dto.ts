@@ -51,6 +51,7 @@ export const CompleteProfileDto = z.object({
   city: z.string().optional(),
   country: z.string().default("RDC"),
   phone: z.string().optional(),
+  email: z.string().email().optional(),
   avatar: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),

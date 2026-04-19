@@ -29,10 +29,10 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** Dev-only email+password sign-in for seeded demo accounts. */
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -108,15 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    if (data.session?.access_token) {
-      apiClient.setAccessToken(data.session.access_token);
-      const me = await fetchMe();
-      setUser(me);
-    }
-  }, [supabase, fetchMe]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+      if (data.session?.access_token) {
+        apiClient.setAccessToken(data.session.access_token);
+        const me = await fetchMe();
+        setUser(me);
+      }
+    },
+    [supabase, fetchMe],
+  );
 
   const loginWithPhone = useCallback(async (phone: string) => {
     const { error } = await supabase.auth.signInWithOtp({ phone });
@@ -132,11 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     }
   }, [supabase, fetchMe]);
-
-  const register = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-  }, [supabase]);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -164,7 +165,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         loginWithPhone,
         verifyOtp,
-        register,
         logout,
         refreshUser,
       }}

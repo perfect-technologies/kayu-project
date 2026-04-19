@@ -56,7 +56,7 @@ import { ProVerificationScreen } from '@/screens/pro/ProVerificationScreen';
 // --- Type definitions ---
 
 export type AuthStackParamList = {
-  Auth: undefined;
+  Auth: { mode?: 'signup' | 'login' } | undefined;
   DesignProbe: undefined;
 };
 

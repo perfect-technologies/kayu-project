@@ -28,11 +28,12 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** Dev-only email+password sign-in for seeded demo accounts. */
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signInWithPhone: (phone: string) => Promise<void>;
   verifyOtp: (phone: string, code: string) => Promise<void>;
-  /** Signs up and logs in, but defers setting user so navigation stays on auth stack. */
-  signUpAndLogin: (email: string, password: string) => Promise<void>;
+  /** Freeze auto-login so multi-step OTP flow can complete profile before navigator flips. */
+  setAuthFlowPending: (pending: boolean) => void;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -113,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
+      suppressAutoLogin.current = false;
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -149,30 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [fetchMe],
   );
 
-  const signUpAndLogin = useCallback(
-    async (email: string, password: string) => {
-      // Sign up
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (signUpError) throw signUpError;
-
-      // Suppress the onAuthStateChange listener so it doesn't set user
-      suppressAutoLogin.current = true;
-
-      // Sign in to get access token (needed for profile completion calls)
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw signInError;
-
-      if (data.session?.access_token) {
-        apiClient.setAccessToken(data.session.access_token);
-      }
-      // Do NOT set user here — navigation stays on auth stack for profile completion
-    },
-    [],
-  );
+  const setAuthFlowPending = useCallback((pending: boolean) => {
+    suppressAutoLogin.current = pending;
+  }, []);
 
   const signOut = useCallback(async () => {
     suppressAutoLogin.current = false;
@@ -206,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithEmail,
         signInWithPhone,
         verifyOtp,
-        signUpAndLogin,
+        setAuthFlowPending,
         signOut,
         refreshUser,
       }}

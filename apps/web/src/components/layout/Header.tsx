@@ -23,8 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LoginDialog } from "@/components/auth/LoginDialog";
-import { RegisterDialog } from "@/components/auth/RegisterDialog";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -36,8 +34,6 @@ const navigation = [
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [registerOpen, setRegisterOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
 
@@ -173,18 +169,12 @@ export function Header() {
               </DropdownMenu>
             ) : (
               <>
-                <button
-                  className="k-btn k-btn-ghost"
-                  onClick={() => setLoginOpen(true)}
-                >
+                <Link href="/auth" className="k-btn k-btn-ghost">
                   Se connecter
-                </button>
-                <button
-                  className="k-btn k-btn-primary"
-                  onClick={() => setRegisterOpen(true)}
-                >
+                </Link>
+                <Link href="/auth?mode=signup" className="k-btn k-btn-primary">
                   S&apos;inscrire
-                </button>
+                </Link>
               </>
             )}
           </div>
@@ -271,47 +261,26 @@ export function Header() {
                 </>
               ) : (
                 <>
-                  <button
+                  <Link
+                    href="/auth"
                     className="k-btn k-btn-secondary w-full"
-                    onClick={() => {
-                      setLoginOpen(true);
-                      setMobileMenuOpen(false);
-                    }}
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     Se connecter
-                  </button>
-                  <button
+                  </Link>
+                  <Link
+                    href="/auth?mode=signup"
                     className="k-btn k-btn-primary w-full"
-                    onClick={() => {
-                      setRegisterOpen(true);
-                      setMobileMenuOpen(false);
-                    }}
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     S&apos;inscrire
-                  </button>
+                  </Link>
                 </>
               )}
             </div>
           </div>
         </div>
       </header>
-
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSwitchToRegister={() => {
-          setLoginOpen(false);
-          setRegisterOpen(true);
-        }}
-      />
-      <RegisterDialog
-        open={registerOpen}
-        onOpenChange={setRegisterOpen}
-        onSwitchToLogin={() => {
-          setRegisterOpen(false);
-          setLoginOpen(true);
-        }}
-      />
     </>
   );
 }

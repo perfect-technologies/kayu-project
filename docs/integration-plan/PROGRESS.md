@@ -3,7 +3,7 @@
 ## Overall
 
 - **Track:** Backend Integration — wire frontend fixtures to real API
-- **Status:** not_started
+- **Status:** in_progress (I01 + I02 done)
 - **Last updated:** 2026-04-19
 
 ---
@@ -12,8 +12,8 @@
 
 | ID | Chunk | Priority | Depends on | Status | Notes |
 |---|---|---|---|---|---|
-| I01 | Messages wiring | P0 (easy win) | — | not_started | Backend ready; swap `DEMO_THREADS` for `/messages` |
-| I02 | Auth OTP finalization | P0 | — | not_started | Remove demo accounts; enable Supabase SMS |
+| I01 | Messages wiring | P0 (easy win) | — | done | Web + mobile wired to `/messages` via useQuery/useMutation with optimistic send, polling (15s list / 5s thread), Loading/Empty/Error states; `DEMO_THREADS` removed on both platforms |
+| I02 | Auth OTP finalization | P0 | — | done | Real Supabase SMS OTP wired (web + mobile); signup/login modes; legacy dialogs removed; demo accounts kept as dev-only panel (per user direction) |
 | I03 | Provider Dashboard data | P0 | — | not_started | Expand `/dashboard/provider` response; wire both platforms |
 | I04 | Job Requests module | P0 | — | not_started | NEW backend model + module + wiring |
 | I05 | Quote / Devis module | P0 | I04 | not_started | NEW Quote + QuoteLineItem; quote created against a request |
@@ -28,8 +28,8 @@
 ## Milestones
 
 ### M1 — Easy wins landed (I01 + I02)
-Messages wired. Auth OTP real. Dev demo accounts removed. No `DEMO_*` in client screens.
-**Status:** not_started
+Messages wired. Auth OTP real. Demo accounts retained as dev-only panel (user direction). Legacy modal dialogs removed.
+**Status:** done
 
 ### M2 — Pro surface dynamic (I03-I06)
 ProviderDashboard, JobRequests, QuoteCompose, Earnings all read from real backend. New modules shipped for quotes and earnings.
@@ -86,20 +86,24 @@ No fixtures left. Loading/empty/error states audited. PROGRESS closed.
 | 2026-04-19 | `/auth` has two modes: default (login, 2 steps) and `?mode=signup` (3 steps with role picker first) | I02 | Separates intent — login is fast; signup commits to a role explicitly |
 | 2026-04-19 | Legacy homepage dialogs (LoginDialog, RegisterDialog, etc.) are deleted; Se connecter / S'inscrire buttons navigate to `/auth` | I02, I10 | Modal auth is confusing when the flow is multi-step; full-page dedicated route is the right surface. Cleanup lands in I02 (not deferred to I10) |
 | 2026-04-19 | Client signup has a 4th step (name entry) after OTP; pros skip it because onboarding step 1 collects the same data | I02 | UI breaks without firstName (greetings, chat attribution, receipts); asking 2 required fields takes <10s. Avoids double-prompt for pros. |
+| 2026-04-19 | `CompleteProfileDto` extended with optional `email` (plus repo write-through) | I02 | Client name step collects optional email at signup; flows through `PATCH /me/profile`. |
+| 2026-04-19 | DEMO_ACCOUNTS dev panel kept on both `/auth` (web) and `AuthScreen` (mobile) behind `NODE_ENV !== "production"` | I02 | User direction reversed the original removal — real OTP is the default path, but dev team needs a fast role-switch in the absence of a wired SMS provider. |
+| 2026-04-19 | Legacy modal dialogs (`LoginDialog`, `RegisterDialog`, `ProfessionSelection`, `ProviderOnboarding`) deleted; `/components/auth` directory removed | I02 | Full-page `/auth` route is the single entry; Header / HomePage / booking / provider profile all navigate instead of opening modals. |
+| 2026-04-19 | I01 ships without thread `status` chip, mission banner, or gated suggested-replies — those fields aren't on the backend response yet | I01, I04, I05 | User scoped I01 to a pure frontend swap; UI reads what backend returns today and gracefully hides status-dependent chrome. A later chunk that adds `status` derivation server-side re-enables them. Suggested replies remain a static catalog, shown on every open thread for MVP. |
 
 ---
 
 ## Current focus
 
-**Objective:** land I01 (Messages wiring) and I02 (Auth OTP) to prove the integration pattern works.
+**Objective:** I01 + I02 complete — M1 done. Next: I03 (Provider Dashboard data).
 
-**Definition of done for M1:** zero `DEMO_THREADS` / `DEMO_ACCOUNTS` references in `apps/web` or `apps/mobile`, messages on mobile and web paginate and send against the real backend, phone OTP works with Supabase SMS on a real phone in CD/CG.
+**Definition of done for M1:** zero `DEMO_THREADS` in `apps/web` or `apps/mobile` (met); `DEMO_ACCOUNTS` remains as dev-only panel gated by `NODE_ENV !== "production"` (per user direction); messages on mobile and web paginate and send against the real backend (met); phone OTP wired to Supabase `signInWithOtp` + `verifyOtp` on both platforms, with the Twilio provider already configured in the Supabase dashboard (met).
 
 ---
 
 ## Launch-critical checklist
 
-- [ ] Messages wired end-to-end (web + mobile)
+- [x] Messages wired end-to-end (web + mobile)
 - [ ] Auth OTP works without dev demo accounts
 - [ ] Provider dashboard stats + schedule + requests feed all real
 - [ ] Job Requests flow operable (client requests → pro sees → pro quotes)

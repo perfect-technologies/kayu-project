@@ -1,9 +1,8 @@
-// DS02 — Auth phone OTP flow (mobile).
-// UI pixel-source-of-truth: docs/design-plan-v2/prototype/components/Auth.jsx.
-// Full-bleed single column. Backend OTP wiring (supabase.auth.signInWithOtp /
-// verifyOtp) is out of scope for this chunk — see docs/design-plan-v2/PROGRESS.md.
-// For dev end-to-end testing, the DoneStep signs in with a seeded demo account
-// matching the picked role so the navigator flips to the role-appropriate tabs.
+// I02 — Auth phone OTP (finalized, mobile).
+// Two modes via route params:
+//   login  (default)  : phone → OTP → route by role (with name/role edge steps)
+//   signup            : role → phone → OTP → (client) name; pro skips name
+// Pixel source: docs/design-plan-v2/prototype/components/Auth.jsx.
 
 import React from 'react';
 import {
@@ -18,11 +17,19 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { I } from '@kayu/ui/mobile';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api';
+import { identityApi } from '@kayu/api';
 import { theme } from '@/lib/theme';
+import type { AuthStackParamList } from '@/navigation/AppNavigator';
 
 type CountryCode = 'cd' | 'cg';
+type Role = 'CLIENT' | 'PROVIDER';
+type Mode = 'login' | 'signup';
+type FallbackKind = 'name' | 'rolePicker';
 
 interface Country {
   code: CountryCode;
@@ -52,10 +59,26 @@ const COUNTRIES: readonly Country[] = [
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 32;
 
-// Dev-only seeded accounts. Phone+OTP is the real flow; these exist so the
-// team can exercise each role end-to-end before the SMS provider is wired up.
-// DoneStep ("Je cherche un pro" / "Je suis un pro") also falls back to the
-// matching entry so the navigator flips after the full phone flow.
+const CITIES_CD = [
+  'Kinshasa',
+  'Lubumbashi',
+  'Goma',
+  'Mbuji-Mayi',
+  'Kisangani',
+  'Matadi',
+  'Boma',
+  'Likasi',
+  'Kolwezi',
+];
+const CITIES_CG = [
+  'Brazzaville',
+  'Pointe-Noire',
+  'Dolisie',
+  'Nkayi',
+  'Impfondo',
+];
+
+// Dev-only seeded accounts for fast role switching while the SMS provider is wired.
 type DemoTone = 'success' | 'primary' | 'danger';
 interface DemoAccount {
   role: 'Client' | 'Prestataire' | 'Admin';
@@ -99,23 +122,49 @@ const DEMO_ACCOUNTS: readonly DemoAccount[] = [
 
 const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV !== 'production';
 
-const DEMO_CLIENT = DEMO_ACCOUNTS[0];
-const DEMO_PRO = DEMO_ACCOUNTS[1];
+function supabaseErrorCopy(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  if (/invalid\s*phone|phone\s*number/i.test(msg)) {
+    return 'Numéro invalide. Vérifie le format.';
+  }
+  if (/token|otp|code/i.test(msg) && /invalid|expired/i.test(msg)) {
+    return 'Code invalide ou expiré. Demande-en un nouveau.';
+  }
+  if (/rate|too many|too\s*many\s*requests/i.test(msg)) {
+    return 'Trop de tentatives. Réessaie dans quelques minutes.';
+  }
+  return "Impossible d'envoyer le code. Réessaie dans un instant.";
+}
+
+type AuthRoute = RouteProp<AuthStackParamList, 'Auth'>;
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { signInWithEmail } = useAuth();
+  const route = useRoute<AuthRoute>();
+  const mode: Mode = route.params?.mode === 'signup' ? 'signup' : 'login';
+  const { setAuthFlowPending, refreshUser, signInWithEmail } = useAuth();
 
-  const [step, setStep] = React.useState<0 | 1 | 2>(0);
-  const [country, setCountry] = React.useState<CountryCode>('cd');
-  const [phone, setPhone] = React.useState('');
-  const [otp, setOtp] = React.useState<string[]>(
-    () => Array.from({ length: OTP_LENGTH }, () => ''),
+  const [step, setStep] = React.useState<0 | 1 | 2 | 3>(
+    mode === 'signup' ? 0 : 1,
   );
-  const [resendLeft, setResendLeft] = React.useState(RESEND_SECONDS);
-  const [signingIn, setSigningIn] = React.useState<'client' | 'pro' | null>(
+  const [chosenRole, setChosenRole] = React.useState<Role | null>(null);
+  const [fallbackKind, setFallbackKind] = React.useState<FallbackKind | null>(
     null,
   );
+  const [country, setCountry] = React.useState<CountryCode>('cd');
+  const [phone, setPhone] = React.useState('');
+  const [otp, setOtp] = React.useState<string[]>(() =>
+    Array.from({ length: OTP_LENGTH }, () => ''),
+  );
+  const [resendLeft, setResendLeft] = React.useState(RESEND_SECONDS);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [phoneError, setPhoneError] = React.useState<string | null>(null);
+  const [otpError, setOtpError] = React.useState<string | null>(null);
+  const [nameFirst, setNameFirst] = React.useState('');
+  const [nameLast, setNameLast] = React.useState('');
+  const [nameCity, setNameCity] = React.useState('Kinshasa');
+  const [nameEmail, setNameEmail] = React.useState('');
+  const [nameError, setNameError] = React.useState<string | null>(null);
   const [demoLoadingEmail, setDemoLoadingEmail] = React.useState<string | null>(
     null,
   );
@@ -126,10 +175,20 @@ export function AuthScreen() {
   const prettyPhone = phone.replace(/(\d{3})(?=\d)/g, '$1 ');
   const phoneValid = phone.length === 9;
   const otpValid = otp.every((d) => d.length > 0);
+  const fullPhone = `${c.dial}${phone}`;
+  const citiesForCountry = country === 'cd' ? CITIES_CD : CITIES_CG;
 
-  // Resend countdown — only ticks on OTP step.
+  // Freeze auto-login for the duration of the flow so navigator stays on Auth.
   React.useEffect(() => {
-    if (step !== 1) return;
+    setAuthFlowPending(true);
+    return () => {
+      setAuthFlowPending(false);
+    };
+  }, [setAuthFlowPending]);
+
+  // Resend countdown ticks on OTP step.
+  React.useEffect(() => {
+    if (step !== 2) return;
     setResendLeft(RESEND_SECONDS);
     const id = setInterval(() => {
       setResendLeft((s) => (s > 0 ? s - 1 : 0));
@@ -137,16 +196,192 @@ export function AuthScreen() {
     return () => clearInterval(id);
   }, [step]);
 
-  // Auto-advance when OTP complete.
+  // Auto-verify when OTP is complete.
   React.useEffect(() => {
-    if (step !== 1 || !otpValid) return;
-    const t = setTimeout(() => setStep(2), 600);
+    if (step !== 2 || !otpValid || submitting) return;
+    const t = setTimeout(() => {
+      handleVerifyOtp();
+    }, 600);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otpValid, step]);
+
+  const totalDots = (() => {
+    if (mode === 'signup') {
+      if (chosenRole === 'PROVIDER') return 3;
+      return 4;
+    }
+    if (step === 3) return 3;
+    return 2;
+  })();
+  const dotsStep = mode === 'signup' ? step : Math.max(0, step - 1);
+
+  const handleSelectRole = (role: Role) => {
+    setChosenRole(role);
+    setStep(1);
+  };
+
+  const handleDemoLogin = async (account: DemoAccount) => {
+    if (demoLoadingEmail) return;
+    setDemoError(null);
+    setDemoLoadingEmail(account.email);
+    try {
+      await signInWithEmail(account.email, account.password);
+      // AppNavigator flips to MainNavigator as soon as user state updates.
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : 'Erreur de connexion');
+      setDemoLoadingEmail(null);
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    if (!phoneValid || submitting) return;
+    setPhoneError(null);
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+      if (error) throw error;
+      setOtp(Array.from({ length: OTP_LENGTH }, () => ''));
+      setStep(2);
+    } catch (err) {
+      setPhoneError(supabaseErrorCopy(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendLeft > 0 || submitting) return;
+    setOtpError(null);
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+      if (error) throw error;
+      setOtp(Array.from({ length: OTP_LENGTH }, () => ''));
+      setResendLeft(RESEND_SECONDS);
+      otpRefs.current[0]?.focus();
+    } catch (err) {
+      setOtpError(supabaseErrorCopy(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = otp.join('');
+    if (code.length !== OTP_LENGTH || submitting) return;
+    setOtpError(null);
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: fullPhone,
+        token: code,
+        type: 'sms',
+      });
+      if (error) throw error;
+      const tokenStr = data.session?.access_token;
+      if (!tokenStr) throw new Error('No session returned');
+      apiClient.setAccessToken(tokenStr);
+
+      const me = await identityApi(apiClient).me();
+      const userRole = me.user?.role as 'CLIENT' | 'PROVIDER' | 'ADMIN' | null | undefined;
+      const userFirstName = me.user?.firstName ?? null;
+
+      // SIGNUP
+      if (mode === 'signup' && chosenRole && !userRole) {
+        await identityApi(apiClient).setRole({ role: chosenRole });
+        if (chosenRole === 'PROVIDER') {
+          await refreshUser();
+          // Navigator will swap to ProTabs; ProviderDashboard banner (I03) routes
+          // to onboarding when incomplete.
+          return;
+        }
+        setFallbackKind('name');
+        setStep(3);
+        setSubmitting(false);
+        return;
+      }
+
+      // LOGIN: no role → fallback role picker
+      if (!userRole) {
+        setFallbackKind('rolePicker');
+        setStep(3);
+        setSubmitting(false);
+        return;
+      }
+
+      // Returning pro — dashboard banner handles incomplete onboarding
+      if (userRole === 'PROVIDER') {
+        await refreshUser();
+        return;
+      }
+
+      // Returning client missing firstName
+      if (userRole === 'CLIENT' && !userFirstName) {
+        setFallbackKind('name');
+        setStep(3);
+        setSubmitting(false);
+        return;
+      }
+
+      await refreshUser();
+    } catch (err) {
+      setOtpError(supabaseErrorCopy(err));
+      setOtp(Array.from({ length: OTP_LENGTH }, () => ''));
+      otpRefs.current[0]?.focus();
+      setSubmitting(false);
+    }
+  };
+
+  const handleRoleFallback = async (role: Role) => {
+    if (submitting) return;
+    setNameError(null);
+    setSubmitting(true);
+    try {
+      await identityApi(apiClient).setRole({ role });
+      if (role === 'PROVIDER') {
+        await refreshUser();
+        return;
+      }
+      setChosenRole('CLIENT');
+      setFallbackKind('name');
+      setSubmitting(false);
+    } catch (err) {
+      setNameError(
+        err instanceof Error ? err.message : 'Une erreur est survenue. Réessaie.',
+      );
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitName = async () => {
+    if (submitting) return;
+    if (nameFirst.trim().length < 2 || nameLast.trim().length < 2) {
+      setNameError('Le prénom et le nom sont requis (2 caractères min).');
+      return;
+    }
+    setNameError(null);
+    setSubmitting(true);
+    try {
+      await identityApi(apiClient).completeProfile({
+        firstName: nameFirst.trim(),
+        lastName: nameLast.trim(),
+        role: 'CLIENT',
+        city: nameCity || undefined,
+        email: nameEmail.trim() || undefined,
+        country: country === 'cd' ? 'RDC' : 'CG',
+      } as Parameters<ReturnType<typeof identityApi>['completeProfile']>[0]);
+      await refreshUser();
+    } catch (err) {
+      setNameError(
+        err instanceof Error ? err.message : 'Une erreur est survenue. Réessaie.',
+      );
+      setSubmitting(false);
+    }
+  };
 
   const handleOtpChange = (i: number, raw: string) => {
     const digits = raw.replace(/\D/g, '');
-    // Paste of a 6-digit code into any slot: fill all slots.
     if (digits.length > 1) {
       const filled = Array.from({ length: OTP_LENGTH }, (_, k) => digits[k] ?? '');
       setOtp(filled);
@@ -158,44 +393,13 @@ export function AuthScreen() {
     const next = [...otp];
     next[i] = digits;
     setOtp(next);
+    if (otpError) setOtpError(null);
     if (digits && i < OTP_LENGTH - 1) otpRefs.current[i + 1]?.focus();
   };
 
   const handleOtpKeyPress = (i: number, key: string) => {
     if (key === 'Backspace' && !otp[i] && i > 0) {
       otpRefs.current[i - 1]?.focus();
-    }
-  };
-
-  const requestOtp = () => {
-    // Backend wiring deferred — see PROGRESS.md.
-    setOtp(Array.from({ length: OTP_LENGTH }, () => ''));
-    setStep(1);
-  };
-
-  const pickRole = async (role: 'client' | 'pro') => {
-    setSigningIn(role);
-    try {
-      const creds = role === 'client' ? DEMO_CLIENT : DEMO_PRO;
-      await signInWithEmail(creds.email, creds.password);
-      // useAuth().user flips → AppNavigator swaps to MainNavigator automatically.
-    } catch {
-      // Silently revert — in dev the demo accounts may be absent. Design-first chunk.
-      setSigningIn(null);
-    }
-  };
-
-  const handleDemoLogin = async (account: DemoAccount) => {
-    setDemoError(null);
-    setDemoLoadingEmail(account.email);
-    try {
-      await signInWithEmail(account.email, account.password);
-      // AppNavigator flips to MainNavigator; nothing else to do here.
-    } catch (err) {
-      setDemoError(
-        err instanceof Error ? err.message : 'Erreur de connexion',
-      );
-      setDemoLoadingEmail(null);
     }
   };
 
@@ -218,20 +422,29 @@ export function AuthScreen() {
       >
         <View style={{ flexGrow: 1 }}>
           {step === 0 && (
+            <RolePickerStep onSelect={handleSelectRole} mode="signup" />
+          )}
+          {step === 1 && (
             <PhoneStep
+              mode={mode}
+              chosenRole={chosenRole}
               country={c}
               onCountry={setCountry}
-              phone={phone}
               prettyPhone={prettyPhone}
-              onChangePhone={setPhone}
+              onChangePhone={(v) => {
+                setPhone(v);
+                if (phoneError) setPhoneError(null);
+              }}
               phoneValid={phoneValid}
-              onSubmit={requestOtp}
+              phoneError={phoneError}
+              submitting={submitting}
+              onSubmit={handleRequestOtp}
               demoLoadingEmail={demoLoadingEmail}
               demoError={demoError}
               onDemoLogin={handleDemoLogin}
             />
           )}
-          {step === 1 && (
+          {step === 2 && (
             <OtpStep
               country={c}
               prettyPhone={prettyPhone}
@@ -240,24 +453,40 @@ export function AuthScreen() {
               onKeyPress={handleOtpKeyPress}
               otpRefs={otpRefs}
               resendLeft={resendLeft}
-              onResend={() => setResendLeft(RESEND_SECONDS)}
-              onBack={() => setStep(0)}
+              onResend={handleResend}
+              onBack={() => setStep(1)}
+              otpError={otpError}
+              submitting={submitting}
             />
           )}
-          {step === 2 && (
-            <DoneStep
-              onPickClient={() => pickRole('client')}
-              onPickPro={() => pickRole('pro')}
-              signingIn={signingIn}
+          {step === 3 && fallbackKind === 'name' && (
+            <NameStep
+              firstName={nameFirst}
+              lastName={nameLast}
+              city={nameCity}
+              email={nameEmail}
+              cities={citiesForCountry}
+              onFirstName={setNameFirst}
+              onLastName={setNameLast}
+              onCity={setNameCity}
+              onEmail={setNameEmail}
+              onSubmit={handleSubmitName}
+              submitting={submitting}
+              error={nameError}
+            />
+          )}
+          {step === 3 && fallbackKind === 'rolePicker' && (
+            <RolePickerStep
+              onSelect={handleRoleFallback}
+              mode="fallback"
+              error={nameError}
             />
           )}
         </View>
 
-        {step < 2 && (
-          <View style={styles.dotsContainer}>
-            <StepDots step={step} total={2} />
-          </View>
-        )}
+        <View style={styles.dotsContainer}>
+          <StepDots step={dotsStep} total={totalDots} />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -284,30 +513,16 @@ function StepDots({ step, total }: { step: number; total: number }) {
   );
 }
 
-// ─── Phone step ───────────────────────────────────────────────────────────────
+// ─── Role picker step ─────────────────────────────────────────────────────────
 
-function PhoneStep({
-  country,
-  onCountry,
-  phone,
-  prettyPhone,
-  onChangePhone,
-  phoneValid,
-  onSubmit,
-  demoLoadingEmail,
-  demoError,
-  onDemoLogin,
+function RolePickerStep({
+  onSelect,
+  mode,
+  error,
 }: {
-  country: Country;
-  onCountry: (c: CountryCode) => void;
-  phone: string;
-  prettyPhone: string;
-  onChangePhone: (v: string) => void;
-  phoneValid: boolean;
-  onSubmit: () => void;
-  demoLoadingEmail: string | null;
-  demoError: string | null;
-  onDemoLogin: (account: DemoAccount) => void;
+  onSelect: (role: Role) => void;
+  mode: 'signup' | 'fallback';
+  error?: string | null;
 }) {
   return (
     <View>
@@ -316,12 +531,87 @@ function PhoneStep({
           <Text style={styles.logoLetter}>K</Text>
         </View>
       </View>
-
-      <Text style={styles.h1}>Bienvenue sur KAYOU</Text>
-      <Text style={styles.body}>
-        Entrez votre numéro pour vous connecter ou créer un compte. On vous
-        enverra un code par SMS.
+      <Text style={styles.h1}>
+        {mode === 'signup' ? 'Que voulez-vous faire ?' : 'Presque prêt'}
       </Text>
+      <Text style={styles.body}>
+        {mode === 'signup'
+          ? 'Choisissez votre rôle. Vous pourrez le changer plus tard.'
+          : 'Comment voulez-vous utiliser KAYOU ?'}
+      </Text>
+      <View style={styles.roleStack}>
+        <RoleCard
+          title="Je cherche un pro"
+          subtitle="Plombier, électricien, coiffeuse, ménage…"
+          tone="primary"
+          icon={<I.search size={22} color={theme.colors.primary} />}
+          onPress={() => onSelect('CLIENT')}
+        />
+        <RoleCard
+          title="Je suis un pro"
+          subtitle="Recevez des demandes, gérez vos missions, payez-vous en M-Pesa."
+          tone="accent"
+          icon={<I.sparkles size={22} color={theme.colors.accent} />}
+          onPress={() => onSelect('PROVIDER')}
+        />
+      </View>
+      {error && <ErrorRow message={error} />}
+    </View>
+  );
+}
+
+// ─── Phone step ───────────────────────────────────────────────────────────────
+
+function PhoneStep({
+  mode,
+  chosenRole,
+  country,
+  onCountry,
+  prettyPhone,
+  onChangePhone,
+  phoneValid,
+  phoneError,
+  submitting,
+  onSubmit,
+  demoLoadingEmail,
+  demoError,
+  onDemoLogin,
+}: {
+  mode: Mode;
+  chosenRole: Role | null;
+  country: Country;
+  onCountry: (c: CountryCode) => void;
+  prettyPhone: string;
+  onChangePhone: (v: string) => void;
+  phoneValid: boolean;
+  phoneError: string | null;
+  submitting: boolean;
+  onSubmit: () => void;
+  demoLoadingEmail: string | null;
+  demoError: string | null;
+  onDemoLogin: (account: DemoAccount) => void;
+}) {
+  const title =
+    mode === 'signup'
+      ? chosenRole === 'PROVIDER'
+        ? 'Créer votre compte pro'
+        : 'Créer votre compte'
+      : 'Bienvenue sur KAYOU';
+  const bodyCopy =
+    mode === 'signup'
+      ? 'Entrez votre numéro. On vous enverra un code par SMS.'
+      : 'Entrez votre numéro pour vous connecter. On vous enverra un code par SMS.';
+
+  return (
+    <View>
+      <View style={styles.logoBlock}>
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoLetter}>K</Text>
+        </View>
+      </View>
+
+      <Text style={styles.h1}>{title}</Text>
+      <Text style={styles.body}>{bodyCopy}</Text>
 
       <View style={styles.countryTabs}>
         {COUNTRIES.map((x) => {
@@ -335,10 +625,7 @@ function PhoneStep({
               style={[styles.countryTab, active && styles.countryTabActive]}
             >
               <Text
-                style={[
-                  styles.countryFlag,
-                  { opacity: active ? 1 : 0.85 },
-                ]}
+                style={[styles.countryFlag, { opacity: active ? 1 : 0.85 }]}
               >
                 {x.flag}
               </Text>
@@ -355,7 +642,12 @@ function PhoneStep({
         })}
       </View>
 
-      <View style={styles.phoneRow}>
+      <View
+        style={[
+          styles.phoneRow,
+          phoneError ? { borderColor: theme.colors.danger } : null,
+        ]}
+      >
         <View style={styles.dialBox}>
           <Text style={styles.dialFlag}>{country.flag}</Text>
           <Text style={styles.dialText}>{country.dial}</Text>
@@ -376,15 +668,26 @@ function PhoneStep({
       </View>
       <Text style={styles.hint}>{country.hint}</Text>
 
+      {phoneError && <ErrorRow message={phoneError} />}
+
       <Pressable
         onPress={onSubmit}
-        disabled={!phoneValid}
+        disabled={!phoneValid || submitting}
         accessibilityRole="button"
-        accessibilityState={{ disabled: !phoneValid }}
-        style={[styles.cta, !phoneValid && styles.ctaDisabled]}
+        accessibilityState={{ disabled: !phoneValid || submitting }}
+        style={[
+          styles.cta,
+          (!phoneValid || submitting) && styles.ctaDisabled,
+        ]}
       >
-        <Text style={styles.ctaLabel}>Envoyer le code</Text>
-        <I.arrowRight size={16} color="#FFFFFF" />
+        {submitting ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Text style={styles.ctaLabel}>Envoyer le code</Text>
+            <I.arrowRight size={16} color="#FFFFFF" />
+          </>
+        )}
       </Pressable>
 
       <View style={styles.assurance}>
@@ -428,13 +731,13 @@ function DemoAccountsPanel({
     <View style={styles.demoPanel}>
       <Text style={styles.demoOverline}>Accès rapide (dev)</Text>
       <Text style={styles.demoHint}>
-        Comptes seedés — email pour l&apos;instant, OTP à venir.
+        Comptes seedés — raccourci dev en attendant le provider SMS.
       </Text>
-      {error && (
+      {error ? (
         <View style={styles.demoError}>
           <Text style={styles.demoErrorText}>{error}</Text>
         </View>
-      )}
+      ) : null}
       <View style={{ gap: 8 }}>
         {DEMO_ACCOUNTS.map((a) => {
           const isLoading = loadingEmail === a.email;
@@ -497,6 +800,8 @@ function OtpStep({
   resendLeft,
   onResend,
   onBack,
+  otpError,
+  submitting,
 }: {
   country: Country;
   prettyPhone: string;
@@ -507,6 +812,8 @@ function OtpStep({
   resendLeft: number;
   onResend: () => void;
   onBack: () => void;
+  otpError: string | null;
+  submitting: boolean;
 }) {
   return (
     <View>
@@ -529,10 +836,7 @@ function OtpStep({
         <Text> · </Text>
         <Text
           onPress={onBack}
-          style={{
-            color: theme.colors.primaryHover,
-            fontWeight: '600',
-          }}
+          style={{ color: theme.colors.primaryHover, fontWeight: '600' }}
         >
           modifier
         </Text>
@@ -554,20 +858,24 @@ function OtpStep({
             autoComplete={i === 0 ? 'sms-otp' : 'off'}
             maxLength={i === 0 ? OTP_LENGTH : 1}
             autoFocus={i === 0}
+            editable={!submitting}
             accessibilityLabel={`Chiffre ${i + 1}`}
             style={[
               styles.otpCell,
               d.length > 0 && styles.otpCellFilled,
+              otpError ? { borderColor: theme.colors.danger } : null,
             ]}
           />
         ))}
       </View>
 
-      <View style={{ alignItems: 'center' }}>
+      {otpError && <ErrorRow message={otpError} />}
+
+      <View style={{ alignItems: 'center', marginTop: 8 }}>
         <Text style={styles.resendLine}>
           <Text>Pas de SMS ? </Text>
           <Text
-            onPress={resendLeft > 0 ? undefined : onResend}
+            onPress={resendLeft > 0 || submitting ? undefined : onResend}
             style={{
               color: theme.colors.primaryHover,
               fontWeight: '600',
@@ -584,54 +892,157 @@ function OtpStep({
   );
 }
 
-// ─── Done step ────────────────────────────────────────────────────────────────
+// ─── Name step (client) ───────────────────────────────────────────────────────
 
-function DoneStep({
-  onPickClient,
-  onPickPro,
-  signingIn,
+function NameStep({
+  firstName,
+  lastName,
+  city,
+  email,
+  cities,
+  onFirstName,
+  onLastName,
+  onCity,
+  onEmail,
+  onSubmit,
+  submitting,
+  error,
 }: {
-  onPickClient: () => void;
-  onPickPro: () => void;
-  signingIn: 'client' | 'pro' | null;
+  firstName: string;
+  lastName: string;
+  city: string;
+  email: string;
+  cities: readonly string[];
+  onFirstName: (v: string) => void;
+  onLastName: (v: string) => void;
+  onCity: (v: string) => void;
+  onEmail: (v: string) => void;
+  onSubmit: () => void;
+  submitting: boolean;
+  error: string | null;
 }) {
-  const disabled = signingIn !== null;
+  const disabled =
+    submitting || firstName.trim().length < 2 || lastName.trim().length < 2;
   return (
     <View>
-      <View
-        accessibilityRole="image"
-        accessibilityLabel="Connexion réussie"
-        style={styles.successCircle}
-      >
-        <I.check size={38} color="#FFFFFF" strokeWidth={2.5} />
-      </View>
-      <Text style={[styles.h1, { textAlign: 'center' }]}>
-        Vous êtes connecté·e
-      </Text>
-      <Text style={[styles.body, styles.doneBody]}>
-        Comment voulez-vous utiliser KAYOU ?
-      </Text>
+      <Text style={styles.h1}>Enchanté !</Text>
+      <Text style={styles.body}>Dites-nous qui vous êtes.</Text>
 
-      <View style={styles.roleStack}>
-        <RoleCard
-          title="Je cherche un pro"
-          subtitle="Plombier, électricien, coiffeuse, ménage…"
-          tone="primary"
-          icon={<I.search size={22} color={theme.colors.primary} />}
-          onPress={onPickClient}
-          loading={signingIn === 'client'}
-          disabled={disabled}
-        />
-        <RoleCard
-          title="Je suis un pro"
-          subtitle="Recevez des demandes, gérez vos missions, payez-vous en M-Pesa."
-          tone="accent"
-          icon={<I.sparkles size={22} color={theme.colors.accent} />}
-          onPress={onPickPro}
-          loading={signingIn === 'pro'}
-          disabled={disabled}
-        />
+      <View style={{ gap: 12 }}>
+        <Field label="Prénom" required>
+          <TextInput
+            value={firstName}
+            onChangeText={onFirstName}
+            placeholder="Paul"
+            placeholderTextColor={theme.colors.textSubtle}
+            style={styles.textField}
+            autoFocus
+            editable={!submitting}
+          />
+        </Field>
+        <Field label="Nom" required>
+          <TextInput
+            value={lastName}
+            onChangeText={onLastName}
+            placeholder="Kabasele"
+            placeholderTextColor={theme.colors.textSubtle}
+            style={styles.textField}
+            editable={!submitting}
+          />
+        </Field>
+        <Field label="Ville">
+          <View style={styles.cityPickerRow}>
+            {cities.slice(0, 4).map((x) => {
+              const active = city === x;
+              return (
+                <Pressable
+                  key={x}
+                  onPress={() => onCity(x)}
+                  style={[
+                    styles.cityChip,
+                    active && styles.cityChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.cityChipLabel,
+                      active && styles.cityChipLabelActive,
+                    ]}
+                  >
+                    {x}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Field>
+        <Field
+          label="Email (optionnel)"
+          hint="Pour recevoir vos reçus — vous pouvez l'ajouter plus tard."
+        >
+          <TextInput
+            value={email}
+            onChangeText={onEmail}
+            placeholder="paul@email.cd"
+            placeholderTextColor={theme.colors.textSubtle}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.textField}
+            editable={!submitting}
+          />
+        </Field>
       </View>
+
+      {error && <ErrorRow message={error} />}
+
+      <Pressable
+        onPress={onSubmit}
+        disabled={disabled}
+        accessibilityRole="button"
+        style={[styles.cta, disabled && styles.ctaDisabled]}
+      >
+        {submitting ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Text style={styles.ctaLabel}>Continuer</Text>
+            <I.arrowRight size={16} color="#FFFFFF" />
+          </>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+function ErrorRow({ message }: { message: string }) {
+  return (
+    <View style={styles.errorRow}>
+      <Text style={styles.errorText}>{message}</Text>
+    </View>
+  );
+}
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required ? <Text style={{ color: theme.colors.danger }}> *</Text> : null}
+      </Text>
+      {children}
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
     </View>
   );
 }
@@ -642,19 +1053,14 @@ function RoleCard({
   tone,
   icon,
   onPress,
-  loading,
-  disabled,
 }: {
   title: string;
   subtitle: string;
   tone: 'primary' | 'accent';
   icon: React.ReactNode;
   onPress: () => void;
-  loading?: boolean;
-  disabled?: boolean;
 }) {
-  const tint =
-    tone === 'primary' ? theme.colors.primary : theme.colors.accent;
+  const tint = tone === 'primary' ? theme.colors.primary : theme.colors.accent;
   const tintSubtle =
     tone === 'primary'
       ? theme.colors.primarySubtle
@@ -662,16 +1068,14 @@ function RoleCard({
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.roleCard,
         pressed && { borderColor: tint, transform: [{ scale: 0.99 }] },
-        disabled && { opacity: 0.6 },
       ]}
     >
       <View style={[styles.roleIconBox, { backgroundColor: tintSubtle }]}>
-        {loading ? <ActivityIndicator size="small" color={tint} /> : icon}
+        {icon}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.roleTitle}>{title}</Text>
@@ -706,7 +1110,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Logo
   logoBlock: {
     marginBottom: 24,
   },
@@ -727,7 +1130,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // Text
   h1: {
     fontFamily: theme.fonts.display,
     fontSize: 26,
@@ -745,7 +1147,6 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
 
-  // Country tabs
   countryTabs: {
     flexDirection: 'row',
     gap: 8,
@@ -772,9 +1173,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  countryFlag: {
-    fontSize: 16,
-  },
+  countryFlag: { fontSize: 16 },
   countryLabel: {
     fontFamily: theme.fonts.body,
     fontSize: 13.5,
@@ -786,7 +1185,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
 
-  // Phone input
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -805,9 +1203,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: theme.colors.border,
   },
-  dialFlag: {
-    fontSize: 18,
-  },
+  dialFlag: { fontSize: 18 },
   dialText: {
     fontFamily: theme.fonts.mono,
     fontWeight: '600',
@@ -832,7 +1228,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
 
-  // CTA
   cta: {
     marginTop: 24,
     height: 48,
@@ -844,9 +1239,7 @@ const styles = StyleSheet.create({
     gap: 8,
     ...theme.shadow.brand,
   },
-  ctaDisabled: {
-    opacity: 0.5,
-  },
+  ctaDisabled: { opacity: 0.5 },
   ctaLabel: {
     fontFamily: theme.fonts.body,
     color: '#FFFFFF',
@@ -854,7 +1247,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Assurance
   assurance: {
     marginTop: 28,
     paddingHorizontal: 16,
@@ -873,7 +1265,146 @@ const styles = StyleSheet.create({
     color: theme.colors.textBody,
   },
 
-  // Demo accounts panel (dev only)
+  backLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginBottom: 20,
+    alignSelf: 'flex-start',
+  },
+  backLinkText: {
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textMuted,
+    fontSize: 13,
+  },
+  otpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+  },
+  otpCell: {
+    width: 44,
+    height: 56,
+    textAlign: 'center',
+    fontFamily: theme.fonts.mono,
+    fontSize: 22,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    flex: 1,
+  },
+  otpCellFilled: {
+    borderColor: theme.colors.primary,
+    transform: [{ scale: 1.02 }],
+  },
+  resendLine: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+
+  roleStack: { gap: 10 },
+  roleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 18,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surface,
+  },
+  roleIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 15.5,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  roleSubtitle: {
+    marginTop: 2,
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    lineHeight: 16,
+    color: theme.colors.textMuted,
+  },
+
+  textField: {
+    height: 44,
+    paddingHorizontal: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 10,
+    fontFamily: theme.fonts.body,
+    fontSize: 14.5,
+    color: theme.colors.textPrimary,
+  },
+  fieldLabel: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  fieldHint: {
+    fontFamily: theme.fonts.body,
+    fontSize: 11.5,
+    color: theme.colors.textMuted,
+  },
+  cityPickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  cityChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  cityChipActive: {
+    backgroundColor: theme.colors.primarySubtle,
+    borderColor: theme.colors.primary,
+  },
+  cityChipLabel: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    color: theme.colors.textMuted,
+  },
+  cityChipLabelActive: {
+    color: theme.colors.primaryHover,
+    fontWeight: '600',
+  },
+
+  errorRow: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: theme.colors.dangerSubtle,
+  },
+  errorText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.danger,
+  },
+
   demoPanel: {
     marginTop: 20,
     paddingHorizontal: 16,
@@ -959,107 +1490,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
     fontFamily: theme.fonts.body,
     fontSize: 11.5,
-    color: theme.colors.textMuted,
-  },
-
-  // OTP step
-  backLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 2,
-    marginBottom: 20,
-    alignSelf: 'flex-start',
-  },
-  backLinkText: {
-    fontFamily: theme.fonts.body,
-    color: theme.colors.textMuted,
-    fontSize: 13,
-  },
-  otpRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    gap: 8,
-  },
-  otpCell: {
-    width: 44,
-    height: 56,
-    textAlign: 'center',
-    fontFamily: theme.fonts.mono,
-    fontSize: 22,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 2,
-    borderColor: theme.colors.border,
-    borderRadius: 12,
-    flex: 1,
-  },
-  otpCellFilled: {
-    borderColor: theme.colors.primary,
-    transform: [{ scale: 1.02 }],
-  },
-  resendLine: {
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-    color: theme.colors.textMuted,
-  },
-
-  // Done
-  successCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: 24,
-    shadowColor: theme.colors.success,
-    shadowOpacity: 0.35,
-    shadowOffset: { width: 0, height: 10 },
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  doneBody: {
-    textAlign: 'center',
-    maxWidth: 340,
-    alignSelf: 'center',
-  },
-  roleStack: {
-    gap: 10,
-  },
-  roleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 18,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 14,
-    backgroundColor: theme.colors.surface,
-  },
-  roleIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roleTitle: {
-    fontFamily: theme.fonts.displayMed,
-    fontSize: 15.5,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  roleSubtitle: {
-    marginTop: 2,
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-    lineHeight: 16,
     color: theme.colors.textMuted,
   },
 });

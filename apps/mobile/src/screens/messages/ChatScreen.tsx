@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,81 +14,119 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, I } from '@kayu/ui/mobile';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@kayu/api';
+import type { Message } from '@kayu/schemas';
+import { Avatar, ErrorState, I } from '@kayu/ui/mobile';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 import type { MessagesStackParamList } from '@/navigation/AppNavigator';
-import {
-  DEMO_THREADS,
-  SUGGESTED_REPLIES,
-  type DemoMsg,
-  type DemoThread,
-} from './fixtures';
 
 type Nav = NativeStackNavigationProp<MessagesStackParamList, 'Chat'>;
 type Route = RouteProp<MessagesStackParamList, 'Chat'>;
 
-function buildFallbackThread(
-  providerId: string,
-  providerName: string,
-): DemoThread {
-  const initials = providerName
-    .split(/\s+/)
-    .map((p) => p[0] || '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-  return {
-    id: `fallback-${providerId}`,
-    providerId,
-    providerName,
-    profession: 'Professionnel',
-    avatarBg: theme.colors.primary,
-    initials,
-    online: false,
-    unread: 0,
-    lastAt: '',
-    status: 'quote',
-    preview: '',
-    messages: [],
-  };
+const SUGGESTED_REPLIES = [
+  'Merci beaucoup !',
+  "Pouvez-vous m'envoyer un devis ?",
+  'À quelle heure serez-vous disponible ?',
+  'Ça marche pour moi.',
+];
+
+type MessagesQueryData = { success?: boolean; messages: Message[] };
+
+function formatBubbleTime(iso?: string | Date | null) {
+  if (!iso) return '';
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 export function ChatScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const initialThread = useMemo<DemoThread>(() => {
-    const found = DEMO_THREADS.find(
-      (t) =>
-        t.id === route.params.conversationId ||
-        t.providerId === route.params.recipientId,
-    );
-    return found ?? buildFallbackThread(route.params.recipientId, route.params.recipientName);
-  }, [route.params]);
+  const { conversationId, recipientId, recipientName } = route.params;
 
-  const [messages, setMessages] = useState<DemoMsg[]>(initialThread.messages);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<ScrollView | null>(null);
+
+  const {
+    data: msgData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<MessagesQueryData>({
+    queryKey: queryKeys.messages.conversation(conversationId ?? ''),
+    queryFn: () => api.messages.getMessages(conversationId!) as Promise<MessagesQueryData>,
+    enabled: !!conversationId,
+    refetchInterval: 5_000,
+  });
+
+  const messages = useMemo<Message[]>(() => msgData?.messages ?? [], [msgData]);
 
   useEffect(() => {
     const id = setTimeout(
       () => scrollRef.current?.scrollToEnd({ animated: false }),
-      10,
+      30,
     );
     return () => clearTimeout(id);
   }, [messages.length]);
 
+  const sendMut = useMutation({
+    mutationFn: (text: string) =>
+      api.messages.send({ recipientId, content: text, type: 'TEXT' }),
+    onMutate: async (text) => {
+      if (!conversationId || !user) return {};
+      const key = queryKeys.messages.conversation(conversationId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<MessagesQueryData>(key);
+      const optimistic: Message = {
+        id: `optimistic-${Date.now()}`,
+        conversationId,
+        senderId: user.id,
+        type: 'TEXT',
+        content: text,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData<MessagesQueryData>(key, (old) => {
+        if (!old) return { success: true, messages: [optimistic] };
+        return { ...old, messages: [...old.messages, optimistic] };
+      });
+      return { prev, key };
+    },
+    onError: (_err, _text, ctx) => {
+      if (ctx?.key && ctx.prev) {
+        queryClient.setQueryData(ctx.key, ctx.prev);
+      }
+    },
+    onSettled: () => {
+      if (conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages.conversation(conversationId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+    },
+  });
+
   const trimmed = draft.trim();
-  const canSend = trimmed.length > 0;
+  const canSend = trimmed.length > 0 && !sendMut.isPending;
 
   const send = (text: string) => {
     const t = text.trim();
     if (!t) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: `x${prev.length + 1}`, from: 'me', text: t, at: 'maintenant' },
-    ]);
+    sendMut.mutate(t);
     setDraft('');
   };
 
@@ -107,24 +146,10 @@ export function ChatScreen() {
           <I.arrowLeft size={22} color={theme.colors.textBody} />
         </Pressable>
         <View style={styles.headerIdentity}>
-          <Avatar
-            name={initialThread.providerName}
-            bg={initialThread.avatarBg}
-            size={40}
-            initials={initialThread.initials}
-            online={initialThread.online}
-          />
+          <Avatar name={recipientName} size={40} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={styles.headerName}>
-              {initialThread.providerName}
-            </Text>
-            <Text
-              style={[
-                styles.headerPresence,
-                { color: initialThread.online ? theme.colors.success : theme.colors.textMuted },
-              ]}
-            >
-              {initialThread.online ? 'En ligne' : 'Vu il y a 20 min'}
+              {recipientName}
             </Text>
           </View>
         </View>
@@ -133,54 +158,56 @@ export function ChatScreen() {
         </Pressable>
       </View>
 
-      {/* Mission banner */}
-      {initialThread.status === 'active' && (
-        <View style={styles.missionBanner}>
-          <I.calendar size={14} color={theme.colors.primaryHover} />
-          <Text style={styles.missionText} numberOfLines={1}>
-            {initialThread.missionSummary ?? 'Mission en cours'}
-          </Text>
-          {initialThread.missionBookingId && (
-            <Pressable hitSlop={8}>
-              <Text style={styles.missionLink}>Voir</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-
       {/* Messages */}
-      <ScrollView
-        ref={scrollRef}
-        style={styles.messagesScroll}
-        contentContainerStyle={styles.messagesContent}
-        onContentSizeChange={() =>
-          scrollRef.current?.scrollToEnd({ animated: false })
-        }
-      >
-        {messages.map((m) => (
-          <MessageBubble key={m.id} m={m} />
-        ))}
-      </ScrollView>
-
-      {/* Suggested replies */}
-      {initialThread.status === 'active' && (
+      {isLoading && messages.length === 0 ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.primary} />
+        </View>
+      ) : error && messages.length === 0 ? (
+        <View style={{ flex: 1 }}>
+          <ErrorState
+            title="Erreur de chargement"
+            subtitle="Impossible de récupérer les messages."
+            cta={{ label: 'Réessayer', onPress: () => refetch() }}
+          />
+        </View>
+      ) : (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestedRow}
-          style={styles.suggestedScroll}
+          ref={scrollRef}
+          style={styles.messagesScroll}
+          contentContainerStyle={styles.messagesContent}
+          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
-          {SUGGESTED_REPLIES.map((s) => (
-            <Pressable
-              key={s}
-              onPress={() => send(s)}
-              style={styles.suggestedPill}
-            >
-              <Text style={styles.suggestedText}>{s}</Text>
-            </Pressable>
-          ))}
+          {messages.length === 0 ? (
+            <Text style={styles.emptyChat}>
+              Envoyez le premier message pour démarrer la conversation.
+            </Text>
+          ) : (
+            messages.map((m) => (
+              <MessageBubble key={m.id} m={m} myId={user?.id ?? null} />
+            ))
+          )}
         </ScrollView>
       )}
+
+      {/* Suggested replies */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.suggestedRow}
+        style={styles.suggestedScroll}
+      >
+        {SUGGESTED_REPLIES.map((s) => (
+          <Pressable
+            key={s}
+            onPress={() => send(s)}
+            disabled={sendMut.isPending}
+            style={[styles.suggestedPill, sendMut.isPending && { opacity: 0.6 }]}
+          >
+            <Text style={styles.suggestedText}>{s}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       {/* Composer */}
       <View
@@ -206,10 +233,7 @@ export function ChatScreen() {
           onPress={() => send(draft)}
           disabled={!canSend}
           accessibilityLabel="Envoyer"
-          style={[
-            styles.sendButton,
-            !canSend && styles.sendButtonDisabled,
-          ]}
+          style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
         >
           <I.send size={17} color="#fff" />
         </Pressable>
@@ -218,38 +242,15 @@ export function ChatScreen() {
   );
 }
 
-function MessageBubble({ m }: { m: DemoMsg }) {
-  if (m.from === 'system') {
-    return (
-      <View style={styles.systemRow}>
-        <View style={styles.systemPill}>
-          <I.check size={13} color="#047857" />
-          <Text style={styles.systemText}>{m.text}</Text>
-        </View>
-      </View>
-    );
-  }
+function MessageBubble({ m, myId }: { m: Message; myId: string | null }) {
+  const isMe = !!myId && m.senderId === myId;
+  const at = formatBubbleTime(m.createdAt);
 
-  const isMe = m.from === 'me';
   return (
-    <View
-      style={[
-        styles.bubbleRow,
-        { justifyContent: isMe ? 'flex-end' : 'flex-start' },
-      ]}
-    >
-      <View
-        style={[
-          styles.bubble,
-          isMe ? styles.bubbleMe : styles.bubblePro,
-        ]}
-      >
-        <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>
-          {m.text}
-        </Text>
-        <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>
-          {m.at}
-        </Text>
+    <View style={[styles.bubbleRow, { justifyContent: isMe ? 'flex-end' : 'flex-start' }]}>
+      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubblePro]}>
+        <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>{m.content}</Text>
+        <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>{at}</Text>
       </View>
     </View>
   );
@@ -287,11 +288,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
-  headerPresence: {
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-    marginTop: 1,
-  },
   callButton: {
     width: 38,
     height: 38,
@@ -302,28 +298,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  missionBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: theme.colors.surfacePrimary,
-    borderBottomWidth: 1,
-    borderBottomColor: '#BAE6FD',
-  },
-  missionText: {
+  centerState: {
     flex: 1,
-    fontFamily: theme.fonts.bodyMed,
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.primaryHover,
-  },
-  missionLink: {
-    fontFamily: theme.fonts.bodySemi,
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.primaryHover,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   messagesScroll: {
     flex: 1,
@@ -332,6 +310,15 @@ const styles = StyleSheet.create({
   messagesContent: {
     padding: 16,
     paddingBottom: 8,
+    flexGrow: 1,
+  },
+  emptyChat: {
+    marginTop: 40,
+    textAlign: 'center',
+    color: theme.colors.textMuted,
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    paddingHorizontal: 24,
   },
   bubbleRow: {
     flexDirection: 'row',
@@ -381,28 +368,6 @@ const styles = StyleSheet.create({
   },
   bubbleTimeMe: {
     color: 'rgba(255,255,255,0.7)',
-  },
-  systemRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginVertical: 12,
-  },
-  systemPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: theme.colors.successSubtle,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  systemText: {
-    fontFamily: theme.fonts.bodyMed,
-    fontSize: 12.5,
-    fontWeight: '500',
-    color: '#047857',
   },
   suggestedScroll: {
     flexGrow: 0,

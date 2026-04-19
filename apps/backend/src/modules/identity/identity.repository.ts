@@ -52,6 +52,7 @@ export type UserProfileData = {
   city?: string;
   country: string;
   phone?: string;
+  email?: string;
   avatar?: string;
   latitude?: number;
   longitude?: number;
@@ -112,6 +113,7 @@ export class IdentityRepository {
         city: body.city,
         country: body.country,
         phone: body.phone,
+        email: body.email,
         avatar: body.avatar,
         latitude: body.latitude,
         longitude: body.longitude,

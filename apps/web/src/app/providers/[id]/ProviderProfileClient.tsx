@@ -25,8 +25,6 @@ import {
   BookingForm,
   ContactDialog,
 } from "@/components/provider-profile";
-import { LoginDialog } from "@/components/auth/LoginDialog";
-import { RegisterDialog } from "@/components/auth/RegisterDialog";
 import {
   ChevronLeft,
   Heart,
@@ -219,8 +217,6 @@ export function ProviderProfileClient({
   const [isFavorited, setIsFavorited] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [registerOpen, setRegisterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const visibility = provider.visibility;
@@ -252,7 +248,7 @@ export function ProviderProfileClient({
 
   const handleFavorite = async () => {
     if (!isAuthenticated) {
-      setLoginOpen(true);
+      router.push("/auth");
       return;
     }
     try {
@@ -286,7 +282,7 @@ export function ProviderProfileClient({
   const handleLoginRequired = () => {
     setBookingOpen(false);
     setContactOpen(false);
-    setLoginOpen(true);
+    router.push("/auth");
   };
 
   const isOwnProfile = user?.id === provider.userId;
@@ -374,14 +370,14 @@ export function ProviderProfileClient({
               <div className="flex flex-col gap-3">
                 <button
                   className="k-btn k-btn-primary w-full"
-                  onClick={() => setLoginOpen(true)}
+                  onClick={() => router.push("/auth")}
                 >
                   <LogIn className="h-4 w-4" />
                   Se connecter
                 </button>
                 <button
                   className="k-btn k-btn-secondary w-full"
-                  onClick={() => setRegisterOpen(true)}
+                  onClick={() => router.push("/auth?mode=signup")}
                 >
                   Créer un compte
                 </button>
@@ -396,23 +392,6 @@ export function ProviderProfileClient({
             </button>
           </CardContent>
         </Card>
-
-        <LoginDialog
-          open={loginOpen}
-          onOpenChange={setLoginOpen}
-          onSwitchToRegister={() => {
-            setLoginOpen(false);
-            setRegisterOpen(true);
-          }}
-        />
-        <RegisterDialog
-          open={registerOpen}
-          onOpenChange={setRegisterOpen}
-          onSwitchToLogin={() => {
-            setRegisterOpen(false);
-            setLoginOpen(true);
-          }}
-        />
       </div>
     );
   }
@@ -738,23 +717,6 @@ export function ProviderProfileClient({
         provider={visibleProvider}
         isAuthenticated={isAuthenticated}
         onLoginRequired={handleLoginRequired}
-      />
-
-      <LoginDialog
-        open={loginOpen}
-        onOpenChange={setLoginOpen}
-        onSwitchToRegister={() => {
-          setLoginOpen(false);
-          setRegisterOpen(true);
-        }}
-      />
-      <RegisterDialog
-        open={registerOpen}
-        onOpenChange={setRegisterOpen}
-        onSwitchToLogin={() => {
-          setRegisterOpen(false);
-          setLoginOpen(true);
-        }}
       />
     </div>
   );

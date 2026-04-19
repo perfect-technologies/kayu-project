@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,10 +12,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Avatar } from '@kayu/ui/mobile';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@kayu/api';
+import type { Conversation, UserSummary } from '@kayu/schemas';
+import { Avatar, EmptyState, ErrorState } from '@kayu/ui/mobile';
+import { Inbox as InboxIcon } from 'lucide-react-native';
+import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
 import type { MessagesStackParamList } from '@/navigation/AppNavigator';
-import { DEMO_THREADS, type DemoThread, type ThreadStatus } from './fixtures';
 
 type Nav = NativeStackNavigationProp<MessagesStackParamList, 'ConversationsMain'>;
 
@@ -25,40 +31,73 @@ const FILTERS: { k: FilterKey; label: string }[] = [
   { k: 'active', label: 'En cours' },
 ];
 
-const STATUS_STYLE: Record<
-  ThreadStatus,
-  { label: string; bg: string; color: string; border?: string }
-> = {
-  active: {
-    label: 'Mission en cours',
-    bg: theme.colors.successSubtle,
-    color: '#047857',
-  },
-  quote: {
-    label: 'Devis en attente',
-    bg: theme.colors.warningSubtle,
-    color: '#B45309',
-  },
-  completed: {
-    label: 'Terminé',
-    bg: theme.colors.surfaceMuted,
-    color: theme.colors.textBody,
-  },
-};
+function getOtherName(u?: UserSummary | null) {
+  if (!u) return 'Utilisateur';
+  const full = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
+  return full || 'Utilisateur';
+}
+
+function formatListTime(iso?: string | Date | null) {
+  if (!iso) return '';
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60_000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+  if (isYesterday) return 'hier';
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
+  if (diffDays < 7) return d.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+}
 
 export function ConversationsScreen() {
   const navigation = useNavigation<Nav>();
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const threads = useMemo(
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: queryKeys.messages.conversations(),
+    queryFn: () => api.messages.getConversations(),
+    refetchInterval: 15_000,
+  });
+
+  const conversations = useMemo<Conversation[]>(
+    () => ((data?.conversations ?? []) as Conversation[]),
+    [data],
+  );
+
+  const filtered = useMemo(
     () =>
-      DEMO_THREADS.filter((t) => {
-        if (filter === 'unread') return t.unread > 0;
-        if (filter === 'active') return t.status === 'active';
+      conversations.filter((c) => {
+        const unread = c.unreadCount ?? 0;
+        if (filter === 'unread' && unread === 0) return false;
+        // "En cours" without backend status: fall back to threads with unread
+        if (filter === 'active' && unread === 0) return false;
         return true;
       }),
-    [filter],
+    [conversations, filter],
   );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -77,12 +116,7 @@ export function ConversationsScreen() {
                 onPress={() => setFilter(f.k)}
                 style={[styles.filterPill, is && styles.filterPillActive]}
               >
-                <Text
-                  style={[
-                    styles.filterLabel,
-                    is && styles.filterLabelActive,
-                  ]}
-                >
+                <Text style={[styles.filterLabel, is && styles.filterLabelActive]}>
                   {f.label}
                 </Text>
               </Pressable>
@@ -91,83 +125,95 @@ export function ConversationsScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {threads.length === 0 ? (
-          <Text style={styles.emptyText}>Aucune conversation ne correspond.</Text>
-        ) : (
-          threads.map((t) => (
-            <ThreadListItem
-              key={t.id}
-              thread={t}
-              onPress={() =>
-                navigation.navigate('Chat', {
-                  conversationId: t.id,
-                  recipientId: t.providerId,
-                  recipientName: t.providerName,
-                })
-              }
+      {isLoading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator color={theme.colors.primary} />
+        </View>
+      ) : error ? (
+        <ErrorState
+          title="Erreur de chargement"
+          subtitle="Impossible de récupérer vos conversations."
+          cta={{ label: 'Réessayer', onPress: () => refetch() }}
+        />
+      ) : conversations.length === 0 ? (
+        <EmptyState
+          icon={InboxIcon}
+          title="Aucun message"
+          subtitle="Tes échanges avec les pros apparaîtront ici."
+        />
+      ) : (
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
             />
-          ))
-        )}
-      </ScrollView>
+          }
+        >
+          {filtered.length === 0 ? (
+            <Text style={styles.emptyText}>Aucune conversation ne correspond.</Text>
+          ) : (
+            filtered.map((c) => (
+              <ThreadListItem
+                key={c.id}
+                conversation={c}
+                onPress={() =>
+                  c.otherUser?.id
+                    ? navigation.navigate('Chat', {
+                        conversationId: c.id,
+                        recipientId: c.otherUser.id,
+                        recipientName: getOtherName(c.otherUser),
+                      })
+                    : undefined
+                }
+              />
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 function ThreadListItem({
-  thread,
+  conversation,
   onPress,
 }: {
-  thread: DemoThread;
+  conversation: Conversation;
   onPress: () => void;
 }) {
-  const status = STATUS_STYLE[thread.status];
-  const hasUnread = thread.unread > 0;
+  const name = getOtherName(conversation.otherUser);
+  const unread = conversation.unreadCount ?? 0;
+  const preview = conversation.lastMessage?.content ?? '';
+  const lastAt = formatListTime(conversation.lastMessageAt);
 
   return (
     <Pressable onPress={onPress} style={styles.item}>
-      <Avatar
-        name={thread.providerName}
-        bg={thread.avatarBg}
-        size={44}
-        initials={thread.initials}
-        online={thread.online}
-      />
+      <Avatar name={name} size={44} src={conversation.otherUser?.avatar ?? undefined} />
       <View style={styles.itemBody}>
         <View style={styles.itemRow}>
           <Text numberOfLines={1} style={styles.itemName}>
-            {thread.providerName}
+            {name}
           </Text>
-          <Text style={styles.itemTime}>{thread.lastAt}</Text>
+          <Text style={styles.itemTime}>{lastAt}</Text>
         </View>
-        <Text style={styles.itemProfession}>{thread.profession}</Text>
         <Text
           numberOfLines={2}
-          style={[
-            styles.itemPreview,
-            hasUnread && styles.itemPreviewUnread,
-          ]}
+          style={[styles.itemPreview, unread > 0 && styles.itemPreviewUnread]}
         >
-          {thread.preview}
+          {preview || '—'}
         </Text>
-        <View style={styles.itemChipRow}>
-          <View
-            style={[styles.statusChip, { backgroundColor: status.bg }]}
-          >
-            <Text style={[styles.statusChipText, { color: status.color }]}>
-              {status.label}
-            </Text>
-          </View>
-          {hasUnread && (
+        {unread > 0 && (
+          <View style={styles.itemChipRow}>
             <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{thread.unread}</Text>
+              <Text style={styles.unreadBadgeText}>{unread}</Text>
             </View>
-          )}
-        </View>
+          </View>
+        )}
       </View>
     </Pressable>
   );
@@ -216,6 +262,11 @@ const styles = StyleSheet.create({
   filterLabelActive: {
     color: '#fff',
   },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   list: {
     flex: 1,
     backgroundColor: theme.colors.surface,
@@ -262,12 +313,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textMuted,
   },
-  itemProfession: {
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-    color: theme.colors.textMuted,
-    marginTop: 1,
-  },
   itemPreview: {
     marginTop: 4,
     fontFamily: theme.fonts.body,
@@ -285,17 +330,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 6,
-  },
-  statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  statusChipText: {
-    fontFamily: theme.fonts.bodySemi,
-    fontSize: 11.5,
-    fontWeight: '600',
-    letterSpacing: 0.1,
   },
   unreadBadge: {
     marginLeft: 'auto',
