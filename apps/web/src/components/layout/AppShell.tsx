@@ -37,6 +37,7 @@ import {
   Crown,
   Shield,
   Users,
+  Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -57,6 +58,7 @@ const clientNavItems: NavItem[] = [
 
 const providerNavItems: NavItem[] = [
   { name: 'Tableau de bord', href: '/pro', icon: LayoutDashboard },
+  { name: 'Demandes', href: '/pro/requests', icon: Inbox },
   { name: 'Mes réservations', href: '/bookings', icon: Calendar },
   { name: 'Mon profil', href: '/dashboard/provider/profile', icon: User },
   { name: 'Services', href: '/dashboard/provider/services', icon: Briefcase },
