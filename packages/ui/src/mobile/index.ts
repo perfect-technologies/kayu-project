@@ -31,6 +31,9 @@ export type { SparklineProps } from "./Sparkline.js";
 export { StatCard } from "./StatCard.js";
 export type { StatCardProps } from "./StatCard.js";
 
+export { StepIndicator } from "./StepIndicator.js";
+export type { StepIndicatorProps, StepIndicatorStep } from "./StepIndicator.js";
+
 // ─── D03 photo-forward card system ──────────────────────────────────────────
 
 export { PhotoTile } from "./PhotoTile.js";

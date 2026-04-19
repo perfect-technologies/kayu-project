@@ -50,6 +50,8 @@ import { EarningsScreen } from '@/screens/pro/EarningsScreen';
 import { ProviderDashboardScreen } from '@/screens/pro/ProviderDashboardScreen';
 import { JobRequestsScreen } from '@/screens/pro/JobRequestsScreen';
 import { QuoteComposeScreen } from '@/screens/pro/QuoteComposeScreen';
+import { ProviderOnboardingScreen } from '@/screens/pro/ProviderOnboardingScreen';
+import { ProVerificationScreen } from '@/screens/pro/ProVerificationScreen';
 
 // --- Type definitions ---
 
@@ -84,6 +86,12 @@ export type RequestsStackParamList = {
   BookingDetail: { bookingId: string };
 };
 
+export type ProviderStackParamList = {
+  ProviderDashboardMain: undefined;
+  ProviderOnboarding: undefined;
+  ProVerification: undefined;
+};
+
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   EditProfile: undefined;
@@ -116,6 +124,7 @@ const BookingsStack = createNativeStackNavigator<BookingsStackParamList>();
 const MessagesStack = createNativeStackNavigator<MessagesStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const RequestsStack = createNativeStackNavigator<RequestsStackParamList>();
+const ProviderStack = createNativeStackNavigator<ProviderStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
 function AuthNavigator() {
@@ -214,6 +223,25 @@ function MessagesNavigator() {
   );
 }
 
+function ProviderNavigator() {
+  return (
+    <ProviderStack.Navigator screenOptions={{ ...HEADER_STYLE, headerShown: false }}>
+      <ProviderStack.Screen
+        name="ProviderDashboardMain"
+        component={ProviderDashboardScreen}
+      />
+      <ProviderStack.Screen
+        name="ProviderOnboarding"
+        component={ProviderOnboardingScreen}
+      />
+      <ProviderStack.Screen
+        name="ProVerification"
+        component={ProVerificationScreen}
+      />
+    </ProviderStack.Navigator>
+  );
+}
+
 function RequestsNavigator() {
   return (
     <RequestsStack.Navigator screenOptions={HEADER_STYLE}>
@@ -296,9 +324,9 @@ const HIDE_TAB_BAR_ROUTES = new Set([
   'Review',
   // chat thread (composer sits at the bottom)
   'Chat',
-  // onboarding + quote land here when DS07/DS09 register them; listed now
-  // so the shell doesn't need another change then.
+  // full-screen pro flows
   'ProviderOnboarding',
+  'ProVerification',
   'QuoteCompose',
 ]);
 
@@ -337,7 +365,7 @@ function ProTabs() {
         tabBarStyle: tabBarVisibility(route),
       })}
     >
-      <MainTab.Screen name="ProviderDashboard" component={ProviderDashboardScreen} />
+      <MainTab.Screen name="ProviderDashboard" component={ProviderNavigator} />
       <MainTab.Screen name="Requests" component={RequestsNavigator} />
       <MainTab.Screen name="Messages" component={MessagesNavigator} />
       <MainTab.Screen name="Earnings" component={EarningsScreen} />

@@ -10,9 +10,17 @@ import {
   type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Avatar, Chip, I, StatCard } from '@kayu/ui/mobile';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
+import type { ProviderStackParamList } from '@/navigation/AppNavigator';
+
+type ProviderDashboardNav = NativeStackNavigationProp<
+  ProviderStackParamList,
+  'ProviderDashboardMain'
+>;
 
 type JobStatus = 'confirmed' | 'en_route' | 'completed';
 
@@ -125,6 +133,7 @@ const STATS = {
 export function ProviderDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const navigation = useNavigation<ProviderDashboardNav>();
   const [available, setAvailable] = useState(true);
 
   const firstName = user?.firstName ?? 'Pro';
@@ -192,6 +201,26 @@ export function ProviderDashboardScreen() {
             />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Verification prompt */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ProVerification')}
+          style={styles.verifyPrompt}
+          activeOpacity={0.9}
+        >
+          <View style={styles.verifyIcon}>
+            <I.shieldCheck size={20} color="#D97706" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.verifyPromptTitle}>Complétez votre vérification</Text>
+            <Text style={styles.verifyPromptSub}>
+              Obtenez le badge « De confiance » et +40% de vues.
+            </Text>
+          </View>
+          <I.chevronRight size={16} color="#92400E" />
+        </TouchableOpacity>
       </View>
 
       {/* Today summary */}
@@ -587,6 +616,35 @@ const styles = StyleSheet.create({
   miniStatsRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  verifyPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  verifyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifyPromptTitle: {
+    fontWeight: '600',
+    fontSize: 14,
+    color: '#78350F',
+  },
+  verifyPromptSub: {
+    fontSize: 12.5,
+    color: '#92400E',
+    marginTop: 2,
+    lineHeight: 17,
   },
   miniStatCard: {
     ...(card as object),

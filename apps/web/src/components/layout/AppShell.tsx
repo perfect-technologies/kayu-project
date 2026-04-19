@@ -38,6 +38,7 @@ import {
   Shield,
   Users,
   Inbox,
+  BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -66,6 +67,7 @@ const providerNavItems: NavItem[] = [
   { name: 'Avis', href: '/dashboard/provider/reviews', icon: Star },
   { name: 'Statistiques', href: '/dashboard/provider/stats', icon: TrendingUp },
   { name: 'Gains', href: '/pro/earnings', icon: Wallet },
+  { name: 'Vérification', href: '/pro/verify', icon: BadgeCheck },
   { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
 ];
 
