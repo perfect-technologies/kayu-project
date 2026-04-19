@@ -22,7 +22,10 @@ const participantUserSelect = {
 
 const providerDashboardInclude = {
   user: {
-    select: participantUserSelect,
+    select: {
+      ...participantUserSelect,
+      onboardingStep: true,
+    },
   },
   categories: {
     include: {
@@ -1294,9 +1297,13 @@ export class DashboardService {
     totalSteps: number;
     missingForPublish: string[];
   } {
-    // I07 will persist `Provider.onboardingCompleteAt`. Until then, derive state
-    // from the profile fields that the wizard collects.
-    const steps: { key: string; ok: boolean }[] = [
+    // I07 persisted state takes precedence. Fallback: field-based derivation.
+    const totalSteps = 6;
+    if (provider.onboardingCompleteAt) {
+      return { isComplete: true, currentStep: null, totalSteps, missingForPublish: [] };
+    }
+
+    const fieldSteps: { key: string; ok: boolean }[] = [
       { key: "profession", ok: Boolean(provider.profession?.trim()) },
       { key: "categories", ok: provider.categories.length > 0 },
       { key: "serviceZones", ok: provider.serviceZones.length > 0 },
@@ -1308,14 +1315,15 @@ export class DashboardService {
       { key: "photo", ok: Boolean(provider.user.avatar) },
     ];
 
-    const missing = steps.filter((step) => !step.ok).map((step) => step.key);
-    const isComplete = missing.length === 0;
-    const firstMissingIndex = steps.findIndex((step) => !step.ok);
+    const missing = fieldSteps.filter((step) => !step.ok).map((step) => step.key);
+    const firstMissingIndex = fieldSteps.findIndex((step) => !step.ok);
+    const savedStep = provider.user.onboardingStep;
+    const currentStep = savedStep ?? (firstMissingIndex === -1 ? 0 : firstMissingIndex);
 
     return {
-      isComplete,
-      currentStep: isComplete ? null : firstMissingIndex,
-      totalSteps: steps.length,
+      isComplete: false,
+      currentStep,
+      totalSteps,
       missingForPublish: missing,
     };
   }

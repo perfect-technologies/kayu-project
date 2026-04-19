@@ -43,6 +43,12 @@ model User {
   clientScore      Float            @default(0)
   clientTrustLevel ClientTrustLevel @default(NEW_CLIENT)
 
+  // Provider onboarding progress (null when not started or complete; 0-5 mapping to steps 1-6)
+  onboardingStep  Int?
+  // Overflow draft payload for fields not yet on Provider/User (languages, bio,
+  // idFront/idBack upload flags, visitFee, zoneRadiusKm, subcategoryIds, primaryCategoryId).
+  onboardingDraft Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -111,6 +117,9 @@ model Provider {
 
   // État de vérification
   verificationStatus VerificationStatus @default(PENDING)
+
+  // Onboarding publish timestamp (null while drafting; set once published)
+  onboardingCompleteAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

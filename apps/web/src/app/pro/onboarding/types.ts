@@ -31,27 +31,6 @@ export type OnboardingData = {
   acceptedTerms: boolean;
 };
 
-export const INITIAL_DATA: OnboardingData = {
-  firstName: "",
-  lastName: "",
-  phone: "",
-  id: {},
-  categories: [],
-  title: "",
-  years: "",
-  skills: [],
-  zones: [],
-  radius: 10,
-  hourly: 0,
-  travelMode: "free",
-  payment: "airtel",
-  photo: false,
-  bio: "",
-  portfolio: 0,
-  languages: [],
-  acceptedTerms: false,
-};
-
 export const CITIES = [
   {
     name: "Kinshasa",

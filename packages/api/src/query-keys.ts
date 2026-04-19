@@ -80,6 +80,9 @@ export const queryKeys = {
       ["earnings", "transactions", params ?? {}] as const,
     payouts: ["earnings", "payouts"] as const,
   },
+  onboarding: {
+    draft: ["onboarding", "draft"] as const,
+  },
   admin: {
     users: (params?: Partial<AdminUserSearchParams>) =>
       ["admin", "users", params] as const,

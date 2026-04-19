@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,8 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { I, StepIndicator, type StepIndicatorStep } from '@kayu/ui/mobile';
-import { tokens } from '@kayu/ui';
+import { tokens, type CategorySlug } from '@kayu/ui';
+import { queryKeys } from '@kayu/api';
+import type { ProviderDraftDto } from '@kayu/schemas';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 import type { ProviderStackParamList } from '@/navigation/AppNavigator';
@@ -23,7 +27,6 @@ import {
   CATEGORY_LIST,
   CITIES,
   HOURLY_PRESETS,
-  INITIAL_DATA,
   LANGUAGES,
   PAYMENT_OPTIONS,
   SKILL_SUGGESTIONS,
@@ -61,17 +64,191 @@ const SUBS: Record<number, string> = {
   6: 'Un dernier coup d\'œil avant de te lancer.',
 };
 
+const EMPTY_DATA: OnboardingData = {
+  firstName: '',
+  lastName: '',
+  phone: '',
+  id: {},
+  categories: [],
+  title: '',
+  years: '',
+  skills: [],
+  zones: [],
+  radius: 10,
+  hourly: 0,
+  travelMode: 'free',
+  payment: 'airtel',
+  photo: false,
+  bio: '',
+  portfolio: 0,
+  languages: [],
+  acceptedTerms: false,
+};
+
+const YEARS_TO_NUMBER: Record<string, number> = {
+  '< 1 an': 0,
+  '1–3 ans': 2,
+  '4–7 ans': 5,
+  '8+ ans': 10,
+};
+
+const NUMBER_TO_YEARS: { max: number; label: string }[] = [
+  { max: 0, label: '< 1 an' },
+  { max: 3, label: '1–3 ans' },
+  { max: 7, label: '4–7 ans' },
+  { max: Infinity, label: '8+ ans' },
+];
+
+function numberToYearsLabel(value: number | undefined): string {
+  if (value === undefined || value === null) return '';
+  for (const b of NUMBER_TO_YEARS) {
+    if (value <= b.max) return b.label;
+  }
+  return '';
+}
+
+type CategoryIndex = { id: string; slug: string }[];
+
+function findSlug(categories: CategoryIndex, id: string | undefined): CategorySlug | null {
+  if (!id) return null;
+  const match = categories.find((c) => c.id === id);
+  return (match?.slug ?? null) as CategorySlug | null;
+}
+
+function findId(categories: CategoryIndex, slug: string | undefined): string | null {
+  if (!slug) return null;
+  return categories.find((c) => c.slug === slug)?.id ?? null;
+}
+
+function backendToData(
+  draft: ProviderDraftDto,
+  categories: CategoryIndex,
+): Partial<OnboardingData> {
+  const primarySlug = findSlug(categories, draft.primaryCategoryId);
+  return {
+    firstName: draft.firstName ?? '',
+    lastName: draft.lastName ?? '',
+    phone: draft.phone ? draft.phone.replace(/^\+?243/, '').replace(/\D/g, '').slice(0, 9) : '',
+    id: {
+      front: draft.idFrontUploaded ?? undefined,
+      back: draft.idBackUploaded ?? undefined,
+    },
+    categories: primarySlug ? [primarySlug] : [],
+    years: numberToYearsLabel(draft.yearsOfExperience),
+    skills: (draft.skills ?? []).map((skill) => skill.name),
+    zones: (draft.serviceZones ?? []).map(
+      (zone) => `${zone.city}|${zone.commune ?? ''}`,
+    ),
+    radius: draft.zoneRadiusKm ?? 10,
+    hourly: draft.hourlyRate ?? 0,
+    bio: draft.bio ?? '',
+    photo: Boolean(draft.avatar),
+    languages: draft.languages ?? [],
+  };
+}
+
+function dataToBackend(data: OnboardingData, categories: CategoryIndex): ProviderDraftDto {
+  const primaryId = findId(categories, data.categories[0]);
+  const zones = data.zones
+    .map((key) => {
+      const [city, commune] = key.split('|');
+      if (!city) return null;
+      return { city, commune: commune || null };
+    })
+    .filter((z): z is { city: string; commune: string | null } => Boolean(z));
+
+  return {
+    firstName: data.firstName || undefined,
+    lastName: data.lastName || undefined,
+    phone: data.phone ? `+243${data.phone}` : undefined,
+    idFrontUploaded: Boolean(data.id.front),
+    idBackUploaded: Boolean(data.id.back),
+    primaryCategoryId: primaryId ?? undefined,
+    skills: data.skills.map((name) => ({ name, level: 3 })),
+    yearsOfExperience: data.years ? YEARS_TO_NUMBER[data.years] : undefined,
+    description: data.title || undefined,
+    serviceZones: zones,
+    zoneRadiusKm: data.radius,
+    hourlyRate: data.hourly > 0 ? data.hourly : undefined,
+    bio: data.bio || undefined,
+    languages: data.languages,
+    avatar: data.photo ? 'placeholder://avatar' : undefined,
+  };
+}
+
+const DEBOUNCE_MS = 600;
+
 export function ProviderOnboardingScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [step, setStep] = useState<number>(1);
-  const [data, setData] = useState<OnboardingData>(() => ({
-    ...INITIAL_DATA,
-    firstName: user?.firstName ?? '',
-    lastName: user?.lastName ?? '',
-  }));
-  const [submitting, setSubmitting] = useState(false);
+  const [data, setData] = useState<OnboardingData>(EMPTY_DATA);
+  const [hydrated, setHydrated] = useState(false);
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: () => api.categories.getAll(),
+  });
+
+  const draftQuery = useQuery({
+    queryKey: queryKeys.onboarding.draft,
+    queryFn: () => api.onboarding.getDraft(),
+  });
+
+  const patchMut = useMutation({
+    mutationFn: (patch: ProviderDraftDto) => api.onboarding.patchDraft(patch),
+  });
+
+  const publishMut = useMutation({
+    mutationFn: () => api.onboarding.publish(),
+    onSuccess: () => {
+      navigation.getParent()?.navigate('ProviderDashboard' as never);
+      try {
+        navigation.popToTop?.();
+      } catch {
+        /* noop */
+      }
+    },
+    onError: () => {
+      Alert.alert('Publication impossible', "Vérifie les étapes puis réessaie.");
+    },
+  });
+
+  // Hydrate from backend draft
+  useEffect(() => {
+    if (!draftQuery.data || !categoriesQuery.data || hydrated) return;
+    const mapped = backendToData(draftQuery.data.draft, categoriesQuery.data.categories);
+    setData((prev) => ({
+      ...prev,
+      ...mapped,
+      firstName: mapped.firstName || prev.firstName || user?.firstName || '',
+      lastName: mapped.lastName || prev.lastName || user?.lastName || '',
+    }));
+    const serverStep = draftQuery.data.step;
+    if (serverStep !== null && serverStep !== undefined) {
+      setStep(Math.min(6, Math.max(1, serverStep + 1)));
+    }
+    setHydrated(true);
+  }, [draftQuery.data, categoriesQuery.data, hydrated, user]);
+
+  // Debounced PATCH
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPayloadRef = useRef<string>('');
+  useEffect(() => {
+    if (!hydrated || !categoriesQuery.data) return;
+    const payload = dataToBackend(data, categoriesQuery.data.categories);
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastPayloadRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      lastPayloadRef.current = serialized;
+      patchMut.mutate(payload);
+    }, DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [data, hydrated, categoriesQuery.data, patchMut]);
 
   const updateData = useCallback((patch: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -79,41 +256,63 @@ export function ProviderOnboardingScreen() {
 
   const canContinue = useMemo(() => validateStep(step, data), [step, data]);
 
+  const flushStep = useCallback(
+    (nextStep: number) => {
+      if (!categoriesQuery.data) return;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      const payload = {
+        ...dataToBackend(data, categoriesQuery.data.categories),
+        onboardingStep: Math.max(0, Math.min(5, nextStep - 1)),
+      };
+      lastPayloadRef.current = JSON.stringify(payload);
+      patchMut.mutate(payload);
+    },
+    [categoriesQuery.data, data, patchMut],
+  );
+
+  const submitting = publishMut.isPending;
+
   const next = () => {
     if (!canContinue) return;
     if (step < 6) {
-      setStep(step + 1);
+      const n = step + 1;
+      flushStep(n);
+      setStep(n);
       return;
     }
-    setSubmitting(true);
-    // Backend wiring for publish is deferred — see PROGRESS.
-    setTimeout(() => {
-      navigation.getParent()?.navigate('ProviderDashboard' as never);
-      try {
-        navigation.popToTop?.();
-      } catch {
-        /* noop */
-      }
-    }, 400);
+    publishMut.mutate();
   };
 
   const back = () => {
     if (step > 1) {
-      setStep(step - 1);
+      const n = step - 1;
+      flushStep(n);
+      setStep(n);
       return;
     }
     Alert.alert(
       "Quitter l'onboarding ?",
-      'On sauvegarde ta progression comme brouillon.',
+      'Ta progression est sauvegardée côté serveur. Tu peux reprendre plus tard.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Sauvegarder et quitter',
+          text: 'Quitter',
           onPress: () => navigation.goBack(),
         },
       ],
     );
   };
+
+  if (draftQuery.isLoading || categoriesQuery.isLoading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.colors.textMuted }}>Chargement…</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>

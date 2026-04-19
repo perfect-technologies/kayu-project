@@ -515,6 +515,11 @@ export class ProvidersService {
           isActive: true,
         },
       },
+      {
+        onboardingCompleteAt: {
+          not: null,
+        },
+      },
       this.visibilityWhere("appearInSearch"),
     ];
 

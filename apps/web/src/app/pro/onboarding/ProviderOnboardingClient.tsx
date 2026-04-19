@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { I, StepIndicator, type StepIndicatorStep } from "@kayu/ui/web";
-import { tokens } from "@kayu/ui";
+import { tokens, type CategorySlug } from "@kayu/ui";
+import { categoriesApi, onboardingApi, queryKeys } from "@kayu/api";
+import type { ProviderDraftDto } from "@kayu/schemas";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   StepCraft,
@@ -16,7 +20,7 @@ import {
   StepPublish,
   StepZones,
 } from "./OnboardingSteps";
-import { INITIAL_DATA, type OnboardingData } from "./types";
+import type { OnboardingData } from "./types";
 
 const STEPS: StepIndicatorStep[] = [
   { key: "identity", n: 1, label: "Identité", icon: "shieldCheck" },
@@ -46,6 +50,50 @@ const SUBS: Record<number, string> = {
 };
 
 const STORAGE_KEY = "kayu.providerOnboarding.draft";
+const DEBOUNCE_MS = 600;
+
+const EMPTY_DATA: OnboardingData = {
+  firstName: "",
+  lastName: "",
+  phone: "",
+  id: {},
+  categories: [],
+  title: "",
+  years: "",
+  skills: [],
+  zones: [],
+  radius: 10,
+  hourly: 0,
+  travelMode: "free",
+  payment: "airtel",
+  photo: false,
+  bio: "",
+  portfolio: 0,
+  languages: [],
+  acceptedTerms: false,
+};
+
+const YEARS_TO_NUMBER: Record<string, number> = {
+  "< 1 an": 0,
+  "1–3 ans": 2,
+  "4–7 ans": 5,
+  "8+ ans": 10,
+};
+
+const NUMBER_TO_YEARS: { max: number; label: string }[] = [
+  { max: 0, label: "< 1 an" },
+  { max: 3, label: "1–3 ans" },
+  { max: 7, label: "4–7 ans" },
+  { max: Infinity, label: "8+ ans" },
+];
+
+function numberToYearsLabel(value: number | undefined): string {
+  if (value === undefined || value === null) return "";
+  for (const bucket of NUMBER_TO_YEARS) {
+    if (value <= bucket.max) return bucket.label;
+  }
+  return "";
+}
 
 function validateStep(step: number, d: OnboardingData): boolean {
   switch (step) {
@@ -78,17 +126,57 @@ function validateStep(step: number, d: OnboardingData): boolean {
 
 export function ProviderOnboardingClient() {
   const router = useRouter();
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [step, setStep] = useState(1);
-  const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
-  const [submitting, setSubmitting] = useState(false);
+  const [data, setData] = useState<OnboardingData>(EMPTY_DATA);
+  const [hydrated, setHydrated] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.replace("/auth");
-  }, [isLoading, isAuthenticated, router]);
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: () => categoriesApi(apiClient).getAll(),
+    enabled: isAuthenticated,
+  });
 
-  // Hydrate from localStorage + prefill from user record
+  const draftQuery = useQuery({
+    queryKey: queryKeys.onboarding.draft,
+    queryFn: () => onboardingApi(apiClient).getDraft(),
+    enabled: isAuthenticated,
+  });
+
+  const patchMut = useMutation({
+    mutationFn: (patch: ProviderDraftDto) =>
+      onboardingApi(apiClient).patchDraft(patch),
+  });
+
+  const publishMut = useMutation({
+    mutationFn: () => onboardingApi(apiClient).publish(),
+    onSuccess: () => {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      toast.success("Ton profil est publié. Bienvenue sur KAYOU !");
+      router.push("/pro");
+    },
+    onError: (error: unknown) => {
+      const missing = extractMissing(error);
+      if (missing.length > 0) {
+        const stepForField = mapFieldToStep(missing[0]);
+        setStep(stepForField);
+        toast.warning(`Il manque : ${missing.join(", ")}`);
+      } else {
+        toast.error("Impossible de publier ton profil. Réessayer ?");
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.replace("/auth");
+  }, [authLoading, isAuthenticated, router]);
+
+  // Hydrate from localStorage (fast optimistic path)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -106,10 +194,31 @@ export function ProviderOnboardingClient() {
         }
       }
     } catch {
-      // ignore corrupted draft
+      /* ignore corrupted draft */
     }
   }, []);
 
+  // Hydrate from backend draft (source of truth)
+  useEffect(() => {
+    if (!draftQuery.data || !categoriesQuery.data || hydrated) return;
+    const mapped = backendToData(
+      draftQuery.data.draft,
+      categoriesQuery.data.categories,
+    );
+    setData((prev) => ({
+      ...prev,
+      ...mapped,
+      // Merge optimistic localStorage values we already applied for keys the
+      // server hasn't populated yet (UI-only fields stay local).
+    }));
+    const serverStep = draftQuery.data.step;
+    if (serverStep !== null && serverStep !== undefined) {
+      setStep(Math.min(6, Math.max(1, serverStep + 1)));
+    }
+    setHydrated(true);
+  }, [draftQuery.data, categoriesQuery.data, hydrated]);
+
+  // Prefill identity from user record if not yet filled
   useEffect(() => {
     if (!user) return;
     setData((prev) => ({
@@ -120,15 +229,37 @@ export function ProviderOnboardingClient() {
     }));
   }, [user]);
 
-  // Auto-save on change (optimistic local; backend patch deferred — see PROGRESS blockers)
+  // Persist locally (optimistic cache)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, data }));
     } catch {
-      // localStorage may be full or blocked
+      /* localStorage may be full or blocked */
     }
   }, [step, data]);
+
+  // Debounced server PATCH — fires 600ms after the last change
+  const debounceRef = useRef<number | null>(null);
+  const lastPayloadRef = useRef<string>("");
+  useEffect(() => {
+    if (!hydrated || !categoriesQuery.data) return;
+    const payload = dataToBackend(data, categoriesQuery.data.categories);
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastPayloadRef.current) return;
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = window.setTimeout(() => {
+      lastPayloadRef.current = serialized;
+      patchMut.mutate(payload);
+    }, DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current);
+      }
+    };
+  }, [data, hydrated, categoriesQuery.data, patchMut]);
 
   const updateData = useCallback((patch: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...patch }));
@@ -136,34 +267,40 @@ export function ProviderOnboardingClient() {
 
   const canContinue = useMemo(() => validateStep(step, data), [step, data]);
 
-  const handleContinue = async () => {
+  const flushStep = useCallback(
+    (nextStep: number) => {
+      if (!categoriesQuery.data) return;
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      const payload = {
+        ...dataToBackend(data, categoriesQuery.data.categories),
+        onboardingStep: Math.max(0, Math.min(5, nextStep - 1)),
+      };
+      lastPayloadRef.current = JSON.stringify(payload);
+      patchMut.mutate(payload);
+    },
+    [categoriesQuery.data, data, patchMut],
+  );
+
+  const handleContinue = () => {
     if (!canContinue) return;
     if (step < 6) {
-      setStep(step + 1);
+      const next = step + 1;
+      flushStep(next);
+      setStep(next);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    // Step 6 — publish
-    setSubmitting(true);
-    // Backend wiring for /me/provider-draft + publish is deferred (see DS09 blocker
-    // to be logged). Keep the UI flow intact: clear the local draft and land on /pro.
-    try {
-      await new Promise((r) => setTimeout(r, 600));
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        /* ignore */
-      }
-      toast.success("Ton profil est publié. Bienvenue sur KAYOU !");
-      router.push("/pro");
-    } finally {
-      setSubmitting(false);
-    }
+    publishMut.mutate();
   };
 
   const handleBack = () => {
     if (step > 1) {
-      setStep(step - 1);
+      const next = step - 1;
+      flushStep(next);
+      setStep(next);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else {
       setConfirmExit(true);
@@ -175,7 +312,7 @@ export function ProviderOnboardingClient() {
     router.push("/pro");
   };
 
-  if (isLoading || !isAuthenticated) {
+  if (authLoading || !isAuthenticated || draftQuery.isLoading || categoriesQuery.isLoading) {
     return (
       <div
         style={{
@@ -188,6 +325,8 @@ export function ProviderOnboardingClient() {
       </div>
     );
   }
+
+  const submitting = publishMut.isPending;
 
   const body = (() => {
     switch (step) {
@@ -217,7 +356,6 @@ export function ProviderOnboardingClient() {
         flexDirection: "column",
       }}
     >
-      {/* Header */}
       <div
         style={{
           borderBottom: `1px solid ${tokens.color.borderSubtle}`,
@@ -283,12 +421,10 @@ export function ProviderOnboardingClient() {
           flex: 1,
         }}
       >
-        {/* Stepper */}
         <div style={{ marginBottom: 32 }}>
           <StepIndicator steps={STEPS} step={step} />
         </div>
 
-        {/* Title */}
         <div style={{ marginBottom: 24 }}>
           <h1
             style={{
@@ -314,7 +450,6 @@ export function ProviderOnboardingClient() {
           </p>
         </div>
 
-        {/* Body */}
         <div
           style={{
             background: tokens.color.surface,
@@ -328,7 +463,6 @@ export function ProviderOnboardingClient() {
         </div>
       </div>
 
-      {/* Sticky footer nav */}
       {step < 6 && (
         <div
           style={{
@@ -484,8 +618,8 @@ export function ProviderOnboardingClient() {
                 lineHeight: 1.5,
               }}
             >
-              On sauvegarde ta progression comme brouillon. Tu pourras reprendre
-              où tu en étais depuis ton dashboard.
+              Ta progression est sauvegardée côté serveur. Tu peux reprendre
+              où tu en étais depuis ton dashboard, y compris sur un autre appareil.
             </p>
             <div
               style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
@@ -502,7 +636,7 @@ export function ProviderOnboardingClient() {
                 className="k-btn k-btn-primary"
                 onClick={saveDraftAndExit}
               >
-                Sauvegarder et quitter
+                Quitter
               </button>
             </div>
           </div>
@@ -526,8 +660,110 @@ export function ProviderOnboardingClient() {
 function normalizePhone(raw?: string | null) {
   if (!raw) return "";
   const digits = raw.replace(/\D/g, "");
-  // Strip country prefix if +243/+242 encoded
   if (digits.startsWith("243")) return digits.slice(3).slice(0, 9);
   if (digits.startsWith("242")) return digits.slice(3).slice(0, 9);
   return digits.slice(0, 9);
+}
+
+type CategoryIndex = { id: string; slug: string }[];
+
+function findSlug(categories: CategoryIndex, id: string | undefined): CategorySlug | null {
+  if (!id) return null;
+  const match = categories.find((c) => c.id === id);
+  return (match?.slug ?? null) as CategorySlug | null;
+}
+
+function findId(categories: CategoryIndex, slug: string | undefined): string | null {
+  if (!slug) return null;
+  return categories.find((c) => c.slug === slug)?.id ?? null;
+}
+
+function backendToData(
+  draft: ProviderDraftDto,
+  categories: CategoryIndex,
+): Partial<OnboardingData> {
+  const primarySlug = findSlug(categories, draft.primaryCategoryId);
+  return {
+    firstName: draft.firstName ?? "",
+    lastName: draft.lastName ?? "",
+    phone: normalizePhone(draft.phone),
+    id: {
+      front: draft.idFrontUploaded ?? undefined,
+      back: draft.idBackUploaded ?? undefined,
+    },
+    categories: primarySlug ? [primarySlug] : [],
+    years: numberToYearsLabel(draft.yearsOfExperience),
+    skills: (draft.skills ?? []).map((skill) => skill.name),
+    zones: (draft.serviceZones ?? []).map(
+      (zone) => `${zone.city}|${zone.commune ?? ""}`,
+    ),
+    radius: draft.zoneRadiusKm ?? 10,
+    hourly: draft.hourlyRate ?? 0,
+    bio: draft.bio ?? "",
+    photo: Boolean(draft.avatar),
+    languages: draft.languages ?? [],
+  };
+}
+
+function dataToBackend(
+  data: OnboardingData,
+  categories: CategoryIndex,
+): ProviderDraftDto {
+  const primaryId = findId(categories, data.categories[0]);
+  const zones = data.zones
+    .map((key) => {
+      const [city, commune] = key.split("|");
+      if (!city) return null;
+      return { city, commune: commune || null };
+    })
+    .filter((zone): zone is { city: string; commune: string | null } => Boolean(zone));
+
+  const payload: ProviderDraftDto = {
+    firstName: data.firstName || undefined,
+    lastName: data.lastName || undefined,
+    phone: data.phone ? `+243${data.phone}` : undefined,
+    idFrontUploaded: Boolean(data.id.front),
+    idBackUploaded: Boolean(data.id.back),
+    primaryCategoryId: primaryId ?? undefined,
+    skills: data.skills.map((name) => ({ name, level: 3 })),
+    yearsOfExperience: data.years ? YEARS_TO_NUMBER[data.years] : undefined,
+    description: data.title || undefined,
+    serviceZones: zones,
+    zoneRadiusKm: data.radius,
+    hourlyRate: data.hourly > 0 ? data.hourly : undefined,
+    bio: data.bio || undefined,
+    languages: data.languages,
+    avatar: data.photo ? "placeholder://avatar" : undefined,
+  };
+
+  return payload;
+}
+
+function extractMissing(error: unknown): string[] {
+  if (!error || typeof error !== "object") return [];
+  const maybe = error as { body?: { missing?: unknown }; response?: { missing?: unknown } };
+  const bodyMissing = maybe.body?.missing ?? maybe.response?.missing;
+  if (Array.isArray(bodyMissing)) {
+    return bodyMissing.filter((m): m is string => typeof m === "string");
+  }
+  return [];
+}
+
+function mapFieldToStep(field: string): number {
+  switch (field) {
+    case "firstName":
+    case "lastName":
+    case "phone":
+      return 1;
+    case "primaryCategoryId":
+      return 2;
+    case "serviceZones":
+      return 3;
+    case "hourlyRate":
+      return 4;
+    case "avatar":
+      return 5;
+    default:
+      return 6;
+  }
 }

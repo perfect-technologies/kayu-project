@@ -771,6 +771,56 @@ export const CreatePayoutResponseSchema = z.object({
   transaction: TransactionSchema,
 });
 
+// ---------- Provider onboarding draft (I07) ----------
+
+export const ProviderDraftSkillSchema = z.object({
+  name: z.string().min(1),
+  level: z.number().int().min(1).max(5).default(3),
+});
+
+export const ProviderDraftDto = z.object({
+  onboardingStep: z.number().int().min(0).max(5).optional(),
+
+  // Step 1 — Identité
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional(),
+  idFrontUploaded: z.boolean().optional(),
+  idBackUploaded: z.boolean().optional(),
+
+  // Step 2 — Métier
+  primaryCategoryId: IdSchema.optional(),
+  subcategoryIds: z.array(IdSchema).optional(),
+  skills: z.array(ProviderDraftSkillSchema).optional(),
+  yearsOfExperience: z.number().int().min(0).max(60).optional(),
+  description: z.string().max(1000).optional(),
+
+  // Step 3 — Zones
+  serviceZones: z.array(ServiceZoneInputSchema).optional(),
+  zoneRadiusKm: z.number().min(1).max(50).optional(),
+
+  // Step 4 — Tarifs
+  hourlyRate: z.number().int().positive().optional(),
+  visitFee: z.number().int().nonnegative().optional(),
+
+  // Step 5 — Profil
+  avatar: z.string().optional(),
+  bio: z.string().max(500).optional(),
+  languages: z.array(z.string()).optional(),
+});
+
+export const DraftResponseSchema = z.object({
+  draft: ProviderDraftDto,
+  step: z.number().int().min(0).max(5).nullable(),
+  isComplete: z.boolean(),
+  missingForPublish: z.array(z.string()).default([]),
+});
+
+export const ProviderPublishResponseSchema = z.object({
+  success: z.boolean(),
+  provider: ProviderDetailSchema,
+});
+
 export const UnknownApiSuccessResponseSchema = createApiSuccessResponseSchema(z.unknown());
 
 export type ServiceZoneInput = z.infer<typeof ServiceZoneInputSchema>;
@@ -841,3 +891,7 @@ export type EarningsSummaryResponse = z.infer<typeof EarningsSummaryResponseSche
 export type EarningsTransactionsResponse = z.infer<typeof EarningsTransactionsResponseSchema>;
 export type PayoutsResponse = z.infer<typeof PayoutsResponseSchema>;
 export type CreatePayoutResponse = z.infer<typeof CreatePayoutResponseSchema>;
+export type ProviderDraftSkill = z.infer<typeof ProviderDraftSkillSchema>;
+export type ProviderDraftDto = z.infer<typeof ProviderDraftDto>;
+export type DraftResponse = z.infer<typeof DraftResponseSchema>;
+export type ProviderPublishResponse = z.infer<typeof ProviderPublishResponseSchema>;

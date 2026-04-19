@@ -49,6 +49,7 @@ export const UserSchema = UserSummarySchema.extend({
   lastLoginAt: NullableDateTimeSchema.optional(),
   clientScore: z.number().optional(),
   clientTrustLevel: ClientTrustLevel.default("NEW_CLIENT"),
+  onboardingStep: z.number().int().min(0).max(5).nullable().optional(),
   createdAt: DateTimeSchema.optional(),
   updatedAt: DateTimeSchema.optional(),
 });
@@ -264,6 +265,7 @@ export const ProviderSchema = z.object({
   premiumExpiry: NullableDateTimeSchema.optional(),
   isAvailable: z.boolean(),
   verificationStatus: VerificationStatus,
+  onboardingCompleteAt: NullableDateTimeSchema.optional(),
   user: UserSchema.pick({
     id: true,
     firstName: true,

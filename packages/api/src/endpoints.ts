@@ -65,6 +65,10 @@ import type {
   EarningsTransactionsResponse,
   PayoutsResponse,
   CreatePayoutResponse,
+  // Onboarding (I07)
+  ProviderDraftDto,
+  DraftResponse,
+  ProviderPublishResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -259,6 +263,15 @@ export const quotesApi = (client: ApiClient) => ({
     client.post<QuoteAcceptResponse>(`/quotes/${id}/accept`),
   decline: (id: string) =>
     client.post<QuoteResponse>(`/quotes/${id}/decline`),
+});
+
+// ---------- Onboarding (I07) ----------
+
+export const onboardingApi = (client: ApiClient) => ({
+  getDraft: () => client.get<DraftResponse>("/me/provider-draft"),
+  patchDraft: (data: ProviderDraftDto) =>
+    client.patch<DraftResponse>("/me/provider-draft", data),
+  publish: () => client.post<ProviderPublishResponse>("/me/provider-publish"),
 });
 
 // ---------- Admin ----------

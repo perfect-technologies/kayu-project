@@ -20,6 +20,7 @@ import { EarningsModule } from "./modules/earnings/earnings.module";
 import { GeoModule } from "./modules/geo/geo.module";
 import { JobRequestsModule } from "./modules/job-requests/job-requests.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
+import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { QuotesModule } from "./modules/quotes/quotes.module";
     GeoModule,
     JobRequestsModule,
     QuotesModule,
+    OnboardingModule,
   ],
   controllers: [AppController],
 })
