@@ -16,5 +16,6 @@ export {
   adminApi,
   earningsApi,
   jobRequestsApi,
+  quotesApi,
 } from "./endpoints.js";
 export { queryKeys } from "./query-keys.js";

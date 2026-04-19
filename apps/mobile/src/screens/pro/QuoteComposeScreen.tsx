@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,15 +14,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { I } from '@kayu/ui/mobile';
-import { tokens } from '@kayu/ui';
+import { tokens, type CategorySlug } from '@kayu/ui';
+import { queryKeys } from '@kayu/api';
+import type {
+  CreateQuoteDtoType,
+  JobRequestForPro,
+  Quote,
+} from '@kayu/schemas';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 import type { RequestsStackParamList } from '@/navigation/AppNavigator';
 import {
-  findRequest,
   getPresets,
-  type InboundRequest,
+  PRESET_LINE_ITEMS,
   type LineItemPreset,
 } from './fixtures';
 
@@ -46,60 +55,164 @@ const START_DATE_LABEL: Record<StartDateKey, string> = {
 
 const VALIDITY_OPTIONS = [3, 7, 14, 30] as const;
 
-function initialLines(req: InboundRequest | undefined): Line[] {
+const START_DATE_TO_BACKEND: Record<StartDateKey, string> = {
+  today: 'today',
+  tomorrow: 'tomorrow',
+  week: 'this_week',
+  custom: 'custom',
+};
+
+function initialLines(req: JobRequestForPro | undefined): Line[] {
   if (!req) {
     return [{ id: 1, label: '', qty: 1, unit: 'Forfait', unitPrice: 0 }];
   }
-  return [
-    { id: 1, label: 'Diagnostic + déplacement', qty: 1, unit: 'Forfait', unitPrice: 5000 },
-    {
-      id: 2,
-      label: "Main-d'œuvre",
-      qty: req.estimatedHours,
-      unit: 'Heure',
-      unitPrice: 8000,
-    },
-  ];
+  const presetKey =
+    req.category?.slug && PRESET_LINE_ITEMS[req.category.slug]
+      ? req.category.slug
+      : 'default';
+  const presets = PRESET_LINE_ITEMS[presetKey] ?? PRESET_LINE_ITEMS.default;
+  const diag = presets.find((p) => /diagnostic|déplacement/i.test(p.label));
+  const hourly = presets.find((p) => p.unit === 'Heure');
+  const lines: Line[] = [];
+  let id = 1;
+  if (diag) {
+    lines.push({ id: id++, label: diag.label, qty: 1, unit: diag.unit, unitPrice: diag.unitPrice });
+  }
+  if (hourly) {
+    lines.push({
+      id: id++,
+      label: hourly.label,
+      qty: req.estimatedHours && req.estimatedHours > 0 ? req.estimatedHours : 1,
+      unit: hourly.unit,
+      unitPrice: hourly.unitPrice,
+    });
+  }
+  if (lines.length === 0) {
+    lines.push({ id: id++, label: '', qty: 1, unit: 'Forfait', unitPrice: 0 });
+  }
+  return lines;
 }
 
-function defaultMessage(req: InboundRequest | undefined, pro: string): string {
+function defaultMessage(req: JobRequestForPro | undefined, pro: string): string {
   if (!req) {
     return `Bonjour, merci pour votre demande. Voici mon devis. — ${pro}`;
   }
-  const clientFirst = req.client.name.split(' ')[0];
-  return `Bonjour ${clientFirst}, merci pour votre demande. Voici mon devis pour « ${req.service} ». Je peux intervenir dès que ça vous arrange. — ${pro}`;
+  const clientFirst = req.client.firstName?.trim() || '';
+  const salutation = clientFirst ? `Bonjour ${clientFirst}` : 'Bonjour';
+  return `${salutation}, merci pour votre demande. Voici mon devis pour « ${req.service} ». Je peux intervenir dès que ça vous arrange. — ${pro}`;
+}
+
+function clientFirstName(req: JobRequestForPro | undefined): string {
+  return req?.client.firstName?.trim() || 'votre client';
+}
+
+function categorySlug(req: JobRequestForPro | undefined): CategorySlug {
+  const slug = req?.category?.slug as CategorySlug | undefined;
+  if (slug && slug in tokens.portfolio) return slug;
+  return 'plomberie';
 }
 
 export function QuoteComposeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const requestId = route.params?.requestId;
-  const req = useMemo(() => findRequest(requestId), [requestId]);
-  const presets = getPresets(req?.category);
+  const requestId = route.params?.requestId ?? null;
   const firstName = user?.firstName ?? 'Pro';
 
-  const [lines, setLines] = useState<Line[]>(() => initialLines(req));
-  const [nextId, setNextId] = useState(() => lines.length + 1);
-  const [message, setMessage] = useState(() => defaultMessage(req, firstName));
-  const [startDate, setStartDate] = useState<StartDateKey>(() =>
-    req?.when.toLowerCase().includes('aujourd') ? 'today' : 'tomorrow',
-  );
+  const requestQuery = useQuery({
+    queryKey: requestId ? queryKeys.jobRequests.detail(requestId) : ['noop'],
+    queryFn: () => api.jobRequests.getById(requestId!),
+    enabled: !!requestId,
+  });
+
+  const req = requestQuery.data?.request;
+  const presets = getPresets(req?.category?.slug);
+
+  const [lines, setLines] = useState<Line[]>([
+    { id: 1, label: '', qty: 1, unit: 'Forfait', unitPrice: 0 },
+  ]);
+  const [nextId, setNextId] = useState(2);
+  const [message, setMessage] = useState('');
+  const [startDate, setStartDate] = useState<StartDateKey>('tomorrow');
   const [customDate, setCustomDate] = useState('');
   const [validityDays, setValidityDays] = useState<number>(7);
   const [discountPct, setDiscountPct] = useState(0);
   const [showPresets, setShowPresets] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<Quote | null>(null);
+  const [initialised, setInitialised] = useState(false);
+
+  useEffect(() => {
+    if (initialised) return;
+    if (requestId && !req) return;
+    const seeded = initialLines(req);
+    setLines(seeded);
+    setNextId(seeded.length + 1);
+    setMessage(defaultMessage(req, firstName));
+    if (req?.whenPref?.toLowerCase().includes('aujourd') || req?.whenPref?.toLowerCase().includes('today')) {
+      setStartDate('today');
+    }
+    setInitialised(true);
+  }, [req, firstName, initialised, requestId]);
+
+  const createMutation = useMutation({
+    mutationFn: (dto: CreateQuoteDtoType) => api.quotes.create(dto),
+  });
+  const sendMutation = useMutation({
+    mutationFn: (id: string) => api.quotes.send(id),
+  });
 
   const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
   const discountAmt = Math.round(subtotal * (discountPct / 100));
   const total = subtotal - discountAmt;
   const kayouFee = Math.round(total * 0.1);
   const payout = total - kayouFee;
-  const vsBudget = req ? total - req.budget : 0;
+  const vsBudget = req && req.budget ? total - req.budget : 0;
   const hasEmptyLabel = lines.some((l) => l.label.trim() === '');
-  const disabled = lines.length === 0 || total === 0 || hasEmptyLabel;
+  const submitting = createMutation.isPending || sendMutation.isPending;
+  const disabled =
+    lines.length === 0 ||
+    total === 0 ||
+    hasEmptyLabel ||
+    !requestId ||
+    submitting;
+
+  const submit = async () => {
+    if (!requestId) {
+      Alert.alert('Demande requise', 'Cette page exige une demande associée.');
+      return;
+    }
+    const startDateKind =
+      startDate === 'custom' && customDate
+        ? customDate
+        : START_DATE_TO_BACKEND[startDate];
+    const dto: CreateQuoteDtoType = {
+      jobRequestId: requestId,
+      lines: lines.map((l) => ({
+        label: l.label.trim(),
+        qty: l.qty,
+        unit: l.unit,
+        unitPrice: l.unitPrice,
+      })),
+      message: message.trim() || 'Voici mon devis.',
+      validityDays,
+      startDateKind,
+      discountPct,
+    };
+    try {
+      const createRes = await createMutation.mutateAsync(dto);
+      const sendRes = await sendMutation.mutateAsync(createRes.quote.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.mine });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.jobRequests.inboxForPro,
+      });
+      setSent(sendRes.quote);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de l'envoi";
+      Alert.alert('Erreur', msg);
+    }
+  };
 
   const addPreset = (p: LineItemPreset) => {
     setLines((prev) => [
@@ -133,12 +246,41 @@ export function QuoteComposeScreen() {
     setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)));
   };
 
+  if (requestId && requestQuery.isLoading) {
+    return (
+      <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (requestId && requestQuery.isError) {
+    return (
+      <View
+        style={[
+          styles.root,
+          { alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 },
+        ]}
+      >
+        <Text style={{ color: theme.colors.textBody, textAlign: 'center' }}>
+          Impossible de charger la demande.
+        </Text>
+        <TouchableOpacity
+          onPress={() => requestQuery.refetch()}
+          style={[styles.btn, styles.btnSecondary, { paddingHorizontal: 20 }]}
+        >
+          <Text style={styles.btnSecondaryText}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (sent) {
     return (
       <QuoteSent
         req={req}
-        total={total}
-        validityDays={validityDays}
+        total={sent.total}
+        validityDays={sent.validityDays}
         onBack={() => navigation.navigate('RequestsMain')}
         onDashboard={() => navigation.getParent()?.navigate('ProviderDashboard')}
       />
@@ -161,7 +303,7 @@ export function QuoteComposeScreen() {
             Nouveau devis
           </Text>
           <Text style={styles.headerSub} numberOfLines={1}>
-            {req ? `Pour ${req.client.name}` : 'Brouillon'}
+            {req ? `Pour ${clientFirstName(req)}` : 'Brouillon'}
           </Text>
         </View>
       </View>
@@ -361,7 +503,7 @@ export function QuoteComposeScreen() {
         </View>
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => !disabled && setSent(true)}
+          onPress={() => !disabled && submit()}
           disabled={disabled}
           style={[
             styles.btn,
@@ -369,8 +511,14 @@ export function QuoteComposeScreen() {
             { paddingHorizontal: 20, opacity: disabled ? 0.55 : 1 },
           ]}
         >
-          <Text style={styles.btnPrimaryText}>Envoyer le devis</Text>
-          <I.send size={14} color="#FFFFFF" />
+          <Text style={styles.btnPrimaryText}>
+            {submitting ? 'Envoi…' : 'Envoyer le devis'}
+          </Text>
+          {submitting ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <I.send size={14} color="#FFFFFF" />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -379,8 +527,9 @@ export function QuoteComposeScreen() {
 
 // ── Sub-components ───────────────────────────────────────────────────────
 
-function RequestContextCard({ req }: { req: InboundRequest }) {
-  const cat = tokens.portfolio[req.category] ?? tokens.portfolio.plomberie;
+function RequestContextCard({ req }: { req: JobRequestForPro }) {
+  const slug = categorySlug(req);
+  const cat = tokens.portfolio[slug] ?? tokens.portfolio.plomberie;
   return (
     <View
       style={[
@@ -394,16 +543,18 @@ function RequestContextCard({ req }: { req: InboundRequest }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.contextTitle}>{req.service}</Text>
         <Text style={styles.contextMeta}>
-          {req.when}
+          {req.whenPref}
           {'\n'}
           {req.address}
         </Text>
-        <Text style={styles.contextBudget}>
-          Budget indicatif :{' '}
-          <Text style={styles.contextBudgetStrong}>
-            {req.budget.toLocaleString('fr-FR')} FC
+        {req.budget ? (
+          <Text style={styles.contextBudget}>
+            Budget indicatif :{' '}
+            <Text style={styles.contextBudgetStrong}>
+              {req.budget.toLocaleString('fr-FR')} FC
+            </Text>
           </Text>
-        </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -608,14 +759,14 @@ function QuoteSent({
   onBack,
   onDashboard,
 }: {
-  req: InboundRequest | undefined;
+  req: JobRequestForPro | undefined;
   total: number;
   validityDays: number;
   onBack: () => void;
   onDashboard: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const firstName = req?.client.name.split(' ')[0] ?? 'le client';
+  const firstName = clientFirstName(req);
   return (
     <View
       style={[

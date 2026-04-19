@@ -73,9 +73,3 @@ export function getPresets(category: string | undefined | null): LineItemPreset[
   if (!category) return PRESET_LINE_ITEMS.default;
   return PRESET_LINE_ITEMS[category] ?? PRESET_LINE_ITEMS.default;
 }
-
-// Placeholder until I05 wires QuoteComposeScreen to `GET /pro/requests/:id`.
-// Returns undefined so the screen falls back to the standalone-quote layout.
-export function findRequest(_id: string | null | undefined): InboundRequest | undefined {
-  return undefined;
-}

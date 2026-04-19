@@ -1,4 +1,4 @@
-import type { InboundRequest, LineItemPreset } from "./types";
+import type { LineItemPreset } from "./types";
 
 // Static catalog of quote presets per category. Not a data source — it's
 // product configuration kept in code per PROGRESS.md decision (2026-04-19).
@@ -24,10 +24,4 @@ export const PRESET_LINE_ITEMS: Record<string, LineItemPreset[]> = {
 export function getPresets(category: string | undefined | null): LineItemPreset[] {
   if (!category) return PRESET_LINE_ITEMS.default;
   return PRESET_LINE_ITEMS[category] ?? PRESET_LINE_ITEMS.default;
-}
-
-// Placeholder until I05 wires QuoteCompose to a real `GET /pro/requests/:id`
-// call. Returns undefined so QuoteCompose renders its standalone-quote path.
-export function findRequest(_id: string | null | undefined): InboundRequest | undefined {
-  return undefined;
 }

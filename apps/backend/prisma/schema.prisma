@@ -49,6 +49,7 @@ model User {
   // Relations
   provider              Provider?
   bookingsAsClient      Booking[]           @relation("ClientBookings")
+  quotesAsClient        Quote[]             @relation("ClientQuotes")
   reviewsGiven          Review[]            @relation("ReviewsGiven")
   clientReviewsReceived ClientReview[]      @relation("ClientReceivedReviews")
   messages              Message[]
@@ -133,6 +134,7 @@ model Provider {
   jobRequestMatches      JobRequestMatch[]
   transactions           Transaction[]
   payouts                Payout[]
+  quotes                 Quote[]
 
   // Indexes pour performance
   @@index([profession])
@@ -595,6 +597,7 @@ model Booking {
   clientReview     ClientReview?
   portfolioProject PortfolioProject?
   transactions     Transaction[]
+  quote            Quote?            @relation("BookingFromQuote")
 
   // Indexes pour performance
   @@index([clientId])
@@ -777,6 +780,9 @@ enum NotificationType {
   CERTIFICATION_VERIFIED
   BADGE_EARNED
   JOB_REQUEST_NEW
+  QUOTE_RECEIVED
+  QUOTE_ACCEPTED
+  QUOTE_DECLINED
   SYSTEM
 }
 
@@ -926,6 +932,7 @@ model JobRequest {
   expiresAt      DateTime?
 
   matches JobRequestMatch[]
+  quotes  Quote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1027,4 +1034,70 @@ model Payout {
 
   @@index([providerId, status])
   @@index([status, requestedAt])
+}
+
+// ==================== DEVIS (Quotes) ====================
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Quote {
+  id String @id @default(cuid())
+
+  jobRequestId String?
+  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id], onDelete: SetNull)
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   User   @relation("ClientQuotes", fields: [clientId], references: [id])
+
+  message       String
+  validityDays  Int    @default(7)
+  startDateKind String
+  discountPct   Int    @default(0)
+
+  // Server-computed totals (cached for audit/historical)
+  subtotal      Int
+  discountAmt   Int
+  total         Int
+  commissionPct Int @default(10)
+  commissionAmt Int
+  payoutAmt     Int
+
+  status      QuoteStatus @default(DRAFT)
+  sentAt      DateTime?
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+  expiresAt   DateTime?
+
+  lines     QuoteLineItem[]
+  bookingId String?         @unique
+  booking   Booking?        @relation("BookingFromQuote", fields: [bookingId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([providerId, status])
+  @@index([clientId, status])
+  @@index([jobRequestId])
+}
+
+model QuoteLineItem {
+  id        String @id @default(cuid())
+  quoteId   String
+  quote     Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  label     String
+  qty       Float  @default(1)
+  unit      String
+  unitPrice Int
+  order     Int    @default(0)
+
+  @@index([quoteId])
 }

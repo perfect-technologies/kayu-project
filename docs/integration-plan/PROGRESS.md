@@ -3,7 +3,7 @@
 ## Overall
 
 - **Track:** Backend Integration — wire frontend fixtures to real API
-- **Status:** in_progress (I01 + I02 + I03 + I04 + I06 done)
+- **Status:** in_progress (I01 + I02 + I03 + I04 + I05 + I06 done)
 - **Last updated:** 2026-04-19
 
 ---
@@ -16,7 +16,7 @@
 | I02 | Auth OTP finalization | P0 | — | done | Real Supabase SMS OTP wired (web + mobile); signup/login modes; legacy dialogs removed; demo accounts kept as dev-only panel (per user direction) |
 | I03 | Provider Dashboard data | P0 | — | done | `/dashboard/provider` returns expanded shape (today, newRequests, stats-with-sparkline, availability, onboarding); web `/pro` + mobile `ProviderDashboardScreen` wired via useQuery; availability toggle mutates `PATCH /providers/me/availability` with optimistic rollback; onboarding banner derived from profile completeness until I07 ships persistent onboarding state; legacy `/dashboard/provider` v1 page redirects to `/pro` |
 | I04 | Job Requests module | P0 | — | done | NEW `JobRequest` + `JobRequestMatch` Prisma models; `JobRequestsModule` backend with client `POST /job-requests`, `GET /job-requests/mine`, `POST /job-requests/:id/cancel`; pro `GET /pro/requests`, `GET /pro/requests/:id`, `POST /pro/requests/:id/dismiss`. Matching service fans out to top 10 matching pros on create (category + city + verified, ordered by totalJobs then totalReviews) and writes match scores + notification rows. Dashboard `newRequests` now populated from `JobRequestMatch` (top 3 per pro). Web `/pro/requests` + mobile `JobRequestsScreen` wired via TanStack Query with 30s poll, dismiss mutation, Loading/Empty/Error states; `INCOMING_REQUESTS` + `PRO_ACTIVE_JOBS` fixtures removed (active jobs pulled from `bookingsApi.getAll({role: "provider"})`, filtered to `CONFIRMED` + `IN_PROGRESS`). |
-| I05 | Quote / Devis module | P0 | I04 | not_started | NEW Quote + QuoteLineItem; quote created against a request |
+| I05 | Quote / Devis module | P0 | I04 | done | NEW `Quote` + `QuoteLineItem` Prisma models + `QuoteStatus` enum; `QuotesModule` with pro endpoints (`GET/POST /pro/quotes`, `PATCH /pro/quotes/:id`, `POST /pro/quotes/:id/send`, `GET /pro/quotes/:id`) and client endpoints (`GET /job-requests/:id/quotes`, `GET /quotes/:id`, `POST /quotes/:id/{accept,decline}`). Totals (subtotal, discount, total, commission @ 10%, payout) computed server-side. `Accept` creates a Booking + marks JobRequest as MATCHED in a single `$transaction`; `commissionPct` stored on the quote for historical correctness. SEND also writes a `QUOTE_RECEIVED` notification to the client; accept/decline notify the pro. Web `/pro/devis/new` + mobile `QuoteComposeScreen` wired via TanStack Query against `GET /pro/requests/:id` + `POST /pro/quotes` + `POST /pro/quotes/:id/send`; `PRESET_LINE_ITEMS` stays as static catalog. New client-facing `/quotes/[id]` page with accept/decline actions. `findRequest()` fixture helper removed on both web + mobile. |
 | I06 | Earnings + Mobile Money | P0 | — | done | NEW `Transaction` + `Payout` Prisma models (+ `TransactionType`, `TransactionStatus`, `PayoutOperator`, `PayoutStatus` enums); `EarningsModule` with `GET /pro/earnings/summary`, `GET /pro/earnings/transactions`, `POST /pro/earnings/payouts` (PSP call stubbed — creates Payout + linked negative Transaction in a Prisma `$transaction`, status PENDING, no real money moves), `GET /pro/earnings/payouts`. Booking → COMPLETED auto-creates an EARNING transaction (`status = COMPLETED` if `isPaid`, else `PENDING`, 10% commission). Web `/pro/earnings` + mobile `EarningsScreen` wired via `useQuery`/`useMutation`, with Loading/Empty/Error states, real weekly-chart days from `summary.weekly.days` (backend computes `isToday`/`isFuture`), live fee preview, operator tile + phone entry. `EARNINGS_WEEKLY` + `TRANSACTIONS` + `BALANCES` fixtures removed on both platforms (only `MM_OPERATORS` UI catalog remains — name/color/initial, no phone). |
 | I07 | Onboarding draft persist | P1 | — | not_started | Replace localStorage with backend |
 | I08 | Verification docs + KYC | P1 | — | not_started | NEW VerificationDoc model |
@@ -33,7 +33,7 @@ Messages wired. Auth OTP real. Demo accounts retained as dev-only panel (user di
 
 ### M2 — Pro surface dynamic (I03-I06)
 ProviderDashboard, JobRequests, QuoteCompose, Earnings all read from real backend. New modules shipped for quotes and earnings.
-**Status:** not_started
+**Status:** done
 
 ### M3 — Trust loop (I07 + I08)
 Provider onboarding persists server-side. Verification docs upload to real storage. KYC state transitions visible in the UI.
@@ -100,12 +100,18 @@ No fixtures left. Loading/empty/error states audited. PROGRESS closed.
 | 2026-04-19 | I06 balance formula: `balance = sum(EARNING+BONUS where status=COMPLETED).netAmt − abs(sum(PAYOUT where status in (PENDING,COMPLETED)).netAmt)`; pending tile shows EARNING+BONUS still in PENDING | I06, I09 | Matches the mental model on the UI (Solde dispo / En attente). PAYOUT PENDING counts against balance so pros can't double-draw while a payout is in-flight. When I09 ships admin resolution, FAILED payouts should be released back to balance. |
 | 2026-04-19 | I06 payout sheet calls `POST /pro/earnings/payouts` which creates a `Payout` + a linked `Transaction(type=PAYOUT, status=PENDING)` in a Prisma `$transaction`. The `// TODO: call PSP` line in `EarningsService.createPayout` is the integration seam for real M-Pesa/Airtel/Orange/MTN wiring. No real money moves until that TODO is replaced. | I06, I09 | Plan section 5 boundary — ship read-side integrity now, leave one clear edit point for the PSP ticket. Payouts stay PENDING indefinitely without admin action (I09). |
 | 2026-04-19 | I06 week chart: backend fills `EarningsSummary.weekly.days` with 7 items Lun-Dim (ISO week), including `isToday`/`isFuture` flags so the UI never has to know today's date | I06 | Keeps MoneyChart dumb (pure props), same shape on web + mobile. Zero-amount days still render a 2px sliver; future days dim via the flag. |
+| 2026-04-19 | I05 requires a `jobRequestId` on `POST /pro/quotes` (standalone/no-request quotes rejected with 400) | I05 | Simpler MVP: every quote is the response to a specific request, which keeps `clientId` derivation trivial and avoids a UX for picking/searching clients. Standalone quotes can be revisited later if pros ask for them. |
+| 2026-04-19 | I05 commission rate stored on each `Quote` (`commissionPct` + `commissionAmt`) at creation time | I05 | Historical correctness — if KAYOU changes the take rate later, already-sent quotes show what was offered at the time. The live value (10%) is in code, not a config table, for MVP. |
+| 2026-04-19 | I05 client-side live preview is labelled "estimation"; the backend recomputes on CREATE and on every PATCH | I05 | Never trust the client's math. Live preview is a UX convenience; truth lives server-side. Labelled explicitly so pros know the sticky recap is illustrative. |
+| 2026-04-19 | I05 quote expiry handled lazily on read (`getByIdForClient` / `listForJobRequest` / `accept`) — no cron yet | I05 | Acceptable for MVP — the only consumer-visible flows read the quote on the accept path, which is gated by a fresh `expiresAt` check. A scheduled job can formalise the transition later without changing API shapes. |
+| 2026-04-19 | Added `QUOTE_RECEIVED`, `QUOTE_ACCEPTED`, `QUOTE_DECLINED` to `NotificationType` enum (Prisma + Zod) | I05 | Distinct categorisation for the eventual notification feed UI; keeps `JOB_REQUEST_NEW`-style breakdowns coherent. |
+| 2026-04-19 | Minimal client-facing `/quotes/[id]` detail page built (view + accept/decline + confirmation dialog) — no JobRequest-level "all received quotes" screen yet | I05 | Unblocks the end-to-end flow via notification deep-link. A client-side JobRequest detail page listing competing quotes can land with a follow-up once a client request-initiation UI exists. |
 
 ---
 
 ## Current focus
 
-**Objective:** I01 + I02 + I03 + I04 + I06 complete. Next: I05 (Quote / Devis module — `Quote` + `QuoteLineItem` models, `/pro/quotes` endpoints, QuoteCompose wired against `GET /pro/requests/:id` + `POST /pro/quotes`). I05 acceptance creates a Booking, whose transition to COMPLETED now auto-generates an EARNING transaction via I06.
+**Objective:** I01 + I02 + I03 + I04 + I05 + I06 complete. M2 (Pro surface dynamic) is done — ProviderDashboard, JobRequests, QuoteCompose, Earnings all read/write against the real backend. Next: I07 (onboarding draft persistence) or I08 (verification docs + KYC) — both are independent "trust track" work that can parallelise. M3 afterwards.
 
 **Definition of done for M1:** zero `DEMO_THREADS` in `apps/web` or `apps/mobile` (met); `DEMO_ACCOUNTS` remains as dev-only panel gated by `NODE_ENV !== "production"` (per user direction); messages on mobile and web paginate and send against the real backend (met); phone OTP wired to Supabase `signInWithOtp` + `verifyOtp` on both platforms, with the Twilio provider already configured in the Supabase dashboard (met).
 
@@ -116,8 +122,8 @@ No fixtures left. Loading/empty/error states audited. PROGRESS closed.
 - [x] Messages wired end-to-end (web + mobile)
 - [ ] Auth OTP works without dev demo accounts
 - [x] Provider dashboard stats + schedule + requests feed all real
-- [ ] Job Requests flow operable (client requests → pro sees → pro quotes) — pro-quote half pending I05
-- [ ] Quote acceptance creates a booking atomically
+- [x] Job Requests flow operable (client requests → pro sees → pro quotes)
+- [x] Quote acceptance creates a booking atomically
 - [x] Earnings page reads real transaction + payout history (payout PSP call stubbed)
 - [ ] Provider onboarding survives app reload (draft persisted server-side)
 - [ ] Verification documents upload and state transitions reflect in the UI

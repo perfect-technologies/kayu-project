@@ -68,6 +68,12 @@ export const queryKeys = {
     inboxForPro: ["jobRequests", "inboxForPro"] as const,
     detail: (id: string) => ["jobRequests", "detail", id] as const,
   },
+  quotes: {
+    mine: ["quotes", "mine"] as const,
+    detail: (id: string) => ["quotes", "detail", id] as const,
+    forJobRequest: (jobRequestId: string) =>
+      ["quotes", "forJobRequest", jobRequestId] as const,
+  },
   earnings: {
     summary: ["earnings", "summary"] as const,
     transactions: (params?: Partial<EarningsTransactionSearchParams>) =>

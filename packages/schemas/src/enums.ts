@@ -84,6 +84,9 @@ export const NotificationType = z.enum([
   "CERTIFICATION_VERIFIED",
   "BADGE_EARNED",
   "JOB_REQUEST_NEW",
+  "QUOTE_RECEIVED",
+  "QUOTE_ACCEPTED",
+  "QUOTE_DECLINED",
   "SYSTEM",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;

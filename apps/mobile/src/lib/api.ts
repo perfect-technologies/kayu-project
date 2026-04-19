@@ -14,6 +14,7 @@ import {
   geoApi,
   jobRequestsApi,
   earningsApi,
+  quotesApi,
 } from '@kayu/api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -35,4 +36,5 @@ export const api = {
   geo: geoApi(apiClient),
   jobRequests: jobRequestsApi(apiClient),
   earnings: earningsApi(apiClient),
+  quotes: quotesApi(apiClient),
 };

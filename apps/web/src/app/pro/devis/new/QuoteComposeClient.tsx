@@ -9,12 +9,20 @@ import {
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { I } from "@kayu/ui/web";
-import { tokens } from "@kayu/ui";
+import { tokens, type CategorySlug } from "@kayu/ui";
+import { jobRequestsApi, queryKeys, quotesApi } from "@kayu/api";
+import type {
+  CreateQuoteDtoType,
+  JobRequestForPro,
+  Quote,
+} from "@kayu/schemas";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { findRequest, getPresets } from "@/components/pro/fixtures";
-import type { InboundRequest, LineItemPreset } from "@/components/pro/types";
+import { getPresets, PRESET_LINE_ITEMS } from "@/components/pro/fixtures";
+import type { LineItemPreset } from "@/components/pro/types";
 
 type Line = {
   id: number;
@@ -33,33 +41,84 @@ const START_DATE_LABEL: Record<StartDateKey, string> = {
   custom: "Choisir…",
 };
 
+const START_DATE_TO_BACKEND: Record<StartDateKey, string> = {
+  today: "today",
+  tomorrow: "tomorrow",
+  week: "this_week",
+  custom: "custom",
+};
+
 const VALIDITY_OPTIONS = [3, 7, 14, 30] as const;
 
 const UNIT_OPTIONS = ["Heure", "Forfait", "Pièce", "Jour", "m²"] as const;
 
-function initialLines(req: InboundRequest | undefined): Line[] {
+function categorySlugFromRequest(
+  req: JobRequestForPro | undefined,
+): CategorySlug {
+  const slug = req?.category?.slug as CategorySlug | undefined;
+  if (slug && slug in tokens.portfolio) return slug;
+  return "plomberie";
+}
+
+function initialLines(req: JobRequestForPro | undefined): Line[] {
   if (!req) {
     return [{ id: 1, label: "", qty: 1, unit: "Forfait", unitPrice: 0 }];
   }
-  return [
-    { id: 1, label: "Diagnostic + déplacement", qty: 1, unit: "Forfait", unitPrice: 5000 },
-    {
-      id: 2,
-      label: "Main-d'œuvre",
-      qty: req.estimatedHours,
-      unit: "Heure",
-      unitPrice: 8000,
-    },
-  ];
+  const presetKey = presetKeyFor(req.category?.slug);
+  const presets = PRESET_LINE_ITEMS[presetKey] ?? PRESET_LINE_ITEMS.default;
+  const diag = presets.find((p) => /diagnostic|déplacement/i.test(p.label));
+  const mainDoeuvre = presets.find((p) => p.unit === "Heure");
+  const lines: Line[] = [];
+  let id = 1;
+  if (diag) {
+    lines.push({
+      id: id++,
+      label: diag.label,
+      qty: 1,
+      unit: diag.unit,
+      unitPrice: diag.unitPrice,
+    });
+  }
+  if (mainDoeuvre) {
+    lines.push({
+      id: id++,
+      label: mainDoeuvre.label,
+      qty: req.estimatedHours && req.estimatedHours > 0 ? req.estimatedHours : 1,
+      unit: mainDoeuvre.unit,
+      unitPrice: mainDoeuvre.unitPrice,
+    });
+  }
+  if (lines.length === 0) {
+    lines.push({ id: id++, label: "", qty: 1, unit: "Forfait", unitPrice: 0 });
+  }
+  return lines;
+}
+
+function presetKeyFor(slug: string | undefined | null): string {
+  if (!slug) return "default";
+  if (PRESET_LINE_ITEMS[slug]) return slug;
+  return "default";
+}
+
+function clientFirstName(req: JobRequestForPro | undefined): string {
+  return req?.client.firstName?.trim() || "votre client";
 }
 
 export function QuoteComposeClient() {
   const router = useRouter();
   const search = useSearchParams();
+  const queryClient = useQueryClient();
   const { user, isLoading } = useAuth();
   const requestId = search.get("requestId");
-  const req = useMemo(() => findRequest(requestId), [requestId]);
-  const presets = getPresets(req?.category);
+
+  const requestQuery = useQuery({
+    queryKey: requestId ? queryKeys.jobRequests.detail(requestId) : ["noop"],
+    queryFn: () => jobRequestsApi(apiClient).getById(requestId!),
+    enabled: !!requestId && !!user && user.role === "PROVIDER",
+  });
+
+  const req = requestQuery.data?.request;
+  const presets = getPresets(req?.category?.slug);
 
   useEffect(() => {
     if (isLoading) return;
@@ -71,25 +130,63 @@ export function QuoteComposeClient() {
   }, [isLoading, user, router]);
 
   const firstName = user?.firstName ?? "Pro";
-  const [lines, setLines] = useState<Line[]>(() => initialLines(req));
-  const [nextId, setNextId] = useState(() => lines.length + 1);
-  const [message, setMessage] = useState(() => defaultMessage(req, firstName));
-  const [startDate, setStartDate] = useState<StartDateKey>(() =>
-    req?.when.toLowerCase().includes("aujourd") ? "today" : "tomorrow",
-  );
+  const [lines, setLines] = useState<Line[]>([
+    { id: 1, label: "", qty: 1, unit: "Forfait", unitPrice: 0 },
+  ]);
+  const [nextId, setNextId] = useState(2);
+  const [message, setMessage] = useState("");
+  const [startDate, setStartDate] = useState<StartDateKey>("tomorrow");
   const [customDate, setCustomDate] = useState("");
   const [validityDays, setValidityDays] = useState<number>(7);
   const [discountPct, setDiscountPct] = useState(0);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<Quote | null>(null);
+  const [initialised, setInitialised] = useState(false);
 
-  const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
+  useEffect(() => {
+    if (!req || initialised) return;
+    const seeded = initialLines(req);
+    setLines(seeded);
+    setNextId(seeded.length + 1);
+    setMessage(defaultMessage(req, firstName));
+    const initialStart =
+      req.whenPref?.toLowerCase().includes("aujourd") ||
+      req.whenPref?.toLowerCase().includes("today")
+        ? "today"
+        : "tomorrow";
+    setStartDate(initialStart);
+    setInitialised(true);
+  }, [req, firstName, initialised]);
+
+  useEffect(() => {
+    if (requestId || initialised) return;
+    setMessage(defaultMessage(undefined, firstName));
+    setInitialised(true);
+  }, [requestId, firstName, initialised]);
+
+  const subtotal = lines.reduce(
+    (sum, l) => sum + Math.round(l.qty * l.unitPrice),
+    0,
+  );
   const discountAmt = Math.round(subtotal * (discountPct / 100));
   const total = subtotal - discountAmt;
   const kayouFee = Math.round(total * 0.1);
   const payout = total - kayouFee;
-  const vsBudget = req ? total - req.budget : 0;
+  const vsBudget = req && req.budget ? total - req.budget : 0;
   const hasEmptyLabel = lines.some((l) => l.label.trim() === "");
-  const disabled = lines.length === 0 || total === 0 || hasEmptyLabel;
+  const disabled =
+    lines.length === 0 ||
+    total === 0 ||
+    hasEmptyLabel ||
+    !requestId ||
+    requestQuery.isLoading;
+
+  const createMutation = useMutation({
+    mutationFn: (dto: CreateQuoteDtoType) =>
+      quotesApi(apiClient).create(dto),
+  });
+  const sendMutation = useMutation({
+    mutationFn: (id: string) => quotesApi(apiClient).send(id),
+  });
 
   const addPreset = (p: LineItemPreset) => {
     setLines((prev) => [
@@ -114,17 +211,87 @@ export function QuoteComposeClient() {
   };
 
   const updateLine = (id: number, patch: Partial<Line>) => {
-    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    setLines((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+    );
   };
 
   const removeLine = (id: number) => {
-    setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)));
+    setLines((prev) =>
+      prev.length <= 1 ? prev : prev.filter((l) => l.id !== id),
+    );
+  };
+
+  const submit = async () => {
+    if (!requestId) {
+      toast.error("Cette page exige une demande associée.");
+      return;
+    }
+    const startDateKind =
+      startDate === "custom" && customDate
+        ? customDate
+        : START_DATE_TO_BACKEND[startDate];
+    const dto: CreateQuoteDtoType = {
+      jobRequestId: requestId,
+      lines: lines.map((l) => ({
+        label: l.label.trim(),
+        qty: l.qty,
+        unit: l.unit,
+        unitPrice: l.unitPrice,
+      })),
+      message: message.trim() || "Voici mon devis.",
+      validityDays,
+      startDateKind,
+      discountPct,
+    };
+    try {
+      const createRes = await createMutation.mutateAsync(dto);
+      const sendRes = await sendMutation.mutateAsync(createRes.quote.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.mine });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.jobRequests.inboxForPro,
+      });
+      setSent(sendRes.quote);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erreur lors de l'envoi du devis";
+      toast.error(msg);
+    }
   };
 
   if (isLoading || !user || user.role !== "PROVIDER") {
     return (
-      <div style={{ padding: 48, textAlign: "center", color: "var(--k-text-muted)" }}>
+      <div
+        style={{ padding: 48, textAlign: "center", color: "var(--k-text-muted)" }}
+      >
         Chargement…
+      </div>
+    );
+  }
+
+  if (requestId && requestQuery.isLoading) {
+    return (
+      <div
+        style={{ padding: 48, textAlign: "center", color: "var(--k-text-muted)" }}
+      >
+        Chargement de la demande…
+      </div>
+    );
+  }
+
+  if (requestId && requestQuery.isError) {
+    return (
+      <div style={{ padding: 48, textAlign: "center" }}>
+        <div style={{ color: "var(--k-danger)", fontWeight: 600, marginBottom: 10 }}>
+          Impossible de charger la demande.
+        </div>
+        <button
+          type="button"
+          className="k-btn k-btn-secondary k-btn-sm"
+          onClick={() => requestQuery.refetch()}
+        >
+          Réessayer
+        </button>
       </div>
     );
   }
@@ -133,13 +300,15 @@ export function QuoteComposeClient() {
     return (
       <QuoteSent
         req={req}
-        total={total}
-        validityDays={validityDays}
+        total={sent.total}
+        validityDays={sent.validityDays}
         onBack={() => router.push("/pro/requests")}
         onDashboard={() => router.push("/pro")}
       />
     );
   }
+
+  const submitting = createMutation.isPending || sendMutation.isPending;
 
   return (
     <div
@@ -191,7 +360,10 @@ export function QuoteComposeClient() {
           <div style={{ color: "var(--k-text-muted)", fontSize: 14, marginTop: 4 }}>
             {req ? (
               <>
-                Pour <strong style={{ color: "var(--k-ink)" }}>{req.client.name}</strong>{" "}
+                Pour{" "}
+                <strong style={{ color: "var(--k-ink)" }}>
+                  {clientFirstName(req)}
+                </strong>{" "}
                 · {req.service}
               </>
             ) : (
@@ -218,7 +390,6 @@ export function QuoteComposeClient() {
             title="Prestations"
             rightMeta={`${lines.length} ligne${lines.length > 1 ? "s" : ""}`}
           >
-            {/* Header row */}
             <div
               style={{
                 display: "grid",
@@ -250,7 +421,6 @@ export function QuoteComposeClient() {
               />
             ))}
 
-            {/* Add options */}
             <div
               style={{
                 marginTop: 14,
@@ -279,7 +449,6 @@ export function QuoteComposeClient() {
             </div>
           </Panel>
 
-          {/* Discount + validity + start date */}
           <div
             className="k-quote-compose-details"
             style={{
@@ -336,7 +505,8 @@ export function QuoteComposeClient() {
                   color: "var(--k-text-muted)",
                 }}
               >
-                Le client a {validityDays} jour{validityDays > 1 ? "s" : ""} pour répondre.
+                Le client a {validityDays} jour{validityDays > 1 ? "s" : ""} pour
+                répondre.
               </div>
             </Panel>
           </div>
@@ -369,7 +539,6 @@ export function QuoteComposeClient() {
           </Panel>
         </div>
 
-        {/* Sticky summary */}
         <aside
           className="k-quote-compose-summary"
           style={{ position: "sticky", top: 24 }}
@@ -402,7 +571,7 @@ export function QuoteComposeClient() {
                   fontWeight: 600,
                 }}
               >
-                Récapitulatif
+                Récapitulatif (estimation)
               </span>
             </div>
 
@@ -424,7 +593,9 @@ export function QuoteComposeClient() {
               }}
             >
               <TotalRow label="Total client" value={total} bold big />
-              {req && <VsBudgetDelta vsBudget={vsBudget} budget={req.budget} />}
+              {req && req.budget ? (
+                <VsBudgetDelta vsBudget={vsBudget} budget={req.budget} />
+              ) : null}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -439,17 +610,17 @@ export function QuoteComposeClient() {
 
             <button
               type="button"
-              onClick={() => setSent(true)}
-              disabled={disabled}
+              onClick={submit}
+              disabled={disabled || submitting}
               className="k-btn k-btn-primary k-btn-lg"
               style={{
                 width: "100%",
                 marginTop: 18,
-                opacity: disabled ? 0.55 : 1,
-                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled || submitting ? 0.55 : 1,
+                cursor: disabled || submitting ? "not-allowed" : "pointer",
               }}
             >
-              Envoyer le devis <I.send size={15} />
+              {submitting ? "Envoi…" : "Envoyer le devis"} <I.send size={15} />
             </button>
 
             <div
@@ -462,8 +633,8 @@ export function QuoteComposeClient() {
               }}
             >
               {req
-                ? `Valable ${validityDays} jour${validityDays > 1 ? "s" : ""}. Le client peut accepter, refuser ou demander un ajustement.`
-                : `Le devis est enregistré en brouillon jusqu'à ce qu'un·e client·e y soit associé·e.`}
+                ? `Valable ${validityDays} jour${validityDays > 1 ? "s" : ""}. Les totaux définitifs sont calculés par KAYOU à l'envoi.`
+                : `Une demande (?requestId=…) doit être associée pour envoyer un devis.`}
             </div>
           </div>
 
@@ -510,8 +681,9 @@ export function QuoteComposeClient() {
 
 // ─── Subcomponents ──────────────────────────────────────────────────────────
 
-function RequestContextCard({ req }: { req: InboundRequest }) {
-  const cat = tokens.portfolio[req.category] ?? tokens.portfolio.plomberie;
+function RequestContextCard({ req }: { req: JobRequestForPro }) {
+  const slug = categorySlugFromRequest(req);
+  const cat = tokens.portfolio[slug] ?? tokens.portfolio.plomberie;
   return (
     <div
       style={{
@@ -557,36 +729,38 @@ function RequestContextCard({ req }: { req: InboundRequest }) {
             style={{ verticalAlign: "-2px", marginRight: 4 }}
             strokeColor={cat.accent}
           />
-          {req.when}
+          {req.whenPref}
           <br />
           <I.mapPin
             size={12}
             style={{ verticalAlign: "-2px", marginRight: 4 }}
             strokeColor={cat.accent}
           />
-          {req.address} · {req.distance} km
+          {req.address} · {req.commune ?? req.city}
         </div>
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: 12.5,
-            color: "var(--k-text-muted)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          Budget indicatif :{" "}
-          <strong
+        {req.budget ? (
+          <div
             style={{
-              color: "var(--k-ink)",
-              fontFamily: "var(--font-mono)",
-              fontVariantNumeric: "tabular-nums",
+              marginTop: 8,
+              fontSize: 12.5,
+              color: "var(--k-text-muted)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
-            {req.budget.toLocaleString("fr-FR")} FC
-          </strong>
-        </div>
+            Budget indicatif :{" "}
+            <strong
+              style={{
+                color: "var(--k-ink)",
+                fontFamily: "var(--font-mono)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {req.budget.toLocaleString("fr-FR")} FC
+            </strong>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -751,7 +925,9 @@ function Panel({
           {title}
         </h3>
         {rightMeta && (
-          <span style={{ color: "var(--k-text-muted)", fontSize: 12 }}>{rightMeta}</span>
+          <span style={{ color: "var(--k-text-muted)", fontSize: 12 }}>
+            {rightMeta}
+          </span>
         )}
       </div>
       {children}
@@ -906,7 +1082,13 @@ function TotalRow({
   );
 }
 
-function VsBudgetDelta({ vsBudget, budget }: { vsBudget: number; budget: number }) {
+function VsBudgetDelta({
+  vsBudget,
+  budget,
+}: {
+  vsBudget: number;
+  budget: number;
+}) {
   const over = vsBudget > 0;
   if (vsBudget === 0) return null;
   return (
@@ -935,14 +1117,14 @@ function VsBudgetDelta({ vsBudget, budget }: { vsBudget: number; budget: number 
       >
         {over ? (
           <>
-            <strong>+{vsBudget.toLocaleString("fr-FR")} FC</strong> au-dessus du budget
-            client ({budget.toLocaleString("fr-FR")} FC). Expliquez la différence dans
-            votre message.
+            <strong>+{vsBudget.toLocaleString("fr-FR")} FC</strong> au-dessus du
+            budget client ({budget.toLocaleString("fr-FR")} FC). Expliquez la
+            différence dans votre message.
           </>
         ) : (
           <>
-            <strong>Dans le budget</strong> · {Math.abs(vsBudget).toLocaleString("fr-FR")}{" "}
-            FC sous le budget indicatif.
+            <strong>Dans le budget</strong> ·{" "}
+            {Math.abs(vsBudget).toLocaleString("fr-FR")} FC sous le budget indicatif.
           </>
         )}
       </div>
@@ -957,13 +1139,13 @@ function QuoteSent({
   onBack,
   onDashboard,
 }: {
-  req: InboundRequest | undefined;
+  req: JobRequestForPro | undefined;
   total: number;
   validityDays: number;
   onBack: () => void;
   onDashboard: () => void;
 }) {
-  const firstName = req?.client.name.split(" ")[0] ?? "le client";
+  const firstName = clientFirstName(req);
   return (
     <div
       style={{
@@ -1097,12 +1279,16 @@ function QuoteSent({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function defaultMessage(req: InboundRequest | undefined, pro: string): string {
+function defaultMessage(
+  req: JobRequestForPro | undefined,
+  pro: string,
+): string {
   if (!req) {
     return `Bonjour, merci pour votre demande. Voici mon devis. — ${pro}`;
   }
-  const clientFirst = req.client.name.split(" ")[0];
-  return `Bonjour ${clientFirst}, merci pour votre demande. Voici mon devis pour « ${req.service} ». Je peux intervenir dès que ça vous arrange. — ${pro}`;
+  const clientFirst = req.client.firstName?.trim() || "";
+  const salutation = clientFirst ? `Bonjour ${clientFirst}` : "Bonjour";
+  return `${salutation}, merci pour votre demande. Voici mon devis pour « ${req.service} ». Je peux intervenir dès que ça vous arrange. — ${pro}`;
 }
 
 // ─── Shared inline styles ──────────────────────────────────────────────────
@@ -1133,4 +1319,3 @@ const presetChipStyle: React.CSSProperties = {
   cursor: "pointer",
   fontWeight: 500,
 };
-

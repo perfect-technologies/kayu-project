@@ -52,6 +52,12 @@ import type {
   JobRequestForProResponse,
   JobRequestsInboxResponse,
   JobRequestMutationResponse,
+  // Quotes (I05)
+  CreateQuoteDtoType,
+  UpdateQuoteDtoType,
+  QuoteResponse,
+  QuotesListResponse,
+  QuoteAcceptResponse,
   // Earnings (I06)
   CreatePayoutDto,
   EarningsTransactionSearchParams,
@@ -228,6 +234,31 @@ export const jobRequestsApi = (client: ApiClient) => ({
     client.get<JobRequestForProResponse>(`/pro/requests/${id}`),
   dismiss: (id: string) =>
     client.post<JobRequestMutationResponse>(`/pro/requests/${id}/dismiss`),
+});
+
+// ---------- Quotes ----------
+
+export const quotesApi = (client: ApiClient) => ({
+  // Pro side
+  listMine: () => client.get<QuotesListResponse>("/pro/quotes"),
+  create: (data: CreateQuoteDtoType) =>
+    client.post<QuoteResponse>("/pro/quotes", data),
+  update: (id: string, data: UpdateQuoteDtoType) =>
+    client.patch<QuoteResponse>(`/pro/quotes/${id}`, data),
+  send: (id: string) =>
+    client.post<QuoteResponse>(`/pro/quotes/${id}/send`),
+  getByIdForPro: (id: string) =>
+    client.get<QuoteResponse>(`/pro/quotes/${id}`),
+
+  // Client side
+  listForJobRequest: (jobRequestId: string) =>
+    client.get<QuotesListResponse>(`/job-requests/${jobRequestId}/quotes`),
+  getByIdForClient: (id: string) =>
+    client.get<QuoteResponse>(`/quotes/${id}`),
+  accept: (id: string) =>
+    client.post<QuoteAcceptResponse>(`/quotes/${id}/accept`),
+  decline: (id: string) =>
+    client.post<QuoteResponse>(`/quotes/${id}/decline`),
 });
 
 // ---------- Admin ----------
