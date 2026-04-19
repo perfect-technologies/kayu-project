@@ -61,6 +61,11 @@ const updateProviderBodyPipe = new LazyZodValidationPipe(async () => {
   return UpdateProviderDto;
 });
 
+const updateAvailabilityBodyPipe = new LazyZodValidationPipe(async () => {
+  const { UpdateProviderAvailabilityDto } = await import("@kayu/schemas");
+  return UpdateProviderAvailabilityDto;
+});
+
 @Controller("providers")
 export class ProvidersController {
   constructor(private readonly providers: ProvidersService) {}
@@ -78,6 +83,17 @@ export class ProvidersController {
     @Body(updateProviderBodyPipe) body: UpdateProviderBody,
   ) {
     return this.providers.updateMe(actor, body);
+  }
+
+  @Patch("me/availability")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  async updateAvailability(
+    @CurrentActor() actor: Actor,
+    @Body(updateAvailabilityBodyPipe) body: { isAvailable: boolean },
+  ) {
+    await this.providers.updateMe(actor, { isAvailable: body.isAvailable });
+    return { success: true as const, isAvailable: body.isAvailable };
   }
 
   @Get(":id")

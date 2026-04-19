@@ -1,8 +1,8 @@
 "use client";
 
-import { EARNINGS_WEEKLY, LAST_WEEK_TOTAL, type WeekDay } from "./fixtures";
+import type { EarningsWeekDay } from "@kayu/schemas";
 
-function MoneyBar({ day, max }: { day: WeekDay; max: number }) {
+function MoneyBar({ day, max }: { day: EarningsWeekDay; max: number }) {
   const h = day.amount === 0 ? 2 : Math.max(6, (day.amount / max) * 100);
   const isToday = day.isToday;
   const isFuture = day.isFuture;
@@ -68,11 +68,20 @@ function MoneyBar({ day, max }: { day: WeekDay; max: number }) {
   );
 }
 
-export function MoneyChart() {
-  const max = Math.max(...EARNINGS_WEEKLY.map((d) => d.amount), 1);
-  const total = EARNINGS_WEEKLY.reduce((s, d) => s + d.amount, 0);
-  const change = ((total - LAST_WEEK_TOTAL) / LAST_WEEK_TOTAL) * 100;
-  const up = change > 0;
+export function MoneyChart({
+  days,
+  total,
+  lastWeekTotal,
+  deltaPct,
+}: {
+  days: EarningsWeekDay[];
+  total: number;
+  lastWeekTotal: number;
+  deltaPct: number;
+}) {
+  const max = Math.max(...days.map((d) => d.amount), 1);
+  const up = deltaPct >= 0;
+  const hasBaseline = lastWeekTotal > 0 || total > 0;
 
   return (
     <div>
@@ -121,26 +130,28 @@ export function MoneyChart() {
             vs semaine dernière
           </div>
         </div>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            background: up ? "var(--k-success-subtle)" : "var(--k-danger-subtle)",
-            color: up ? "#047857" : "#BE123C",
-            padding: "4px 10px",
-            borderRadius: 999,
-            fontSize: 12,
-            fontWeight: 700,
-            fontFamily: "var(--k-font-mono)",
-          }}
-        >
-          <span style={{ fontSize: 13 }}>{up ? "↑" : "↓"}</span>
-          {Math.abs(change).toFixed(0)}%
-        </div>
+        {hasBaseline && (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              background: up ? "var(--k-success-subtle)" : "var(--k-danger-subtle)",
+              color: up ? "#047857" : "#BE123C",
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 700,
+              fontFamily: "var(--k-font-mono)",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{up ? "↑" : "↓"}</span>
+            {Math.abs(deltaPct).toFixed(0)}%
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
-        {EARNINGS_WEEKLY.map((d) => (
+        {days.map((d) => (
           <MoneyBar key={d.day} day={d} max={max} />
         ))}
       </div>

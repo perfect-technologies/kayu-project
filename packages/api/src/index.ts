@@ -14,5 +14,7 @@ export {
   statsApi,
   geoApi,
   adminApi,
+  earningsApi,
+  jobRequestsApi,
 } from "./endpoints.js";
 export { queryKeys } from "./query-keys.js";

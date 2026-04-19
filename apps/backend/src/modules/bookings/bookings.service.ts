@@ -248,6 +248,13 @@ export class BookingsService {
         include: bookingInclude,
       });
 
+      if (
+        updateData.status === "COMPLETED" &&
+        booking.status !== "COMPLETED"
+      ) {
+        await this.createEarningTransaction(tx, saved);
+      }
+
       if (typeof updateData.status === "string") {
         await this.createStatusNotification(tx, booking, actor, updateData.status);
       }
@@ -430,6 +437,32 @@ export class BookingsService {
 
   private canCancel(status: BookingStatus) {
     return status === "PENDING" || status === "CONFIRMED";
+  }
+
+  private async createEarningTransaction(
+    tx: Prisma.TransactionClient,
+    booking: BookingRecord,
+  ) {
+    const price = Math.round(booking.price ?? 0);
+    if (price <= 0) {
+      return;
+    }
+    const feeAmt = Math.round(price * 0.1);
+    const netAmt = price - feeAmt;
+    const isPaid = booking.isPaid === true;
+    await tx.transaction.create({
+      data: {
+        providerId: booking.providerId,
+        type: "EARNING",
+        bookingId: booking.id,
+        amount: price,
+        feeAmt,
+        netAmt,
+        paymentMethod: booking.paymentMethod ?? "cash",
+        status: isPaid ? "COMPLETED" : "PENDING",
+        occurredAt: new Date(),
+      },
+    });
   }
 
   private async createStatusNotification(

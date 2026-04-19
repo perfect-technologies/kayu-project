@@ -1,10 +1,10 @@
 "use client";
 
 import { I } from "@kayu/ui/web";
-import type { Transaction } from "./fixtures";
+import type { Transaction } from "@kayu/schemas";
 
 const METHOD_CHIPS: Record<
-  NonNullable<Transaction["paymentMethod"]>,
+  string,
   { label: string; bg: string; color: string }
 > = {
   cash: { label: "Cash", bg: "var(--k-warning-subtle)", color: "#B45309" },
@@ -14,6 +14,36 @@ const METHOD_CHIPS: Record<
   mtn: { label: "MTN", bg: "#FFFBEB", color: "#B45309" },
 };
 
+function formatRelative(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `Il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 12 && sameDay(d, now)) return `Il y a ${diffH}h`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, yesterday))
+    return `Hier · ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  if (sameDay(d, now))
+    return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const short = d
+    .toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" })
+    .replace(".", "");
+  return `${short} · ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 export function TransactionRow({
   tx,
   last,
@@ -21,9 +51,9 @@ export function TransactionRow({
   tx: Transaction;
   last: boolean;
 }) {
-  const isEarning = tx.type === "earning";
-  const isPayout = tx.type === "payout";
-  const isBonus = tx.type === "bonus";
+  const isEarning = tx.type === "EARNING";
+  const isPayout = tx.type === "PAYOUT";
+  const isBonus = tx.type === "BONUS";
 
   const iconColor = isPayout
     ? "var(--k-primary)"
@@ -41,15 +71,15 @@ export function TransactionRow({
       ? I.sparkles
       : I.trendingUp;
 
-  const amountColor =
-    isPayout
-      ? "var(--k-text-primary)"
-      : isEarning
-        ? "var(--k-success)"
-        : "var(--k-warning)";
+  const amountColor = isPayout
+    ? "var(--k-text-primary)"
+    : isEarning
+      ? "var(--k-success)"
+      : "var(--k-warning)";
   const sign = tx.amount > 0 ? "+" : "";
 
-  const methodChip = tx.paymentMethod ? METHOD_CHIPS[tx.paymentMethod] : null;
+  const method = tx.paymentMethod?.toLowerCase() ?? null;
+  const methodChip = method && METHOD_CHIPS[method] ? METHOD_CHIPS[method] : null;
 
   return (
     <div
@@ -101,7 +131,7 @@ export function TransactionRow({
           }}
         >
           <span className="k-caption" style={{ color: "var(--k-text-muted)" }}>
-            {tx.at}
+            {formatRelative(tx.occurredAt)}
           </span>
           {methodChip && (
             <span
@@ -119,10 +149,10 @@ export function TransactionRow({
               {methodChip.label}
             </span>
           )}
-          {tx.status === "pending" && (
+          {tx.status === "PENDING" && (
             <span className="k-chip k-chip-sm k-chip-warning">En attente</span>
           )}
-          {tx.status === "failed" && (
+          {tx.status === "FAILED" && (
             <span
               className="k-chip k-chip-sm"
               style={{
@@ -133,7 +163,7 @@ export function TransactionRow({
               Échec
             </span>
           )}
-          {tx.ref && (
+          {tx.reference && (
             <span
               className="k-caption"
               style={{
@@ -141,7 +171,7 @@ export function TransactionRow({
                 fontFamily: "var(--k-font-mono)",
               }}
             >
-              {tx.ref}
+              {tx.reference}
             </span>
           )}
         </div>
@@ -160,7 +190,7 @@ export function TransactionRow({
           {tx.amount.toLocaleString("fr-FR")}{" "}
           <span style={{ color: "var(--k-text-muted)", fontSize: 12 }}>FC</span>
         </div>
-        {tx.net != null && (
+        {isEarning && tx.netAmt > 0 && (
           <div
             className="k-caption"
             style={{
@@ -169,7 +199,7 @@ export function TransactionRow({
               fontSize: 11,
             }}
           >
-            Net : <span className="k-num">{tx.net.toLocaleString("fr-FR")}</span> FC
+            Net : <span className="k-num">{tx.netAmt.toLocaleString("fr-FR")}</span> FC
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import {
 import type { Prisma } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
+import { JobRequestsService } from "../job-requests/job-requests.service";
 
 const participantUserSelect = {
   id: true,
@@ -47,6 +48,27 @@ const providerDashboardInclude = {
     },
   },
 } satisfies Prisma.ProviderInclude;
+
+const providerTodayBookingInclude = {
+  client: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+    },
+  },
+  service: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.BookingInclude;
+
+type ProviderTodayBookingRecord = Prisma.BookingGetPayload<{
+  include: typeof providerTodayBookingInclude;
+}>;
 
 const providerBookingsInclude = {
   client: {
@@ -167,7 +189,10 @@ type RecentAdminProviderRecord = Prisma.ProviderGetPayload<{
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobRequests: JobRequestsService,
+  ) {}
 
   async getProviderDashboard(actor: Actor) {
     if (actor.role !== "PROVIDER") {
@@ -185,15 +210,34 @@ export class DashboardService {
       throw new NotFoundException("Provider profile not found");
     }
 
+    const todayBounds = this.todayRange();
+
     const [
-      stats,
+      todayBookings,
       recentBookings,
       upcomingBookings,
       recentReviews,
-      notifications,
+      unreadNotifications,
       certifiedProviderIds,
+      statsSummary,
+      currentRating,
     ] = await Promise.all([
-      this.getProviderDashboardStats(provider.id),
+      this.prisma.booking.findMany({
+        where: {
+          providerId: provider.id,
+          status: {
+            in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"],
+          },
+          scheduledDate: {
+            gte: todayBounds.start,
+            lt: todayBounds.end,
+          },
+        },
+        orderBy: {
+          scheduledDate: "asc",
+        },
+        include: providerTodayBookingInclude,
+      }),
       this.prisma.booking.findMany({
         where: {
           providerId: provider.id,
@@ -230,17 +274,42 @@ export class DashboardService {
         take: 3,
         include: providerReviewInclude,
       }),
-      this.prisma.notification.findMany({
+      this.prisma.notification.count({
         where: {
           userId: actor.id,
+          isRead: false,
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 5,
       }),
       this.getCertifiedProviderIds([provider.id]),
+      this.computeProviderStatsSummary(provider.id),
+      this.getProviderAverageRating(provider.id),
     ]);
+
+    const todayJobs = todayBookings.map((booking) => this.mapTodayJob(booking));
+    const estimatedRecette = todayJobs.reduce((acc, job) => acc + job.fee, 0);
+
+    const topMatches = await this.jobRequests.topMatchesForDashboard(provider.id, 3);
+    const newRequests = topMatches.map((match) => this.mapRequestPreview({
+      id: match.id,
+      client: {
+        id: match.client.id,
+        name: this.formatName(match.client.firstName, match.client.lastName, "Client"),
+        avatar: match.client.avatar ?? null,
+      },
+      newClient: match.client.newClient,
+      clientRating: match.client.rating,
+      clientJobs: match.client.jobs,
+      service: match.service,
+      message: match.description,
+      when: match.whenPref,
+      address: match.address,
+      distance: 0,
+      matchScore: match.matchScore,
+      receivedAt: (match.notifiedAt instanceof Date
+        ? match.notifiedAt
+        : new Date(match.notifiedAt)).toISOString(),
+      urgent: match.urgent,
+    }));
 
     const completionItems = {
       hasPhoto: Boolean(provider.user.avatar),
@@ -255,9 +324,19 @@ export class DashboardService {
         100,
     );
 
+    const onboarding = this.deriveOnboardingStatus(provider);
+    const legacyStats = {
+      totalBookings: statsSummary.totalBookingsAllTime,
+      completedBookings: statsSummary.completedBookingsAllTime,
+      pendingBookings: statsSummary.pendingBookingsAllTime,
+      totalEarnings: statsSummary.revenue.totalAllTime,
+      rating: currentRating,
+      totalReviews: provider.totalReviews,
+      totalJobs: provider.totalJobs,
+    };
+
     return {
       success: true as const,
-      stats,
       provider: {
         id: provider.id,
         userId: provider.userId,
@@ -267,6 +346,7 @@ export class DashboardService {
         hourlyRate: provider.hourlyRate,
         totalReviews: provider.totalReviews,
         totalJobs: provider.totalJobs,
+        rating: currentRating,
         responseTime: provider.responseTime,
         isPremium: provider.isPremium,
         premiumExpiry: provider.premiumExpiry,
@@ -277,6 +357,42 @@ export class DashboardService {
         completionPercentage,
         completionItems,
       },
+      onboarding,
+      availability: {
+        isAvailable: provider.isAvailable,
+        zoneCity: provider.user.city ?? provider.serviceZones[0]?.city ?? null,
+        zoneRadiusKm: 10,
+      },
+      today: {
+        jobs: todayJobs,
+        estimatedRecette,
+      },
+      newRequests,
+      stats: {
+        period: "month" as const,
+        revenue: {
+          value: statsSummary.revenue.value,
+          deltaPct: statsSummary.revenue.deltaPct,
+          sparkline: statsSummary.revenue.sparkline,
+        },
+        missions: {
+          value: statsSummary.missions.value,
+          deltaPct: statsSummary.missions.deltaPct,
+          sparkline: statsSummary.missions.sparkline,
+        },
+        responseRate: {
+          value: statsSummary.responseRate.value,
+          label: statsSummary.responseRate.label,
+        },
+        avgRating: {
+          value: currentRating,
+          delta: statsSummary.avgRating.delta,
+        },
+      },
+      notifications: {
+        unreadCount: unreadNotifications,
+      },
+      // Legacy fields for `/dashboard/provider` (v1) — retained for backward compat.
       user: {
         firstName: actor.firstName,
         lastName: actor.lastName,
@@ -286,7 +402,7 @@ export class DashboardService {
       recentBookings: recentBookings.map((booking) => this.mapProviderDashboardBooking(booking)),
       upcomingBookings: upcomingBookings.map((booking) => this.mapProviderDashboardBooking(booking)),
       recentReviews: recentReviews.map((review) => this.mapDashboardReview(review)),
-      notifications: notifications.map((notification) => this.mapNotification(notification)),
+      legacyStats,
     };
   }
 
@@ -1091,4 +1207,297 @@ export class DashboardService {
     value.setHours(0, 0, 0, 0);
     return value;
   }
+
+  private todayRange() {
+    const start = this.startOfDay(new Date());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+
+  private startOfMonth(date: Date) {
+    const value = new Date(date);
+    value.setDate(1);
+    value.setHours(0, 0, 0, 0);
+    return value;
+  }
+
+  private mapTodayJob(booking: ProviderTodayBookingRecord) {
+    const scheduled = booking.scheduledDate ?? booking.createdAt;
+    const time = scheduled
+      ? scheduled.toLocaleTimeString("fr-FR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+
+    const duration = this.formatDuration(booking.duration);
+    const status: "confirmed" | "en_route" | "completed" =
+      booking.status === "COMPLETED"
+        ? "completed"
+        : booking.status === "IN_PROGRESS"
+          ? "en_route"
+          : "confirmed";
+
+    const addressParts = [booking.address, booking.city].filter(Boolean);
+
+    return {
+      id: booking.id,
+      time,
+      duration,
+      kind: booking.service?.name ?? booking.title,
+      client: {
+        id: booking.client.id,
+        name: this.formatName(booking.client.firstName, booking.client.lastName, "Client"),
+        avatar: booking.client.avatar,
+      },
+      address: addressParts.join(", ") || "Adresse à confirmer",
+      distance: 0,
+      status,
+      fee: booking.price ?? 0,
+    };
+  }
+
+  // Shape reserved for I04; exposed here so `newRequests` keeps a stable type.
+  private mapRequestPreview(request: {
+    id: string;
+    client: { id: string; name: string; avatar: string | null };
+    newClient: boolean;
+    clientRating: number | null;
+    clientJobs: number;
+    service: string;
+    message: string;
+    when: string;
+    address: string;
+    distance: number;
+    matchScore: number;
+    receivedAt: string;
+    urgent: boolean;
+  }) {
+    return request;
+  }
+
+  private formatDuration(minutes: number | null | undefined) {
+    if (!minutes || minutes <= 0) return "~1h";
+    if (minutes < 60) return `${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (rest === 0) return `~${hours}h`;
+    return `~${hours}h${String(rest).padStart(2, "0")}`;
+  }
+
+  private deriveOnboardingStatus(
+    provider: ProviderDashboardRecord,
+  ): {
+    isComplete: boolean;
+    currentStep: number | null;
+    totalSteps: number;
+    missingForPublish: string[];
+  } {
+    // I07 will persist `Provider.onboardingCompleteAt`. Until then, derive state
+    // from the profile fields that the wizard collects.
+    const steps: { key: string; ok: boolean }[] = [
+      { key: "profession", ok: Boolean(provider.profession?.trim()) },
+      { key: "categories", ok: provider.categories.length > 0 },
+      { key: "serviceZones", ok: provider.serviceZones.length > 0 },
+      { key: "hourlyRate", ok: typeof provider.hourlyRate === "number" && provider.hourlyRate > 0 },
+      {
+        key: "description",
+        ok: Boolean(provider.description && provider.description.trim().length >= 20),
+      },
+      { key: "photo", ok: Boolean(provider.user.avatar) },
+    ];
+
+    const missing = steps.filter((step) => !step.ok).map((step) => step.key);
+    const isComplete = missing.length === 0;
+    const firstMissingIndex = steps.findIndex((step) => !step.ok);
+
+    return {
+      isComplete,
+      currentStep: isComplete ? null : firstMissingIndex,
+      totalSteps: steps.length,
+      missingForPublish: missing,
+    };
+  }
+
+  private async getProviderAverageRating(providerId: string) {
+    const agg = await this.prisma.review.aggregate({
+      where: { providerId },
+      _avg: { overallScore: true },
+    });
+    return this.round(agg._avg.overallScore ?? 0);
+  }
+
+  private async computeProviderStatsSummary(providerId: string) {
+    const now = new Date();
+    const monthStart = this.startOfMonth(now);
+    const prevMonthStart = this.startOfMonth(new Date(monthStart));
+    prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+    const sevenDaysAgo = this.daysAgo(6); // inclusive of today → 7 data points
+
+    const [
+      totalBookingsAllTime,
+      completedBookingsAllTime,
+      pendingBookingsAllTime,
+      revenueAllTimeAgg,
+      monthRevenueAgg,
+      prevMonthRevenueAgg,
+      monthMissions,
+      prevMonthMissions,
+      last7DaysBookings,
+      ratingNow,
+      ratingPrev,
+    ] = await Promise.all([
+      this.prisma.booking.count({ where: { providerId } }),
+      this.prisma.booking.count({ where: { providerId, status: "COMPLETED" } }),
+      this.prisma.booking.count({ where: { providerId, status: "PENDING" } }),
+      this.prisma.booking.aggregate({
+        where: { providerId, status: "COMPLETED", price: { not: null } },
+        _sum: { price: true },
+      }),
+      this.prisma.booking.aggregate({
+        where: {
+          providerId,
+          status: "COMPLETED",
+          price: { not: null },
+          completedAt: { gte: monthStart },
+        },
+        _sum: { price: true },
+      }),
+      this.prisma.booking.aggregate({
+        where: {
+          providerId,
+          status: "COMPLETED",
+          price: { not: null },
+          completedAt: { gte: prevMonthStart, lt: monthStart },
+        },
+        _sum: { price: true },
+      }),
+      this.prisma.booking.count({
+        where: {
+          providerId,
+          status: "COMPLETED",
+          completedAt: { gte: monthStart },
+        },
+      }),
+      this.prisma.booking.count({
+        where: {
+          providerId,
+          status: "COMPLETED",
+          completedAt: { gte: prevMonthStart, lt: monthStart },
+        },
+      }),
+      this.prisma.booking.findMany({
+        where: {
+          providerId,
+          status: "COMPLETED",
+          completedAt: { gte: this.startOfDay(sevenDaysAgo) },
+        },
+        select: {
+          completedAt: true,
+          price: true,
+        },
+      }),
+      this.getProviderAverageRating(providerId),
+      this.prisma.review
+        .aggregate({
+          where: {
+            providerId,
+            createdAt: { lt: this.daysAgo(30) },
+          },
+          _avg: { overallScore: true },
+        })
+        .then((agg) => this.round(agg._avg.overallScore ?? 0)),
+    ]);
+
+    const monthRevenue = monthRevenueAgg._sum.price ?? 0;
+    const prevMonthRevenue = prevMonthRevenueAgg._sum.price ?? 0;
+
+    const revenueSparkline = this.buildDailySparkline(
+      last7DaysBookings,
+      (booking) => booking.completedAt ?? null,
+      (booking) => booking.price ?? 0,
+    );
+
+    const missionsSparkline = this.buildDailySparkline(
+      last7DaysBookings,
+      (booking) => booking.completedAt ?? null,
+      () => 1,
+    );
+
+    // Response rate proxy: % of all-time bookings that were not cancelled.
+    // Replace with "replied within 24h of a JobRequest" once I04 lands.
+    const responseRateValue =
+      totalBookingsAllTime === 0
+        ? 0
+        : Math.round(((totalBookingsAllTime - (await this.countCancelled(providerId))) / totalBookingsAllTime) * 100);
+
+    const responseLabel =
+      responseRateValue >= 90
+        ? "Excellent"
+        : responseRateValue >= 70
+          ? "Bon"
+          : "À améliorer";
+
+    return {
+      totalBookingsAllTime,
+      completedBookingsAllTime,
+      pendingBookingsAllTime,
+      revenue: {
+        value: monthRevenue,
+        deltaPct: this.percentDelta(monthRevenue, prevMonthRevenue),
+        sparkline: revenueSparkline,
+        totalAllTime: revenueAllTimeAgg._sum.price ?? 0,
+      },
+      missions: {
+        value: monthMissions,
+        deltaPct: this.percentDelta(monthMissions, prevMonthMissions),
+        sparkline: missionsSparkline,
+      },
+      responseRate: {
+        value: responseRateValue,
+        label: responseLabel as "Excellent" | "Bon" | "À améliorer",
+      },
+      avgRating: {
+        delta: this.round(ratingNow - ratingPrev),
+      },
+    };
+  }
+
+  private async countCancelled(providerId: string) {
+    return this.prisma.booking.count({
+      where: { providerId, status: "CANCELLED" },
+    });
+  }
+
+  private buildDailySparkline<T>(
+    records: T[],
+    getDate: (record: T) => Date | null,
+    getValue: (record: T) => number,
+  ): number[] {
+    const buckets: number[] = [];
+    const today = this.startOfDay(new Date());
+    for (let i = 6; i >= 0; i -= 1) {
+      const day = new Date(today);
+      day.setDate(day.getDate() - i);
+      const nextDay = new Date(day);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const total = records.reduce((acc, record) => {
+        const ts = getDate(record);
+        if (!ts) return acc;
+        if (ts >= day && ts < nextDay) return acc + getValue(record);
+        return acc;
+      }, 0);
+      buckets.push(total);
+    }
+    return buckets;
+  }
+
+  private percentDelta(current: number, previous: number) {
+    if (previous === 0) {
+      return current === 0 ? 0 : 100;
+    }
+    return Math.round(((current - previous) / previous) * 100);
+  }
+
 }

@@ -46,6 +46,19 @@ import type {
   PublicStatsResponse,
   DistanceResponse,
   GeocodeResponse,
+  CreateJobRequestDtoType,
+  JobRequestResponse,
+  JobRequestsListResponse,
+  JobRequestForProResponse,
+  JobRequestsInboxResponse,
+  JobRequestMutationResponse,
+  // Earnings (I06)
+  CreatePayoutDto,
+  EarningsTransactionSearchParams,
+  EarningsSummaryResponse,
+  EarningsTransactionsResponse,
+  PayoutsResponse,
+  CreatePayoutResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -79,6 +92,11 @@ export const providersApi = (client: ApiClient) => ({
     client.get<ProviderProfileResponse>(`/providers/${id}`),
   updateMe: (data: UpdateProviderDto) =>
     client.patch<{ success: boolean }>("/providers/me", data),
+  updateAvailability: (data: { isAvailable: boolean }) =>
+    client.patch<{ success: boolean; isAvailable: boolean }>(
+      "/providers/me/availability",
+      data,
+    ),
 });
 
 // ---------- Bookings ----------
@@ -178,6 +196,38 @@ export const geoApi = (client: ApiClient) => ({
     client.get<GeocodeResponse>("/geocode", params as Record<string, string | number | boolean | undefined>),
   distance: (params: DistanceParams) =>
     client.get<DistanceResponse>("/distance", params as Record<string, string | number | boolean | undefined>),
+});
+
+// ---------- Earnings ----------
+
+export const earningsApi = (client: ApiClient) => ({
+  summary: () => client.get<EarningsSummaryResponse>("/pro/earnings/summary"),
+  transactions: (params?: Partial<EarningsTransactionSearchParams>) =>
+    client.get<EarningsTransactionsResponse>(
+      "/pro/earnings/transactions",
+      params as Record<string, string | number | boolean | undefined>,
+    ),
+  createPayout: (data: CreatePayoutDto) =>
+    client.post<CreatePayoutResponse>("/pro/earnings/payouts", data),
+  payouts: () => client.get<PayoutsResponse>("/pro/earnings/payouts"),
+});
+
+// ---------- Job Requests ----------
+
+export const jobRequestsApi = (client: ApiClient) => ({
+  // Client side
+  create: (data: CreateJobRequestDtoType) =>
+    client.post<JobRequestResponse>("/job-requests", data),
+  mine: () => client.get<JobRequestsListResponse>("/job-requests/mine"),
+  cancel: (id: string) =>
+    client.post<JobRequestMutationResponse>(`/job-requests/${id}/cancel`),
+
+  // Pro side
+  inbox: () => client.get<JobRequestsInboxResponse>("/pro/requests"),
+  getById: (id: string) =>
+    client.get<JobRequestForProResponse>(`/pro/requests/${id}`),
+  dismiss: (id: string) =>
+    client.post<JobRequestMutationResponse>(`/pro/requests/${id}/dismiss`),
 });
 
 // ---------- Admin ----------

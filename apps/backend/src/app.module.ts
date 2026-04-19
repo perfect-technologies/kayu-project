@@ -16,7 +16,9 @@ import { AdminModule } from "./modules/admin/admin.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { StatsModule } from "./modules/stats/stats.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { EarningsModule } from "./modules/earnings/earnings.module";
 import { GeoModule } from "./modules/geo/geo.module";
+import { JobRequestsModule } from "./modules/job-requests/job-requests.module";
 
 @Module({
   imports: [
@@ -41,7 +43,9 @@ import { GeoModule } from "./modules/geo/geo.module";
     SettingsModule,
     StatsModule,
     DashboardModule,
+    EarningsModule,
     GeoModule,
+    JobRequestsModule,
   ],
   controllers: [AppController],
 })

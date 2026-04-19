@@ -12,6 +12,8 @@ import {
   dashboardApi,
   statsApi,
   geoApi,
+  jobRequestsApi,
+  earningsApi,
 } from '@kayu/api';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -31,4 +33,6 @@ export const api = {
   dashboard: dashboardApi(apiClient),
   stats: statsApi(apiClient),
   geo: geoApi(apiClient),
+  jobRequests: jobRequestsApi(apiClient),
+  earnings: earningsApi(apiClient),
 };

@@ -17,7 +17,7 @@ export default function DashboardRedirectPage() {
 
       // Redirect based on user role
       if (user?.role === 'PROVIDER') {
-        router.replace('/dashboard/provider');
+        router.replace('/pro');
       } else if (user?.role === 'CLIENT') {
         router.replace('/dashboard/client');
       } else if (user?.role === 'ADMIN') {

@@ -2,84 +2,93 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { I } from "@kayu/ui/web";
+import { earningsApi, queryKeys } from "@kayu/api";
+import type { TransactionType } from "@kayu/schemas";
+import { ErrorState, I } from "@kayu/ui/web";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { MoneyChart } from "./MoneyChart";
 import { PayoutSheet } from "./PayoutSheet";
 import { TransactionRow } from "./TransactionRow";
-import {
-  BALANCES,
-  EARNINGS_WEEKLY,
-  LAST_WEEK_TOTAL,
-  MM_OPERATORS,
-  TRANSACTIONS,
-  type TxType,
-} from "./fixtures";
+import { MM_OPERATORS } from "./fixtures";
 
-type Filter = "all" | TxType;
+type Filter = "ALL" | TransactionType;
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "Tout" },
-  { id: "earning", label: "Gains" },
-  { id: "payout", label: "Paiements" },
-  { id: "bonus", label: "Bonus" },
+  { id: "ALL", label: "Tout" },
+  { id: "EARNING", label: "Gains" },
+  { id: "PAYOUT", label: "Paiements" },
+  { id: "BONUS", label: "Bonus" },
 ];
 
 export function EarningsClient() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("ALL");
 
-  // Role gate — only PROVIDER may access /pro/*.
   useEffect(() => {
-    if (isLoading) return;
+    if (authLoading) return;
     if (!user) return;
     if (user.role !== "PROVIDER") {
       toast.error("Accès réservé aux pros");
       router.replace("/");
     }
-  }, [isLoading, user, router]);
+  }, [authLoading, user, router]);
 
-  const weekTotal = useMemo(
-    () => EARNINGS_WEEKLY.reduce((s, d) => s + d.amount, 0),
-    [],
-  );
-  const weekChange = Math.round(
-    ((weekTotal - LAST_WEEK_TOTAL) / LAST_WEEK_TOTAL) * 100,
-  );
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.earnings.summary,
+    queryFn: () => earningsApi(apiClient).summary(),
+    enabled: Boolean(user && user.role === "PROVIDER"),
+  });
 
-  const filtered = useMemo(
-    () =>
-      filter === "all"
-        ? TRANSACTIONS
-        : TRANSACTIONS.filter((t) => t.type === filter),
+  const txParams = useMemo(
+    () => (filter === "ALL" ? {} : { type: filter }),
     [filter],
   );
+  const txQuery = useQuery({
+    queryKey: queryKeys.earnings.transactions(txParams),
+    queryFn: () => earningsApi(apiClient).transactions(txParams),
+    enabled: Boolean(user && user.role === "PROVIDER"),
+  });
 
-  if (isLoading || !user || user.role !== "PROVIDER") {
+  if (authLoading || !user || user.role !== "PROVIDER") {
     return (
-      <div
-        style={{
-          padding: 48,
-          textAlign: "center",
-          color: "var(--k-text-muted)",
-        }}
-      >
+      <div style={{ padding: 48, textAlign: "center", color: "var(--k-text-muted)" }}>
         Chargement…
       </div>
     );
   }
 
+  if (summaryQuery.isError) {
+    return (
+      <div style={{ padding: 40, maxWidth: 1200, margin: "0 auto" }}>
+        <ErrorState
+          title="Impossible de charger vos gains"
+          subtitle="Vérifiez votre connexion puis réessayez."
+          cta={{ label: "Réessayer", onClick: () => summaryQuery.refetch() }}
+        />
+      </div>
+    );
+  }
+
+  const summary = summaryQuery.data?.summary;
+  const transactions = txQuery.data?.transactions ?? [];
+  const balance = summary?.balance ?? 0;
+  const pending = summary?.pending ?? 0;
+  const lifetime = summary?.lifetime ?? 0;
+  const weeklyDays = summary?.weekly.days ?? [];
+  const weeklyTotal = summary?.weekly.total ?? 0;
+  const lastWeekTotal = summary?.weekly.lastWeekTotal ?? 0;
+  const deltaPct = summary?.weekly.deltaPct ?? 0;
+  const isSummaryLoading = summaryQuery.isLoading;
+
+  const defaultPhone = user.phone ?? null;
+
   return (
-    <div
-      style={{
-        padding: "8px 0 40px",
-        maxWidth: 1200,
-        margin: "0 auto",
-      }}
-    >
+    <div style={{ padding: "8px 0 40px", maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
       <div
         style={{
@@ -115,12 +124,12 @@ export function EarningsClient() {
           type="button"
           className="k-btn k-btn-primary k-btn-lg"
           onClick={() => setSheetOpen(true)}
+          disabled={isSummaryLoading || balance <= 0}
         >
           <I.arrowRight size={16} /> Demander un paiement
         </button>
       </div>
 
-      {/* Two columns: Main + Sidebar */}
       <div
         className="k-earnings-grid"
         style={{
@@ -129,9 +138,7 @@ export function EarningsClient() {
           gap: 28,
         }}
       >
-        <section
-          style={{ display: "flex", flexDirection: "column", gap: 20 }}
-        >
+        <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Balance + chart card */}
           <div
             style={{
@@ -158,9 +165,7 @@ export function EarningsClient() {
                 color: "var(--k-text-primary)",
               }}
             >
-              <span className="k-num">
-                {BALANCES.balance.toLocaleString("fr-FR")}
-              </span>
+              <span className="k-num">{balance.toLocaleString("fr-FR")}</span>
               <span
                 style={{
                   fontSize: 22,
@@ -172,27 +177,29 @@ export function EarningsClient() {
                 FC
               </span>
             </div>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                marginTop: 10,
-                padding: "4px 12px",
-                borderRadius: 999,
-                background:
-                  weekChange >= 0
-                    ? "var(--k-success-subtle)"
-                    : "var(--k-danger-subtle)",
-                color: weekChange >= 0 ? "#047857" : "#BE123C",
-                fontSize: 12,
-                fontWeight: 700,
-                fontFamily: "var(--k-font-mono)",
-              }}
-            >
-              <span>{weekChange >= 0 ? "↑" : "↓"}</span>
-              {Math.abs(weekChange)}% cette semaine
-            </div>
+            {(weeklyTotal > 0 || lastWeekTotal > 0) && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 10,
+                  padding: "4px 12px",
+                  borderRadius: 999,
+                  background:
+                    deltaPct >= 0
+                      ? "var(--k-success-subtle)"
+                      : "var(--k-danger-subtle)",
+                  color: deltaPct >= 0 ? "#047857" : "#BE123C",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  fontFamily: "var(--k-font-mono)",
+                }}
+              >
+                <span>{deltaPct >= 0 ? "↑" : "↓"}</span>
+                {Math.abs(deltaPct)}% cette semaine
+              </div>
+            )}
 
             <div
               style={{
@@ -202,7 +209,12 @@ export function EarningsClient() {
               }}
             />
 
-            <MoneyChart />
+            <MoneyChart
+              days={weeklyDays}
+              total={weeklyTotal}
+              lastWeekTotal={lastWeekTotal}
+              deltaPct={deltaPct}
+            />
           </div>
 
           {/* Transactions */}
@@ -288,7 +300,24 @@ export function EarningsClient() {
               })}
             </div>
 
-            {filtered.length === 0 ? (
+            {txQuery.isLoading ? (
+              <div
+                style={{
+                  padding: "32px 16px",
+                  textAlign: "center",
+                  color: "var(--k-text-muted)",
+                  fontSize: 13,
+                }}
+              >
+                Chargement des transactions…
+              </div>
+            ) : txQuery.isError ? (
+              <ErrorState
+                title="Transactions indisponibles"
+                subtitle="Réessayez dans un instant."
+                cta={{ label: "Réessayer", onClick: () => txQuery.refetch() }}
+              />
+            ) : transactions.length === 0 ? (
               <div
                 style={{
                   padding: "32px 16px",
@@ -302,11 +331,11 @@ export function EarningsClient() {
               </div>
             ) : (
               <div>
-                {filtered.map((tx, i) => (
+                {transactions.map((tx, i) => (
                   <TransactionRow
                     key={tx.id}
                     tx={tx}
-                    last={i === filtered.length - 1}
+                    last={i === transactions.length - 1}
                   />
                 ))}
               </div>
@@ -318,18 +347,18 @@ export function EarningsClient() {
         <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <StatTile
             label="Solde disponible"
-            value={`${BALANCES.balance.toLocaleString("fr-FR")} FC`}
+            value={`${balance.toLocaleString("fr-FR")} FC`}
             valueColor="var(--k-success)"
             caption={`Prêt à virer`}
           />
           <StatTile
             label="En attente"
-            value={`${BALANCES.pending.toLocaleString("fr-FR")} FC`}
+            value={`${pending.toLocaleString("fr-FR")} FC`}
             caption="Sur missions non réglées"
           />
           <StatTile
             label="Gains totaux"
-            value={`${(BALANCES.lifetime / 1000).toFixed(0)}k FC`}
+            value={`${(lifetime / 1000).toFixed(0)}k FC`}
             caption="Depuis l'inscription"
             muted
           />
@@ -363,8 +392,8 @@ export function EarningsClient() {
               className="k-caption"
               style={{ color: "var(--k-text-muted)", marginTop: 4 }}
             >
-              Vers {MM_OPERATORS[0].name} ({MM_OPERATORS[0].number}).
-              Déclenche un virement manuel quand tu veux.
+              Vers {MM_OPERATORS[0].name}. Déclenche un virement manuel quand tu
+              veux.
             </div>
           </div>
 
@@ -420,7 +449,8 @@ export function EarningsClient() {
       <PayoutSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        balance={BALANCES.balance}
+        balance={balance}
+        defaultPhone={defaultPhone}
       />
 
       <style jsx global>{`
@@ -470,7 +500,8 @@ function StatTile({
           fontFamily: "var(--k-font-display)",
           fontWeight: 700,
           fontSize: 22,
-          color: valueColor ?? (muted ? "var(--k-text-muted)" : "var(--k-text-primary)"),
+          color:
+            valueColor ?? (muted ? "var(--k-text-muted)" : "var(--k-text-primary)"),
           letterSpacing: "-0.02em",
         }}
       >

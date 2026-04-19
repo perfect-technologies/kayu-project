@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,8 +13,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Chip, I, StatCard } from '@kayu/ui/mobile';
+import { queryKeys } from '@kayu/api';
+import type { RequestPreview, TodayJob } from '@kayu/schemas';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
 import type { ProviderStackParamList } from '@/navigation/AppNavigator';
 
@@ -51,100 +56,158 @@ type DashboardRequest = {
   urgent?: boolean;
 };
 
-const TODAY_JOBS: DashboardJob[] = [
-  {
-    id: 'j1',
-    time: '09:00',
-    duration: '~2h',
-    client: { name: 'Marie K.', initials: 'MK', bg: '#FB7185' },
-    kind: 'Fuite évier cuisine',
-    address: 'Av. Kasa-Vubu, Gombe',
-    status: 'confirmed',
-    fee: 15000,
-    distance: 2.3,
-  },
-  {
-    id: 'j2',
-    time: '14:30',
-    duration: '~1h30',
-    client: { name: 'Papa Léon', initials: 'PL', bg: '#10B981' },
-    kind: 'Chauffe-eau panne',
-    address: 'Blvd du 30 Juin, Kinshasa',
-    status: 'en_route',
-    fee: 22000,
-    distance: 4.1,
-  },
-  {
-    id: 'j3',
-    time: '17:00',
-    duration: '~1h',
-    client: { name: 'Esther B.', initials: 'EB', bg: '#F59E0B' },
-    kind: 'Débouchage WC',
-    address: 'Rue de la Victoire, Lemba',
-    status: 'confirmed',
-    fee: 12000,
-    distance: 6.2,
-  },
+const AVATAR_COLORS = [
+  '#FB7185',
+  '#10B981',
+  '#F59E0B',
+  '#BE185D',
+  '#7C3AED',
+  '#475569',
+  '#0EA5E9',
+  '#DC2626',
 ];
 
-const NEW_REQUESTS: DashboardRequest[] = [
-  {
-    id: 'r1',
-    client: { name: 'Christelle M.', initials: 'CM', bg: '#BE185D' },
-    kind: 'Installation robinet cuisine',
-    when: 'Demain matin',
-    address: 'Gombe',
-    msg: "J'ai acheté un nouveau robinet mais je n'arrive pas à l'installer.",
-    matchScore: 96,
-    receivedAt: 'il y a 8 min',
-    distance: 1.8,
-  },
-  {
-    id: 'r2',
-    client: { name: 'Ingrid L.', initials: 'IL', bg: '#7C3AED' },
-    kind: 'Fuite sous la douche',
-    when: 'Dès que possible',
-    address: 'Limete',
-    msg: "L'eau coule à travers le plafond du voisin. URGENT.",
-    matchScore: 92,
-    receivedAt: 'il y a 22 min',
-    distance: 3.7,
-    urgent: true,
-  },
-  {
-    id: 'r3',
-    client: { name: 'Patrick N.', initials: 'PN', bg: '#475569' },
-    kind: 'Devis rénovation salle de bain',
-    when: 'Semaine prochaine',
-    address: 'Gombe',
-    msg: 'Je veux refaire toute la plomberie de ma salle de bain.',
-    matchScore: 88,
-    receivedAt: 'il y a 1h',
-    distance: 2.1,
-  },
-];
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
+}
 
-const STATS = {
-  earningsThisMonth: 485000,
-  jobsThisMonth: 23,
-  responseRate: 98,
-};
+function colorFor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]!;
+}
+
+function toDashboardJob(job: TodayJob): DashboardJob {
+  return {
+    id: job.id,
+    time: job.time,
+    duration: job.duration,
+    kind: job.kind,
+    client: {
+      name: job.client.name,
+      initials: initialsFor(job.client.name),
+      bg: colorFor(job.client.id || job.client.name),
+    },
+    address: job.address,
+    status: job.status,
+    fee: job.fee,
+    distance: job.distance,
+  };
+}
+
+function toDashboardRequest(req: RequestPreview): DashboardRequest {
+  return {
+    id: req.id,
+    client: {
+      name: req.client.name,
+      initials: initialsFor(req.client.name),
+      bg: colorFor(req.client.id || req.client.name),
+    },
+    kind: req.service,
+    when: req.when,
+    address: req.address,
+    msg: req.message,
+    matchScore: req.matchScore,
+    receivedAt: req.receivedAt,
+    distance: req.distance,
+    urgent: req.urgent,
+  };
+}
 
 export function ProviderDashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const navigation = useNavigation<ProviderDashboardNav>();
-  const [available, setAvailable] = useState(true);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: queryKeys.dashboard.provider,
+    queryFn: () => api.dashboard.getProviderDashboard(),
+    enabled: !!user && user.role === 'PROVIDER',
+  });
+
+  const availabilityMutation = useMutation({
+    mutationFn: (isAvailable: boolean) =>
+      api.providers.updateAvailability({ isAvailable }),
+    onMutate: async (isAvailable) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.dashboard.provider });
+      const prev = queryClient.getQueryData(queryKeys.dashboard.provider);
+      queryClient.setQueryData(
+        queryKeys.dashboard.provider,
+        (old: typeof data | undefined) =>
+          old
+            ? {
+                ...old,
+                availability: { ...old.availability, isAvailable },
+                provider: { ...old.provider, isAvailable },
+              }
+            : old,
+      );
+      return { prev };
+    },
+    onError: (_err, _value, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(queryKeys.dashboard.provider, context.prev);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider });
+    },
+  });
+
+  const todayJobs = useMemo(
+    () => (data?.today.jobs ?? []).map(toDashboardJob),
+    [data],
+  );
+  const newRequests = useMemo(
+    () => (data?.newRequests ?? []).map(toDashboardRequest),
+    [data],
+  );
+  const todayTotal = data?.today.estimatedRecette ?? 0;
 
   const firstName = user?.firstName ?? 'Pro';
   const lastName = user?.lastName ?? '';
   const fullName = `${firstName} ${lastName}`.trim();
-  const rating = 4.9;
+  const rating = data?.stats.avgRating.value ?? 0;
+  const available = data?.availability.isAvailable ?? true;
+  const onboarding = data?.onboarding;
 
-  const todayTotal = useMemo(
-    () => TODAY_JOBS.reduce((a, b) => a + b.fee, 0),
-    [],
-  );
+  if (isLoading && !data) {
+    return (
+      <View style={styles.centerState}>
+        <ActivityIndicator color={theme.colors.primary} />
+        <Text style={styles.centerStateText}>Chargement…</Text>
+      </View>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <View style={styles.centerState}>
+        <Text style={styles.errorTitle}>Impossible de charger votre tableau de bord.</Text>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.btn, styles.btnSecondary, { marginTop: 16 }]}
+          onPress={() => refetch()}
+        >
+          <Text style={styles.btnSecondaryText}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const revenueValue = data.stats.revenue.value;
+  const revenueDelta = data.stats.revenue.deltaPct;
+  const missionsValue = data.stats.missions.value;
+  const missionsDelta = data.stats.missions.deltaPct;
+  const responseRate = data.stats.responseRate;
+  const avgRatingDelta = data.stats.avgRating.delta;
 
   return (
     <ScrollView
@@ -152,7 +215,6 @@ export function ProviderDashboardScreen() {
       contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Greeting header with tinted background */}
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.greetingRow}>
           <Avatar name={fullName || firstName} bg="#0EA5E9" size={40} />
@@ -166,11 +228,10 @@ export function ProviderDashboardScreen() {
             activeOpacity={0.7}
           >
             <I.inbox size={18} color={theme.colors.textBody} />
-            <View style={styles.inboxDot} />
+            {data.notifications.unreadCount > 0 && <View style={styles.inboxDot} />}
           </TouchableOpacity>
         </View>
 
-        {/* Availability pill */}
         <View style={styles.availabilityPill}>
           <View
             style={[
@@ -184,12 +245,16 @@ export function ProviderDashboardScreen() {
           <View style={{ flex: 1 }} />
           <TouchableOpacity
             accessibilityRole="switch"
-            accessibilityState={{ checked: available }}
+            accessibilityState={{ checked: available, disabled: availabilityMutation.isPending }}
             accessibilityLabel="Disponibilité"
-            onPress={() => setAvailable((v) => !v)}
+            onPress={() => availabilityMutation.mutate(!available)}
+            disabled={availabilityMutation.isPending}
             style={[
               styles.toggleTrack,
-              { backgroundColor: available ? theme.colors.success : theme.colors.borderStrong },
+              {
+                backgroundColor: available ? theme.colors.success : theme.colors.borderStrong,
+                opacity: availabilityMutation.isPending ? 0.6 : 1,
+              },
             ]}
             activeOpacity={0.85}
           >
@@ -203,45 +268,67 @@ export function ProviderDashboardScreen() {
         </View>
       </View>
 
-      {/* Verification prompt */}
-      <View style={styles.section}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('ProVerification')}
-          style={styles.verifyPrompt}
-          activeOpacity={0.9}
-        >
-          <View style={styles.verifyIcon}>
-            <I.shieldCheck size={20} color="#D97706" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.verifyPromptTitle}>Complétez votre vérification</Text>
-            <Text style={styles.verifyPromptSub}>
-              Obtenez le badge « De confiance » et +40% de vues.
-            </Text>
-          </View>
-          <I.chevronRight size={16} color="#92400E" />
-        </TouchableOpacity>
-      </View>
+      {onboarding && !onboarding.isComplete && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ProviderOnboarding')}
+            style={styles.onboardingBanner}
+            activeOpacity={0.9}
+          >
+            <View style={styles.onboardingIcon}>
+              <I.sparkles size={18} color="#0284C7" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.onboardingTitle}>Complétez votre inscription</Text>
+              <Text style={styles.onboardingSub}>
+                Étape {(onboarding.currentStep ?? 0) + 1} sur {onboarding.totalSteps} ·
+                Continuer
+              </Text>
+              <View style={styles.onboardingTrack}>
+                <View
+                  style={[
+                    styles.onboardingFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          ((onboarding.currentStep ?? 0) / (onboarding.totalSteps || 6)) * 100,
+                        ),
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+            <I.chevronRight size={16} color="#0369A1" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Today summary */}
       <View style={styles.section}>
         <View style={styles.miniStatsRow}>
           <View style={styles.miniStatCard}>
             <Text style={styles.overline}>Aujourd'hui</Text>
-            <Text style={styles.miniStatValue}>{TODAY_JOBS.length} missions</Text>
-            <Text style={styles.miniStatSub}>Prochaine à 09h00</Text>
+            <Text style={styles.miniStatValue}>{todayJobs.length} missions</Text>
+            <Text style={styles.miniStatSub}>
+              {todayJobs[0] ? `Prochaine à ${todayJobs[0].time}` : 'Rien de prévu'}
+            </Text>
           </View>
           <View style={styles.miniStatCard}>
             <Text style={styles.overline}>Recette prévue</Text>
             <Text style={[styles.miniStatValue, { fontFamily: theme.fonts.mono }]}>
               {todayTotal.toLocaleString('fr-FR')} FC
             </Text>
-            <Text style={styles.miniStatSub}>3 missions confirmées</Text>
+            <Text style={styles.miniStatSub}>
+              {todayJobs.length} mission{todayJobs.length > 1 ? 's' : ''} confirmée
+              {todayJobs.length > 1 ? 's' : ''}
+            </Text>
           </View>
         </View>
       </View>
 
-      {/* Today's schedule */}
+      {/* Today schedule */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.heading}>Planning du jour</Text>
@@ -249,13 +336,11 @@ export function ProviderDashboardScreen() {
             <Text style={styles.linkLabel}>Calendrier</Text>
           </TouchableOpacity>
         </View>
-        {TODAY_JOBS.length === 0 ? (
+        {todayJobs.length === 0 ? (
           <EmptyLine iconName="calendar" copy="Aucune mission aujourd'hui" />
         ) : (
           <View style={{ gap: 10 }}>
-            {TODAY_JOBS.map((j) => (
-              // BookingDetail navigation for pros lands with DS07 (the pro
-              // tab set has no Bookings stack today).
+            {todayJobs.map((j) => (
               <JobCard key={j.id} job={j} />
             ))}
           </View>
@@ -268,15 +353,15 @@ export function ProviderDashboardScreen() {
           <Text style={styles.heading}>
             Nouvelles demandes{' '}
             <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
-              ({NEW_REQUESTS.length})
+              ({newRequests.length})
             </Text>
           </Text>
         </View>
-        {NEW_REQUESTS.length === 0 ? (
+        {newRequests.length === 0 ? (
           <EmptyLine iconName="inbox" copy="Pas de demande en attente" />
         ) : (
           <View style={{ gap: 12 }}>
-            {NEW_REQUESTS.map((r) => (
+            {newRequests.map((r) => (
               <RequestCard key={r.id} req={r} />
             ))}
           </View>
@@ -290,27 +375,27 @@ export function ProviderDashboardScreen() {
           <View style={styles.statGridItem}>
             <StatCard
               label="Revenus"
-              value={`${(STATS.earningsThisMonth / 1000).toFixed(0)}k FC`}
-              sub="+15%"
-              trend={1}
+              value={`${Math.round(revenueValue / 1000)}k FC`}
+              sub={`${revenueDelta >= 0 ? '+' : ''}${revenueDelta}%`}
+              trend={revenueDelta >= 0 ? 1 : -1}
               compact
             />
           </View>
           <View style={styles.statGridItem}>
             <StatCard
               label="Missions"
-              value={STATS.jobsThisMonth}
-              sub="+21%"
-              trend={1}
+              value={missionsValue}
+              sub={`${missionsDelta >= 0 ? '+' : ''}${missionsDelta}%`}
+              trend={missionsDelta >= 0 ? 1 : -1}
               compact
             />
           </View>
           <View style={styles.statGridItem}>
             <StatCard
               label="Taux réponse"
-              value={`${STATS.responseRate}%`}
-              sub="Excellent"
-              trend={1}
+              value={`${responseRate.value}%`}
+              sub={responseRate.label}
+              trend={responseRate.value >= 70 ? 1 : -1}
               compact
             />
           </View>
@@ -318,8 +403,8 @@ export function ProviderDashboardScreen() {
             <StatCard
               label="Note moyenne"
               value={rating.toFixed(1)}
-              sub="+0.1"
-              trend={1}
+              sub={`${avgRatingDelta >= 0 ? '+' : ''}${avgRatingDelta.toFixed(1)}`}
+              trend={avgRatingDelta >= 0 ? 1 : -1}
               compact
             />
           </View>
@@ -394,7 +479,8 @@ function JobCard({
           <Text style={styles.jobMetaDivider}>·</Text>
           <I.mapPin size={11} color={theme.colors.textMuted} />
           <Text style={styles.jobMeta} numberOfLines={1}>
-            {job.address} · {job.distance} km
+            {job.address}
+            {job.distance > 0 ? ` · ${job.distance} km` : ''}
           </Text>
         </View>
       </View>
@@ -617,17 +703,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  verifyPrompt: {
+  onboardingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#E0F2FE',
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: '#BAE6FD',
   },
-  verifyIcon: {
+  onboardingIcon: {
     width: 40,
     height: 40,
     borderRadius: 10,
@@ -635,16 +721,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  verifyPromptTitle: {
+  onboardingTitle: {
     fontWeight: '600',
     fontSize: 14,
-    color: '#78350F',
+    color: '#0C4A6E',
   },
-  verifyPromptSub: {
+  onboardingSub: {
     fontSize: 12.5,
-    color: '#92400E',
+    color: '#0369A1',
     marginTop: 2,
     lineHeight: 17,
+  },
+  onboardingTrack: {
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#BAE6FD',
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  onboardingFill: {
+    height: '100%',
+    backgroundColor: '#0EA5E9',
   },
   miniStatCard: {
     ...(card as object),
@@ -865,5 +962,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: theme.colors.textMuted,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 10,
+    backgroundColor: theme.colors.bg,
+  },
+  centerStateText: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 14,
+    color: theme.colors.textMuted,
+  },
+  errorTitle: {
+    fontFamily: theme.fonts.displayMed,
+    fontWeight: '600',
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    textAlign: 'center',
   },
 });

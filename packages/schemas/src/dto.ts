@@ -10,6 +10,8 @@ import {
 import {
   BookingStatus,
   MessageType,
+  PayoutOperator,
+  TransactionType,
   UserRole,
   VerificationStatus,
 } from "./enums.js";
@@ -19,8 +21,10 @@ import {
   CategoryHierarchySchema,
   CategorySchema,
   ConversationSchema,
+  EarningsSummarySchema,
   FavoriteSchema,
   NotificationSchema,
+  PayoutSchema,
   ProviderDetailSchema,
   ProviderSchema,
   ProviderTradeSchema,
@@ -28,6 +32,7 @@ import {
   ServiceZoneSchema,
   SkillSchema,
   SubcategorySchema,
+  TransactionSchema,
   UserSchema,
   VisibilitySettingsSchema,
 } from "./models.js";
@@ -392,28 +397,120 @@ export const DashboardBookingSchema = BookingSchema.extend({
     .optional(),
 });
 
+export const TodayJobClientSchema = z.object({
+  id: IdSchema,
+  name: z.string(),
+  avatar: z.string().nullable().optional(),
+});
+
+export const TodayJobSchema = z.object({
+  id: IdSchema,
+  time: z.string(),
+  duration: z.string(),
+  kind: z.string(),
+  client: TodayJobClientSchema,
+  address: z.string(),
+  distance: z.number(),
+  status: z.enum(["confirmed", "en_route", "completed"]),
+  fee: z.number(),
+});
+
+export const RequestPreviewClientSchema = TodayJobClientSchema;
+
+export const RequestPreviewSchema = z.object({
+  id: IdSchema,
+  client: RequestPreviewClientSchema,
+  newClient: z.boolean().default(false),
+  clientRating: z.number().nullable().optional(),
+  clientJobs: z.number().int().min(0).default(0),
+  service: z.string(),
+  message: z.string(),
+  when: z.string(),
+  address: z.string(),
+  distance: z.number(),
+  matchScore: z.number().min(0).max(100),
+  receivedAt: z.string(),
+  urgent: z.boolean().default(false),
+});
+
+export const OnboardingStatusSchema = z.object({
+  isComplete: z.boolean(),
+  currentStep: z.number().int().min(0).max(5).nullable(),
+  totalSteps: z.number().int().min(1).default(6),
+  missingForPublish: z.array(z.string()).default([]),
+});
+
+export const AvailabilityStatusSchema = z.object({
+  isAvailable: z.boolean(),
+  zoneCity: z.string().nullable(),
+  zoneRadiusKm: z.number().nullable(),
+});
+
+export const StatSparklineSchema = z.object({
+  value: z.number(),
+  deltaPct: z.number(),
+  sparkline: z.array(z.number()).default([]),
+});
+
+export const StatResponseRateSchema = z.object({
+  value: z.number().min(0).max(100),
+  label: z.enum(["Excellent", "Bon", "À améliorer"]),
+});
+
+export const StatAvgRatingSchema = z.object({
+  value: z.number().min(0).max(5),
+  delta: z.number(),
+});
+
+export const ProviderDashboardStatsSchema = z.object({
+  period: z.enum(["month", "week"]).default("month"),
+  revenue: StatSparklineSchema,
+  missions: StatSparklineSchema,
+  responseRate: StatResponseRateSchema,
+  avgRating: StatAvgRatingSchema,
+});
+
 export const DashboardProviderResponseSchema = z.object({
-  stats: ProviderStatsResponseSchema,
   provider: ProviderSchema.partial().extend({
     id: IdSchema,
     profession: z.string(),
+    totalJobs: z.number().int().min(0).optional(),
+    rating: z.number().min(0).optional(),
+    isAvailable: z.boolean().optional(),
     completionPercentage: z.number().int().min(0).max(100).optional(),
     completionItems: z.record(z.string(), z.boolean()).optional(),
     categories: z.array(z.string()).optional(),
   }),
+  onboarding: OnboardingStatusSchema,
+  availability: AvailabilityStatusSchema,
+  today: z.object({
+    jobs: z.array(TodayJobSchema),
+    estimatedRecette: z.number(),
+  }),
+  newRequests: z.array(RequestPreviewSchema),
+  stats: ProviderDashboardStatsSchema,
+  notifications: z.object({
+    unreadCount: z.number().int().min(0),
+  }),
+
+  // Legacy compatibility fields (still consumed by the v1 `/dashboard/provider`
+  // page until its retirement). Optional so new consumers can ignore them.
   user: UserSchema.pick({
     firstName: true,
     lastName: true,
     avatar: true,
     city: true,
-  }),
-  recentBookings: z.array(DashboardBookingSchema),
-  upcomingBookings: z.array(DashboardBookingSchema),
-  recentReviews: z.array(ReviewSchema),
-  notifications: z.array(NotificationSchema),
+  }).optional(),
+  recentBookings: z.array(DashboardBookingSchema).optional(),
+  upcomingBookings: z.array(DashboardBookingSchema).optional(),
+  recentReviews: z.array(ReviewSchema).optional(),
   viewsData: z
     .array(z.object({ name: z.string(), views: z.number().int().min(0) }))
     .optional(),
+});
+
+export const UpdateProviderAvailabilityDto = z.object({
+  isAvailable: z.boolean(),
 });
 
 export const DashboardClientResponseSchema = z.object({
@@ -635,6 +732,45 @@ export const VisibilitySettingsResponseSchema = z.object({
   settings: VisibilitySettingsSchema,
 });
 
+// ---------- Earnings / Payouts (I06) ----------
+
+export const EarningsTransactionSearchParams = PaginationParams.extend({
+  type: TransactionType.optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const CreatePayoutDto = z.object({
+  operator: PayoutOperator,
+  amount: z.number().int().positive(),
+  phone: z.string().min(8),
+});
+
+export const EarningsSummaryResponseSchema = z.object({
+  summary: EarningsSummarySchema,
+});
+
+export const EarningsTransactionsResponseSchema = z.object({
+  transactions: z.array(TransactionSchema),
+  pagination: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    totalPages: z.number(),
+    hasMore: z.boolean().optional(),
+  }),
+});
+
+export const PayoutsResponseSchema = z.object({
+  payouts: z.array(PayoutSchema),
+});
+
+export const CreatePayoutResponseSchema = z.object({
+  success: z.boolean(),
+  payout: PayoutSchema,
+  transaction: TransactionSchema,
+});
+
 export const UnknownApiSuccessResponseSchema = createApiSuccessResponseSchema(z.unknown());
 
 export type ServiceZoneInput = z.infer<typeof ServiceZoneInputSchema>;
@@ -676,6 +812,12 @@ export type ProviderStatsResponse = z.infer<typeof ProviderStatsResponseSchema>;
 export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
 export type DashboardBooking = z.infer<typeof DashboardBookingSchema>;
 export type DashboardProviderResponse = z.infer<typeof DashboardProviderResponseSchema>;
+export type TodayJob = z.infer<typeof TodayJobSchema>;
+export type RequestPreview = z.infer<typeof RequestPreviewSchema>;
+export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
+export type AvailabilityStatus = z.infer<typeof AvailabilityStatusSchema>;
+export type ProviderDashboardStats = z.infer<typeof ProviderDashboardStatsSchema>;
+export type UpdateProviderAvailabilityDto = z.infer<typeof UpdateProviderAvailabilityDto>;
 export type DashboardClientResponse = z.infer<typeof DashboardClientResponseSchema>;
 export type DashboardAdminResponse = z.infer<typeof DashboardAdminResponseSchema>;
 export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
@@ -693,3 +835,9 @@ export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>;
 export type FavoritesResponse = z.infer<typeof FavoritesResponseSchema>;
 export type VisibilitySettingsResponse = z.infer<typeof VisibilitySettingsResponseSchema>;
 export type UnknownApiSuccessResponse = z.infer<typeof UnknownApiSuccessResponseSchema>;
+export type EarningsTransactionSearchParams = z.infer<typeof EarningsTransactionSearchParams>;
+export type CreatePayoutDto = z.infer<typeof CreatePayoutDto>;
+export type EarningsSummaryResponse = z.infer<typeof EarningsSummaryResponseSchema>;
+export type EarningsTransactionsResponse = z.infer<typeof EarningsTransactionsResponseSchema>;
+export type PayoutsResponse = z.infer<typeof PayoutsResponseSchema>;
+export type CreatePayoutResponse = z.infer<typeof CreatePayoutResponseSchema>;

@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,18 +9,24 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type {
+  BookingsResponse,
+  JobRequestForPro,
+  JobRequestsInboxResponse,
+} from '@kayu/schemas';
+import { queryKeys } from '@kayu/api';
 import { Avatar, I } from '@kayu/ui/mobile';
-import { tokens } from '@kayu/ui';
+import { tokens, type CategorySlug } from '@kayu/ui';
+import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
 import type { RequestsStackParamList } from '@/navigation/AppNavigator';
-import {
-  INCOMING_REQUESTS,
-  PRO_ACTIVE_JOBS,
-  type ActiveJob,
-  type ActiveJobStatus,
-  type InboundRequest,
+import type {
+  ActiveJob,
+  ActiveJobStatus,
+  InboundRequest,
 } from './fixtures';
 
 type Nav = NativeStackNavigationProp<RequestsStackParamList, 'RequestsMain'>;
@@ -51,18 +58,162 @@ const STATUS_COPY: Record<
   },
 };
 
+const AVATAR_PALETTE = [
+  '#FB7185',
+  '#10B981',
+  '#7C3AED',
+  '#F59E0B',
+  '#0EA5E9',
+  '#BE123C',
+  '#6366F1',
+  '#14B8A6',
+];
+
+function bgForId(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+
+function initialsFrom(
+  firstName?: string | null,
+  lastName?: string | null,
+  fallback = 'Client',
+) {
+  const f = (firstName ?? '').trim().charAt(0);
+  const l = (lastName ?? '').trim().charAt(0);
+  return `${f}${l}`.toUpperCase() || fallback.charAt(0).toUpperCase();
+}
+
+function formatReceivedAt(iso: string | Date | null): string {
+  if (!iso) return '';
+  const date = iso instanceof Date ? iso : new Date(iso);
+  const diffMin = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const hours = Math.floor(diffMin / 60);
+  if (hours < 24) return `il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `il y a ${days}j`;
+}
+
+function describeExpiry(iso: string | Date | null) {
+  if (!iso) return { label: 'pas de limite', minutes: 9999 };
+  const date = iso instanceof Date ? iso : new Date(iso);
+  const mins = Math.max(0, Math.floor((date.getTime() - Date.now()) / 60_000));
+  if (mins <= 0) return { label: 'expirée', minutes: 0 };
+  if (mins < 60) return { label: `${mins} min`, minutes: mins };
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  return {
+    label: rest === 0 ? `${hours}h` : `${hours}h ${rest.toString().padStart(2, '0')}min`,
+    minutes: mins,
+  };
+}
+
+function mapInbound(req: JobRequestForPro): InboundRequest {
+  const fullName =
+    `${req.client.firstName ?? ''} ${req.client.lastName ?? ''}`.trim() ||
+    'Client';
+  const initials = initialsFrom(req.client.firstName, req.client.lastName);
+  const expiry = describeExpiry(req.expiresAt);
+  const slug = (req.category?.slug as CategorySlug | undefined) ?? 'plomberie';
+
+  return {
+    id: req.id,
+    client: {
+      name: fullName,
+      initials,
+      bg: bgForId(req.clientId),
+      rating: req.client.rating ?? null,
+      jobs: req.client.jobs,
+      newClient: req.client.newClient,
+    },
+    service: req.service,
+    category: slug,
+    when: req.whenPref,
+    address: req.address,
+    neighborhood: req.commune ?? req.city,
+    distance: 0,
+    estimatedHours: req.estimatedHours ?? 1,
+    budget: req.budget ?? 0,
+    description: req.description,
+    photos: req.photoCount,
+    receivedAt: formatReceivedAt(req.notifiedAt),
+    expiresIn: expiry.label,
+    expiresMinutes: expiry.minutes,
+    competing: req.competingCount,
+    matchScore: req.matchScore,
+    urgent: req.urgent,
+  };
+}
+
+type BookingLite = BookingsResponse['bookings'][number];
+
+function mapActive(booking: BookingLite): ActiveJob {
+  const firstName = booking.client?.firstName ?? null;
+  const lastName = booking.client?.lastName ?? null;
+  const name = `${firstName ?? ''} ${lastName ?? ''}`.trim() || 'Client';
+  const initials = initialsFrom(firstName, lastName);
+  const when = booking.scheduledDate
+    ? new Date(booking.scheduledDate).toLocaleString('fr-FR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : 'Date à confirmer';
+
+  return {
+    id: booking.id,
+    client: {
+      name,
+      initials,
+      bg: bgForId(booking.clientId ?? booking.id),
+    },
+    service: booking.title,
+    when,
+    address: booking.address ?? booking.city ?? 'Adresse à confirmer',
+    status: booking.status === 'IN_PROGRESS' ? 'in_progress' : 'scheduled',
+    payout: booking.price ?? 0,
+  };
+}
+
 export function JobRequestsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
 
-  const visible = useMemo(
-    () =>
-      [...INCOMING_REQUESTS]
-        .filter((r) => !dismissed.has(r.id))
-        .sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0)),
-    [dismissed],
-  );
+  const inboxQuery = useQuery({
+    queryKey: queryKeys.jobRequests.inboxForPro,
+    queryFn: () => api.jobRequests.inbox() as Promise<JobRequestsInboxResponse>,
+    refetchInterval: 30_000,
+  });
+
+  const activeQuery = useQuery({
+    queryKey: queryKeys.bookings.all({ role: 'provider' }),
+    queryFn: () =>
+      api.bookings.getAll({ role: 'provider' }) as Promise<BookingsResponse>,
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (id: string) => api.jobRequests.dismiss(id),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.jobRequests.inboxForPro }),
+  });
+
+  const visible = useMemo(() => {
+    const items = (inboxQuery.data?.requests ?? []).map(mapInbound);
+    return items.sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  }, [inboxQuery.data]);
+
+  const activeJobs = useMemo(() => {
+    const items = (activeQuery.data?.bookings ?? []).filter(
+      (b) => b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS',
+    );
+    return items.map(mapActive);
+  }, [activeQuery.data]);
 
   return (
     <ScrollView
@@ -82,7 +233,14 @@ export function JobRequestsScreen() {
       {/* Section: new */}
       <View style={styles.section}>
         <SectionHeader label="Nouvelles demandes" count={visible.length} />
-        {visible.length === 0 ? (
+        {inboxQuery.isLoading ? (
+          <LoadingBox copy="Chargement des demandes…" />
+        ) : inboxQuery.isError ? (
+          <ErrorBox
+            copy="Impossible de charger vos demandes."
+            onRetry={() => inboxQuery.refetch()}
+          />
+        ) : visible.length === 0 ? (
           <EmptyBox
             iconName="check"
             title="Boîte vide"
@@ -94,9 +252,7 @@ export function JobRequestsScreen() {
               <InboundRequestCard
                 key={r.id}
                 req={r}
-                onDecline={() =>
-                  setDismissed((prev) => new Set([...prev, r.id]))
-                }
+                onDecline={() => dismissMutation.mutate(r.id)}
                 onQuote={() =>
                   navigation.navigate('QuoteCompose', { requestId: r.id })
                 }
@@ -108,11 +264,15 @@ export function JobRequestsScreen() {
 
       {/* Section: active */}
       <View style={styles.section}>
-        <SectionHeader
-          label="Mes missions actives"
-          count={PRO_ACTIVE_JOBS.length}
-        />
-        {PRO_ACTIVE_JOBS.length === 0 ? (
+        <SectionHeader label="Mes missions actives" count={activeJobs.length} />
+        {activeQuery.isLoading ? (
+          <LoadingBox copy="Chargement des missions…" />
+        ) : activeQuery.isError ? (
+          <ErrorBox
+            copy="Impossible de charger vos missions."
+            onRetry={() => activeQuery.refetch()}
+          />
+        ) : activeJobs.length === 0 ? (
           <EmptyBox
             iconName="calendar"
             title="Rien en cours"
@@ -120,7 +280,7 @@ export function JobRequestsScreen() {
           />
         ) : (
           <ActiveJobsCard
-            jobs={PRO_ACTIVE_JOBS}
+            jobs={activeJobs}
             onSelect={(j) =>
               navigation.navigate('BookingDetail', { bookingId: j.id })
             }
@@ -195,7 +355,7 @@ function InboundRequestCard({
             )}
           </View>
           <Text style={styles.mutedSmall} numberOfLines={1}>
-            {req.receivedAt} · {req.distance} km
+            {req.receivedAt}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
@@ -332,9 +492,7 @@ function ActiveJobsCard({
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
-              <View
-                style={[styles.statusPill, { backgroundColor: st.bg }]}
-              >
+              <View style={[styles.statusPill, { backgroundColor: st.bg }]}>
                 {st.pulse && (
                   <View
                     style={[styles.statusDot, { backgroundColor: st.color }]}
@@ -373,6 +531,31 @@ function EmptyBox({
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyCopy}>{copy}</Text>
+    </View>
+  );
+}
+
+function LoadingBox({ copy }: { copy: string }) {
+  return (
+    <View style={styles.stateBox}>
+      <ActivityIndicator color={theme.colors.accent} />
+      <Text style={styles.stateBoxCopy}>{copy}</Text>
+    </View>
+  );
+}
+
+function ErrorBox({ copy, onRetry }: { copy: string; onRetry: () => void }) {
+  return (
+    <View style={[styles.stateBox, { borderColor: theme.colors.danger }]}>
+      <Text style={[styles.stateBoxCopy, { color: theme.colors.danger }]}>
+        {copy}
+      </Text>
+      <TouchableOpacity
+        onPress={onRetry}
+        style={[styles.btn, styles.btnSecondary, { paddingHorizontal: 18 }]}
+      >
+        <Text style={styles.btnSecondaryText}>Réessayer</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -697,6 +880,25 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   emptyCopy: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13.5,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+  },
+
+  // Loading / Error shared
+  stateBox: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.border,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 12,
+  },
+  stateBoxCopy: {
     fontFamily: theme.fonts.body,
     fontSize: 13.5,
     color: theme.colors.textMuted,

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Avatar,
   I,
@@ -11,120 +13,141 @@ import {
   TrustChip,
 } from "@kayu/ui/web";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/lib/api";
+import { dashboardApi, providersApi, queryKeys } from "@kayu/api";
+import type {
+  RequestPreview,
+  TodayJob,
+} from "@kayu/schemas";
 import { JobCard } from "@/components/pro/JobCard";
 import { RequestCard } from "@/components/pro/RequestCard";
 import type { DashboardJob, DashboardRequest } from "@/components/pro/types";
 
-// DS06 uses mocked data until the pro-dashboard backend is wired. Shape
-// intentionally mirrors the v2 prototype (prototype/components/ProviderDashboard.jsx).
-const TODAY_JOBS: DashboardJob[] = [
-  {
-    id: "j1",
-    time: "09:00",
-    duration: "~2h",
-    client: { name: "Marie K.", initials: "MK", bg: "#FB7185" },
-    kind: "Fuite évier cuisine",
-    address: "Av. Kasa-Vubu, Gombe",
-    status: "confirmed",
-    fee: 15000,
-    distance: 2.3,
-  },
-  {
-    id: "j2",
-    time: "14:30",
-    duration: "~1h30",
-    client: { name: "Papa Léon", initials: "PL", bg: "#10B981" },
-    kind: "Chauffe-eau panne",
-    address: "Blvd du 30 Juin, Kinshasa",
-    status: "en_route",
-    fee: 22000,
-    distance: 4.1,
-  },
-  {
-    id: "j3",
-    time: "17:00",
-    duration: "~1h",
-    client: { name: "Esther B.", initials: "EB", bg: "#F59E0B" },
-    kind: "Débouchage WC",
-    address: "Rue de la Victoire, Lemba",
-    status: "confirmed",
-    fee: 12000,
-    distance: 6.2,
-  },
+const AVATAR_COLORS = [
+  "#FB7185",
+  "#10B981",
+  "#F59E0B",
+  "#BE185D",
+  "#7C3AED",
+  "#475569",
+  "#0EA5E9",
+  "#DC2626",
 ];
 
-const NEW_REQUESTS: DashboardRequest[] = [
-  {
-    id: "r1",
-    client: { name: "Christelle M.", initials: "CM", bg: "#BE185D" },
-    kind: "Installation robinet cuisine",
-    when: "Demain matin",
-    address: "Gombe",
-    msg: "J'ai acheté un nouveau robinet mais je n'arrive pas à l'installer.",
-    matchScore: 96,
-    receivedAt: "il y a 8 min",
-    distance: 1.8,
-  },
-  {
-    id: "r2",
-    client: { name: "Ingrid L.", initials: "IL", bg: "#7C3AED" },
-    kind: "Fuite sous la douche",
-    when: "Dès que possible",
-    address: "Limete",
-    msg: "L'eau coule à travers le plafond du voisin. URGENT.",
-    matchScore: 92,
-    receivedAt: "il y a 22 min",
-    distance: 3.7,
-    urgent: true,
-  },
-  {
-    id: "r3",
-    client: { name: "Patrick N.", initials: "PN", bg: "#475569" },
-    kind: "Devis rénovation salle de bain",
-    when: "Semaine prochaine",
-    address: "Gombe",
-    msg: "Je veux refaire toute la plomberie de ma salle de bain.",
-    matchScore: 88,
-    receivedAt: "il y a 1h",
-    distance: 2.1,
-  },
-];
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
+}
 
-const STATS = {
-  earningsThisMonth: 485000,
-  jobsThisMonth: 23,
-  responseRate: 98,
-};
+function colorFor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]!;
+}
+
+function toDashboardJob(job: TodayJob): DashboardJob {
+  return {
+    id: job.id,
+    time: job.time,
+    duration: job.duration,
+    kind: job.kind,
+    client: {
+      name: job.client.name,
+      initials: initialsFor(job.client.name),
+      bg: colorFor(job.client.id || job.client.name),
+    },
+    address: job.address,
+    status: job.status,
+    fee: job.fee,
+    distance: job.distance,
+  };
+}
+
+function toDashboardRequest(req: RequestPreview): DashboardRequest {
+  return {
+    id: req.id,
+    client: {
+      name: req.client.name,
+      initials: initialsFor(req.client.name),
+      bg: colorFor(req.client.id || req.client.name),
+    },
+    kind: req.service,
+    when: req.when,
+    address: req.address,
+    msg: req.message,
+    matchScore: req.matchScore,
+    receivedAt: req.receivedAt,
+    distance: req.distance,
+    urgent: req.urgent,
+  };
+}
 
 export function ProviderDashboardClient() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
-  const [available, setAvailable] = useState(true);
+  const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Role gate — only PROVIDER may access /pro. CLIENT/ADMIN are nudged home.
   useEffect(() => {
-    if (isLoading) return;
-    if (!user) return;
+    if (authLoading || !user) return;
     if (user.role !== "PROVIDER") {
       toast.error("Accès réservé aux pros");
       router.replace("/");
     }
-  }, [isLoading, user, router]);
+  }, [authLoading, user, router]);
 
-  const rating = 4.9;
-  const reviews = 127;
-  const jobs = 284;
-  const trust = "EXPERT" as const;
-  const firstName = user?.firstName ?? "Pro";
-  const lastName = user?.lastName ?? "";
-  const fullName = `${firstName} ${lastName}`.trim();
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: queryKeys.dashboard.provider,
+    queryFn: () => dashboardApi(apiClient).getProviderDashboard(),
+    enabled: !!user && user?.role === "PROVIDER",
+  });
 
-  const todayTotal = useMemo(
-    () => TODAY_JOBS.reduce((a, b) => a + b.fee, 0),
-    [],
+  const availabilityMutation = useMutation({
+    mutationFn: (isAvailable: boolean) =>
+      providersApi(apiClient).updateAvailability({ isAvailable }),
+    onMutate: async (isAvailable) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.dashboard.provider });
+      const prev = queryClient.getQueryData(queryKeys.dashboard.provider);
+      queryClient.setQueryData(
+        queryKeys.dashboard.provider,
+        (old: typeof data | undefined) =>
+          old
+            ? {
+                ...old,
+                availability: { ...old.availability, isAvailable },
+                provider: { ...old.provider, isAvailable },
+              }
+            : old,
+      );
+      return { prev };
+    },
+    onError: (_err, _value, context) => {
+      if (context?.prev) {
+        queryClient.setQueryData(queryKeys.dashboard.provider, context.prev);
+      }
+      toast.error("Impossible de mettre à jour votre disponibilité.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider });
+      queryClient.invalidateQueries({ queryKey: queryKeys.providers.search() });
+    },
+  });
+
+  const todayJobs: DashboardJob[] = useMemo(
+    () => (data?.today.jobs ?? []).map(toDashboardJob),
+    [data],
   );
+  const newRequests: DashboardRequest[] = useMemo(
+    () => (data?.newRequests ?? []).map(toDashboardRequest),
+    [data],
+  );
+  const todayTotal = data?.today.estimatedRecette ?? 0;
 
-  if (isLoading || !user || user.role !== "PROVIDER") {
+  if (authLoading || !user || user.role !== "PROVIDER") {
     return (
       <div style={{ padding: 48, textAlign: "center", color: "var(--k-text-muted)" }}>
         Chargement…
@@ -132,8 +155,58 @@ export function ProviderDashboardClient() {
     );
   }
 
+  if (isLoading) {
+    return <DashboardLoadingState />;
+  }
+
+  if (error || !data) {
+    return (
+      <div style={{ padding: "48px 24px", textAlign: "center" }}>
+        <div
+          style={{
+            color: "var(--k-danger)",
+            fontWeight: 600,
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+          }}
+        >
+          Impossible de charger votre tableau de bord.
+        </div>
+        <button
+          type="button"
+          className="k-btn k-btn-secondary"
+          onClick={() => refetch()}
+        >
+          Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  const firstName = user.firstName ?? "Pro";
+  const lastName = user.lastName ?? "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const rating = data.stats.avgRating.value;
+  const reviews = data.provider.totalReviews ?? 0;
+  const jobs = data.provider.totalJobs ?? 0;
+  const trust =
+    jobs >= 50 ? "EXPERT" : jobs >= 20 ? "TRUSTED" : jobs >= 5 ? "ESTABLISHED" : "NEWCOMER";
+  const isAvailable = data.availability.isAvailable;
+  const zoneCity = data.availability.zoneCity ?? "Kinshasa";
+  const zoneRadius = data.availability.zoneRadiusKm ?? 10;
+  const onboarding = data.onboarding;
+
+  const revenueValue = data.stats.revenue.value;
+  const revenueDelta = data.stats.revenue.deltaPct;
+  const missionsValue = data.stats.missions.value;
+  const missionsDelta = data.stats.missions.deltaPct;
+  const responseRate = data.stats.responseRate;
+  const avgRatingDelta = data.stats.avgRating.delta;
+
   return (
     <div style={{ padding: "8px 0 32px", maxWidth: 1280, margin: "0 auto" }}>
+      {!onboarding.isComplete && <OnboardingBanner onboarding={onboarding} />}
+
       {/* Greeting header */}
       <div
         style={{
@@ -144,11 +217,7 @@ export function ProviderDashboardClient() {
           flexWrap: "wrap",
         }}
       >
-        <Avatar
-          name={fullName || firstName}
-          size={64}
-          bg="#0EA5E9"
-        />
+        <Avatar name={fullName || firstName} size={64} bg="#0EA5E9" />
         <div style={{ flex: 1, minWidth: 240 }}>
           <div
             className="k-caption"
@@ -210,8 +279,8 @@ export function ProviderDashboardClient() {
         style={{
           padding: "14px 20px",
           borderRadius: "var(--k-r-md)",
-          background: "var(--k-success-subtle)",
-          border: "1px solid #A7F3D0",
+          background: isAvailable ? "var(--k-success-subtle)" : "var(--k-surface)",
+          border: `1px solid ${isAvailable ? "#A7F3D0" : "var(--k-border)"}`,
           display: "flex",
           alignItems: "center",
           gap: 14,
@@ -225,22 +294,26 @@ export function ProviderDashboardClient() {
             width: 12,
             height: 12,
             borderRadius: "50%",
-            background: "var(--k-success)",
-            boxShadow: "0 0 0 4px rgba(16,185,129,0.25)",
+            background: isAvailable ? "var(--k-success)" : "var(--k-border-strong)",
+            boxShadow: isAvailable ? "0 0 0 4px rgba(16,185,129,0.25)" : "none",
             flexShrink: 0,
           }}
         />
         <div style={{ flex: 1, minWidth: 240 }}>
-          <div style={{ fontWeight: 600, color: "#065F46" }}>
-            {available
+          <div style={{ fontWeight: 600, color: isAvailable ? "#065F46" : "var(--k-text-primary)" }}>
+            {isAvailable
               ? "Disponible aujourd'hui · reçoit des demandes"
               : "Indisponible · tu n'apparais pas dans les résultats"}
           </div>
           <div
             className="k-caption"
-            style={{ color: "#047857", fontSize: 12, fontWeight: 500 }}
+            style={{
+              color: isAvailable ? "#047857" : "var(--k-text-muted)",
+              fontSize: 12,
+              fontWeight: 500,
+            }}
           >
-            Tu apparais dans les résultats de recherche · zone : Kinshasa, 10 km
+            Zone : {zoneCity}, {zoneRadius} km
           </div>
         </div>
         <button type="button" className="k-btn k-btn-secondary k-btn-sm">
@@ -249,18 +322,20 @@ export function ProviderDashboardClient() {
         <button
           type="button"
           role="switch"
-          aria-checked={available}
+          aria-checked={isAvailable}
           aria-label="Disponibilité"
-          onClick={() => setAvailable((v) => !v)}
+          disabled={availabilityMutation.isPending}
+          onClick={() => availabilityMutation.mutate(!isAvailable)}
           style={{
             width: 44,
             height: 26,
             borderRadius: 999,
-            background: available ? "var(--k-success)" : "var(--k-border-strong)",
+            background: isAvailable ? "var(--k-success)" : "var(--k-border-strong)",
             position: "relative",
-            cursor: "pointer",
+            cursor: availabilityMutation.isPending ? "wait" : "pointer",
             border: 0,
             padding: 0,
+            opacity: availabilityMutation.isPending ? 0.6 : 1,
             transition: "background 160ms var(--k-ease-std)",
           }}
         >
@@ -268,7 +343,7 @@ export function ProviderDashboardClient() {
             style={{
               position: "absolute",
               top: 3,
-              left: available ? 21 : 3,
+              left: isAvailable ? 21 : 3,
               width: 20,
               height: 20,
               borderRadius: "50%",
@@ -291,31 +366,31 @@ export function ProviderDashboardClient() {
       >
         <StatCard
           label="Revenus du mois"
-          value={`${(STATS.earningsThisMonth / 1000).toFixed(0)}k FC`}
-          sub="+15% vs dernier"
-          trend={1}
+          value={`${Math.round(revenueValue / 1000)}k FC`}
+          sub={`${revenueDelta >= 0 ? "+" : ""}${revenueDelta}% vs dernier`}
+          trend={revenueDelta >= 0 ? 1 : -1}
         />
         <StatCard
           label="Missions"
-          value={STATS.jobsThisMonth}
-          sub="+21% vs dernier"
-          trend={1}
+          value={missionsValue}
+          sub={`${missionsDelta >= 0 ? "+" : ""}${missionsDelta}% vs dernier`}
+          trend={missionsDelta >= 0 ? 1 : -1}
         />
         <StatCard
           label="Taux de réponse"
-          value={`${STATS.responseRate}%`}
-          sub="Excellent"
-          trend={1}
+          value={`${responseRate.value}%`}
+          sub={responseRate.label}
+          trend={responseRate.value >= 70 ? 1 : -1}
         />
         <StatCard
           label="Note moyenne"
           value={rating.toFixed(1)}
-          sub="+0.1 ce mois"
-          trend={1}
+          sub={`${avgRatingDelta >= 0 ? "+" : ""}${avgRatingDelta.toFixed(1)} ce mois`}
+          trend={avgRatingDelta >= 0 ? 1 : -1}
         />
       </div>
 
-      {/* Two columns — Today + New requests */}
+      {/* Two columns */}
       <div
         className="k-pro-dashboard-grid"
         style={{
@@ -364,11 +439,11 @@ export function ProviderDashboardClient() {
               </span>
             </span>
           </div>
-          {TODAY_JOBS.length === 0 ? (
+          {todayJobs.length === 0 ? (
             <EmptyLine icon="calendar" copy="Aucune mission aujourd'hui" />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {TODAY_JOBS.map((j) => (
+              {todayJobs.map((j) => (
                 <JobCard
                   key={j.id}
                   job={j}
@@ -406,7 +481,7 @@ export function ProviderDashboardClient() {
                   fontWeight: 600,
                 }}
               >
-                ({NEW_REQUESTS.length})
+                ({newRequests.length})
               </span>
             </h2>
             <button
@@ -425,11 +500,11 @@ export function ProviderDashboardClient() {
               Tout voir
             </button>
           </div>
-          {NEW_REQUESTS.length === 0 ? (
+          {newRequests.length === 0 ? (
             <EmptyLine icon="inbox" copy="Pas de demande en attente" />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {NEW_REQUESTS.map((r) => (
+              {newRequests.map((r) => (
                 <RequestCard
                   key={r.id}
                   req={r}
@@ -441,19 +516,202 @@ export function ProviderDashboardClient() {
         </section>
       </div>
 
+      {isFetching && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            bottom: 16,
+            right: 16,
+            padding: "6px 10px",
+            borderRadius: 999,
+            background: "var(--k-surface)",
+            border: "1px solid var(--k-border)",
+            fontSize: 12,
+            color: "var(--k-text-muted)",
+            boxShadow: "var(--k-e1)",
+          }}
+        >
+          Actualisation…
+        </div>
+      )}
+
       <style jsx>{`
         @media (max-width: 960px) {
           :global(.k-pro-dashboard-grid) {
             grid-template-columns: minmax(0, 1fr) !important;
           }
         }
-        @media (max-width: 720px) {
-          :global(.k-pro-dashboard-grid) ~ * {
-            grid-template-columns: minmax(0, 1fr);
-          }
-        }
       `}</style>
     </div>
+  );
+}
+
+function OnboardingBanner({
+  onboarding,
+}: {
+  onboarding: {
+    isComplete: boolean;
+    currentStep: number | null;
+    totalSteps: number;
+    missingForPublish?: string[];
+  };
+}) {
+  const currentStep = onboarding.currentStep ?? 0;
+  const totalSteps = onboarding.totalSteps || 6;
+  const progressPct = Math.min(100, Math.round((currentStep / totalSteps) * 100));
+  return (
+    <div
+      role="alert"
+      style={{
+        background: "var(--k-info-subtle, #E0F2FE)",
+        border: "1px solid #BAE6FD",
+        borderRadius: "var(--k-r-md)",
+        padding: 16,
+        marginBottom: 20,
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        flexWrap: "wrap",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 999,
+          background: "#FFFFFF",
+          display: "grid",
+          placeItems: "center",
+          color: "#0284C7",
+          flexShrink: 0,
+        }}
+      >
+        <I.sparkles size={18} />
+      </div>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div
+          style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 600,
+            color: "var(--k-text-primary)",
+          }}
+        >
+          Complétez votre inscription
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            color: "var(--k-text-body)",
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          Étape {currentStep + 1} sur {totalSteps} · Vous apparaîtrez dans les
+          recherches dès que votre profil sera publié.
+        </div>
+        <div
+          style={{
+            height: 6,
+            borderRadius: 999,
+            background: "#E0F2FE",
+            marginTop: 10,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${progressPct}%`,
+              height: "100%",
+              background: "#0EA5E9",
+              transition: "width 200ms var(--k-ease-std)",
+            }}
+          />
+        </div>
+      </div>
+      <Link
+        href="/pro/onboarding"
+        className="k-btn k-btn-primary"
+        style={{ textDecoration: "none" }}
+      >
+        Continuer <I.arrowRight size={14} />
+      </Link>
+    </div>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <div style={{ padding: "8px 0 32px", maxWidth: 1280, margin: "0 auto" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 18,
+          marginBottom: 28,
+        }}
+      >
+        <SkeletonBlock w={64} h={64} r={32} />
+        <div style={{ flex: 1 }}>
+          <SkeletonBlock w={120} h={12} />
+          <SkeletonBlock w={200} h={22} style={{ marginTop: 8 }} />
+          <SkeletonBlock w={260} h={12} style={{ marginTop: 8 }} />
+        </div>
+      </div>
+      <SkeletonBlock h={60} style={{ marginBottom: 24 }} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 14,
+          marginBottom: 28,
+        }}
+      >
+        {[0, 1, 2, 3].map((i) => (
+          <SkeletonBlock key={i} h={100} />
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} h={80} />
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[0, 1, 2].map((i) => (
+            <SkeletonBlock key={i} h={160} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonBlock({
+  w,
+  h,
+  r = 12,
+  style,
+}: {
+  w?: number | string;
+  h?: number | string;
+  r?: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: w ?? "100%",
+        height: h ?? 16,
+        borderRadius: r,
+        background:
+          "linear-gradient(90deg, rgba(148,163,184,0.12), rgba(148,163,184,0.22), rgba(148,163,184,0.12))",
+        backgroundSize: "200% 100%",
+        animation: "k-shimmer 1.2s ease-in-out infinite",
+        ...style,
+      }}
+    />
   );
 }
 

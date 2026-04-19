@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -13,174 +14,86 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@kayu/api';
+import type {
+  CreatePayoutDto,
+  CreatePayoutResponse,
+  EarningsWeekDay,
+  PayoutOperator,
+  Transaction,
+  TransactionType,
+} from '@kayu/schemas';
 import { I } from '@kayu/ui/mobile';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 
-// DS08 — pro Earnings screen. Weekly bar chart, balance + stats, transaction
-// list with filter chips, Mobile Money payout bottom sheet. Data is fixture
-// only; backend wiring (real payouts) is deferred (see PROGRESS Blockers).
+// DS08 — pro Earnings screen. Real data from the EarningsModule backend;
+// payout action records a Payout in PENDING status (PSP integration stub).
 
-type WeekDay = {
-  day: string;
-  amount: number;
-  isToday?: boolean;
-  isFuture?: boolean;
-};
-
-type TxType = 'earning' | 'payout' | 'bonus';
-type TxStatus = 'completed' | 'pending' | 'failed';
 type PayMethod = 'cash' | 'mpesa' | 'airtel' | 'orange' | 'mtn';
 
-type Transaction = {
-  id: string;
-  type: TxType;
-  at: string;
-  label: string;
-  amount: number;
-  fee?: number;
-  net?: number;
-  status: TxStatus;
-  ref?: string;
-  paymentMethod?: PayMethod;
-};
-
 type MMOperator = {
-  id: 'mpesa' | 'airtel' | 'orange' | 'mtn';
+  id: PayoutOperator;
+  slug: PayMethod;
   name: string;
   init: string;
   color: string;
-  number: string;
 };
-
-const EARNINGS_WEEKLY: WeekDay[] = [
-  { day: 'Lun', amount: 12000 },
-  { day: 'Mar', amount: 28000 },
-  { day: 'Mer', amount: 18000 },
-  { day: 'Jeu', amount: 22000 },
-  { day: 'Ven', amount: 34000 },
-  { day: 'Sam', amount: 10000, isToday: true },
-  { day: 'Dim', amount: 0, isFuture: true },
-];
-const LAST_WEEK_TOTAL = 108000;
-
-const BALANCES = {
-  balance: 342000,
-  pending: 64000,
-  lifetime: 2480000,
-};
-
-const TRANSACTIONS: Transaction[] = [
-  {
-    id: 't1',
-    type: 'earning',
-    at: 'Il y a 2h',
-    label: 'Réparation fuite · Famille Mutombo',
-    amount: 22000,
-    fee: 1540,
-    net: 20460,
-    status: 'pending',
-    paymentMethod: 'cash',
-  },
-  {
-    id: 't2',
-    type: 'payout',
-    at: 'Hier · 16:42',
-    label: 'Virement vers M-Pesa',
-    amount: -85000,
-    status: 'completed',
-    ref: 'MP-7X42ZC',
-    paymentMethod: 'mpesa',
-  },
-  {
-    id: 't3',
-    type: 'earning',
-    at: 'Hier · 11:15',
-    label: 'Installation robinet · Joseph Mbuyi',
-    amount: 28000,
-    fee: 1960,
-    net: 26040,
-    status: 'completed',
-    paymentMethod: 'mpesa',
-  },
-  {
-    id: 't4',
-    type: 'earning',
-    at: 'Mar 15 · 14:30',
-    label: 'Débouchage · Marie K.',
-    amount: 15000,
-    fee: 1050,
-    net: 13950,
-    status: 'completed',
-    paymentMethod: 'airtel',
-  },
-  {
-    id: 't5',
-    type: 'bonus',
-    at: 'Lun 14 · 00:01',
-    label: 'Bonus « 10 missions ★ 4.9+ »',
-    amount: 5000,
-    status: 'completed',
-  },
-  {
-    id: 't6',
-    type: 'earning',
-    at: 'Lun 14 · 09:00',
-    label: 'Fuite chauffe-eau · Papa Léon',
-    amount: 34000,
-    fee: 2380,
-    net: 31620,
-    status: 'completed',
-    paymentMethod: 'cash',
-  },
-  {
-    id: 't7',
-    type: 'payout',
-    at: 'Dim 13 · 12:10',
-    label: 'Virement vers Airtel Money',
-    amount: -45000,
-    status: 'completed',
-    ref: 'AM-2K81PL',
-    paymentMethod: 'airtel',
-  },
-];
 
 const MM_OPERATORS: MMOperator[] = [
-  { id: 'mpesa', name: 'M-Pesa', init: 'M', color: '#10B981', number: '+243 897 ••• 456' },
-  { id: 'airtel', name: 'Airtel Money', init: 'A', color: '#E11D48', number: '+243 991 ••• 102' },
-  { id: 'orange', name: 'Orange Money', init: 'O', color: '#F97316', number: '+243 810 ••• 742' },
-  { id: 'mtn', name: 'MTN MoMo', init: 'MTN', color: '#F59E0B', number: '+243 822 ••• 918' },
+  { id: 'MPESA', slug: 'mpesa', name: 'M-Pesa', init: 'M', color: '#10B981' },
+  { id: 'AIRTEL', slug: 'airtel', name: 'Airtel Money', init: 'A', color: '#E11D48' },
+  { id: 'ORANGE', slug: 'orange', name: 'Orange Money', init: 'O', color: '#F97316' },
+  { id: 'MTN', slug: 'mtn', name: 'MTN MoMo', init: 'MTN', color: '#F59E0B' },
 ];
 
-type Filter = 'all' | TxType;
+type Filter = 'ALL' | TransactionType;
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'Tout' },
-  { id: 'earning', label: 'Gains' },
-  { id: 'payout', label: 'Paiements' },
-  { id: 'bonus', label: 'Bonus' },
+  { id: 'ALL', label: 'Tout' },
+  { id: 'EARNING', label: 'Gains' },
+  { id: 'PAYOUT', label: 'Paiements' },
+  { id: 'BONUS', label: 'Bonus' },
 ];
 
-// Fee preview is placeholder (DS08 specifies flat 1%). Real fees vary per
-// operator and are confirmed server-side when backend lands.
 const FEE_RATE = 0.01;
 
 export function EarningsScreen() {
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<Filter>('all');
+  const { user } = useAuth();
+  const [filter, setFilter] = useState<Filter>('ALL');
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const weekTotal = useMemo(
-    () => EARNINGS_WEEKLY.reduce((s, d) => s + d.amount, 0),
-    [],
-  );
-  const weekChange = Math.round(
-    ((weekTotal - LAST_WEEK_TOTAL) / LAST_WEEK_TOTAL) * 100,
-  );
+  const enabled = !!user && user.role === 'PROVIDER';
 
-  const filtered = useMemo(
-    () => (filter === 'all' ? TRANSACTIONS : TRANSACTIONS.filter((t) => t.type === filter)),
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.earnings.summary,
+    queryFn: () => api.earnings.summary(),
+    enabled,
+  });
+
+  const txParams = useMemo(
+    () => (filter === 'ALL' ? {} : { type: filter }),
     [filter],
   );
+  const txQuery = useQuery({
+    queryKey: queryKeys.earnings.transactions(txParams),
+    queryFn: () => api.earnings.transactions(txParams),
+    enabled,
+  });
+
+  const summary = summaryQuery.data?.summary;
+  const balance = summary?.balance ?? 0;
+  const pending = summary?.pending ?? 0;
+  const lifetime = summary?.lifetime ?? 0;
+  const weeklyDays = summary?.weekly.days ?? [];
+  const weeklyTotal = summary?.weekly.total ?? 0;
+  const lastWeekTotal = summary?.weekly.lastWeekTotal ?? 0;
+  const deltaPct = summary?.weekly.deltaPct ?? 0;
+  const hasBaseline = weeklyTotal > 0 || lastWeekTotal > 0;
+  const transactions = txQuery.data?.transactions ?? [];
 
   return (
     <View style={styles.root}>
@@ -197,134 +110,186 @@ export function EarningsScreen() {
           </Text>
         </View>
 
-        {/* Balance card */}
-        <View style={styles.section}>
-          <View style={styles.balanceCard}>
-            <Text style={styles.balanceOverline}>Solde disponible</Text>
-            <View style={styles.balanceAmountRow}>
-              <Text style={styles.balanceAmount}>
-                {BALANCES.balance.toLocaleString('fr-FR')}
+        {summaryQuery.isError ? (
+          <View style={[styles.section, { paddingTop: 24 }]}>
+            <View style={styles.errorCard}>
+              <Text style={styles.errorTitle}>Impossible de charger vos gains</Text>
+              <Text style={styles.errorBody}>
+                Vérifiez votre connexion puis réessayez.
               </Text>
-              <Text style={styles.balanceFc}>FC</Text>
-            </View>
-            <View
-              style={[
-                styles.deltaPill,
-                {
-                  backgroundColor:
-                    weekChange >= 0 ? theme.colors.successSubtle : theme.colors.dangerSubtle,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.deltaPillText,
-                  { color: weekChange >= 0 ? '#047857' : '#BE123C' },
-                ]}
+              <TouchableOpacity
+                onPress={() => summaryQuery.refetch()}
+                style={[styles.primaryCta, { marginTop: 12 }]}
+                activeOpacity={0.85}
               >
-                {weekChange >= 0 ? '↑' : '↓'} {Math.abs(weekChange)}% cette semaine
-              </Text>
-            </View>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSheetOpen(true)}
-              style={styles.primaryCta}
-            >
-              <I.arrowRight size={16} color="#FFFFFF" />
-              <Text style={styles.primaryCtaText}>Demander un paiement</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Weekly chart */}
-        <View style={styles.section}>
-          <View style={styles.chartCard}>
-            <MoneyChart weekTotal={weekTotal} weekChange={weekChange} />
-          </View>
-        </View>
-
-        {/* Stats tiles (pending + lifetime) */}
-        <View style={styles.section}>
-          <View style={styles.statGrid}>
-            <StatTile
-              label="En attente"
-              value={`${BALANCES.pending.toLocaleString('fr-FR')} FC`}
-              caption="Sur missions non réglées"
-            />
-            <StatTile
-              label="Gains totaux"
-              value={`${(BALANCES.lifetime / 1000).toFixed(0)}k FC`}
-              caption="Depuis l'inscription"
-              muted
-            />
-          </View>
-        </View>
-
-        {/* Transactions */}
-        <View style={styles.section}>
-          <View style={styles.txCard}>
-            <View style={styles.txHeader}>
-              <Text style={styles.sectionTitle}>Transactions</Text>
-              <TouchableOpacity activeOpacity={0.6}>
-                <View style={styles.ghostLinkRow}>
-                  <I.fileText size={13} color={theme.colors.primaryHover} />
-                  <Text style={styles.linkLabel}>Export CSV</Text>
-                </View>
+                <Text style={styles.primaryCtaText}>Réessayer</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Filter chips */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 4, gap: 8 }}
-              style={{ marginBottom: 4 }}
-            >
-              {FILTERS.map((f) => {
-                const active = filter === f.id;
-                return (
-                  <TouchableOpacity
-                    key={f.id}
-                    onPress={() => setFilter(f.id)}
-                    activeOpacity={0.75}
+          </View>
+        ) : (
+          <>
+            {/* Balance card */}
+            <View style={styles.section}>
+              <View style={styles.balanceCard}>
+                <Text style={styles.balanceOverline}>Solde disponible</Text>
+                <View style={styles.balanceAmountRow}>
+                  <Text style={styles.balanceAmount}>
+                    {summaryQuery.isLoading
+                      ? '—'
+                      : balance.toLocaleString('fr-FR')}
+                  </Text>
+                  <Text style={styles.balanceFc}>FC</Text>
+                </View>
+                {hasBaseline && (
+                  <View
                     style={[
-                      styles.chip,
-                      active && styles.chipActive,
+                      styles.deltaPill,
+                      {
+                        backgroundColor:
+                          deltaPct >= 0
+                            ? theme.colors.successSubtle
+                            : theme.colors.dangerSubtle,
+                      },
                     ]}
                   >
                     <Text
                       style={[
-                        styles.chipText,
-                        active && styles.chipTextActive,
+                        styles.deltaPillText,
+                        {
+                          color: deltaPct >= 0 ? '#047857' : '#BE123C',
+                        },
                       ]}
                     >
-                      {f.label}
+                      {deltaPct >= 0 ? '↑' : '↓'} {Math.abs(deltaPct)}% cette semaine
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {filtered.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  Pas encore de transactions. Tes gains apparaîtront ici dès ta
-                  première mission.
-                </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSheetOpen(true)}
+                  disabled={balance <= 0 || summaryQuery.isLoading}
+                  style={[
+                    styles.primaryCta,
+                    (balance <= 0 || summaryQuery.isLoading) && styles.primaryCtaDisabled,
+                  ]}
+                >
+                  <I.arrowRight size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryCtaText}>Demander un paiement</Text>
+                </TouchableOpacity>
               </View>
-            ) : (
-              filtered.map((tx, i) => (
-                <TransactionRow key={tx.id} tx={tx} last={i === filtered.length - 1} />
-              ))
-            )}
-          </View>
-        </View>
+            </View>
+
+            {/* Weekly chart */}
+            <View style={styles.section}>
+              <View style={styles.chartCard}>
+                <MoneyChart
+                  days={weeklyDays}
+                  weekTotal={weeklyTotal}
+                  deltaPct={deltaPct}
+                  hasBaseline={hasBaseline}
+                />
+              </View>
+            </View>
+
+            {/* Stats tiles */}
+            <View style={styles.section}>
+              <View style={styles.statGrid}>
+                <StatTile
+                  label="En attente"
+                  value={`${pending.toLocaleString('fr-FR')} FC`}
+                  caption="Sur missions non réglées"
+                />
+                <StatTile
+                  label="Gains totaux"
+                  value={`${(lifetime / 1000).toFixed(0)}k FC`}
+                  caption="Depuis l'inscription"
+                  muted
+                />
+              </View>
+            </View>
+
+            {/* Transactions */}
+            <View style={styles.section}>
+              <View style={styles.txCard}>
+                <View style={styles.txHeader}>
+                  <Text style={styles.sectionTitle}>Transactions</Text>
+                  <TouchableOpacity activeOpacity={0.6}>
+                    <View style={styles.ghostLinkRow}>
+                      <I.fileText size={13} color={theme.colors.primaryHover} />
+                      <Text style={styles.linkLabel}>Export CSV</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingVertical: 4, gap: 8 }}
+                  style={{ marginBottom: 4 }}
+                >
+                  {FILTERS.map((f) => {
+                    const active = filter === f.id;
+                    return (
+                      <TouchableOpacity
+                        key={f.id}
+                        onPress={() => setFilter(f.id)}
+                        activeOpacity={0.75}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text
+                          style={[styles.chipText, active && styles.chipTextActive]}
+                        >
+                          {f.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {txQuery.isLoading ? (
+                  <View style={styles.loadingWrap}>
+                    <ActivityIndicator color={theme.colors.primary} />
+                  </View>
+                ) : txQuery.isError ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>
+                      Transactions indisponibles. Réessayez dans un instant.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => txQuery.refetch()}
+                      style={[styles.primaryCta, { marginTop: 10 }]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.primaryCtaText}>Réessayer</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : transactions.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>
+                      Pas encore de transactions. Tes gains apparaîtront ici dès ta
+                      première mission.
+                    </Text>
+                  </View>
+                ) : (
+                  transactions.map((tx, i) => (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      last={i === transactions.length - 1}
+                    />
+                  ))
+                )}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <PayoutSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        balance={BALANCES.balance}
+        balance={balance}
+        defaultPhone={user?.phone ?? ''}
       />
     </View>
   );
@@ -333,14 +298,18 @@ export function EarningsScreen() {
 // ── MoneyChart ───────────────────────────────────────────────────────────
 
 function MoneyChart({
+  days,
   weekTotal,
-  weekChange,
+  deltaPct,
+  hasBaseline,
 }: {
+  days: EarningsWeekDay[];
   weekTotal: number;
-  weekChange: number;
+  deltaPct: number;
+  hasBaseline: boolean;
 }) {
-  const max = Math.max(...EARNINGS_WEEKLY.map((d) => d.amount), 1);
-  const up = weekChange >= 0;
+  const max = Math.max(...days.map((d) => d.amount), 1);
+  const up = deltaPct >= 0;
 
   return (
     <View>
@@ -353,34 +322,46 @@ function MoneyChart({
             </Text>
             <Text style={styles.chartFc}>FC</Text>
           </View>
-          <Text style={[styles.chartCaption, { marginTop: 2, color: theme.colors.textSubtle }]}>
+          <Text
+            style={[styles.chartCaption, { marginTop: 2, color: theme.colors.textSubtle }]}
+          >
             vs semaine dernière
           </Text>
         </View>
-        <View
-          style={[
-            styles.deltaPill,
-            {
-              backgroundColor: up ? theme.colors.successSubtle : theme.colors.dangerSubtle,
-            },
-          ]}
-        >
-          <Text style={[styles.deltaPillText, { color: up ? '#047857' : '#BE123C' }]}>
-            {up ? '↑' : '↓'} {Math.abs(weekChange)}%
-          </Text>
-        </View>
+        {hasBaseline && (
+          <View
+            style={[
+              styles.deltaPill,
+              {
+                backgroundColor: up
+                  ? theme.colors.successSubtle
+                  : theme.colors.dangerSubtle,
+              },
+            ]}
+          >
+            <Text
+              style={[styles.deltaPillText, { color: up ? '#047857' : '#BE123C' }]}
+            >
+              {up ? '↑' : '↓'} {Math.abs(deltaPct)}%
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.barsRow}>
-        {EARNINGS_WEEKLY.map((d) => (
-          <MoneyBar key={d.day} day={d} max={max} />
-        ))}
+        {days.length === 0
+          ? Array.from({ length: 7 }).map((_, i) => (
+              <View key={i} style={styles.barCol}>
+                <View style={styles.barTrack} />
+              </View>
+            ))
+          : days.map((d, i) => <MoneyBar key={`${d.day}-${i}`} day={d} max={max} />)}
       </View>
     </View>
   );
 }
 
-function MoneyBar({ day, max }: { day: WeekDay; max: number }) {
+function MoneyBar({ day, max }: { day: EarningsWeekDay; max: number }) {
   const hPct = day.amount === 0 ? 2 : Math.max(6, (day.amount / max) * 100);
   const isToday = day.isToday;
   const isFuture = day.isFuture;
@@ -399,7 +380,6 @@ function MoneyBar({ day, max }: { day: WeekDay; max: number }) {
             {
               height: `${hPct}%`,
               backgroundColor: fill,
-              // Today gets a ring shadow: emulated on RN with a wrapping view.
               ...(isToday
                 ? {
                     shadowColor: theme.colors.primary,
@@ -434,7 +414,7 @@ function MoneyBar({ day, max }: { day: WeekDay; max: number }) {
 
 // ── Transaction Row ──────────────────────────────────────────────────────
 
-const METHOD_CHIPS: Record<PayMethod, { label: string; bg: string; color: string }> = {
+const METHOD_CHIPS: Record<string, { label: string; bg: string; color: string }> = {
   cash: { label: 'Cash', bg: theme.colors.warningSubtle, color: '#B45309' },
   mpesa: { label: 'M-Pesa', bg: '#ECFDF5', color: '#10B981' },
   airtel: { label: 'Airtel', bg: '#FEF2F2', color: '#E11D48' },
@@ -442,10 +422,40 @@ const METHOD_CHIPS: Record<PayMethod, { label: string; bg: string; color: string
   mtn: { label: 'MTN', bg: '#FFFBEB', color: '#B45309' },
 };
 
+function formatRelative(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `Il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 12 && sameDay(d, now)) return `Il y a ${diffH}h`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, yesterday))
+    return `Hier · ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+  if (sameDay(d, now))
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const short = d
+    .toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit' })
+    .replace('.', '');
+  return `${short} · ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function sameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
-  const isEarning = tx.type === 'earning';
-  const isPayout = tx.type === 'payout';
-  const isBonus = tx.type === 'bonus';
+  const isEarning = tx.type === 'EARNING';
+  const isPayout = tx.type === 'PAYOUT';
+  const isBonus = tx.type === 'BONUS';
 
   const iconColor = isPayout
     ? theme.colors.primary
@@ -459,14 +469,14 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
       : theme.colors.successSubtle;
   const IconCmp = isPayout ? I.arrowRight : isBonus ? I.sparkles : I.trendingUp;
 
-  const amountColor =
-    isPayout
-      ? theme.colors.textPrimary
-      : isEarning
-        ? theme.colors.success
-        : theme.colors.warning;
+  const amountColor = isPayout
+    ? theme.colors.textPrimary
+    : isEarning
+      ? theme.colors.success
+      : theme.colors.warning;
   const sign = tx.amount > 0 ? '+' : '';
-  const methodChip = tx.paymentMethod ? METHOD_CHIPS[tx.paymentMethod] : null;
+  const method = tx.paymentMethod?.toLowerCase() ?? null;
+  const methodChip = method && METHOD_CHIPS[method] ? METHOD_CHIPS[method] : null;
 
   return (
     <View style={[styles.txRow, !last && styles.txRowDivider]}>
@@ -479,7 +489,7 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
           {tx.label}
         </Text>
         <View style={styles.txMetaRow}>
-          <Text style={styles.txMeta}>{tx.at}</Text>
+          <Text style={styles.txMeta}>{formatRelative(tx.occurredAt)}</Text>
           {methodChip && (
             <View style={[styles.methodPill, { backgroundColor: methodChip.bg }]}>
               <Text style={[styles.methodPillText, { color: methodChip.color }]}>
@@ -487,7 +497,7 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
               </Text>
             </View>
           )}
-          {tx.status === 'pending' && (
+          {tx.status === 'PENDING' && (
             <View
               style={[styles.statusPill, { backgroundColor: theme.colors.warningSubtle }]}
             >
@@ -496,7 +506,7 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
               </Text>
             </View>
           )}
-          {tx.status === 'failed' && (
+          {tx.status === 'FAILED' && (
             <View
               style={[styles.statusPill, { backgroundColor: theme.colors.dangerSubtle }]}
             >
@@ -505,7 +515,7 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
               </Text>
             </View>
           )}
-          {tx.ref && <Text style={styles.txRef}>{tx.ref}</Text>}
+          {tx.reference && <Text style={styles.txRef}>{tx.reference}</Text>}
         </View>
       </View>
 
@@ -515,9 +525,9 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
           {tx.amount.toLocaleString('fr-FR')}
           <Text style={styles.txAmountFc}> FC</Text>
         </Text>
-        {tx.net != null && (
+        {isEarning && tx.netAmt > 0 && (
           <Text style={styles.txNet}>
-            Net : {tx.net.toLocaleString('fr-FR')} FC
+            Net : {tx.netAmt.toLocaleString('fr-FR')} FC
           </Text>
         )}
       </View>
@@ -560,28 +570,48 @@ function PayoutSheet({
   open,
   onClose,
   balance,
+  defaultPhone,
 }: {
   open: boolean;
   onClose: () => void;
   balance: number;
+  defaultPhone: string;
 }) {
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const [amount, setAmount] = useState<number>(balance);
-  const [selectedId, setSelectedId] = useState<MMOperator['id']>('mpesa');
-  const [submitted, setSubmitted] = useState(false);
+  const [selected, setSelected] = useState<MMOperator>(MM_OPERATORS[0]);
+  const [phone, setPhone] = useState(defaultPhone);
+  const [result, setResult] = useState<CreatePayoutResponse | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (data: CreatePayoutDto) => api.earnings.createPayout(data),
+    onSuccess: (data) => {
+      setResult(data);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.summary });
+      void queryClient.invalidateQueries({ queryKey: ['earnings', 'transactions'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.payouts });
+    },
+  });
 
   useEffect(() => {
     if (open) {
       setAmount(balance);
-      setSelectedId('mpesa');
-      setSubmitted(false);
+      setSelected(MM_OPERATORS[0]);
+      setPhone(defaultPhone);
+      setResult(null);
+      mutation.reset();
     }
-  }, [open, balance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, balance, defaultPhone]);
 
-  const selected = MM_OPERATORS.find((op) => op.id === selectedId) ?? MM_OPERATORS[0];
   const fee = Math.round(amount * FEE_RATE);
   const receiving = amount - fee;
-  const invalid = amount <= 0 || amount > balance;
+  const invalid =
+    amount <= 0 ||
+    amount > balance ||
+    phone.trim().length < 8 ||
+    mutation.isPending;
 
   return (
     <Modal
@@ -614,7 +644,7 @@ function PayoutSheet({
             </TouchableOpacity>
           </View>
 
-          {submitted ? (
+          {result ? (
             <View style={styles.successWrap}>
               <View style={styles.successCircle}>
                 <I.check size={32} color={theme.colors.success} strokeWidth={2.5} />
@@ -622,6 +652,9 @@ function PayoutSheet({
               <Text style={styles.successTitle}>Demande enregistrée</Text>
               <Text style={styles.successBody}>
                 {amount.toLocaleString('fr-FR')} FC en route vers {selected.name}.
+              </Text>
+              <Text style={styles.successRef}>
+                Réf : {result.payout.reference ?? 'PSP en attente'}
               </Text>
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -669,22 +702,23 @@ function PayoutSheet({
                   <OperatorTile
                     key={op.id}
                     op={op}
-                    selected={selectedId === op.id}
-                    onPress={() => setSelectedId(op.id)}
+                    selected={selected.id === op.id}
+                    onPress={() => setSelected(op)}
                   />
                 ))}
               </View>
 
-              {/* Masked number */}
-              <View style={styles.numberCard}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.fieldOverline}>Numéro</Text>
-                  <Text style={styles.numberText}>{selected.number}</Text>
-                </View>
-                <TouchableOpacity activeOpacity={0.7} style={styles.linkBtn}>
-                  <I.pencil size={13} color={theme.colors.primaryHover} />
-                  <Text style={styles.linkLabel}>Modifier</Text>
-                </TouchableOpacity>
+              {/* Phone */}
+              <Text style={styles.fieldOverline}>Numéro</Text>
+              <View style={styles.phoneField}>
+                <TextInput
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="+243 810 123 742"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  style={styles.phoneInput}
+                />
               </View>
 
               {/* Récapitulatif */}
@@ -709,13 +743,29 @@ function PayoutSheet({
                 </View>
               </View>
 
+              {mutation.isError && (
+                <Text style={styles.errorInline}>
+                  {mutation.error instanceof Error
+                    ? mutation.error.message
+                    : "Impossible d'enregistrer le paiement. Réessayez."}
+                </Text>
+              )}
+
               <TouchableOpacity
                 activeOpacity={invalid ? 1 : 0.85}
                 disabled={invalid}
-                onPress={() => setSubmitted(true)}
+                onPress={() =>
+                  mutation.mutate({
+                    operator: selected.id,
+                    amount,
+                    phone: phone.trim(),
+                  })
+                }
                 style={[styles.primaryCta, invalid && styles.primaryCtaDisabled]}
               >
-                <Text style={styles.primaryCtaText}>Valider le paiement</Text>
+                <Text style={styles.primaryCtaText}>
+                  {mutation.isPending ? 'Enregistrement…' : 'Valider le paiement'}
+                </Text>
               </TouchableOpacity>
               <Text style={styles.sheetFootnote}>
                 Délai : 2–5 minutes · sécurisé par KAYOU
@@ -832,6 +882,25 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
 
+  errorCard: {
+    ...(card as object),
+    padding: 18,
+    alignItems: 'center',
+  },
+  errorTitle: {
+    fontFamily: theme.fonts.display,
+    fontWeight: '700',
+    fontSize: 17,
+    color: theme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  errorBody: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+  },
+
   // Balance card
   balanceCard: {
     ...(card as object),
@@ -891,7 +960,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Chart card
   chartCard: {
     ...(card as object),
     padding: 18,
@@ -959,7 +1027,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // Stats
   statGrid: {
     flexDirection: 'row',
     gap: 10,
@@ -987,7 +1054,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Transactions
   txCard: {
     ...(card as object),
     padding: 16,
@@ -1134,8 +1200,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 19,
   },
+  loadingWrap: {
+    paddingVertical: 28,
+    alignItems: 'center',
+  },
 
-  // Payout sheet
   sheetBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.45)',
@@ -1265,29 +1334,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  numberCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  phoneField: {
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.bg,
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.borderSubtle,
     marginBottom: 18,
   },
-  numberText: {
+  phoneInput: {
     fontFamily: theme.fonts.mono,
-    fontWeight: '600',
-    fontSize: 14.5,
+    fontSize: 15,
     color: theme.colors.textPrimary,
-    marginTop: 3,
-  },
-  linkBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    padding: 0,
   },
   recap: {
     padding: 14,
@@ -1343,6 +1403,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
+  errorInline: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 12,
+    color: theme.colors.danger,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
   successWrap: {
     alignItems: 'center',
     paddingVertical: 24,
@@ -1370,5 +1437,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 12,
+  },
+  successRef: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 12,
+    color: theme.colors.textSubtle,
+    marginTop: 8,
   },
 });

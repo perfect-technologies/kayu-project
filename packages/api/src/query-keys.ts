@@ -7,6 +7,7 @@ import type {
   AdminUserSearchParams,
   AdminProviderSearchParams,
   AdminReviewSearchParams,
+  EarningsTransactionSearchParams,
 } from "@kayu/schemas";
 
 export const queryKeys = {
@@ -61,6 +62,17 @@ export const queryKeys = {
     geocode: (city: string) => ["geo", "geocode", city] as const,
     distance: (lat: number, lng: number) =>
       ["geo", "distance", lat, lng] as const,
+  },
+  jobRequests: {
+    mine: ["jobRequests", "mine"] as const,
+    inboxForPro: ["jobRequests", "inboxForPro"] as const,
+    detail: (id: string) => ["jobRequests", "detail", id] as const,
+  },
+  earnings: {
+    summary: ["earnings", "summary"] as const,
+    transactions: (params?: Partial<EarningsTransactionSearchParams>) =>
+      ["earnings", "transactions", params ?? {}] as const,
+    payouts: ["earnings", "payouts"] as const,
   },
   admin: {
     users: (params?: Partial<AdminUserSearchParams>) =>

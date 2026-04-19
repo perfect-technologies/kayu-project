@@ -7,8 +7,12 @@ import {
   MessageType,
   NotificationType,
   PaymentRating,
+  PayoutOperator,
+  PayoutStatus,
   PortfolioImageType,
   SubscriptionPlan,
+  TransactionStatus,
+  TransactionType,
   TrustLevel,
   UserRole,
   VerificationStatus,
@@ -467,6 +471,58 @@ export const VisibilitySettingsSchema = z.object({
   updatedAt: DateTimeSchema.optional(),
 });
 
+export const TransactionSchema = z.object({
+  id: IdSchema,
+  providerId: IdSchema.optional(),
+  type: TransactionType,
+  bookingId: IdSchema.nullable().optional(),
+  payoutId: IdSchema.nullable().optional(),
+  amount: z.number().int(),
+  feeAmt: z.number().int(),
+  netAmt: z.number().int(),
+  paymentMethod: z.string().nullable().optional(),
+  status: TransactionStatus,
+  reference: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  label: z.string(),
+  occurredAt: DateTimeSchema,
+  createdAt: DateTimeSchema.optional(),
+});
+
+export const PayoutSchema = z.object({
+  id: IdSchema,
+  providerId: IdSchema.optional(),
+  operator: PayoutOperator,
+  phoneMasked: z.string(),
+  amount: z.number().int(),
+  feeAmt: z.number().int(),
+  netAmt: z.number().int(),
+  status: PayoutStatus,
+  reference: z.string().nullable().optional(),
+  holdReason: z.string().nullable().optional(),
+  requestedAt: DateTimeSchema,
+  completedAt: NullableDateTimeSchema.optional(),
+});
+
+export const EarningsWeekDaySchema = z.object({
+  day: z.string(),
+  amount: z.number().int(),
+  isToday: z.boolean().optional(),
+  isFuture: z.boolean().optional(),
+});
+
+export const EarningsSummarySchema = z.object({
+  balance: z.number().int(),
+  pending: z.number().int(),
+  lifetime: z.number().int(),
+  weekly: z.object({
+    days: z.array(EarningsWeekDaySchema),
+    total: z.number().int(),
+    lastWeekTotal: z.number().int(),
+    deltaPct: z.number(),
+  }),
+});
+
 export type UserSummary = z.infer<typeof UserSummarySchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
@@ -499,3 +555,7 @@ export type Conversation = z.infer<typeof ConversationSchema>;
 export type Notification = z.infer<typeof NotificationSchema>;
 export type Favorite = z.infer<typeof FavoriteSchema>;
 export type VisibilitySettings = z.infer<typeof VisibilitySettingsSchema>;
+export type Transaction = z.infer<typeof TransactionSchema>;
+export type Payout = z.infer<typeof PayoutSchema>;
+export type EarningsWeekDay = z.infer<typeof EarningsWeekDaySchema>;
+export type EarningsSummary = z.infer<typeof EarningsSummarySchema>;

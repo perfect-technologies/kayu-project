@@ -83,9 +83,18 @@ export const NotificationType = z.enum([
   "PAYMENT_RECEIVED",
   "CERTIFICATION_VERIFIED",
   "BADGE_EARNED",
+  "JOB_REQUEST_NEW",
   "SYSTEM",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;
+
+export const JobRequestStatus = z.enum([
+  "OPEN",
+  "MATCHED",
+  "EXPIRED",
+  "CANCELLED",
+]);
+export type JobRequestStatus = z.infer<typeof JobRequestStatus>;
 
 export const VisibilityLevel = z.enum([
   "PUBLIC",
@@ -121,3 +130,21 @@ export type PortfolioImageType = z.infer<typeof PortfolioImageType>;
 
 export const SubscriptionPlan = z.enum(["BASIC", "STANDARD", "PREMIUM"]);
 export type SubscriptionPlan = z.infer<typeof SubscriptionPlan>;
+
+export const TransactionType = z.enum(["EARNING", "PAYOUT", "BONUS", "REFUND"]);
+export type TransactionType = z.infer<typeof TransactionType>;
+
+export const TransactionStatus = z.enum(["PENDING", "COMPLETED", "FAILED"]);
+export type TransactionStatus = z.infer<typeof TransactionStatus>;
+
+export const PayoutOperator = z.enum(["MPESA", "AIRTEL", "ORANGE", "MTN"]);
+export type PayoutOperator = z.infer<typeof PayoutOperator>;
+
+export const PayoutStatus = z.enum([
+  "READY",
+  "PENDING",
+  "COMPLETED",
+  "FAILED",
+  "ON_HOLD",
+]);
+export type PayoutStatus = z.infer<typeof PayoutStatus>;

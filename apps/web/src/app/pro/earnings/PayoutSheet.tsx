@@ -1,44 +1,67 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { earningsApi, queryKeys } from "@kayu/api";
+import type { CreatePayoutDto, CreatePayoutResponse } from "@kayu/schemas";
 import { I } from "@kayu/ui/web";
+import { apiClient } from "@/lib/api";
 import { MM_OPERATORS, type MMOperator } from "./fixtures";
 
-// Fee is a placeholder preview — real Mobile Money fees vary per operator and
-// are confirmed server-side. DS08 acceptance criteria calls for a flat 1%.
+// Fee preview is a client-side placeholder (DS08 spec: flat 1%). The real fee
+// is set server-side; this preview helps the pro pick an amount.
 const FEE_RATE = 0.01;
 
 export function PayoutSheet({
   open,
   onClose,
   balance,
+  defaultPhone,
 }: {
   open: boolean;
   onClose: () => void;
   balance: number;
+  defaultPhone: string | null;
 }) {
   const [amount, setAmount] = useState(balance);
-  const [selectedId, setSelectedId] = useState<MMOperator["id"]>("mpesa");
-  const [submitted, setSubmitted] = useState(false);
+  const [selected, setSelected] = useState<MMOperator>(MM_OPERATORS[0]);
+  const [phone, setPhone] = useState(defaultPhone ?? "");
+  const [result, setResult] = useState<CreatePayoutResponse | null>(null);
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (data: CreatePayoutDto) =>
+      earningsApi(apiClient).createPayout(data),
+    onSuccess: (data) => {
+      setResult(data);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.summary });
+      void queryClient.invalidateQueries({
+        queryKey: ["earnings", "transactions"],
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.payouts });
+    },
+  });
 
   useEffect(() => {
     if (open) {
       setAmount(balance);
-      setSelectedId("mpesa");
-      setSubmitted(false);
+      setSelected(MM_OPERATORS[0]);
+      setPhone(defaultPhone ?? "");
+      setResult(null);
+      mutation.reset();
     }
-  }, [open, balance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, balance, defaultPhone]);
 
-  const selected = useMemo(
-    () => MM_OPERATORS.find((op) => op.id === selectedId) ?? MM_OPERATORS[0],
-    [selectedId],
-  );
+  const fee = useMemo(() => Math.round(amount * FEE_RATE), [amount]);
+  const receiving = amount - fee;
+  const invalid =
+    amount <= 0 ||
+    amount > balance ||
+    phone.trim().length < 8 ||
+    mutation.isPending;
 
   if (!open) return null;
-
-  const fee = Math.round(amount * FEE_RATE);
-  const receiving = amount - fee;
-  const invalid = amount <= 0 || amount > balance;
 
   return (
     <div
@@ -112,8 +135,13 @@ export function PayoutSheet({
           </button>
         </div>
 
-        {submitted ? (
-          <SubmittedNotice op={selected} amount={amount} onClose={onClose} />
+        {result ? (
+          <SubmittedNotice
+            op={selected}
+            amount={amount}
+            reference={result.payout.reference ?? "PSP en attente"}
+            onClose={onClose}
+          />
         ) : (
           <>
             {/* Amount */}
@@ -197,48 +225,37 @@ export function PayoutSheet({
                 <OperatorTile
                   key={op.id}
                   op={op}
-                  selected={selectedId === op.id}
-                  onClick={() => setSelectedId(op.id)}
+                  selected={selected.id === op.id}
+                  onClick={() => setSelected(op)}
                 />
               ))}
             </div>
 
-            {/* Masked number */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 14px",
-                borderRadius: "var(--k-r-md)",
-                border: "1px solid var(--k-border-subtle)",
-                background: "var(--k-surface)",
-                marginBottom: 18,
-              }}
-            >
-              <div>
-                <div
-                  className="k-caption"
-                  style={{ color: "var(--k-text-muted)" }}
-                >
-                  Numéro
-                </div>
-                <div
-                  className="k-price"
-                  style={{ fontSize: 15, color: "var(--k-text-primary)" }}
-                >
-                  {selected.number}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="k-btn k-btn-ghost k-btn-sm"
-                onClick={() => {
-                  /* TODO: open phone-entry sub-step (deferred) */
-                }}
+            {/* Phone number */}
+            <div style={{ marginBottom: 18 }}>
+              <div
+                className="k-overline"
+                style={{ color: "var(--k-text-muted)", marginBottom: 8 }}
               >
-                <I.pencil size={13} /> Modifier
-              </button>
+                Numéro
+              </div>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+243 810 123 742"
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: "var(--k-r-md)",
+                  border: "1px solid var(--k-border-subtle)",
+                  background: "var(--k-surface)",
+                  fontFamily: "var(--k-font-mono)",
+                  fontSize: 15,
+                  color: "var(--k-text-primary)",
+                  outline: "none",
+                }}
+              />
             </div>
 
             {/* Récapitulatif */}
@@ -293,6 +310,21 @@ export function PayoutSheet({
               </div>
             </div>
 
+            {mutation.isError && (
+              <div
+                className="k-caption"
+                style={{
+                  color: "var(--k-danger)",
+                  marginBottom: 10,
+                  textAlign: "center",
+                }}
+              >
+                {mutation.error instanceof Error
+                  ? mutation.error.message
+                  : "Impossible d'enregistrer le paiement. Réessayez."}
+              </div>
+            )}
+
             <button
               type="button"
               className="k-btn k-btn-primary k-btn-lg"
@@ -302,9 +334,15 @@ export function PayoutSheet({
                 cursor: invalid ? "not-allowed" : "pointer",
               }}
               disabled={invalid}
-              onClick={() => setSubmitted(true)}
+              onClick={() =>
+                mutation.mutate({
+                  operator: selected.id,
+                  amount,
+                  phone: phone.trim(),
+                })
+              }
             >
-              Valider le paiement
+              {mutation.isPending ? "Enregistrement…" : "Valider le paiement"}
             </button>
             <div
               className="k-caption"
@@ -437,10 +475,12 @@ function RecapRow({
 function SubmittedNotice({
   op,
   amount,
+  reference,
   onClose,
 }: {
   op: MMOperator;
   amount: number;
+  reference: string;
   onClose: () => void;
 }) {
   return (
@@ -478,6 +518,16 @@ function SubmittedNotice({
         {amount.toLocaleString("fr-FR")} FC en route vers {op.name}. Tu recevras
         une notification dès que le virement est reçu.
       </p>
+      <div
+        className="k-caption"
+        style={{
+          color: "var(--k-text-subtle)",
+          fontFamily: "var(--k-font-mono)",
+          marginTop: 10,
+        }}
+      >
+        Réf : {reference}
+      </div>
       <button
         type="button"
         className="k-btn k-btn-primary"
