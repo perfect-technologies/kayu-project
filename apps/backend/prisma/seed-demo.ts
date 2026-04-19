@@ -523,6 +523,7 @@ async function seedProviders(
         premiumExpiry: providerData.isPremium ? daysFromNow(365) : null,
         isAvailable: true,
         verificationStatus: providerData.verificationStatus,
+        onboardingCompleteAt: daysFromNow(-90),
         totalJobs: completedJobs,
         totalReviews: Math.max(1, Math.floor(completedJobs / 2)),
         responseTime: 20 + index * 5,
