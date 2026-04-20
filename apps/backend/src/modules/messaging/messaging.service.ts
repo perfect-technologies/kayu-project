@@ -99,6 +99,11 @@ export class MessagingService {
       },
       select: {
         id: true,
+        visibilitySettings: {
+          select: {
+            allowMessages: true,
+          },
+        },
       },
     });
 
@@ -110,7 +115,11 @@ export class MessagingService {
       throw new BadRequestException("You cannot message yourself");
     }
 
-    const message = await this.prisma.$transaction(async (tx) => {
+    if (recipient.visibilitySettings?.allowMessages === false) {
+      throw new BadRequestException("This user is not accepting messages");
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
       const [user1Id, user2Id] = this.getOrderedParticipantIds(actor.id, recipient.id);
 
       const conversation = await tx.conversation.upsert({
@@ -159,12 +168,16 @@ export class MessagingService {
         tx,
       );
 
-      return created;
+      return {
+        conversationId: conversation.id,
+        message: created,
+      };
     });
 
     return {
       success: true as const,
-      message: this.mapMessage(message),
+      conversationId: result.conversationId,
+      message: this.mapMessage(result.message),
     };
   }
 

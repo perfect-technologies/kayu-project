@@ -38,6 +38,7 @@ import type {
   ReviewsResponse,
   ConversationsResponse,
   MessagesResponse,
+  SendMessageResponse,
   NotificationsResponse,
   FavoritesResponse,
   VisibilitySettingsResponse,
@@ -158,7 +159,7 @@ export const messagesApi = (client: ApiClient) => ({
       ...params,
     } as Record<string, string | number | boolean | undefined>),
   send: (data: CreateMessageDto) =>
-    client.post<{ success: boolean }>("/messages", data),
+    client.post<SendMessageResponse>("/messages", data),
 });
 
 // ---------- Notifications ----------

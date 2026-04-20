@@ -57,8 +57,13 @@ export function ChatScreen() {
 
   const { conversationId, recipientId, recipientName } = route.params;
 
+  const [currentConversationId, setCurrentConversationId] = useState(conversationId);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<ScrollView | null>(null);
+
+  useEffect(() => {
+    setCurrentConversationId(conversationId);
+  }, [conversationId]);
 
   const {
     data: msgData,
@@ -66,9 +71,9 @@ export function ChatScreen() {
     error,
     refetch,
   } = useQuery<MessagesQueryData>({
-    queryKey: queryKeys.messages.conversation(conversationId ?? ''),
-    queryFn: () => api.messages.getMessages(conversationId!) as Promise<MessagesQueryData>,
-    enabled: !!conversationId,
+    queryKey: queryKeys.messages.conversation(currentConversationId ?? ''),
+    queryFn: () => api.messages.getMessages(currentConversationId!) as Promise<MessagesQueryData>,
+    enabled: !!currentConversationId,
     refetchInterval: 5_000,
   });
 
@@ -86,13 +91,13 @@ export function ChatScreen() {
     mutationFn: (text: string) =>
       api.messages.send({ recipientId, content: text, type: 'TEXT' }),
     onMutate: async (text) => {
-      if (!conversationId || !user) return {};
-      const key = queryKeys.messages.conversation(conversationId);
+      if (!currentConversationId || !user) return {};
+      const key = queryKeys.messages.conversation(currentConversationId);
       await queryClient.cancelQueries({ queryKey: key });
       const prev = queryClient.getQueryData<MessagesQueryData>(key);
       const optimistic: Message = {
         id: `optimistic-${Date.now()}`,
-        conversationId,
+        conversationId: currentConversationId,
         senderId: user.id,
         type: 'TEXT',
         content: text,
@@ -103,17 +108,52 @@ export function ChatScreen() {
         if (!old) return { success: true, messages: [optimistic] };
         return { ...old, messages: [...old.messages, optimistic] };
       });
-      return { prev, key };
+      return { prev, key, conversationId: currentConversationId };
+    },
+    onSuccess: (result) => {
+      const nextConversationId = result.conversationId ?? result.message?.conversationId;
+      if (!nextConversationId) return;
+
+      if (nextConversationId !== currentConversationId) {
+        setCurrentConversationId(nextConversationId);
+        navigation.setParams({ conversationId: nextConversationId });
+      }
+
+      if (result.message) {
+        const key = queryKeys.messages.conversation(nextConversationId);
+        queryClient.setQueryData<MessagesQueryData>(key, (old) => {
+          const messages = old?.messages ?? [];
+          if (messages.some((message) => message.id === result.message.id)) {
+            return old ?? { success: true, messages };
+          }
+
+          const withoutMatchingOptimistic = messages.filter(
+            (message) =>
+              !(
+                message.id.startsWith('optimistic-') &&
+                message.content === result.message.content &&
+                message.senderId === result.message.senderId
+              ),
+          );
+
+          return {
+            success: true,
+            messages: [...withoutMatchingOptimistic, result.message],
+          };
+        });
+      }
     },
     onError: (_err, _text, ctx) => {
       if (ctx?.key && ctx.prev) {
         queryClient.setQueryData(ctx.key, ctx.prev);
       }
     },
-    onSettled: () => {
-      if (conversationId) {
+    onSettled: (result, _error, _text, ctx) => {
+      const settledConversationId =
+        result?.conversationId ?? result?.message?.conversationId ?? ctx?.conversationId;
+      if (settledConversationId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.messages.conversation(conversationId),
+          queryKey: queryKeys.messages.conversation(settledConversationId),
         });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });

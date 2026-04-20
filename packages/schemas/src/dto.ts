@@ -23,6 +23,7 @@ import {
   ConversationSchema,
   EarningsSummarySchema,
   FavoriteSchema,
+  MessageSchema,
   NotificationSchema,
   PayoutSchema,
   ProviderDetailSchema,
@@ -714,6 +715,12 @@ export const MessagesResponseSchema = z.object({
     .optional(),
 });
 
+export const SendMessageResponseSchema = z.object({
+  success: z.boolean(),
+  conversationId: IdSchema,
+  message: MessageSchema,
+});
+
 export const NotificationsResponseSchema = z.object({
   notifications: z.array(NotificationSchema),
   unreadCount: z.number().int().min(0),
@@ -882,6 +889,7 @@ export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
 export type ReviewsResponse = z.infer<typeof ReviewsResponseSchema>;
 export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;
 export type MessagesResponse = z.infer<typeof MessagesResponseSchema>;
+export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>;
 export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>;
 export type FavoritesResponse = z.infer<typeof FavoritesResponseSchema>;
 export type VisibilitySettingsResponse = z.infer<typeof VisibilitySettingsResponseSchema>;

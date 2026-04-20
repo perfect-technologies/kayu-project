@@ -1,12 +1,12 @@
 # KAYOU Launch Readiness Remediation Progress
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`. It intentionally does not replace `docs/implementation-plan/PROGRESS.md`, which tracks the earlier implementation/migration plan.
 
 ## Current Phase
 
-WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-03 messaging bootstrap or WS-04 quote/request scope decision.
+WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-04 quote/request scope decision or WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -23,7 +23,7 @@ WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-03 messaging bo
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | WS-01 | P0 | Yes | Auth Role And Profile Completion | None | done | Codex | Changed `apps/mobile/src/screens/auth/AuthScreen.tsx`, `apps/mobile/src/lib/auth.tsx`, `apps/mobile/src/navigation/AppNavigator.tsx`, `apps/backend/src/modules/identity/*`, `apps/backend/prisma/schema.prisma`, `packages/schemas/src/*`. |
 | WS-02 | P0 | Yes | Direct Booking Lifecycle | WS-01 helpful | done | Codex | Changed `apps/mobile/src/screens/booking/BookingScreen.tsx`, `apps/mobile/src/screens/bookings/{BookingDetailScreen,ReviewScreen}.tsx`, `apps/mobile/src/components/bookings/*`, `apps/mobile/src/lib/bookingV2.ts`, `apps/backend/src/modules/bookings/*`, `packages/api/src/endpoints.ts`, `packages/schemas/src/models.ts`. |
-| WS-03 | P0 | Yes | Messaging Bootstrap And Role Recipients | WS-01 helpful | not_started | | Conversation creation and correct client/provider recipients. |
+| WS-03 | P0 | Yes | Messaging Bootstrap And Role Recipients | WS-01 helpful | done | Codex | Changed `apps/mobile/src/screens/messages/ChatScreen.tsx`, `apps/backend/src/modules/messaging/*`, `packages/api/src/endpoints.ts`, `packages/schemas/src/dto.ts`; verified existing booking detail role recipient routing. |
 | WS-04 | P0/P1 | Decision required | Client Job Request And Quote Acceptance | WS-01 | not_started | | Finish for launch or hide/defer. |
 | WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | not_started | | Real provider action surfaces. |
 | WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | not_started | | Search visibility and onboarding publish consistency. |
@@ -41,7 +41,6 @@ WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-03 messaging bo
 | --- | --- | --- |
 | Web booking | Web booking success routes to review without a booking id; review can fake success without backend write. | `08-web-flow-audit.md` |
 | Web booking | Web provider booking detail has no confirm/start actions for direct bookings. | `08-web-flow-audit.md` |
-| Messaging | First message from provider profile can create a conversation without the UI binding to the new conversation. | `03-client-flow-audit.md` |
 | Web messaging | Web first-contact dialog sends and closes without selecting or showing the created conversation. | `08-web-flow-audit.md` |
 | Quotes | Client request/quote acceptance path is not available in mobile despite backend/provider quote support. | `03-client-flow-audit.md`, `04-provider-flow-audit.md` |
 | Web auth/admin | Web auth/admin routing still has launch gaps, including `/admin` redirect and web role-selection parity. | `08-web-flow-audit.md` |
@@ -99,6 +98,21 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed on 2026-04-19. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
 
+WS-03 validation:
+
+```bash
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend test:messaging
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
+```
+
+Result: passed on 2026-04-20. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -137,3 +151,11 @@ When handing back:
 - Guarded the mobile review screen so it only opens for completed, unreviewed bookings.
 - Removed fake direct-booking quote line items from booking detail and replaced them with the saved estimate.
 - Added focused booking service tests in `apps/backend/src/modules/bookings/bookings.service.spec.ts`.
+
+### 2026-04-20 — WS-03 Messaging Bootstrap And Role Recipients
+
+- Changed `/api/messages` send response to return `conversationId` plus the mapped message so clients can bind first-contact sends to the real conversation.
+- Enforced recipient `VisibilitySettings.allowMessages === false` before conversation/message creation.
+- Updated mobile chat to keep local route state in sync with the returned conversation id, seed the returned first message into the conversation cache, and invalidate the inbox.
+- Revalidated the mobile booking-detail message action uses provider user id for clients and client user id for providers.
+- Added focused messaging service tests for first-message conversation bootstrap, disabled-recipient messaging, and self-message rejection in `apps/backend/src/modules/messaging/messaging.service.spec.ts`.
