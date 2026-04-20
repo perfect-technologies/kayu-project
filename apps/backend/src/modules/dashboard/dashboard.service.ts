@@ -15,6 +15,8 @@ const participantUserSelect = {
   avatar: true,
   city: true,
   country: true,
+  latitude: true,
+  longitude: true,
   email: true,
   phone: true,
   isVerified: true,
@@ -219,6 +221,7 @@ export class DashboardService {
       todayBookings,
       recentBookings,
       upcomingBookings,
+      bookingRequests,
       recentReviews,
       unreadNotifications,
       certifiedProviderIds,
@@ -267,6 +270,18 @@ export class DashboardService {
         take: 3,
         include: providerBookingsInclude,
       }),
+      this.prisma.booking.findMany({
+        where: {
+          providerId: provider.id,
+          status: "PENDING",
+        },
+        orderBy: [
+          { scheduledDate: "asc" },
+          { createdAt: "desc" },
+        ],
+        take: 5,
+        include: providerBookingsInclude,
+      }),
       this.prisma.review.findMany({
         where: {
           providerId: provider.id,
@@ -288,7 +303,7 @@ export class DashboardService {
       this.getProviderAverageRating(provider.id),
     ]);
 
-    const todayJobs = todayBookings.map((booking) => this.mapTodayJob(booking));
+    const todayJobs = todayBookings.map((booking) => this.mapTodayJob(booking, provider));
     const estimatedRecette = todayJobs.reduce((acc, job) => acc + job.fee, 0);
 
     const topMatches = await this.jobRequests.topMatchesForDashboard(provider.id, 3);
@@ -306,7 +321,7 @@ export class DashboardService {
       message: match.description,
       when: match.whenPref,
       address: match.address,
-      distance: 0,
+      distance: match.distanceKm ?? 0,
       matchScore: match.matchScore,
       receivedAt: (match.notifiedAt instanceof Date
         ? match.notifiedAt
@@ -371,6 +386,7 @@ export class DashboardService {
         estimatedRecette,
       },
       newRequests,
+      bookingRequests: bookingRequests.map((booking) => this.mapProviderDashboardBooking(booking)),
       stats: {
         period: "month" as const,
         revenue: {
@@ -1225,7 +1241,10 @@ export class DashboardService {
     return value;
   }
 
-  private mapTodayJob(booking: ProviderTodayBookingRecord) {
+  private mapTodayJob(
+    booking: ProviderTodayBookingRecord,
+    provider: ProviderDashboardRecord,
+  ) {
     const scheduled = booking.scheduledDate ?? booking.createdAt;
     const time = scheduled
       ? scheduled.toLocaleTimeString("fr-FR", {
@@ -1255,7 +1274,7 @@ export class DashboardService {
         avatar: booking.client.avatar,
       },
       address: addressParts.join(", ") || "Adresse à confirmer",
-      distance: 0,
+      distance: this.distanceKm(provider, booking.clientLatitude, booking.clientLongitude) ?? 0,
       status,
       fee: booking.price ?? 0,
     };
@@ -1287,6 +1306,27 @@ export class DashboardService {
     const rest = minutes % 60;
     if (rest === 0) return `~${hours}h`;
     return `~${hours}h${String(rest).padStart(2, "0")}`;
+  }
+
+  private distanceKm(
+    provider: ProviderDashboardRecord,
+    latitude: number | null | undefined,
+    longitude: number | null | undefined,
+  ) {
+    const providerLat = provider.user.latitude;
+    const providerLng = provider.user.longitude;
+    if (
+      providerLat == null ||
+      providerLng == null ||
+      latitude == null ||
+      longitude == null
+    ) {
+      return null;
+    }
+
+    return Math.round(
+      calculateDistanceKm(providerLat, providerLng, latitude, longitude) * 10,
+    ) / 10;
   }
 
   private deriveOnboardingStatus(
@@ -1507,5 +1547,27 @@ export class DashboardService {
     }
     return Math.round(((current - previous) / previous) * 100);
   }
+}
 
+function calculateDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+) {
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function toRad(deg: number) {
+  return (deg * Math.PI) / 180;
 }

@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,7 +18,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Chip, I, StatCard } from '@kayu/ui/mobile';
 import { queryKeys } from '@kayu/api';
-import type { RequestPreview, TodayJob } from '@kayu/schemas';
+import type { DashboardBooking, RequestPreview, TodayJob } from '@kayu/schemas';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
@@ -56,6 +58,16 @@ type DashboardRequest = {
   urgent?: boolean;
 };
 
+type DashboardBookingRequest = {
+  id: string;
+  client: ClientSummary;
+  kind: string;
+  when: string;
+  address: string;
+  fee: number;
+  requestedAt: string;
+};
+
 const AVATAR_COLORS = [
   '#FB7185',
   '#10B981',
@@ -81,6 +93,40 @@ function colorFor(seed: string): string {
     hash |= 0;
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]!;
+}
+
+function formatRelativeTime(value: string | Date | null | undefined): string {
+  if (!value) return 'Date inconnue';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date inconnue';
+
+  const diffMin = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const hours = Math.floor(diffMin / 60);
+  if (hours < 24) return `il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `il y a ${days}j`;
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+function formatScheduledDate(value: string | Date | null | undefined): string {
+  if (!value) return 'Date à confirmer';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Date à confirmer';
+  return date.toLocaleString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDistance(distance: number): string {
+  if (!Number.isFinite(distance) || distance <= 0) return 'Distance à confirmer';
+  if (distance < 1) return `${Math.round(distance * 1000)} m`;
+  return `${distance.toFixed(1)} km`;
 }
 
 function toDashboardJob(job: TodayJob): DashboardJob {
@@ -114,9 +160,28 @@ function toDashboardRequest(req: RequestPreview): DashboardRequest {
     address: req.address,
     msg: req.message,
     matchScore: req.matchScore,
-    receivedAt: req.receivedAt,
+    receivedAt: formatRelativeTime(req.receivedAt),
     distance: req.distance,
     urgent: req.urgent,
+  };
+}
+
+function toDashboardBookingRequest(booking: DashboardBooking): DashboardBookingRequest {
+  const clientName = booking.client?.name ?? 'Client';
+  const address = [booking.address, booking.city].filter(Boolean).join(', ');
+
+  return {
+    id: booking.id,
+    client: {
+      name: clientName,
+      initials: initialsFor(clientName),
+      bg: colorFor(booking.client?.id ?? booking.clientId ?? booking.id),
+    },
+    kind: booking.service?.name ?? booking.title,
+    when: formatScheduledDate(booking.scheduledDate),
+    address: address || 'Adresse à confirmer',
+    fee: booking.price ?? 0,
+    requestedAt: formatRelativeTime(booking.createdAt),
   };
 }
 
@@ -126,10 +191,18 @@ export function ProviderDashboardScreen() {
   const navigation = useNavigation<ProviderDashboardNav>();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: queryKeys.dashboard.provider,
     queryFn: () => api.dashboard.getProviderDashboard(),
     enabled: !!user && user.role === 'PROVIDER',
+    refetchInterval: 30_000,
+  });
+
+  const earningsQuery = useQuery({
+    queryKey: queryKeys.earnings.summary,
+    queryFn: () => api.earnings.summary(),
+    enabled: !!user && user.role === 'PROVIDER',
+    refetchInterval: 60_000,
   });
 
   const availabilityMutation = useMutation({
@@ -161,8 +234,55 @@ export function ProviderDashboardScreen() {
     },
   });
 
+  const dismissRequestMutation = useMutation({
+    mutationFn: (id: string) => api.jobRequests.dismiss(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobRequests.inboxForPro }),
+      ]);
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Action impossible',
+        err instanceof Error ? err.message : 'La demande n’a pas pu être déclinée.',
+      );
+    },
+  });
+
+  const bookingActionMutation = useMutation({
+    mutationFn: ({
+      id,
+      status,
+      cancelReason,
+    }: {
+      id: string;
+      status: 'CONFIRMED' | 'CANCELLED';
+      cancelReason?: string;
+    }) => api.bookings.update(id, { status, cancelReason }),
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider }),
+        queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.bookings.detail(variables.id),
+        }),
+      ]);
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Action impossible',
+        err instanceof Error ? err.message : 'La réservation n’a pas pu être mise à jour.',
+      );
+    },
+  });
+
   const todayJobs = useMemo(
     () => (data?.today.jobs ?? []).map(toDashboardJob),
+    [data],
+  );
+  const bookingRequests = useMemo(
+    () => (data?.bookingRequests ?? []).map(toDashboardBookingRequest),
     [data],
   );
   const newRequests = useMemo(
@@ -170,6 +290,35 @@ export function ProviderDashboardScreen() {
     [data],
   );
   const todayTotal = data?.today.estimatedRecette ?? 0;
+  const earnings = earningsQuery.data?.summary;
+  const refreshing = Boolean(data && (isFetching || earningsQuery.isFetching));
+
+  const handleRefresh = useCallback(() => {
+    void Promise.all([refetch(), earningsQuery.refetch()]);
+  }, [earningsQuery, refetch]);
+
+  const confirmDeclineBooking = useCallback(
+    (bookingId: string) => {
+      Alert.alert(
+        'Décliner cette réservation ?',
+        'Le client verra que vous ne pouvez pas prendre cette mission.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          {
+            text: 'Décliner',
+            style: 'destructive',
+            onPress: () =>
+              bookingActionMutation.mutate({
+                id: bookingId,
+                status: 'CANCELLED',
+                cancelReason: 'Créneau indisponible',
+              }),
+          },
+        ],
+      );
+    },
+    [bookingActionMutation],
+  );
 
   const firstName = user?.firstName ?? 'Pro';
   const lastName = user?.lastName ?? '';
@@ -214,6 +363,13 @@ export function ProviderDashboardScreen() {
       style={styles.root}
       contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.colors.primary}
+        />
+      }
     >
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.greetingRow}>
@@ -225,6 +381,7 @@ export function ProviderDashboardScreen() {
           <TouchableOpacity
             accessibilityLabel="Boîte de réception"
             style={styles.inboxButton}
+            onPress={() => navigation.getParent()?.navigate('Messages' as never)}
             activeOpacity={0.7}
           >
             <I.inbox size={18} color={theme.colors.textBody} />
@@ -328,12 +485,53 @@ export function ProviderDashboardScreen() {
         </View>
       </View>
 
+      {/* Direct booking requests */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.heading}>
+            Réservations à confirmer{' '}
+            <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
+              ({bookingRequests.length})
+            </Text>
+          </Text>
+        </View>
+        {bookingRequests.length === 0 ? (
+          <EmptyLine iconName="inbox" copy="Aucune demande directe à confirmer" />
+        ) : (
+          <View style={{ gap: 12 }}>
+            {bookingRequests.map((booking) => (
+              <BookingRequestCard
+                key={booking.id}
+                booking={booking}
+                busy={
+                  bookingActionMutation.isPending &&
+                  bookingActionMutation.variables?.id === booking.id
+                }
+                onOpen={() =>
+                  navigation.navigate('BookingDetail', { bookingId: booking.id })
+                }
+                onAccept={() =>
+                  bookingActionMutation.mutate({
+                    id: booking.id,
+                    status: 'CONFIRMED',
+                  })
+                }
+                onDecline={() => confirmDeclineBooking(booking.id)}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+
       {/* Today schedule */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.heading}>Planning du jour</Text>
-          <TouchableOpacity activeOpacity={0.6}>
-            <Text style={styles.linkLabel}>Calendrier</Text>
+          <TouchableOpacity
+            activeOpacity={0.6}
+            onPress={() => navigation.getParent()?.navigate('Requests' as never)}
+          >
+            <Text style={styles.linkLabel}>Missions</Text>
           </TouchableOpacity>
         </View>
         {todayJobs.length === 0 ? (
@@ -341,7 +539,13 @@ export function ProviderDashboardScreen() {
         ) : (
           <View style={{ gap: 10 }}>
             {todayJobs.map((j) => (
-              <JobCard key={j.id} job={j} />
+              <JobCard
+                key={j.id}
+                job={j}
+                onPress={() =>
+                  navigation.navigate('BookingDetail', { bookingId: j.id })
+                }
+              />
             ))}
           </View>
         )}
@@ -362,8 +566,56 @@ export function ProviderDashboardScreen() {
         ) : (
           <View style={{ gap: 12 }}>
             {newRequests.map((r) => (
-              <RequestCard key={r.id} req={r} />
+              <RequestCard
+                key={r.id}
+                req={r}
+                busy={
+                  dismissRequestMutation.isPending &&
+                  dismissRequestMutation.variables === r.id
+                }
+                onDecline={() => dismissRequestMutation.mutate(r.id)}
+                onQuote={() =>
+                  navigation.navigate('QuoteCompose', { requestId: r.id })
+                }
+              />
             ))}
+          </View>
+        )}
+      </View>
+
+      {/* Earnings */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.heading}>Gains</Text>
+          <TouchableOpacity
+            activeOpacity={0.6}
+            onPress={() => navigation.getParent()?.navigate('Earnings' as never)}
+          >
+            <Text style={styles.linkLabel}>Détails</Text>
+          </TouchableOpacity>
+        </View>
+        {earningsQuery.isError ? (
+          <EmptyLine iconName="inbox" copy="Gains indisponibles pour le moment" />
+        ) : (
+          <View style={styles.miniStatsRow}>
+            <View style={styles.miniStatCard}>
+              <Text style={styles.overline}>Disponible</Text>
+              <Text style={[styles.miniStatValue, { fontFamily: theme.fonts.mono }]}>
+                {earningsQuery.isLoading
+                  ? '—'
+                  : `${(earnings?.balance ?? 0).toLocaleString('fr-FR')} FC`}
+              </Text>
+              <Text style={styles.miniStatSub}>Solde retirable</Text>
+            </View>
+            <View style={styles.miniStatCard}>
+              <Text style={styles.overline}>En attente</Text>
+              <Text style={[styles.miniStatValue, { fontFamily: theme.fonts.mono }]}>
+                {earningsQuery.isLoading
+                  ? '—'
+                  : `${(earnings?.pending ?? 0).toLocaleString('fr-FR')} FC`}
+              </Text>
+              <Text style={styles.miniStatSub}>Missions non réglées</Text>
+            </View>
           </View>
         )}
       </View>
@@ -488,7 +740,102 @@ function JobCard({
   );
 }
 
-function RequestCard({ req }: { req: DashboardRequest }) {
+function BookingRequestCard({
+  booking,
+  busy,
+  onOpen,
+  onAccept,
+  onDecline,
+}: {
+  booking: DashboardBookingRequest;
+  busy: boolean;
+  onOpen: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={onOpen}
+      style={styles.bookingRequestCard}
+    >
+      <View style={styles.requestHeader}>
+        <Avatar
+          name={booking.client.name}
+          bg={booking.client.bg}
+          size={38}
+          initials={booking.client.initials}
+        />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.requestClientName} numberOfLines={1}>
+            {booking.client.name}
+          </Text>
+          <Text style={styles.requestMeta}>Demandé {booking.requestedAt}</Text>
+        </View>
+        <Chip variant="warning" size="sm">
+          À confirmer
+        </Chip>
+      </View>
+      <Text style={styles.requestKind}>{booking.kind}</Text>
+      <View style={styles.requestChips}>
+        <Chip size="sm" leadingIcon={<I.calendar size={11} color={theme.colors.textBody} />}>
+          {booking.when}
+        </Chip>
+        <Chip size="sm" leadingIcon={<I.mapPin size={11} color={theme.colors.textBody} />}>
+          {booking.address}
+        </Chip>
+      </View>
+      <View style={styles.bookingFooterRow}>
+        <View>
+          <Text style={styles.matchLabel}>Montant estimé</Text>
+          <Text style={styles.bookingFee}>
+            {booking.fee > 0 ? `${booking.fee.toLocaleString('fr-FR')} FC` : 'À confirmer'}
+          </Text>
+        </View>
+        <TouchableOpacity activeOpacity={0.7} onPress={onOpen}>
+          <Text style={styles.linkLabel}>Voir détail</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.requestActions}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.btn, styles.btnSecondary, { flex: 1 }]}
+          onPress={onDecline}
+          disabled={busy}
+        >
+          <Text style={styles.btnSecondaryText}>Refuser</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.btn, styles.btnPrimary, { flex: 1.4 }]}
+          onPress={onAccept}
+          disabled={busy}
+        >
+          {busy ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Text style={styles.btnPrimaryText}>Accepter</Text>
+              <I.check size={14} color="#FFFFFF" />
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function RequestCard({
+  req,
+  busy,
+  onDecline,
+  onQuote,
+}: {
+  req: DashboardRequest;
+  busy: boolean;
+  onDecline: () => void;
+  onQuote: () => void;
+}) {
   return (
     <View
       style={[
@@ -513,7 +860,7 @@ function RequestCard({ req }: { req: DashboardRequest }) {
             {req.client.name}
           </Text>
           <Text style={styles.requestMeta}>
-            {req.receivedAt} · {req.distance} km
+            {req.receivedAt} · {formatDistance(req.distance)}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
@@ -537,12 +884,20 @@ function RequestCard({ req }: { req: DashboardRequest }) {
         <TouchableOpacity
           activeOpacity={0.85}
           style={[styles.btn, styles.btnSecondary, { flex: 1 }]}
+          onPress={onDecline}
+          disabled={busy}
         >
-          <Text style={styles.btnSecondaryText}>Décliner</Text>
+          {busy ? (
+            <ActivityIndicator color={theme.colors.textBody} size="small" />
+          ) : (
+            <Text style={styles.btnSecondaryText}>Décliner</Text>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           activeOpacity={0.85}
           style={[styles.btn, styles.btnPrimary, { flex: 2 }]}
+          onPress={onQuote}
+          disabled={busy}
         >
           <Text style={styles.btnPrimaryText}>Envoyer un devis</Text>
           <I.arrowRight size={14} color="#FFFFFF" />
@@ -834,6 +1189,12 @@ const styles = StyleSheet.create({
     padding: 14,
     position: 'relative',
   },
+  bookingRequestCard: {
+    ...(card as object),
+    padding: 14,
+    position: 'relative',
+    borderColor: '#FED7AA',
+  },
   urgentBadge: {
     position: 'absolute',
     top: -8,
@@ -907,6 +1268,20 @@ const styles = StyleSheet.create({
   requestActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  bookingFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: 12,
+    marginBottom: 12,
+  },
+  bookingFee: {
+    fontFamily: theme.fonts.mono,
+    fontWeight: '700',
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+    marginTop: 2,
   },
   btn: {
     height: 40,

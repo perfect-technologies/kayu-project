@@ -59,6 +59,14 @@ type MatchRecord = Prisma.JobRequestMatchGetPayload<{
   };
 }>;
 
+type ProviderForRequestActions = {
+  id: string;
+  user: {
+    latitude: number | null;
+    longitude: number | null;
+  };
+};
+
 const MATCH_FANOUT_LIMIT = 10;
 
 @Injectable()
@@ -184,6 +192,12 @@ export class JobRequestsService {
         jobRequest: {
           status: "OPEN",
           OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          quotes: {
+            none: {
+              providerId: provider.id,
+              status: { in: ["SENT", "ACCEPTED"] },
+            },
+          },
         },
       },
       include: {
@@ -195,7 +209,7 @@ export class JobRequestsService {
       ],
     });
 
-    const mapped = await Promise.all(matches.map((m) => this.mapMatch(m)));
+    const mapped = await Promise.all(matches.map((m) => this.mapMatch(m, provider)));
 
     return { success: true as const, requests: mapped };
   }
@@ -228,7 +242,7 @@ export class JobRequestsService {
 
     return {
       success: true as const,
-      request: await this.mapMatch(match),
+      request: await this.mapMatch(match, provider),
     };
   }
 
@@ -266,6 +280,12 @@ export class JobRequestsService {
         jobRequest: {
           status: "OPEN",
           OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          quotes: {
+            none: {
+              providerId,
+              status: { in: ["SENT", "ACCEPTED"] },
+            },
+          },
         },
       },
       include: {
@@ -278,7 +298,15 @@ export class JobRequestsService {
       take,
     });
 
-    return Promise.all(matches.map((m) => this.mapMatch(m)));
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: {
+        id: true,
+        user: { select: { latitude: true, longitude: true } },
+      },
+    });
+
+    return Promise.all(matches.map((m) => this.mapMatch(m, provider ?? undefined)));
   }
 
   private async findMatchingProviders(
@@ -309,7 +337,10 @@ export class JobRequestsService {
 
     const provider = await this.prisma.provider.findUnique({
       where: { userId: actor.id },
-      select: { id: true },
+      select: {
+        id: true,
+        user: { select: { latitude: true, longitude: true } },
+      },
     });
 
     if (!provider) {
@@ -355,11 +386,15 @@ export class JobRequestsService {
     };
   }
 
-  private async mapMatch(match: MatchRecord) {
+  private async mapMatch(
+    match: MatchRecord,
+    provider?: ProviderForRequestActions | null,
+  ) {
     const base = await this.mapRequest(match.jobRequest);
     return {
       ...base,
       matchScore: match.matchScore,
+      distanceKm: this.distanceKm(provider, match.jobRequest),
       notifiedAt: match.notifiedAt,
       dismissedAt: match.dismissedAt,
       viewedAt: match.viewedAt,
@@ -395,8 +430,54 @@ export class JobRequestsService {
       newClient: completedJobs === 0,
     };
   }
+
+  private distanceKm(
+    provider: ProviderForRequestActions | null | undefined,
+    request: Pick<JobRequestRecord, "latitude" | "longitude">,
+  ) {
+    const providerLat = provider?.user.latitude;
+    const providerLng = provider?.user.longitude;
+    const requestLat = request.latitude;
+    const requestLng = request.longitude;
+
+    if (
+      providerLat == null ||
+      providerLng == null ||
+      requestLat == null ||
+      requestLng == null
+    ) {
+      return null;
+    }
+
+    return Math.round(
+      calculateDistanceKm(providerLat, providerLng, requestLat, requestLng) * 10,
+    ) / 10;
+  }
 }
 
 function scoreForRank(index: number) {
   return Math.max(20, 100 - index * 8);
+}
+
+function calculateDistanceKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+) {
+  const earthRadiusKm = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function toRad(deg: number) {
+  return (deg * Math.PI) / 180;
 }

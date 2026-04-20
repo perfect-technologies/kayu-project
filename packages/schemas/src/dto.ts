@@ -490,6 +490,7 @@ export const DashboardProviderResponseSchema = z.object({
     estimatedRecette: z.number(),
   }),
   newRequests: z.array(RequestPreviewSchema),
+  bookingRequests: z.array(DashboardBookingSchema).default([]),
   stats: ProviderDashboardStatsSchema,
   notifications: z.object({
     unreadCount: z.number().int().min(0),

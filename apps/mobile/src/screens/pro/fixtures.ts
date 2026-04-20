@@ -32,7 +32,12 @@ export type InboundRequest = {
   urgent?: boolean;
 };
 
-export type ActiveJobStatus = 'scheduled' | 'enroute' | 'arrived' | 'in_progress';
+export type ActiveJobStatus =
+  | 'pending'
+  | 'scheduled'
+  | 'enroute'
+  | 'arrived'
+  | 'in_progress';
 
 export type ActiveJob = {
   id: string;

@@ -103,6 +103,8 @@ export type ProviderStackParamList = {
   ProviderDashboardMain: undefined;
   ProviderOnboarding: undefined;
   ProVerification: undefined;
+  QuoteCompose: { requestId?: string };
+  BookingDetail: { bookingId: string };
 };
 
 export type ProfileStackParamList = {
@@ -270,6 +272,14 @@ function ProviderNavigator() {
       <ProviderStack.Screen
         name="ProVerification"
         component={ProVerificationScreen}
+      />
+      <ProviderStack.Screen
+        name="QuoteCompose"
+        component={QuoteComposeScreen}
+      />
+      <ProviderStack.Screen
+        name="BookingDetail"
+        component={BookingDetailScreen}
       />
     </ProviderStack.Navigator>
   );

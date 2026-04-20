@@ -35,6 +35,11 @@ const STATUS_COPY: Record<
   ActiveJobStatus,
   { label: string; color: string; bg: string; pulse?: boolean }
 > = {
+  pending: {
+    label: 'À confirmer',
+    color: theme.colors.warning,
+    bg: theme.colors.warningSubtle,
+  },
   scheduled: {
     label: 'Planifié',
     color: theme.colors.primary,
@@ -111,6 +116,12 @@ function describeExpiry(iso: string | Date | null) {
   };
 }
 
+function formatDistance(distance: number): string {
+  if (!Number.isFinite(distance) || distance <= 0) return 'Distance à confirmer';
+  if (distance < 1) return `${Math.round(distance * 1000)} m`;
+  return `${distance.toFixed(1)} km`;
+}
+
 function mapInbound(req: JobRequestForPro): InboundRequest {
   const fullName =
     `${req.client.firstName ?? ''} ${req.client.lastName ?? ''}`.trim() ||
@@ -134,7 +145,7 @@ function mapInbound(req: JobRequestForPro): InboundRequest {
     when: req.whenPref,
     address: req.address,
     neighborhood: req.commune ?? req.city,
-    distance: 0,
+    distance: req.distanceKm ?? 0,
     estimatedHours: req.estimatedHours ?? 1,
     budget: req.budget ?? 0,
     description: req.description,
@@ -175,7 +186,12 @@ function mapActive(booking: BookingLite): ActiveJob {
     service: booking.title,
     when,
     address: booking.address ?? booking.city ?? 'Adresse à confirmer',
-    status: booking.status === 'IN_PROGRESS' ? 'in_progress' : 'scheduled',
+    status:
+      booking.status === 'PENDING'
+        ? 'pending'
+        : booking.status === 'IN_PROGRESS'
+          ? 'in_progress'
+          : 'scheduled',
     payout: booking.price ?? 0,
   };
 }
@@ -199,8 +215,12 @@ export function JobRequestsScreen() {
 
   const dismissMutation = useMutation({
     mutationFn: (id: string) => api.jobRequests.dismiss(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.jobRequests.inboxForPro }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobRequests.inboxForPro }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider }),
+      ]);
+    },
   });
 
   const visible = useMemo(() => {
@@ -210,7 +230,10 @@ export function JobRequestsScreen() {
 
   const activeJobs = useMemo(() => {
     const items = (activeQuery.data?.bookings ?? []).filter(
-      (b) => b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS',
+      (b) =>
+        b.status === 'PENDING' ||
+        b.status === 'CONFIRMED' ||
+        b.status === 'IN_PROGRESS',
     );
     return items.map(mapActive);
   }, [activeQuery.data]);
@@ -264,7 +287,7 @@ export function JobRequestsScreen() {
 
       {/* Section: active */}
       <View style={styles.section}>
-        <SectionHeader label="Mes missions actives" count={activeJobs.length} />
+        <SectionHeader label="Réservations et missions" count={activeJobs.length} />
         {activeQuery.isLoading ? (
           <LoadingBox copy="Chargement des missions…" />
         ) : activeQuery.isError ? (
@@ -276,7 +299,7 @@ export function JobRequestsScreen() {
           <EmptyBox
             iconName="calendar"
             title="Rien en cours"
-            copy="Vos missions acceptées apparaîtront ici."
+            copy="Vos réservations à confirmer et missions acceptées apparaîtront ici."
           />
         ) : (
           <ActiveJobsCard
@@ -389,6 +412,12 @@ function InboundRequestCard({
           <I.mapPin size={11} color={theme.colors.textBody} />
           <Text style={styles.chipText} numberOfLines={1}>
             {req.neighborhood}
+          </Text>
+        </View>
+        <View style={styles.chip}>
+          <I.clock size={11} color={theme.colors.textBody} />
+          <Text style={styles.chipText} numberOfLines={1}>
+            {formatDistance(req.distance)}
           </Text>
         </View>
         {req.photos > 0 && (

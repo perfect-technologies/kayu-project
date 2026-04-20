@@ -40,6 +40,7 @@ export const JobRequestSchema = z.object({
 
 export const JobRequestForProSchema = JobRequestSchema.extend({
   matchScore: z.number().int().min(0).max(100),
+  distanceKm: z.number().nullable().optional(),
   notifiedAt: DateTimeSchema,
   dismissedAt: NullableDateTimeSchema,
   viewedAt: NullableDateTimeSchema,

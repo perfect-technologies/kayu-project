@@ -6,7 +6,7 @@ This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`
 
 ## Current Phase
 
-WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
+WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -25,7 +25,7 @@ WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch r
 | WS-02 | P0 | Yes | Direct Booking Lifecycle | WS-01 helpful | done | Codex | Changed `apps/mobile/src/screens/booking/BookingScreen.tsx`, `apps/mobile/src/screens/bookings/{BookingDetailScreen,ReviewScreen}.tsx`, `apps/mobile/src/components/bookings/*`, `apps/mobile/src/lib/bookingV2.ts`, `apps/backend/src/modules/bookings/*`, `packages/api/src/endpoints.ts`, `packages/schemas/src/models.ts`. |
 | WS-03 | P0 | Yes | Messaging Bootstrap And Role Recipients | WS-01 helpful | done | Codex | Changed `apps/mobile/src/screens/messages/ChatScreen.tsx`, `apps/backend/src/modules/messaging/*`, `packages/api/src/endpoints.ts`, `packages/schemas/src/dto.ts`; verified existing booking detail role recipient routing. |
 | WS-04 | P0/P1 | Yes if exposed | Client Job Request And Quote Acceptance | WS-01 | done | Codex | Implemented client request creation, request detail, quote list, accept/decline, accepted-quote booking navigation; tightened backend quote acceptance and matched-provider quote creation. |
-| WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | not_started | | Real provider action surfaces. |
+| WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | done | Codex | Changed provider dashboard/request mobile screens, provider navigation, dashboard/job-request backend services and tests, and shared dashboard/request schemas. |
 | WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | not_started | | Search visibility and onboarding publish consistency. |
 | WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | not_started | | Remove/wire placeholder filters and map mode. |
 | WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | not_started | | Completed-booking review state and client reviews. |
@@ -127,6 +127,20 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed on 2026-04-20.
 
+WS-05 validation:
+
+```bash
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend test:job-requests
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+```
+
+Result: passed on 2026-04-20. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -183,3 +197,13 @@ When handing back:
 - Added predictable French and ISO custom-date parsing for quote-created booking dates, and prevented provider quote submission with an empty custom date.
 - Hardened quote updates so draft quotes cannot be reassigned to another job request after creation.
 - Added focused quote service tests in `apps/backend/src/modules/quotes/quotes.service.spec.ts`.
+
+### 2026-04-20 — WS-05 Provider Dashboard And Request Actions
+
+- Added provider dashboard `bookingRequests` for direct `PENDING` bookings and surfaced them as actionable accept/refuse cards.
+- Wired dashboard request cards to dismiss matched requests or open quote compose, with dashboard/request invalidation after actions.
+- Made dashboard planning, direct booking, inbox, calendar, and earnings shortcuts navigate to real routes instead of dead controls.
+- Added pull-to-refresh and polling for dashboard/request state, plus reliable empty/error snippets for bookings, requests, and earnings.
+- Returned and displayed real request/job distances when coordinates are available, with clear fallback copy when they are not.
+- Filtered provider request inbox/dashboard matches so already sent/accepted provider quotes are not shown as fresh actionable requests.
+- Added focused job request service coverage in `apps/backend/src/modules/job-requests/job-requests.service.spec.ts`.

@@ -26,15 +26,19 @@ import type {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
-import type { RequestsStackParamList } from '@/navigation/AppNavigator';
+import type {
+  ProviderStackParamList,
+  RequestsStackParamList,
+} from '@/navigation/AppNavigator';
 import {
   getPresets,
   PRESET_LINE_ITEMS,
   type LineItemPreset,
 } from './fixtures';
 
-type Nav = NativeStackNavigationProp<RequestsStackParamList, 'QuoteCompose'>;
-type Route = RouteProp<RequestsStackParamList, 'QuoteCompose'>;
+type QuoteComposeParamList = RequestsStackParamList & ProviderStackParamList;
+type Nav = NativeStackNavigationProp<QuoteComposeParamList, 'QuoteCompose'>;
+type Route = RouteProp<QuoteComposeParamList, 'QuoteCompose'>;
 
 type Line = {
   id: number;
@@ -205,6 +209,7 @@ export function QuoteComposeScreen() {
       const createRes = await createMutation.mutateAsync(dto);
       const sendRes = await sendMutation.mutateAsync(createRes.quote.id);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.mine });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider });
       queryClient.invalidateQueries({
         queryKey: queryKeys.jobRequests.inboxForPro,
       });
@@ -282,7 +287,7 @@ export function QuoteComposeScreen() {
         req={req}
         total={sent.total}
         validityDays={sent.validityDays}
-        onBack={() => navigation.navigate('RequestsMain')}
+        onBack={() => navigation.getParent()?.navigate('Requests' as never)}
         onDashboard={() => navigation.getParent()?.navigate('ProviderDashboard')}
       />
     );
