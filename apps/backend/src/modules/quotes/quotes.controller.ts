@@ -28,7 +28,7 @@ type CreateQuoteBody = {
   discountPct: number;
 };
 
-type UpdateQuoteBody = Partial<CreateQuoteBody>;
+type UpdateQuoteBody = Partial<Omit<CreateQuoteBody, "jobRequestId">>;
 
 const createQuotePipe = new LazyZodValidationPipe(async () => {
   const { CreateQuoteDto } = await import("@kayu/schemas");

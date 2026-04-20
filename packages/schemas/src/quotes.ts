@@ -100,7 +100,9 @@ export const CreateQuoteDto = z.object({
   discountPct: z.number().int().min(0).max(100).default(0),
 });
 
-export const UpdateQuoteDto = CreateQuoteDto.partial();
+export const UpdateQuoteDto = CreateQuoteDto.omit({ jobRequestId: true })
+  .partial()
+  .strict();
 
 // --- Responses ---
 

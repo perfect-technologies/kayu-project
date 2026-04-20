@@ -175,6 +175,7 @@ export function QuoteComposeScreen() {
     lines.length === 0 ||
     total === 0 ||
     hasEmptyLabel ||
+    (startDate === 'custom' && customDate.trim().length === 0) ||
     !requestId ||
     submitting;
 
@@ -184,8 +185,8 @@ export function QuoteComposeScreen() {
       return;
     }
     const startDateKind =
-      startDate === 'custom' && customDate
-        ? customDate
+      startDate === 'custom' && customDate.trim()
+        ? customDate.trim()
         : START_DATE_TO_BACKEND[startDate];
     const dto: CreateQuoteDtoType = {
       jobRequestId: requestId,
@@ -401,7 +402,7 @@ export function QuoteComposeScreen() {
             <TextInput
               value={customDate}
               onChangeText={setCustomDate}
-              placeholder="jj/mm/aaaa"
+              placeholder="jj/mm/aaaa ou aaaa-mm-jj"
               placeholderTextColor={theme.colors.textSubtle}
               style={[styles.input, { marginTop: 10 }]}
             />

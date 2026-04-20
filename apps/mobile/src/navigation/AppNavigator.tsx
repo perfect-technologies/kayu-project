@@ -33,6 +33,12 @@ import { ReviewScreen } from '@/screens/bookings/ReviewScreen';
 
 import { BookingScreen } from '@/screens/booking/BookingScreen';
 
+// Client job requests
+import {
+  ClientRequestDetailScreen,
+  ClientRequestsScreen,
+} from '@/screens/requests/ClientRequestsScreen';
+
 // Messages tab
 import { ConversationsScreen } from '@/screens/messages/ConversationsScreen';
 import { ChatScreen } from '@/screens/messages/ChatScreen';
@@ -87,6 +93,12 @@ export type RequestsStackParamList = {
   BookingDetail: { bookingId: string };
 };
 
+export type ClientRequestsStackParamList = {
+  RequestsMain: undefined;
+  RequestDetail: { requestId: string };
+  BookingDetail: { bookingId: string };
+};
+
 export type ProviderStackParamList = {
   ProviderDashboardMain: undefined;
   ProviderOnboarding: undefined;
@@ -125,6 +137,8 @@ const BookingsStack = createNativeStackNavigator<BookingsStackParamList>();
 const MessagesStack = createNativeStackNavigator<MessagesStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const RequestsStack = createNativeStackNavigator<RequestsStackParamList>();
+const ClientRequestsStack =
+  createNativeStackNavigator<ClientRequestsStackParamList>();
 const ProviderStack = createNativeStackNavigator<ProviderStackParamList>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
@@ -283,6 +297,28 @@ function RequestsNavigator() {
   );
 }
 
+function ClientRequestsNavigator() {
+  return (
+    <ClientRequestsStack.Navigator screenOptions={HEADER_STYLE}>
+      <ClientRequestsStack.Screen
+        name="RequestsMain"
+        component={ClientRequestsScreen}
+        options={{ headerShown: false }}
+      />
+      <ClientRequestsStack.Screen
+        name="RequestDetail"
+        component={ClientRequestDetailScreen}
+        options={{ headerShown: false }}
+      />
+      <ClientRequestsStack.Screen
+        name="BookingDetail"
+        component={BookingDetailScreen}
+        options={{ headerShown: false }}
+      />
+    </ClientRequestsStack.Navigator>
+  );
+}
+
 function ProfileNavigator() {
   return (
     <ProfileStack.Navigator screenOptions={HEADER_STYLE}>
@@ -347,6 +383,7 @@ const HIDE_TAB_BAR_ROUTES = new Set([
   'ProviderOnboarding',
   'ProVerification',
   'QuoteCompose',
+  'RequestDetail',
 ]);
 
 function tabBarVisibility(route: RouteProp<MainTabParamList, keyof MainTabParamList>) {
@@ -368,6 +405,7 @@ function ClientTabs() {
     >
       <MainTab.Screen name="Home" component={HomeScreen} />
       <MainTab.Screen name="Search" component={SearchNavigator} />
+      <MainTab.Screen name="Requests" component={ClientRequestsNavigator} />
       <MainTab.Screen name="Bookings" component={BookingsNavigator} />
       <MainTab.Screen name="Messages" component={MessagesNavigator} />
       <MainTab.Screen name="Profile" component={ProfileNavigator} />

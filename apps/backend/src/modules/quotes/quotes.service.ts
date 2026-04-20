@@ -25,7 +25,7 @@ type CreateQuoteInput = {
   discountPct: number;
 };
 
-type UpdateQuoteInput = Partial<CreateQuoteInput>;
+type UpdateQuoteInput = Partial<Omit<CreateQuoteInput, "jobRequestId">>;
 
 const COMMISSION_PCT = 10;
 
@@ -113,7 +113,10 @@ export class QuotesService {
   async create(actor: Actor, input: CreateQuoteInput) {
     const providerId = await this.requireProviderId(actor);
 
-    const clientId = await this.resolveClientIdForNew(input.jobRequestId);
+    const clientId = await this.resolveClientIdForNew(
+      input.jobRequestId,
+      providerId,
+    );
 
     const totals = computeTotals(input.lines, input.discountPct);
 
@@ -146,6 +149,11 @@ export class QuotesService {
 
   async update(actor: Actor, id: string, input: UpdateQuoteInput) {
     const providerId = await this.requireProviderId(actor);
+    if ("jobRequestId" in input) {
+      throw new BadRequestException(
+        "La demande associée au devis ne peut pas être modifiée",
+      );
+    }
     const existing = await this.prisma.quote.findUnique({
       where: { id },
       include: { lines: true },
@@ -185,10 +193,7 @@ export class QuotesService {
           validityDays: input.validityDays ?? existing.validityDays,
           startDateKind: input.startDateKind ?? existing.startDateKind,
           discountPct: nextDiscountPct,
-          jobRequestId:
-            input.jobRequestId !== undefined
-              ? (input.jobRequestId ?? null)
-              : existing.jobRequestId,
+          jobRequestId: existing.jobRequestId,
           ...totals,
         },
         include: quoteInclude,
@@ -342,6 +347,14 @@ export class QuotesService {
           where: { id: quote.jobRequestId },
           data: { status: "MATCHED" },
         });
+        await tx.quote.updateMany({
+          where: {
+            jobRequestId: quote.jobRequestId,
+            id: { not: id },
+            status: "SENT",
+          },
+          data: { status: "DECLINED", declinedAt: now },
+        });
       }
 
       const providerUser = await tx.provider.findUnique({
@@ -422,7 +435,10 @@ export class QuotesService {
 
   // ============ Internals ============
 
-  private async resolveClientIdForNew(jobRequestId?: string): Promise<string> {
+  private async resolveClientIdForNew(
+    jobRequestId: string | undefined,
+    providerId: string,
+  ): Promise<string> {
     if (!jobRequestId) {
       throw new BadRequestException(
         "jobRequestId est requis pour créer un devis",
@@ -430,11 +446,22 @@ export class QuotesService {
     }
     const request = await this.prisma.jobRequest.findUnique({
       where: { id: jobRequestId },
-      select: { clientId: true, status: true },
+      select: {
+        clientId: true,
+        status: true,
+        matches: {
+          where: { providerId, dismissedAt: null },
+          select: { id: true },
+          take: 1,
+        },
+      },
     });
     if (!request) throw new NotFoundException("Demande introuvable");
-    if (request.status === "CANCELLED" || request.status === "EXPIRED") {
+    if (request.status !== "OPEN") {
       throw new BadRequestException("Cette demande n'accepte plus de devis");
+    }
+    if (request.matches.length === 0) {
+      throw new ForbiddenException("Cette demande ne vous est pas attribuée");
     }
     return request.clientId;
   }
@@ -630,8 +657,44 @@ function computeScheduledDate(kind: string): Date {
   if (kind === "today") return today;
   if (kind === "tomorrow") return addDays(today, 1);
   if (kind === "this_week" || kind === "week") return addDays(today, 3);
-  // Attempt ISO parse for custom dates
-  const parsed = new Date(kind);
+  const trimmed = kind.trim();
+  const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) {
+    const parsed = new Date(
+      Number(isoDate[1]),
+      Number(isoDate[2]) - 1,
+      Number(isoDate[3]),
+      9,
+      0,
+      0,
+    );
+    if (isExactLocalDate(parsed, Number(isoDate[1]), Number(isoDate[2]), Number(isoDate[3]))) {
+      return parsed;
+    }
+  }
+  const frDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (frDate) {
+    const parsed = new Date(
+      Number(frDate[3]),
+      Number(frDate[2]) - 1,
+      Number(frDate[1]),
+      9,
+      0,
+      0,
+    );
+    if (isExactLocalDate(parsed, Number(frDate[3]), Number(frDate[2]), Number(frDate[1]))) {
+      return parsed;
+    }
+  }
+  const parsed = new Date(trimmed);
   if (!Number.isNaN(parsed.getTime())) return parsed;
   return addDays(today, 1);
+}
+
+function isExactLocalDate(date: Date, year: number, month: number, day: number) {
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
 }
