@@ -196,6 +196,8 @@ export class IdentityRepository {
           description: data.description,
           experience: data.experience,
           hourlyRate: data.hourlyRate,
+          verificationStatus: "PENDING",
+          onboardingCompleteAt: new Date(),
           categories: {
             create: data.categoryIds.map((categoryId) => ({ categoryId })),
           },

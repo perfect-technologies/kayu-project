@@ -200,8 +200,8 @@ export class IdentityService implements IActorResolver {
     body: ProviderOnboardingBody,
   ): ProviderOnboardingData {
     return {
-      profession: body.profession,
-      description: body.description,
+      profession: body.profession.trim(),
+      description: body.description?.trim() || undefined,
       experience: body.experience,
       hourlyRate: body.hourlyRate,
       categoryIds: this.unique(body.categoryIds),
@@ -215,6 +215,22 @@ export class IdentityService implements IActorResolver {
   private async validateProviderOnboarding(
     data: ProviderOnboardingData,
   ): Promise<void> {
+    if (data.profession.trim().length < 2) {
+      throw new BadRequestException("Profession is required");
+    }
+
+    if (data.categoryIds.length === 0) {
+      throw new BadRequestException("At least one category is required");
+    }
+
+    if (data.serviceZones.length === 0) {
+      throw new BadRequestException("At least one service zone is required");
+    }
+
+    if (!data.hourlyRate || data.hourlyRate <= 0) {
+      throw new BadRequestException("Hourly rate is required");
+    }
+
     if (data.tradeIds.length > 3) {
       throw new BadRequestException("A provider can have at most 3 trades");
     }
@@ -271,12 +287,18 @@ export class IdentityService implements IActorResolver {
   ): ProviderOnboardingData["serviceZones"] {
     const seen = new Set<string>();
 
-    return zones.filter((zone) => {
-      const key = `${zone.city}:${zone.commune ?? ""}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return zones
+      .map((zone) => ({
+        city: zone.city.trim(),
+        commune: zone.commune?.trim() || null,
+      }))
+      .filter((zone) => {
+        const key = `${zone.city.toLowerCase()}:${zone.commune?.toLowerCase() ?? ""}`;
+        if (!zone.city) return false;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
   }
 
   private toConflict(error: unknown, message: string): ConflictException {

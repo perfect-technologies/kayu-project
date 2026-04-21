@@ -800,6 +800,7 @@ export const ProviderDraftDto = z.object({
   // Step 2 — Métier
   primaryCategoryId: IdSchema.optional(),
   subcategoryIds: z.array(IdSchema).optional(),
+  profession: z.string().min(2).optional(),
   skills: z.array(ProviderDraftSkillSchema).optional(),
   yearsOfExperience: z.number().int().min(0).max(60).optional(),
   description: z.string().max(1000).optional(),

@@ -520,6 +520,35 @@ export class ProvidersService {
           not: null,
         },
       },
+      {
+        profession: {
+          not: "",
+        },
+      },
+      {
+        hourlyRate: {
+          gt: 0,
+        },
+      },
+      {
+        categories: {
+          some: {
+            category: {
+              isActive: true,
+            },
+          },
+        },
+      },
+      {
+        serviceZones: {
+          some: {},
+        },
+      },
+      {
+        trustScore: {
+          isNot: null,
+        },
+      },
       this.visibilityWhere("appearInSearch"),
     ];
 

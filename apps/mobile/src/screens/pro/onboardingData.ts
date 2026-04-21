@@ -96,7 +96,7 @@ export function validateStep(step: number, d: OnboardingData): boolean {
     case 4:
       return d.hourly > 0;
     case 5:
-      return d.photo && d.bio.trim().length >= 10;
+      return d.bio.trim().length >= 10;
     case 6:
       return d.acceptedTerms;
     default:

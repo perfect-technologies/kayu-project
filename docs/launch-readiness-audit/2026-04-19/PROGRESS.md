@@ -6,7 +6,7 @@ This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`
 
 ## Current Phase
 
-WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
+WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -26,7 +26,7 @@ WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. 
 | WS-03 | P0 | Yes | Messaging Bootstrap And Role Recipients | WS-01 helpful | done | Codex | Changed `apps/mobile/src/screens/messages/ChatScreen.tsx`, `apps/backend/src/modules/messaging/*`, `packages/api/src/endpoints.ts`, `packages/schemas/src/dto.ts`; verified existing booking detail role recipient routing. |
 | WS-04 | P0/P1 | Yes if exposed | Client Job Request And Quote Acceptance | WS-01 | done | Codex | Implemented client request creation, request detail, quote list, accept/decline, accepted-quote booking navigation; tightened backend quote acceptance and matched-provider quote creation. |
 | WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | done | Codex | Changed provider dashboard/request mobile screens, provider navigation, dashboard/job-request backend services and tests, and shared dashboard/request schemas. |
-| WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | not_started | | Search visibility and onboarding publish consistency. |
+| WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | done | Codex | Changed provider onboarding/identity/provider search services, mobile onboarding draft mapping, shared draft schema, and focused backend tests. |
 | WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | not_started | | Remove/wire placeholder filters and map mode. |
 | WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | not_started | | Completed-booking review state and client reviews. |
 | WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | not_started | | Real upload/review policy or honest launch stub. |
@@ -141,6 +141,20 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed on 2026-04-20. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
 
+WS-06 validation:
+
+```bash
+pnpm --filter @kayu/backend test:onboarding
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/mobile type-check
+```
+
+Result: passed on 2026-04-20. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -207,3 +221,13 @@ When handing back:
 - Returned and displayed real request/job distances when coordinates are available, with clear fallback copy when they are not.
 - Filtered provider request inbox/dashboard matches so already sent/accepted provider quotes are not shown as fresh actionable requests.
 - Added focused job request service coverage in `apps/backend/src/modules/job-requests/job-requests.service.spec.ts`.
+
+### 2026-04-20 — WS-06 Provider Onboarding And Publication Consistency
+
+- Added a first-class draft `profession` field and fixed mobile onboarding so the métier title maps to provider profession while profile bio maps to public description.
+- Removed the fake `placeholder://avatar` publication dependency; backend publish strips legacy placeholder avatars and mobile no longer requires a pretend photo.
+- Made draft publish materialize category, service zones, skills, subcategory/trade mappings, `onboardingCompleteAt`, provider role selection, `PENDING` verification default, and an idempotent trust score in one transaction.
+- Aligned legacy `/me/provider-onboarding` so it rejects incomplete launch profiles, normalizes zones/fields, sets `onboardingCompleteAt`, and creates providers with the same verification/trust defaults.
+- Tightened provider search to only query launch-ready public providers with publish timestamp, non-empty profession, positive hourly rate, active category, service zone, trust score, active user, and search visibility enabled.
+- Added focused onboarding/search regression tests in `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`, `apps/backend/src/modules/providers/providers.service.spec.ts`, and `apps/backend/src/modules/identity/identity.service.spec.ts`.
+- Follow-up validation on 2026-04-21 tightened publish itself to reject inactive categories, service zones that normalize to nothing, and malformed phone values before setting `onboardingCompleteAt`; revalidated with `pnpm --filter @kayu/backend test:onboarding` and `pnpm --filter @kayu/backend type-check`.

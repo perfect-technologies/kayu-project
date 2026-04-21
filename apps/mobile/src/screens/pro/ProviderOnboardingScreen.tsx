@@ -60,7 +60,7 @@ const SUBS: Record<number, string> = {
   2: 'Précise ton savoir-faire pour être trouvé par les bons clients.',
   3: 'Les clients te voient si tu couvres leur quartier.',
   4: 'Tu peux modifier à tout moment depuis ton dashboard.',
-  5: 'Une photo et un bon texte font toute la différence.',
+  5: 'Un texte précis aide les clients à comprendre ton expérience.',
   6: 'Un dernier coup d\'œil avant de te lancer.',
 };
 
@@ -134,6 +134,7 @@ function backendToData(
       back: draft.idBackUploaded ?? undefined,
     },
     categories: primarySlug ? [primarySlug] : [],
+    title: draft.profession ?? '',
     years: numberToYearsLabel(draft.yearsOfExperience),
     skills: (draft.skills ?? []).map((skill) => skill.name),
     zones: (draft.serviceZones ?? []).map(
@@ -141,8 +142,8 @@ function backendToData(
     ),
     radius: draft.zoneRadiusKm ?? 10,
     hourly: draft.hourlyRate ?? 0,
-    bio: draft.bio ?? '',
-    photo: Boolean(draft.avatar),
+    bio: draft.description ?? draft.bio ?? '',
+    photo: Boolean(draft.avatar && !draft.avatar.startsWith('placeholder://')),
     languages: draft.languages ?? [],
   };
 }
@@ -164,15 +165,15 @@ function dataToBackend(data: OnboardingData, categories: CategoryIndex): Provide
     idFrontUploaded: Boolean(data.id.front),
     idBackUploaded: Boolean(data.id.back),
     primaryCategoryId: primaryId ?? undefined,
+    profession: data.title || undefined,
     skills: data.skills.map((name) => ({ name, level: 3 })),
     yearsOfExperience: data.years ? YEARS_TO_NUMBER[data.years] : undefined,
-    description: data.title || undefined,
+    description: data.bio || undefined,
     serviceZones: zones,
     zoneRadiusKm: data.radius,
     hourlyRate: data.hourly > 0 ? data.hourly : undefined,
     bio: data.bio || undefined,
     languages: data.languages,
-    avatar: data.photo ? 'placeholder://avatar' : undefined,
   };
 }
 
@@ -861,32 +862,6 @@ function StepPricing({ data, setData }: StepProps) {
 function StepProfile({ data, setData }: StepProps) {
   return (
     <View style={{ gap: 18 }}>
-      <View>
-        <FieldLabel
-          label="Photo de profil"
-          hint="Une photo claire, visage visible."
-        />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <View style={[styles.avatarBig, data.photo && styles.avatarBigFilled]}>
-            {data.photo ? (
-              <Text style={styles.avatarBigInitials}>
-                {(data.firstName?.[0] ?? 'J') + (data.lastName?.[0] ?? 'M')}
-              </Text>
-            ) : (
-              <I.user size={32} color={theme.colors.textSubtle} />
-            )}
-          </View>
-          <TouchableOpacity
-            onPress={() => setData({ photo: !data.photo })}
-            style={styles.secondaryBtn}
-          >
-            <Text style={styles.secondaryBtnText}>
-              {data.photo ? 'Remplacer' : 'Ajouter une photo'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <View>
         <FieldLabel
           label="À propos de moi"

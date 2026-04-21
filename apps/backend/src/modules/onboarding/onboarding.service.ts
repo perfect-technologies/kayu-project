@@ -25,6 +25,7 @@ export type ProviderDraftInput = {
 
   primaryCategoryId?: string;
   subcategoryIds?: string[];
+  profession?: string;
   skills?: ProviderDraftSkillInput[];
   yearsOfExperience?: number;
   description?: string;
@@ -67,6 +68,15 @@ type ProviderDraftRecord = Prisma.ProviderGetPayload<{
     categories: true;
     skills: true;
     serviceZones: true;
+    trades: {
+      include: {
+        trade: {
+          select: {
+            subcategoryId: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -91,7 +101,10 @@ export class OnboardingService {
     if (body.firstName !== undefined) userData.firstName = body.firstName || null;
     if (body.lastName !== undefined) userData.lastName = body.lastName || null;
     if (body.phone !== undefined) userData.phone = body.phone || null;
-    if (body.avatar !== undefined) userData.avatar = body.avatar || null;
+    if (body.avatar !== undefined) {
+      userData.avatar =
+        body.avatar && !this.isPlaceholderAvatar(body.avatar) ? body.avatar : null;
+    }
     if (body.onboardingStep !== undefined) {
       userData.onboardingStep = body.onboardingStep;
     }
@@ -105,6 +118,7 @@ export class OnboardingService {
     const needsProviderTouch =
       body.primaryCategoryId !== undefined ||
       body.subcategoryIds !== undefined ||
+      body.profession !== undefined ||
       body.skills !== undefined ||
       body.yearsOfExperience !== undefined ||
       body.description !== undefined ||
@@ -123,12 +137,15 @@ export class OnboardingService {
         (await tx.provider.create({
           data: {
             userId: actor.id,
-            profession: "",
+            profession: body.profession?.trim() ?? "",
           },
           include: draftProviderInclude,
         }));
 
       const providerData: Prisma.ProviderUpdateInput = {};
+      if (body.profession !== undefined) {
+        providerData.profession = body.profession.trim();
+      }
       if (body.description !== undefined) {
         providerData.description = body.description || null;
       }
@@ -173,6 +190,13 @@ export class OnboardingService {
         }
       }
 
+      if (body.subcategoryIds !== undefined) {
+        const tradeIds = await this.resolveDraftTradeIds(tx, body.subcategoryIds);
+        await this.replaceProviderTrades(tx, provider.id, tradeIds, {
+          experience: body.yearsOfExperience ?? provider.experience,
+        });
+      }
+
       if (body.serviceZones !== undefined) {
         const normalizedZones = this.uniqueZones(body.serviceZones);
         await tx.serviceZone.deleteMany({ where: { providerId: provider.id } });
@@ -205,74 +229,73 @@ export class OnboardingService {
     }
 
     const overflow = this.extractOverflow(state.user.onboardingDraft);
-    const primaryCategory = overflow.primaryCategoryId
-      ? await this.prisma.category.findUnique({
-          where: { id: overflow.primaryCategoryId },
+    const primaryCategoryId = draft.primaryCategoryId ?? overflow.primaryCategoryId;
+    const primaryCategory = primaryCategoryId
+      ? await this.prisma.category.findFirst({
+          where: { id: primaryCategoryId, isActive: true },
           select: { id: true, name: true },
         })
       : null;
+    const normalizedPhone = this.normalizePhone(state.user.phone);
+    const normalizedZones = this.uniqueZones(draft.serviceZones ?? []);
     const profession =
-      (state.provider?.profession && state.provider.profession.trim()) ||
-      primaryCategory?.name ||
-      "";
+      draft.profession?.trim() || state.provider?.profession?.trim() || "";
 
-    if (!profession) {
+    if (!profession || !primaryCategory || !normalizedPhone || normalizedZones.length === 0) {
       throw new BadRequestException({
         message: "Incomplete provider profile",
-        missing: ["primaryCategoryId"],
+        missing: [
+          ...(!normalizedPhone ? ["phone"] : []),
+          ...(!profession ? ["profession"] : []),
+          ...(!primaryCategory ? ["primaryCategoryId"] : []),
+          ...(normalizedZones.length === 0 ? ["serviceZones"] : []),
+        ],
       });
     }
 
+    const publishedAt = new Date();
     await this.prisma.$transaction(async (tx) => {
-      if (state.provider) {
-        await tx.provider.update({
-          where: { id: state.provider.id },
-          data: {
-            profession,
-            onboardingCompleteAt: new Date(),
-          },
-        });
-      } else {
-        await tx.provider.create({
-          data: {
-            userId: actor.id,
-            profession,
-            description: draft.description,
-            experience: draft.yearsOfExperience,
-            hourlyRate: draft.hourlyRate,
-            onboardingCompleteAt: new Date(),
-            categories: overflow.primaryCategoryId
-              ? {
-                  create: [{ categoryId: overflow.primaryCategoryId }],
-                }
-              : undefined,
-            skills: draft.skills
-              ? {
-                  create: draft.skills.map((skill) => ({
-                    name: skill.name,
-                    level: skill.level ?? 3,
-                  })),
-                }
-              : undefined,
-            serviceZones: draft.serviceZones
-              ? {
-                  create: draft.serviceZones.map((zone) => ({
-                    city: zone.city,
-                    commune: zone.commune ?? null,
-                  })),
-                }
-              : undefined,
-            trustScore: { create: {} },
-          },
-        });
-      }
+      const provider = state.provider
+        ? await tx.provider.update({
+            where: { id: state.provider.id },
+            data: {
+              profession,
+              description: draft.description || null,
+              experience: draft.yearsOfExperience,
+              hourlyRate: draft.hourlyRate,
+              verificationStatus: state.provider.verificationStatus ?? "PENDING",
+              onboardingCompleteAt: publishedAt,
+            },
+            select: { id: true },
+          })
+        : await tx.provider.create({
+            data: {
+              userId: actor.id,
+              profession,
+              description: draft.description,
+              experience: draft.yearsOfExperience,
+              hourlyRate: draft.hourlyRate,
+              verificationStatus: "PENDING",
+              onboardingCompleteAt: publishedAt,
+            },
+            select: { id: true },
+          });
+
+      await this.syncProviderLaunchFields(tx, provider.id, draft, {
+        categoryId: primaryCategory.id,
+      });
 
       await tx.user.update({
         where: { id: actor.id },
         data: {
           role: "PROVIDER",
+          roleSelectedAt: state.user.roleSelectedAt ?? publishedAt,
           onboardingStep: null,
           onboardingDraft: Prisma.JsonNull,
+          avatar: this.isPlaceholderAvatar(state.user.avatar)
+            ? null
+            : state.user.avatar,
+          phone: normalizedPhone,
         },
       });
     });
@@ -343,6 +366,7 @@ export class OnboardingService {
     };
 
     if (state.provider) {
+      draft.profession = state.provider.profession?.trim() || undefined;
       draft.description = state.provider.description ?? undefined;
       draft.yearsOfExperience = state.provider.experience ?? undefined;
       draft.hourlyRate = state.provider.hourlyRate ?? undefined;
@@ -357,6 +381,19 @@ export class OnboardingService {
       if (!draft.primaryCategoryId && state.provider.categories.length > 0) {
         draft.primaryCategoryId = state.provider.categories[0]?.categoryId;
       }
+      if (!draft.subcategoryIds && state.provider.trades.length > 0) {
+        draft.subcategoryIds = [
+          ...new Set(
+            state.provider.trades
+              .map((item) => item.trade.subcategoryId)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+      }
+      if (!draft.profession && overflow.bio && state.provider.description) {
+        draft.profession = state.provider.description;
+        draft.description = overflow.bio;
+      }
     }
 
     return draft;
@@ -369,11 +406,11 @@ export class OnboardingService {
     const missing: string[] = [];
     if (!draft.firstName || draft.firstName.trim().length < 2) missing.push("firstName");
     if (!draft.lastName || draft.lastName.trim().length < 2) missing.push("lastName");
-    if (!draft.phone) missing.push("phone");
+    if (!this.normalizePhone(draft.phone)) missing.push("phone");
+    if (!draft.profession || draft.profession.trim().length < 2) missing.push("profession");
     if (!draft.primaryCategoryId) missing.push("primaryCategoryId");
     if (!draft.serviceZones || draft.serviceZones.length === 0) missing.push("serviceZones");
     if (!draft.hourlyRate || draft.hourlyRate <= 0) missing.push("hourlyRate");
-    if (!draft.avatar) missing.push("avatar");
     return missing;
   }
 
@@ -437,13 +474,163 @@ export class OnboardingService {
     zones: NonNullable<ProviderDraftInput["serviceZones"]>,
   ): NonNullable<ProviderDraftInput["serviceZones"]> {
     const seen = new Set<string>();
-    return zones.filter((zone) => {
-      const key = `${zone.city.trim().toLowerCase()}:${zone.commune?.trim().toLowerCase() ?? ""}`;
-      if (!zone.city.trim()) return false;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+    return zones
+      .map((zone) => ({
+        city: zone.city.trim(),
+        commune: zone.commune?.trim() || null,
+      }))
+      .filter((zone) => {
+        const key = `${zone.city.toLowerCase()}:${zone.commune?.toLowerCase() ?? ""}`;
+        if (!zone.city) return false;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
+  private uniqueIds(ids: string[] | undefined): string[] {
+    if (!ids) return [];
+    return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  }
+
+  private normalizePhone(value: string | null | undefined): string | null {
+    if (!value) return null;
+
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\+243\d{9}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length === 9) {
+      return `+243${digits}`;
+    }
+
+    if (digits.length === 12 && digits.startsWith("243")) {
+      return `+${digits}`;
+    }
+
+    return null;
+  }
+
+  private async syncProviderLaunchFields(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    draft: ProviderDraftInput,
+    options: { categoryId: string },
+  ) {
+    await tx.providerCategory.deleteMany({ where: { providerId } });
+    await tx.providerCategory.create({
+      data: {
+        providerId,
+        categoryId: options.categoryId,
+      },
     });
+
+    const skills = this.uniqueSkills(draft.skills ?? []);
+    await tx.skill.deleteMany({ where: { providerId } });
+    if (skills.length > 0) {
+      await tx.skill.createMany({
+        data: skills.map((skill) => ({
+          providerId,
+          name: skill.name,
+          level: skill.level ?? 3,
+        })),
+      });
+    }
+
+    const zones = this.uniqueZones(draft.serviceZones ?? []);
+    await tx.serviceZone.deleteMany({ where: { providerId } });
+    if (zones.length > 0) {
+      await tx.serviceZone.createMany({
+        data: zones.map((zone) => ({
+          providerId,
+          city: zone.city,
+          commune: zone.commune,
+        })),
+      });
+    }
+
+    const tradeIds = await this.resolveDraftTradeIds(tx, draft.subcategoryIds);
+    await this.replaceProviderTrades(tx, providerId, tradeIds, {
+      experience: draft.yearsOfExperience,
+    });
+
+    await tx.trustScore.upsert({
+      where: { providerId },
+      create: { providerId },
+      update: {},
+    });
+  }
+
+  private async resolveDraftTradeIds(
+    tx: Prisma.TransactionClient,
+    subcategoryOrTradeIds: string[] | undefined,
+  ): Promise<string[]> {
+    const ids = this.uniqueIds(subcategoryOrTradeIds);
+    if (ids.length === 0) return [];
+
+    const trades = await tx.trade.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { id: { in: ids } },
+          {
+            subcategoryId: { in: ids },
+            subcategory: { isActive: true },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        subcategoryId: true,
+        order: true,
+      },
+      orderBy: [{ order: "asc" }, { id: "asc" }],
+    });
+
+    const inputOrder = new Map(ids.map((id, index) => [id, index]));
+    return trades
+      .sort((left, right) => {
+        const leftRank =
+          inputOrder.get(left.id) ??
+          inputOrder.get(left.subcategoryId) ??
+          Number.MAX_SAFE_INTEGER;
+        const rightRank =
+          inputOrder.get(right.id) ??
+          inputOrder.get(right.subcategoryId) ??
+          Number.MAX_SAFE_INTEGER;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return (left.order ?? 0) - (right.order ?? 0);
+      })
+      .map((trade) => trade.id)
+      .filter((id, index, all) => all.indexOf(id) === index)
+      .slice(0, 3);
+  }
+
+  private async replaceProviderTrades(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    tradeIds: string[],
+    options: { experience?: number | null },
+  ) {
+    await tx.providerTrade.deleteMany({ where: { providerId } });
+    if (tradeIds.length === 0) return;
+
+    await tx.providerTrade.createMany({
+      data: tradeIds.map((tradeId, index) => ({
+        providerId,
+        tradeId,
+        isPrimary: index === 0,
+        experience: options.experience ?? null,
+      })),
+    });
+  }
+
+  private isPlaceholderAvatar(value: string | null | undefined): boolean {
+    return typeof value === "string" && value.startsWith("placeholder://");
   }
 }
 
@@ -451,4 +638,13 @@ const draftProviderInclude = {
   categories: true,
   skills: true,
   serviceZones: true,
+  trades: {
+    include: {
+      trade: {
+        select: {
+          subcategoryId: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.ProviderInclude;

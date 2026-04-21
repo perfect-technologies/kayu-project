@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ConflictException } from "@nestjs/common";
+import { BadRequestException, ConflictException } from "@nestjs/common";
 import type { UserRole } from "@prisma/client";
 import { IdentityService } from "./identity.service";
 import type {
   IdentityRepository,
+  ProviderOnboardingData,
   UserWithProvider,
 } from "./identity.repository";
 
@@ -61,6 +62,40 @@ function makeService(
   } as unknown as IdentityRepository;
 
   return { service: new IdentityService(repo), calls };
+}
+
+function makeProviderProfile(data: ProviderOnboardingData) {
+  return {
+    id: "provider_1",
+    userId: "user_1",
+    profession: data.profession,
+    description: data.description ?? null,
+    experience: data.experience ?? null,
+    hourlyRate: data.hourlyRate ?? null,
+    videoUrl: null,
+    totalReviews: 0,
+    totalJobs: 0,
+    responseTime: 0,
+    isPremium: false,
+    premiumExpiry: null,
+    isAvailable: true,
+    verificationStatus: "PENDING",
+    onboardingCompleteAt: new Date("2026-04-20T10:00:00.000Z"),
+    createdAt: new Date("2026-04-20T10:00:00.000Z"),
+    updatedAt: new Date("2026-04-20T10:00:00.000Z"),
+    user: makeUser({ role: "PROVIDER" }),
+    categories: data.categoryIds.map((id) => ({
+      category: { id, name: "Plomberie", slug: "plomberie" },
+    })),
+    trades: data.tradeIds.map((id, index) => ({
+      trade: { id, name: "Fuites", slug: "fuites" },
+      isPrimary: data.primaryTradeId ? id === data.primaryTradeId : index === 0,
+      experience: data.experience ?? null,
+    })),
+    skills: data.skills.map((name) => ({ name })),
+    serviceZones: data.serviceZones,
+    trustScore: { id: "trust_1", providerId: "provider_1", badges: [] },
+  } as never;
 }
 
 test("fresh default client can explicitly select provider during signup", async () => {
@@ -120,4 +155,72 @@ test("marketplace activity locks the existing default role", async () => {
     () => service.setRole(user, "PROVIDER"),
     (error) => error instanceof ConflictException,
   );
+});
+
+test("legacy provider onboarding rejects incomplete launch profile", async () => {
+  const user = makeUser({ role: "PROVIDER", roleSelectedAt: new Date() });
+  const repo = {
+    findById: async () => user,
+  } as unknown as IdentityRepository;
+  const service = new IdentityService(repo);
+
+  await assert.rejects(
+    () =>
+      service.providerOnboarding(user as never, {
+        profession: "Plombier",
+        categoryIds: [],
+        skills: [],
+        serviceZones: [],
+        tradeIds: [],
+        hourlyRate: 0,
+      }),
+    (error) => error instanceof BadRequestException,
+  );
+});
+
+test("legacy provider onboarding publishes normalized launch-ready provider", async () => {
+  const user = makeUser({ role: "PROVIDER", roleSelectedAt: new Date() });
+  const calls: { data?: ProviderOnboardingData } = {};
+  const repo = {
+    findById: async () => user,
+    countCategories: async (ids: string[]) => ids.length,
+    countTrades: async (ids: string[]) => ids.length,
+    createProviderProfile: async (
+      _userId: string,
+      data: ProviderOnboardingData,
+    ) => {
+      calls.data = data;
+      return makeProviderProfile(data);
+    },
+  } as unknown as IdentityRepository;
+  const service = new IdentityService(repo);
+
+  const result = await service.providerOnboarding(user as never, {
+    profession: "  Plombier certifié  ",
+    categoryIds: ["cat_1", "cat_1"],
+    skills: [" Fuites ", "Fuites", "Installation"],
+    serviceZones: [
+      { city: " Kinshasa ", commune: " Gombe " },
+      { city: "Kinshasa", commune: "Gombe" },
+    ],
+    tradeIds: ["trade_1"],
+    primaryTradeId: "trade_1",
+    experience: 5,
+    hourlyRate: 15000,
+    description: "  Disponible pour les urgences.  ",
+  });
+
+  assert.equal(result.provider.profession, "Plombier certifié");
+  assert.ok(result.provider.onboardingCompleteAt);
+  assert.deepEqual(calls.data, {
+    profession: "Plombier certifié",
+    description: "Disponible pour les urgences.",
+    experience: 5,
+    hourlyRate: 15000,
+    categoryIds: ["cat_1"],
+    skills: ["Fuites", "Installation"],
+    serviceZones: [{ city: "Kinshasa", commune: "Gombe" }],
+    tradeIds: ["trade_1"],
+    primaryTradeId: "trade_1",
+  });
 });
