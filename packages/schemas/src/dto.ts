@@ -251,6 +251,8 @@ export const ProviderSearchParams = PaginationParams.extend({
   maxPrice: z.coerce.number().min(0).optional(),
   available: BooleanQueryParamSchema.optional(),
   verified: BooleanQueryParamSchema.optional(),
+  sortBy: z.enum(["recommended", "createdAt", "hourlyRate"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
 }).extend({
   limit: z.coerce.number().int().min(1).max(100).default(12),
 });

@@ -1,12 +1,12 @@
 # KAYOU Launch Readiness Remediation Progress
 
-Last updated: 2026-04-20
+Last updated: 2026-04-21
 
 This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`. It intentionally does not replace `docs/implementation-plan/PROGRESS.md`, which tracks the earlier implementation/migration plan.
 
 ## Current Phase
 
-WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
+WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -27,7 +27,7 @@ WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. 
 | WS-04 | P0/P1 | Yes if exposed | Client Job Request And Quote Acceptance | WS-01 | done | Codex | Implemented client request creation, request detail, quote list, accept/decline, accepted-quote booking navigation; tightened backend quote acceptance and matched-provider quote creation. |
 | WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | done | Codex | Changed provider dashboard/request mobile screens, provider navigation, dashboard/job-request backend services and tests, and shared dashboard/request schemas. |
 | WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | done | Codex | Changed provider onboarding/identity/provider search services, mobile onboarding draft mapping, shared draft schema, and focused backend tests. |
-| WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | not_started | | Remove/wire placeholder filters and map mode. |
+| WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | done | Codex | Changed mobile discovery filters/sort/map messaging, provider search pagination/filtering, provider card mapping, and provider-search regression tests. |
 | WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | not_started | | Completed-booking review state and client reviews. |
 | WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | not_started | | Real upload/review policy or honest launch stub. |
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | not_started | | Admin users and moderation workflow. |
@@ -54,6 +54,7 @@ WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. 
 | 2026-04-19 | Agents must update this file before handing back work. | Parallel remediation needs a single coordination surface. |
 | 2026-04-19 | Add web as a launch surface if public at launch. | `apps/web` implements client, provider, booking, messages, quote, and admin routes; it cannot be treated as marketing-only. |
 | 2026-04-20 | Keep the job request/quote flow exposed for launch and complete the client path instead of hiding provider quote entry points. | Mobile clients can now create requests, view quotes, accept/decline, and open the confirmed booking created from an accepted quote. |
+| 2026-04-21 | Hide mobile discovery map mode for launch instead of shipping a placeholder toggle. | Provider search results do not have reliable per-result map coordinates yet; the launch UI should not imply geographic precision that the backend cannot provide. |
 
 ## Validation Evidence
 
@@ -155,6 +156,29 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed on 2026-04-20. Mobile type-check required rebuilding `@kayu/schemas` and `@kayu/api` because the mobile workspace consumes their generated declaration files.
 
+WS-07 validation:
+
+```bash
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend test:onboarding
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+```
+
+Result: passed on 2026-04-21.
+
+Manual search validation on 2026-04-21 against `http://127.0.0.1:3001/api/providers`:
+
+- Base search returned 15 providers.
+- `q=coiff` narrowed results to 1 provider.
+- `city=Kinshasa` narrowed results to 9 providers.
+- `minRating=4` narrowed results to 8 providers.
+- `minPrice=10000&maxPrice=12000` narrowed results to 3 providers.
+- `sortBy=hourlyRate&sortOrder=asc|desc` changed the leading hourly rates from `8000 -> 10000 -> 12000` to `30000 -> 25000 -> 25000`.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -231,3 +255,12 @@ When handing back:
 - Tightened provider search to only query launch-ready public providers with publish timestamp, non-empty profession, positive hourly rate, active category, service zone, trust score, active user, and search visibility enabled.
 - Added focused onboarding/search regression tests in `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`, `apps/backend/src/modules/providers/providers.service.spec.ts`, and `apps/backend/src/modules/identity/identity.service.spec.ts`.
 - Follow-up validation on 2026-04-21 tightened publish itself to reject inactive categories, service zones that normalize to nothing, and malformed phone values before setting `onboardingCompleteAt`; revalidated with `pnpm --filter @kayu/backend test:onboarding` and `pnpm --filter @kayu/backend type-check`.
+
+### 2026-04-21 — WS-07 Discovery, Map, And Filters
+
+- Replaced mobile discovery placeholder controls with real backend-backed search text, city, minimum rating, price range, availability, verification, and sort filters in `apps/mobile/src/screens/search/{SearchScreen.tsx,components/MobileFilterSheet.tsx}`.
+- Removed the fake list/map toggle and replaced it with explicit launch copy that map view is unavailable until provider pin geometry exists.
+- Changed provider search to paginate in the database via `count` + `findMany(skip/take/orderBy)` and to apply minimum-rating filtering before pagination in `apps/backend/src/modules/providers/providers.service.ts`.
+- Added backend sort support for recommended/newest/price ordering and shared search-param typing for `sortBy`/`sortOrder`.
+- Tightened provider card mapping in `apps/mobile/src/lib/providerAdapter.ts` so search cards use real provider verification state, sane response-time fallback text, and a more stable displayed location.
+- Added focused provider-search regression coverage for launch-ready gating plus rating-filter/database-pagination behavior in `apps/backend/src/modules/providers/providers.service.spec.ts`.

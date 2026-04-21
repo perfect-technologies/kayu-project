@@ -28,7 +28,7 @@ type ProviderSearchQuery = {
   verified?: boolean;
   page: number;
   limit: number;
-  sortBy?: string;
+  sortBy?: "recommended" | "createdAt" | "hourlyRate";
   sortOrder?: "asc" | "desc";
 };
 

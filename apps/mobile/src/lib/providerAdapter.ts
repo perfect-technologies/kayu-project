@@ -25,7 +25,7 @@ export function toCategorySlug(raw: string | undefined): CategorySlug {
 }
 
 function formatResponse(minutes: number | undefined): string {
-  if (minutes == null) return '2h';
+  if (minutes == null || minutes <= 0) return '2h';
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.round(minutes / 60);
   return `${hours}h`;
@@ -42,14 +42,16 @@ export function providerToCardData(
   provider: Provider | ProviderDetail,
 ): ProviderCardData {
   const firstCategory = provider.categories?.[0];
+  const firstZone = provider.serviceZones?.[0];
+
   return {
     id: provider.id,
     firstName: provider.user.firstName ?? '',
     lastName: provider.user.lastName ?? '',
     initials: computeInitials(provider.user.firstName, provider.user.lastName),
     profession: provider.profession,
-    city: provider.user.city ?? undefined,
-    commune: provider.user.city ?? undefined,
+    city: provider.user.city ?? firstZone?.city ?? undefined,
+    commune: firstZone?.commune ?? provider.user.city ?? firstZone?.city ?? undefined,
     categories: [toCategorySlug(firstCategory?.slug)],
     avatarUrl: provider.user.avatar ?? undefined,
     rating: provider.rating ?? 0,
@@ -57,8 +59,8 @@ export function providerToCardData(
     response: formatResponse(provider.responseTime),
     hourly: provider.hourlyRate ?? 0,
     distance: undefined,
-    verified: provider.verificationStatus === 'VERIFIED' || provider.user.isVerified === true,
-    topRated: Boolean(provider.isCertified) && (provider.rating ?? 0) >= 4.7,
+    verified: provider.verificationStatus === 'VERIFIED',
+    topRated: (provider.rating ?? 0) >= 4.7 && (provider.totalReviews ?? 0) >= 5,
     online: provider.isAvailable,
   };
 }

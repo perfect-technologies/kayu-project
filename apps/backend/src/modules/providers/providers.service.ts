@@ -26,7 +26,7 @@ type ProviderSearchQuery = {
   verified?: boolean;
   page: number;
   limit: number;
-  sortBy?: string;
+  sortBy?: "recommended" | "createdAt" | "hourlyRate";
   sortOrder?: "asc" | "desc";
 };
 
@@ -196,79 +196,71 @@ export class ProvidersService {
   ) {}
 
   async search(query: ProviderSearchQuery) {
-    const providers = await this.prisma.provider.findMany({
-      where: this.buildSearchWhere(query),
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-            city: true,
-            country: true,
-            isVerified: true,
-          },
-        },
-        categories: {
-          where: {
-            category: {
-              isActive: true,
-            },
-          },
-          include: {
-            category: true,
-          },
-        },
-        serviceZones: true,
-      },
-    });
+    const baseWhere = this.buildSearchWhere(query);
+    const where = await this.applyMinRatingFilter(baseWhere, query.minRating);
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, query.limit || 12);
+    const skip = (page - 1) * limit;
+    const orderBy = this.buildSearchOrderBy(query);
 
+    const total = await this.prisma.provider.count({ where });
+    const providers =
+      total === 0
+        ? []
+        : await this.prisma.provider.findMany({
+            where,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                  city: true,
+                  country: true,
+                  isVerified: true,
+                },
+              },
+              categories: {
+                where: {
+                  category: {
+                    isActive: true,
+                  },
+                },
+                include: {
+                  category: true,
+                },
+              },
+              serviceZones: true,
+            },
+            orderBy,
+            skip,
+            take: limit,
+          });
+
+    const providerIds = providers.map((provider) => provider.id);
     const [ratingByProviderId, certifiedProviderIds] = await Promise.all([
-      this.getRatingByProviderId(providers.map((provider) => provider.id)),
-      this.getCertifiedProviderIds(providers.map((provider) => provider.id)),
+      this.getRatingByProviderId(providerIds),
+      this.getCertifiedProviderIds(providerIds),
     ]);
 
-    const filteredProviders = providers
-      .map((provider) =>
-        this.mapProviderSummary(
-          provider,
-          ratingByProviderId.get(provider.id) ?? 0,
-          certifiedProviderIds.has(provider.id),
-        ),
-      )
-      .filter((provider) =>
-        query.minRating !== undefined ? provider.rating >= query.minRating : true,
-      )
-      .sort((left, right) => {
-        if (left.isPremium !== right.isPremium) {
-          return Number(right.isPremium) - Number(left.isPremium);
-        }
-
-        if (left.rating !== right.rating) {
-          return right.rating - left.rating;
-        }
-
-        if (left.totalReviews !== right.totalReviews) {
-          return right.totalReviews - left.totalReviews;
-        }
-
-        return right.createdAt.getTime() - left.createdAt.getTime();
-      });
-
-    const total = filteredProviders.length;
-    const start = (query.page - 1) * query.limit;
-    const paginatedProviders = filteredProviders.slice(start, start + query.limit);
+    const mappedProviders = providers.map((provider) =>
+      this.mapProviderSummary(
+        provider,
+        ratingByProviderId.get(provider.id) ?? 0,
+        certifiedProviderIds.has(provider.id),
+      ),
+    );
 
     return {
       success: true as const,
-      providers: paginatedProviders,
+      providers: mappedProviders,
       pagination: {
-        page: query.page,
-        limit: query.limit,
+        page,
+        limit,
         total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
-        hasMore: start + query.limit < total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        hasMore: skip + limit < total,
       },
     };
   }
@@ -632,10 +624,20 @@ export class ProvidersService {
           {
             serviceZones: {
               some: {
-                city: {
-                  contains: query.city,
-                  mode: "insensitive",
-                },
+                OR: [
+                  {
+                    city: {
+                      contains: query.city,
+                      mode: "insensitive",
+                    },
+                  },
+                  {
+                    commune: {
+                      contains: query.city,
+                      mode: "insensitive",
+                    },
+                  },
+                ],
               },
             },
           },
@@ -665,6 +667,76 @@ export class ProvidersService {
     }
 
     return { AND: conditions };
+  }
+
+  private async applyMinRatingFilter(
+    baseWhere: Prisma.ProviderWhereInput,
+    minRating?: number,
+  ): Promise<Prisma.ProviderWhereInput> {
+    if (minRating === undefined || minRating <= 0) {
+      return baseWhere;
+    }
+
+    const matchingProviders = await this.prisma.provider.findMany({
+      where: baseWhere,
+      select: {
+        id: true,
+      },
+    });
+
+    const providerIds = matchingProviders.map((provider) => provider.id);
+    if (providerIds.length === 0) {
+      return {
+        AND: [baseWhere, { id: { in: [] } }],
+      };
+    }
+
+    const ratings = await this.prisma.review.groupBy({
+      by: ["providerId"],
+      where: {
+        providerId: {
+          in: providerIds,
+        },
+      },
+      _avg: {
+        overallScore: true,
+      },
+    });
+
+    const ratedProviderIds = ratings
+      .filter((item) => (item._avg.overallScore ?? 0) >= minRating)
+      .map((item) => item.providerId);
+
+    return {
+      AND: [baseWhere, { id: { in: ratedProviderIds } }],
+    };
+  }
+
+  private buildSearchOrderBy(
+    query: ProviderSearchQuery,
+  ): Prisma.ProviderOrderByWithRelationInput[] {
+    if (query.sortBy === "hourlyRate") {
+      return [
+        { hourlyRate: query.sortOrder === "desc" ? "desc" : "asc" },
+        { id: "asc" },
+      ];
+    }
+
+    if (query.sortBy === "createdAt") {
+      return [
+        { createdAt: query.sortOrder === "asc" ? "asc" : "desc" },
+        { id: "asc" },
+      ];
+    }
+
+    return [
+      { isPremium: "desc" },
+      { totalReviews: "desc" },
+      { totalJobs: "desc" },
+      { responseTime: "asc" },
+      { createdAt: "desc" },
+      { id: "asc" },
+    ];
   }
 
   private async validateReferencedRecords(params: {

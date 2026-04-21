@@ -13,6 +13,7 @@ import { queryKeys } from '@kayu/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
+import type { ProviderSearchParams } from '@kayu/schemas';
 import {
   CategoryStrip,
   I,
@@ -29,6 +30,7 @@ import { ErrorState } from '@/components/common/ErrorState';
 import { providerToCardData, toCategorySlug } from '@/lib/providerAdapter';
 import {
   MobileFilterSheet,
+  MOBILE_SORT_LABELS,
   EMPTY_FILTERS,
   type MobileFilters,
 } from './components/MobileFilterSheet';
@@ -48,6 +50,13 @@ const FALLBACK_STRIP: CategoryStripItem[] = [
   { slug: 'menuiserie' },
 ];
 
+function parseFilterNumber(raw: string): number | undefined {
+  const normalized = raw.trim();
+  if (!normalized) return undefined;
+  const value = Number.parseInt(normalized, 10);
+  return Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 export function SearchScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
@@ -62,7 +71,6 @@ export function SearchScreen() {
     category: initialCategory,
   });
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [view, setView] = useState<'list' | 'map'>('list');
 
   // React to nav param changes (Home → Search with category)
   useEffect(() => {
@@ -71,12 +79,31 @@ export function SearchScreen() {
     }
   }, [route.params?.category]);
 
-  const searchParams = useMemo(
+  const searchParams = useMemo<Partial<ProviderSearchParams>>(
     () => ({
       category: filters.category ?? undefined,
+      q: filters.q.trim() || undefined,
+      city: filters.city.trim() || undefined,
+      available: filters.available || undefined,
+      verified: filters.verified || undefined,
+      minRating: filters.minRating ?? undefined,
+      minPrice: parseFilterNumber(filters.minPrice),
+      maxPrice: parseFilterNumber(filters.maxPrice),
+      sortBy:
+        filters.sort === 'newest'
+          ? 'createdAt'
+          : filters.sort === 'price_low' || filters.sort === 'price_high'
+            ? 'hourlyRate'
+            : 'recommended',
+      sortOrder:
+        filters.sort === 'price_high'
+          ? 'desc'
+          : filters.sort === 'price_low'
+            ? 'asc'
+            : undefined,
       limit: 30,
     }),
-    [filters.category],
+    [filters],
   );
 
   const { data: categoriesData } = useQuery({
@@ -118,28 +145,22 @@ export function SearchScreen() {
 
   const rawProviders = providersData?.providers ?? [];
   const rawCards = useMemo(() => rawProviders.map(providerToCardData), [rawProviders]);
-
-  // Client-side refine: available / verified / topRated / expert / distance.
-  // Category is already applied server-side via searchParams.
-  const cards = useMemo(() => {
-    return rawCards.filter((c) => {
-      if (filters.available && !c.online) return false;
-      if (filters.verified && !c.verified) return false;
-      if (filters.topRated && !c.topRated) return false;
-      // expert and distance are placeholders — no data wiring yet.
-      return true;
-    });
-  }, [rawCards, filters]);
+  const cards = rawCards;
+  const totalResults = providersData?.pagination.total ?? cards.length;
+  const locationLabel = filters.city.trim() || 'Toutes zones';
 
   const goToProfile = (providerId: string) => {
     navigation.navigate('ProviderProfile', { providerId });
   };
 
   const queryLabel =
-    filters.category
+    filters.q.trim() ||
+    (filters.category
       ? (stripItems.find((s) => s.slug === filters.category)?.label ??
         filters.category)
-      : 'Trouver un pro';
+      : 'Trouver un pro');
+
+  const hasBudgetFilter = Boolean(filters.minPrice.trim() || filters.maxPrice.trim());
 
   return (
     <View style={styles.root}>
@@ -175,7 +196,7 @@ export function SearchScreen() {
                   {queryLabel}
                 </Text>
                 <Text style={styles.queryCaption} numberOfLines={1}>
-                  Kinshasa · {cards.length} pros
+                  {locationLabel} · {totalResults} pros
                 </Text>
               </View>
             </Pressable>
@@ -219,39 +240,39 @@ export function SearchScreen() {
             >
               Vérifié
             </FilterPill>
-            <FilterPill
-              active={false}
-              onPress={() => setSheetOpen(true)}
-            >
-              {`< ${filters.maxDistanceKm} km`}
-            </FilterPill>
-            <FilterPill
-              active={filters.topRated}
-              onPress={() =>
-                setFilters((f) => ({ ...f, topRated: !f.topRated }))
-              }
-            >
-              Top rated
-            </FilterPill>
-            <FilterPill
-              active={filters.expert}
-              onPress={() => setFilters((f) => ({ ...f, expert: !f.expert }))}
-              leadingIcon="award"
-            >
-              Expert
-            </FilterPill>
+            {filters.city.trim() ? (
+              <FilterPill active onPress={() => setSheetOpen(true)}>
+                {filters.city.trim()}
+              </FilterPill>
+            ) : null}
+            {filters.minRating != null ? (
+              <FilterPill active onPress={() => setSheetOpen(true)}>
+                {`${filters.minRating.toFixed(1)}+`}
+              </FilterPill>
+            ) : null}
+            {hasBudgetFilter ? (
+              <FilterPill active onPress={() => setSheetOpen(true)}>
+                Budget
+              </FilterPill>
+            ) : null}
           </ScrollView>
         </View>
 
         {/* Result summary row */}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryTitle}>
-            {cards.length} pros disponibles
+            {totalResults} pros disponibles
           </Text>
-          <Pressable hitSlop={6} style={styles.sortBtn}>
-            <Text style={styles.sortText}>Trier</Text>
+          <Pressable hitSlop={6} style={styles.sortBtn} onPress={() => setSheetOpen(true)}>
+            <Text style={styles.sortText}>{MOBILE_SORT_LABELS[filters.sort]}</Text>
             <I.chevronDown size={13} color={theme.colors.textPrimary} />
           </Pressable>
+        </View>
+        <View style={styles.mapNotice}>
+          <I.mapPin size={14} color={theme.colors.textMuted} />
+          <Text style={styles.mapNoticeText}>
+            Vue carte indisponible dans cette version de lancement.
+          </Text>
         </View>
 
         {/* Results body */}
@@ -259,7 +280,7 @@ export function SearchScreen() {
           <View style={styles.emptyWrap}>
             <ErrorState onRetry={() => refetch()} />
           </View>
-        ) : view === 'list' ? (
+        ) : (
           <View style={styles.resultsList}>
             {isLoading && cards.length === 0 ? (
               Array.from({ length: 3 }).map((_, i) => (
@@ -282,41 +303,18 @@ export function SearchScreen() {
               ))
             )}
           </View>
-        ) : (
-          <View style={styles.mapPanel}>
-            <View style={styles.mapPlaceholder}>
-              <I.mapPin size={28} color={theme.colors.textMuted} />
-              <Text style={styles.mapPlaceholderText}>
-                Carte bientôt disponible
-              </Text>
-            </View>
-          </View>
         )}
       </ScrollView>
-
-      {/* Floating Liste/Carte toggle */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={view === 'list' ? 'Afficher la carte' : 'Afficher la liste'}
-        onPress={() => setView((v) => (v === 'list' ? 'map' : 'list'))}
-        style={[styles.toggle, theme.shadow.e4]}
-      >
-        {view === 'list' ? (
-          <I.mapPin size={16} color={theme.colors.textInverse} />
-        ) : (
-          <I.menu size={16} color={theme.colors.textInverse} />
-        )}
-        <Text style={styles.toggleText}>
-          {view === 'list' ? 'Carte' : 'Liste'}
-        </Text>
-      </Pressable>
 
       <MobileFilterSheet
         open={sheetOpen}
         initial={filters}
-        resultCount={cards.length}
         onApply={setFilters}
         onClose={() => setSheetOpen(false)}
+        categoriesAvailable={stripItems.map((item) => ({
+          slug: item.slug,
+          label: item.label ?? item.slug,
+        }))}
       />
     </View>
   );
@@ -326,12 +324,10 @@ function FilterPill({
   children,
   active,
   onPress,
-  leadingIcon,
 }: {
   children: React.ReactNode;
   active?: boolean;
   onPress?: () => void;
-  leadingIcon?: 'award';
 }) {
   return (
     <Pressable
@@ -342,9 +338,6 @@ function FilterPill({
         pressed && { opacity: 0.85 },
       ]}
     >
-      {leadingIcon === 'award' ? (
-        <I.award size={12} color={active ? theme.colors.primaryHover : theme.colors.textBody} />
-      ) : null}
       <Text style={[styles.pillText, active && styles.pillTextActive]}>
         {children}
       </Text>
@@ -434,10 +427,22 @@ const styles = StyleSheet.create({
   summaryRow: {
     paddingHorizontal: 20,
     paddingTop: 6,
-    paddingBottom: 14,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
+  },
+  mapNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+  },
+  mapNoticeText: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    color: theme.colors.textMuted,
   },
   summaryTitle: {
     fontFamily: theme.fonts.display,
@@ -465,45 +470,5 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     paddingVertical: 48,
-  },
-  mapPanel: {
-    marginHorizontal: 16,
-    height: 500,
-    borderRadius: theme.radius.lg,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surfacePrimary,
-  },
-  mapPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  mapPlaceholderText: {
-    fontFamily: theme.fonts.body,
-    fontSize: 14,
-    color: theme.colors.textMuted,
-  },
-  toggle: {
-    position: 'absolute',
-    left: '50%',
-    transform: [{ translateX: -58 }],
-    bottom: 96,
-    zIndex: 25,
-    width: 116,
-    height: 44,
-    borderRadius: theme.radius.pill,
-    backgroundColor: theme.colors.textPrimary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 18,
-  },
-  toggleText: {
-    fontFamily: theme.fonts.bodySemi,
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textInverse,
   },
 });

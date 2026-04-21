@@ -4,6 +4,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   Switch,
   Text,
   View,
@@ -13,28 +14,46 @@ import { I } from '@kayu/ui/mobile';
 import { tokens, type CategorySlug } from '@kayu/ui';
 import { theme } from '@/lib/theme';
 
+export type MobileSortOption =
+  | 'recommended'
+  | 'newest'
+  | 'price_low'
+  | 'price_high';
+
+export const MOBILE_SORT_LABELS: Record<MobileSortOption, string> = {
+  recommended: 'Recommandés',
+  newest: 'Plus récents',
+  price_low: 'Prix croissant',
+  price_high: 'Prix décroissant',
+};
+
 export type MobileFilters = {
   category: CategorySlug | null;
+  q: string;
+  city: string;
   available: boolean;
   verified: boolean;
-  topRated: boolean;
-  expert: boolean;
-  maxDistanceKm: number;
+  minRating: number | null;
+  minPrice: string;
+  maxPrice: string;
+  sort: MobileSortOption;
 };
 
 export const EMPTY_FILTERS: MobileFilters = {
   category: null,
+  q: '',
+  city: '',
   available: false,
   verified: false,
-  topRated: false,
-  expert: false,
-  maxDistanceKm: 20,
+  minRating: null,
+  minPrice: '',
+  maxPrice: '',
+  sort: 'recommended',
 };
 
 type MobileFilterSheetProps = {
   open: boolean;
   initial: MobileFilters;
-  resultCount: number;
   onApply: (next: MobileFilters) => void;
   onClose: () => void;
   categoriesAvailable?: { slug: CategorySlug; label: string; count?: number }[];
@@ -52,7 +71,6 @@ const DEFAULT_CATEGORIES: { slug: CategorySlug; label: string; count?: number }[
 export function MobileFilterSheet({
   open,
   initial,
-  resultCount,
   onApply,
   onClose,
   categoriesAvailable,
@@ -138,40 +156,88 @@ export function MobileFilterSheet({
             </View>
           </FilterSection>
 
-          {/* Distance */}
-          <FilterSection title="Distance">
-            <View style={styles.rangeHead}>
-              <Text style={styles.caption}>0 km</Text>
-              <Text style={styles.caption}>{`< ${local.maxDistanceKm} km`}</Text>
-            </View>
-            <View style={styles.rangeTrack}>
-              <View
-                style={[
-                  styles.rangeFill,
-                  { width: `${Math.min(100, (local.maxDistanceKm / 50) * 100)}%` },
-                ]}
+          <FilterSection title="Recherche">
+            <TextInput
+              value={local.q}
+              onChangeText={(value) => setLocal((f) => ({ ...f, q: value }))}
+              placeholder="Métier, service ou nom du pro"
+              placeholderTextColor={theme.colors.textMuted}
+              style={styles.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            <TextInput
+              value={local.city}
+              onChangeText={(value) => setLocal((f) => ({ ...f, city: value }))}
+              placeholder="Ville ou commune"
+              placeholderTextColor={theme.colors.textMuted}
+              style={[styles.input, styles.inputSpacing]}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+          </FilterSection>
+
+          <FilterSection title="Budget">
+            <View style={styles.inputRow}>
+              <TextInput
+                value={local.minPrice}
+                onChangeText={(value) =>
+                  setLocal((f) => ({ ...f, minPrice: value.replace(/[^0-9]/g, '') }))
+                }
+                placeholder="Min FC"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.inputHalf]}
+                keyboardType="numeric"
               />
-              {[5, 10, 20, 30, 50].map((v) => (
-                <Pressable
-                  key={v}
-                  style={styles.rangeStep}
-                  onPress={() => setLocal((f) => ({ ...f, maxDistanceKm: v }))}
-                  accessibilityLabel={`Distance maximum ${v} km`}
-                >
-                  <Text
-                    style={[
-                      styles.rangeStepText,
-                      local.maxDistanceKm === v && styles.rangeStepTextActive,
-                    ]}
-                  >
-                    {v}
-                  </Text>
-                </Pressable>
-              ))}
+              <TextInput
+                value={local.maxPrice}
+                onChangeText={(value) =>
+                  setLocal((f) => ({ ...f, maxPrice: value.replace(/[^0-9]/g, '') }))
+                }
+                placeholder="Max FC"
+                placeholderTextColor={theme.colors.textMuted}
+                style={[styles.input, styles.inputHalf]}
+                keyboardType="numeric"
+              />
             </View>
           </FilterSection>
 
-          {/* Disponibilité */}
+          <FilterSection title="Note minimale">
+            <View style={styles.optionRow}>
+              {[4, 4.5].map((value) => {
+                const selected = local.minRating === value;
+                return (
+                  <Pressable
+                    key={value}
+                    style={[styles.optionChip, selected && styles.optionChipActive]}
+                    onPress={() =>
+                      setLocal((f) => ({
+                        ...f,
+                        minRating: f.minRating === value ? null : value,
+                      }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.optionChipText,
+                        selected && styles.optionChipTextActive,
+                      ]}
+                    >
+                      {`${value.toFixed(1)}+`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                style={styles.clearChip}
+                onPress={() => setLocal((f) => ({ ...f, minRating: null }))}
+              >
+                <Text style={styles.clearChipText}>Tout</Text>
+              </Pressable>
+            </View>
+          </FilterSection>
+
           <FilterSection title="Disponibilité">
             <ToggleRow
               label="Disponible maintenant"
@@ -180,23 +246,36 @@ export function MobileFilterSheet({
             />
           </FilterSection>
 
-          {/* Confiance */}
-          <FilterSection title="Confiance" last>
+          <FilterSection title="Confiance">
             <ToggleRow
               label="Vérifié"
               value={local.verified}
               onChange={(v) => setLocal((f) => ({ ...f, verified: v }))}
             />
-            <ToggleRow
-              label="Top rated"
-              value={local.topRated}
-              onChange={(v) => setLocal((f) => ({ ...f, topRated: v }))}
-            />
-            <ToggleRow
-              label="Expert"
-              value={local.expert}
-              onChange={(v) => setLocal((f) => ({ ...f, expert: v }))}
-            />
+          </FilterSection>
+
+          <FilterSection title="Tri" last>
+            <View style={{ gap: 8 }}>
+              {(Object.entries(MOBILE_SORT_LABELS) as Array<[MobileSortOption, string]>).map(
+                ([value, label]) => {
+                  const selected = local.sort === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      style={[styles.sortRow, selected && styles.sortRowActive]}
+                      onPress={() => setLocal((f) => ({ ...f, sort: value }))}
+                    >
+                      <Text style={[styles.sortLabel, selected && styles.sortLabelActive]}>
+                        {label}
+                      </Text>
+                      {selected ? (
+                        <I.check size={16} color={theme.colors.primaryHover} />
+                      ) : null}
+                    </Pressable>
+                  );
+                },
+              )}
+            </View>
           </FilterSection>
 
           <Pressable hitSlop={6} onPress={reset} style={styles.reset}>
@@ -213,7 +292,7 @@ export function MobileFilterSheet({
               onClose();
             }}
           >
-            <Text style={styles.ctaText}>Voir {resultCount} résultats</Text>
+            <Text style={styles.ctaText}>Appliquer les filtres</Text>
           </Pressable>
         </View>
       </View>
@@ -366,44 +445,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textMuted,
   },
-  rangeHead: {
+  input: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+  },
+  inputSpacing: {
+    marginTop: 10,
+  },
+  inputRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 10,
   },
-  caption: {
-    fontFamily: theme.fonts.mono,
-    fontSize: 12,
-    color: theme.colors.textMuted,
+  inputHalf: {
+    flex: 1,
   },
-  rangeTrack: {
+  optionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  rangeFill: {
-    position: 'absolute',
-    left: 0,
-    top: 22,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.colors.primary,
-  },
-  rangeStep: {
-    width: 44,
-    height: 28,
+  optionChip: {
+    minWidth: 68,
+    height: 36,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rangeStepText: {
+  optionChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  optionChipText: {
     fontFamily: theme.fonts.bodyMed,
     fontSize: 13,
-    color: theme.colors.textMuted,
+    color: theme.colors.textBody,
   },
-  rangeStepTextActive: {
-    color: theme.colors.primary,
+  optionChipTextActive: {
+    color: theme.colors.primaryHover,
     fontWeight: '600',
+  },
+  clearChip: {
+    height: 36,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearChipText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 13,
+    color: theme.colors.textMuted,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -415,6 +518,30 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.body,
     fontSize: 14,
     color: theme.colors.textPrimary,
+  },
+  sortRow: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.surface,
+  },
+  sortRowActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  sortLabel: {
+    fontFamily: theme.fonts.body,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  sortLabelActive: {
+    color: theme.colors.primaryHover,
+    fontWeight: '600',
   },
   reset: {
     alignSelf: 'flex-start',
