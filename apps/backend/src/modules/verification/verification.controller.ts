@@ -16,7 +16,6 @@ import { VerificationService } from "./verification.service";
 
 type UploadVerificationDocBody = {
   kind: VerificationDocKind;
-  url: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;

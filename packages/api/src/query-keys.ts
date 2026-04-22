@@ -7,6 +7,7 @@ import type {
   AdminUserSearchParams,
   AdminProviderSearchParams,
   AdminReviewSearchParams,
+  AdminVerificationQueueSearchParams,
   EarningsTransactionSearchParams,
 } from "@kayu/schemas";
 
@@ -92,6 +93,8 @@ export const queryKeys = {
       ["admin", "users", params] as const,
     providers: (params?: Partial<AdminProviderSearchParams>) =>
       ["admin", "providers", params] as const,
+    verification: (params?: Partial<AdminVerificationQueueSearchParams>) =>
+      ["admin", "verification", params] as const,
     categories: ["admin", "categories"] as const,
     reviews: (params?: Partial<AdminReviewSearchParams>) =>
       ["admin", "reviews", params] as const,

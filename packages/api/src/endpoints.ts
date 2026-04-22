@@ -26,6 +26,7 @@ import type {
   AdminProviderSearchParams,
   AdminReviewSearchParams,
   AdminCategorySearchParams,
+  AdminVerificationQueueSearchParams,
   DistanceParams,
   GeocodeParams,
   // Response types
@@ -82,6 +83,9 @@ import type {
   DisputeEnvelopeResponse,
   RespondDisputeDtoType,
   RespondDisputeResponse,
+  AdminReviewVerificationDocDtoType,
+  AdminReviewVerificationDocResponse,
+  AdminVerificationQueueResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -333,6 +337,18 @@ export const adminApi = (client: ApiClient) => ({
     client.get<{ providers: unknown[]; pagination: unknown }>("/admin/providers", params as Record<string, string | number | boolean | undefined>),
   updateProvider: (data: AdminUpdateProviderDto) =>
     client.put<{ success: boolean }>("/admin/providers", data),
+  getVerificationSubmissions: (
+    params?: Partial<AdminVerificationQueueSearchParams>,
+  ) =>
+    client.get<AdminVerificationQueueResponse>(
+      "/admin/verification/submissions",
+      params as Record<string, string | number | boolean | undefined>,
+    ),
+  reviewVerificationDoc: (data: AdminReviewVerificationDocDtoType) =>
+    client.put<AdminReviewVerificationDocResponse>(
+      "/admin/verification/documents",
+      data,
+    ),
 
   // Categories
   getCategories: (params?: Partial<AdminCategorySearchParams>) =>

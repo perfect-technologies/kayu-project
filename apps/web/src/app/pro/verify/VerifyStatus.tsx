@@ -373,10 +373,9 @@ export function VerifyStatus({
             lineHeight: 1.5,
           }}
         >
-          <strong>Vos données sont sécurisées.</strong>
+          <strong>{liveState.storage.title}</strong>
           <div style={{ color: tokens.color.textMuted, marginTop: 2 }}>
-            Chiffrées et stockées conformément aux réglementations RDC et
-            Congo-B. Seule notre équipe ops y accède.
+            {liveState.storage.description}
           </div>
         </div>
       </div>
@@ -468,109 +467,145 @@ function DocStatusRow({
   last: boolean;
 }) {
   const Icon = I[step.icon] ?? I.fileText;
+  const isRejected = uploadedDoc?.decision === "REJECTED";
   const isApproved =
     uploadedDoc?.decision === "APPROVED" || state === "VERIFIED";
   const isUploaded = Boolean(uploadedDoc);
-  const isUnderReview = isUploaded && state === "IN_REVIEW";
+  const isUnderReview = isUploaded && !isApproved && !isRejected && state === "IN_REVIEW";
 
   const tag = isApproved
     ? { bg: "#ECFDF5", fg: "#047857", label: "Vérifié" }
+    : isRejected
+      ? { bg: "#FEE2E2", fg: "#B91C1C", label: "Refusé" }
     : isUnderReview
       ? { bg: "#EDE9FE", fg: "#6D28D9", label: "En cours" }
       : isUploaded
-        ? { bg: "#E0F2FE", fg: "#0369A1", label: "Téléversé" }
+        ? { bg: "#E0F2FE", fg: "#0369A1", label: "Enregistré" }
         : {
             bg: tokens.color.surfaceMuted,
             fg: tokens.color.textMuted,
             label: "À fournir",
           };
+  const detail = uploadedDoc
+    ? [
+        uploadedDoc.fileName ? `Fichier: ${uploadedDoc.fileName}` : null,
+        uploadedDoc.uploadedAt
+          ? `Enregistre le ${formatDate(uploadedDoc.uploadedAt)}`
+          : null,
+        uploadedDoc.reviewedAt && uploadedDoc.decision === "APPROVED"
+          ? `Approuve le ${formatDate(uploadedDoc.reviewedAt)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : step.caption;
 
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
         gap: 14,
         padding: "14px 0",
         borderBottom: last ? "none" : `1px solid ${tokens.color.borderSubtle}`,
       }}
     >
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: tag.bg,
-          color: tag.fg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <Icon size={18} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div
           style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: tag.bg,
+            color: tag.fg,
             display: "flex",
             alignItems: "center",
-            gap: 6,
-            marginBottom: 2,
+            justifyContent: "center",
+            flexShrink: 0,
           }}
         >
-          <span
+          <Icon size={18} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
             style={{
-              fontWeight: 600,
-              fontSize: 14,
-              color: tokens.color.textPrimary,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 2,
             }}
           >
-            {step.label}
-          </span>
-          {!step.required && (
             <span
               style={{
-                fontSize: 10.5,
-                color: tokens.color.textMuted,
-                background: tokens.color.surfaceMuted,
-                padding: "2px 6px",
-                borderRadius: 4,
-                fontWeight: 500,
+                fontWeight: 600,
+                fontSize: 14,
+                color: tokens.color.textPrimary,
               }}
             >
-              Optionnel
+              {step.label}
             </span>
-          )}
+            {!step.required && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  color: tokens.color.textMuted,
+                  background: tokens.color.surfaceMuted,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  fontWeight: 500,
+                }}
+              >
+                Optionnel
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
+            {detail}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
-          {step.caption}
-        </div>
-      </div>
-      {isUploaded && !isApproved && state !== "IN_REVIEW" && (
-        <button
-          type="button"
-          className="k-btn k-btn-ghost k-btn-sm"
-          onClick={() => uploadedDoc && onRemove(uploadedDoc.id)}
-          style={{ marginRight: 6 }}
+        {isUploaded && !isApproved && state !== "IN_REVIEW" && (
+          <button
+            type="button"
+            className="k-btn k-btn-ghost k-btn-sm"
+            onClick={() => uploadedDoc && onRemove(uploadedDoc.id)}
+            style={{ marginRight: 6 }}
+          >
+            Retirer
+          </button>
+        )}
+        <span
+          style={{
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: tag.fg,
+            background: tag.bg,
+            padding: "4px 10px",
+            borderRadius: 999,
+          }}
         >
-          Retirer
-        </button>
+          {tag.label}
+        </span>
+      </div>
+      {isRejected && uploadedDoc?.rejectionReason && (
+        <div
+          style={{
+            marginLeft: 54,
+            marginTop: 8,
+            fontSize: 12,
+            color: "#B91C1C",
+            lineHeight: 1.45,
+          }}
+        >
+          Motif: {uploadedDoc.rejectionReason}
+        </div>
       )}
-      <span
-        style={{
-          fontSize: 11.5,
-          fontWeight: 600,
-          color: tag.fg,
-          background: tag.bg,
-          padding: "4px 10px",
-          borderRadius: 999,
-        }}
-      >
-        {tag.label}
-      </span>
     </div>
   );
+}
+
+function formatDate(value: string | Date) {
+  return new Date(value).toLocaleString("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function DebugStateSwitch({

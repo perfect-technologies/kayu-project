@@ -16,7 +16,6 @@ import { PrismaService } from "../../database/prisma.service";
 
 type UploadDocInput = {
   kind: VerificationDocKind;
-  url: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
@@ -33,6 +32,13 @@ const REQUIRED_KINDS: VerificationDocKind[] = [
   "SELFIE",
   "ADDRESS",
 ];
+
+const VERIFICATION_STORAGE = {
+  mode: "LAUNCH_STUB_METADATA_ONLY" as const,
+  title: "Stockage de lancement explicite",
+  description:
+    "Cette version enregistre les metadonnees KYC et un emplacement stub auditable. Les binaires sont verifies par l'equipe ops hors application jusqu'au branchement du stockage chiffre.",
+};
 
 type VerificationStateLabel =
   | "NOT_STARTED"
@@ -85,27 +91,60 @@ export class VerificationService {
 
   async uploadDoc(actor: Actor, body: UploadDocInput) {
     const providerId = await this.requireProviderId(actor);
+    const normalizedFileName = this.normalizeFileName(body.kind, body.fileName);
+    const generatedUrl = this.buildStubUrl(providerId, body.kind, normalizedFileName);
 
-    // Only one document per kind — replace any previous doc of this kind.
-    await this.prisma.verificationDoc.deleteMany({
-      where: { providerId, kind: body.kind },
-    });
+    const doc = await this.prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.findUniqueOrThrow({
+        where: { id: providerId },
+        select: { verificationStatus: true },
+      });
+      const existing = await tx.verificationDoc.findFirst({
+        where: { providerId, kind: body.kind },
+        select: { id: true },
+      });
 
-    const doc = await this.prisma.verificationDoc.create({
-      data: {
-        providerId,
-        kind: body.kind,
-        url: body.url,
-        fileName: body.fileName ?? null,
-        fileSize: body.fileSize ?? null,
-        mimeType: body.mimeType ?? null,
-      },
-    });
+      const saved = existing
+        ? await tx.verificationDoc.update({
+            where: { id: existing.id },
+            data: {
+              url: generatedUrl,
+              fileName: normalizedFileName,
+              fileSize: body.fileSize ?? null,
+              mimeType: body.mimeType ?? null,
+              uploadedAt: new Date(),
+              reviewedAt: null,
+              reviewedBy: null,
+              decision: null,
+              rejectionReason: null,
+            },
+          })
+        : await tx.verificationDoc.create({
+            data: {
+              providerId,
+              kind: body.kind,
+              url: generatedUrl,
+              fileName: normalizedFileName,
+              fileSize: body.fileSize ?? null,
+              mimeType: body.mimeType ?? null,
+            },
+          });
 
-    // If the provider was REJECTED, a new upload moves them back to IN_PROGRESS.
-    await this.prisma.provider.update({
-      where: { id: providerId },
-      data: (await this.nextStatusOnUpload(providerId)) ?? {},
+      const docs = await tx.verificationDoc.findMany({
+        where: { providerId },
+      });
+      const nextStatus = this.nextStatusAfterDocMutation(
+        provider.verificationStatus,
+        docs,
+      );
+      if (nextStatus !== provider.verificationStatus) {
+        await tx.provider.update({
+          where: { id: providerId },
+          data: { verificationStatus: nextStatus },
+        });
+      }
+
+      return saved;
     });
 
     return { success: true as const, doc: this.mapDoc(doc) };
@@ -113,14 +152,37 @@ export class VerificationService {
 
   async removeDoc(actor: Actor, id: string) {
     const providerId = await this.requireProviderId(actor);
-    const doc = await this.prisma.verificationDoc.findUnique({
-      where: { id },
-      select: { id: true, providerId: true },
+    await this.prisma.$transaction(async (tx) => {
+      const [provider, doc] = await Promise.all([
+        tx.provider.findUniqueOrThrow({
+          where: { id: providerId },
+          select: { verificationStatus: true },
+        }),
+        tx.verificationDoc.findUnique({
+          where: { id },
+          select: { id: true, providerId: true },
+        }),
+      ]);
+      if (!doc || doc.providerId !== providerId) {
+        throw new NotFoundException("Document introuvable");
+      }
+
+      await tx.verificationDoc.delete({ where: { id } });
+
+      const remainingDocs = await tx.verificationDoc.findMany({
+        where: { providerId },
+      });
+      const nextStatus = this.nextStatusAfterDocMutation(
+        provider.verificationStatus,
+        remainingDocs,
+      );
+      if (nextStatus !== provider.verificationStatus) {
+        await tx.provider.update({
+          where: { id: providerId },
+          data: { verificationStatus: nextStatus },
+        });
+      }
     });
-    if (!doc || doc.providerId !== providerId) {
-      throw new NotFoundException("Document introuvable");
-    }
-    await this.prisma.verificationDoc.delete({ where: { id } });
     return { success: true as const };
   }
 
@@ -228,15 +290,26 @@ export class VerificationService {
     return provider.id;
   }
 
-  private async nextStatusOnUpload(providerId: string) {
-    const current = await this.prisma.provider.findUniqueOrThrow({
-      where: { id: providerId },
-      select: { verificationStatus: true },
-    });
-    if (current.verificationStatus === "REJECTED") {
-      return { verificationStatus: "PENDING" as const };
+  private nextStatusAfterDocMutation(
+    verificationStatus: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED",
+    docs: VerificationDoc[],
+  ) {
+    if (this.hasMissingRequiredDocs(docs)) {
+      return "PENDING";
     }
-    return null;
+    if (docs.some((doc) => doc.decision === "REJECTED")) {
+      return "REJECTED";
+    }
+    if (
+      verificationStatus === "VERIFIED" &&
+      this.requiredDocsApproved(docs)
+    ) {
+      return "VERIFIED";
+    }
+    if (verificationStatus === "UNDER_REVIEW") {
+      return "UNDER_REVIEW";
+    }
+    return "PENDING";
   }
 
   private buildStateResponse(
@@ -267,6 +340,7 @@ export class VerificationService {
       rejectionReason: firstRejected?.rejectionReason ?? null,
       submittedAt,
       reviewedAt,
+      storage: VERIFICATION_STORAGE,
     };
   }
 
@@ -274,10 +348,15 @@ export class VerificationService {
     verificationStatus: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED",
     docs: VerificationDoc[],
   ): VerificationStateLabel {
-    if (verificationStatus === "VERIFIED") return "VERIFIED";
-    if (verificationStatus === "REJECTED") return "REJECTED";
+    if (this.hasMissingRequiredDocs(docs)) {
+      if (docs.length === 0) return "NOT_STARTED";
+      return "IN_PROGRESS";
+    }
+    if (docs.some((doc) => doc.decision === "REJECTED")) return "REJECTED";
+    if (verificationStatus === "VERIFIED" || this.requiredDocsApproved(docs)) {
+      return "VERIFIED";
+    }
     if (verificationStatus === "UNDER_REVIEW") return "IN_REVIEW";
-    if (docs.length === 0) return "NOT_STARTED";
     return "IN_PROGRESS";
   }
 
@@ -297,18 +376,53 @@ export class VerificationService {
     }, null);
   }
 
+  private hasMissingRequiredDocs(docs: VerificationDoc[]) {
+    const present = new Set(docs.map((doc) => doc.kind));
+    return REQUIRED_KINDS.some((kind) => !present.has(kind));
+  }
+
+  private requiredDocsApproved(docs: VerificationDoc[]) {
+    return REQUIRED_KINDS.every((kind) =>
+      docs.some((doc) => doc.kind === kind && doc.decision === "APPROVED"),
+    );
+  }
+
   private mapDoc(doc: VerificationDoc) {
     return {
       id: doc.id,
       kind: doc.kind,
       url: doc.url,
+      storagePolicy: VERIFICATION_STORAGE.mode,
       fileName: doc.fileName,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
       uploadedAt: doc.uploadedAt,
+      reviewedAt: doc.reviewedAt,
+      reviewedBy: doc.reviewedBy,
       decision: doc.decision,
       rejectionReason: doc.rejectionReason,
     };
+  }
+
+  private normalizeFileName(kind: VerificationDocKind, fileName?: string) {
+    const raw = fileName?.trim();
+    if (!raw) {
+      return `${kind.toLowerCase()}-${Date.now()}.bin`;
+    }
+
+    const sanitized = raw.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-");
+    return sanitized.slice(0, 255) || `${kind.toLowerCase()}-${Date.now()}.bin`;
+  }
+
+  private buildStubUrl(
+    providerId: string,
+    kind: VerificationDocKind,
+    fileName: string,
+  ) {
+    const suffix = `${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    return `launch-stub://verification/${providerId}/${kind.toLowerCase()}/${suffix}/${fileName}`;
   }
 
   private mapDispute(dispute: DisputeRecord) {

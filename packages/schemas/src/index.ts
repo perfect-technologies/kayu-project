@@ -7,3 +7,14 @@ export * from "./dto.js";
 export * from "./job-requests.js";
 export * from "./quotes.js";
 export * from "./verification.js";
+export {
+  AdminReviewVerificationDocDto,
+  AdminReviewVerificationDocResponseSchema,
+  AdminVerificationQueueResponseSchema,
+  AdminVerificationQueueSearchParams,
+} from "./verification.js";
+export type {
+  AdminReviewVerificationDocDtoType,
+  AdminReviewVerificationDocResponse,
+  AdminVerificationQueueResponse,
+} from "./verification.js";

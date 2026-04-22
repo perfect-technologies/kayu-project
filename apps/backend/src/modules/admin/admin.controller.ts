@@ -45,6 +45,13 @@ type AdminCategoryQuery = {
   includeInactive?: boolean;
 };
 
+type AdminVerificationQueueQuery = {
+  page: number;
+  limit: number;
+  status?: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED";
+  search?: string;
+};
+
 type AdminReviewQuery = {
   page: number;
   limit: number;
@@ -99,6 +106,13 @@ type UpdateCategoryBody = Partial<CreateCategoryBody> & {
   isActive?: boolean;
 };
 
+type ReviewVerificationDocBody = {
+  providerId: string;
+  docId: string;
+  decision: "APPROVED" | "REJECTED";
+  rejectionReason?: string;
+};
+
 type ModerateReviewBody = {
   reviewId: string;
   isPublic?: boolean;
@@ -129,6 +143,16 @@ const updateProviderBodyPipe = new LazyZodValidationPipe(async () => {
 const categoriesQueryPipe = new LazyZodValidationPipe(async () => {
   const { AdminCategorySearchParams } = await import("@kayu/schemas");
   return AdminCategorySearchParams;
+});
+
+const verificationQueueQueryPipe = new LazyZodValidationPipe(async () => {
+  const { AdminVerificationQueueSearchParams } = await import("@kayu/schemas");
+  return AdminVerificationQueueSearchParams;
+});
+
+const reviewVerificationDocBodyPipe = new LazyZodValidationPipe(async () => {
+  const { AdminReviewVerificationDocDto } = await import("@kayu/schemas");
+  return AdminReviewVerificationDocDto;
 });
 
 const createCategoryBodyPipe = new LazyZodValidationPipe(async () => {
@@ -183,6 +207,22 @@ export class AdminController {
     @Req() request: Request,
   ) {
     return this.admin.updateProvider(actor, body, request.ip);
+  }
+
+  @Get("verification/submissions")
+  listVerificationSubmissions(
+    @Query(verificationQueueQueryPipe) query: AdminVerificationQueueQuery,
+  ) {
+    return this.admin.listVerificationSubmissions(query);
+  }
+
+  @Put("verification/documents")
+  reviewVerificationDoc(
+    @CurrentActor() actor: Actor,
+    @Body(reviewVerificationDocBodyPipe) body: ReviewVerificationDocBody,
+    @Req() request: Request,
+  ) {
+    return this.admin.reviewVerificationDoc(actor, body, request.ip);
   }
 
   @Get("categories")

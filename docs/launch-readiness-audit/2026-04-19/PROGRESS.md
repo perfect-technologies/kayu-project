@@ -29,7 +29,7 @@ WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. 
 | WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | done | Codex | Changed provider onboarding/identity/provider search services, mobile onboarding draft mapping, shared draft schema, and focused backend tests. |
 | WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | done | Codex | Changed mobile discovery filters/sort/map messaging, provider search pagination/filtering, provider card mapping, and provider-search regression tests. |
 | WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | done | Codex | Changed backend/mobile review flows, booking review state, provider client-review path, shared review schemas/API, and focused backend review tests. |
-| WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | not_started | | Real upload/review policy or honest launch stub. |
+| WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | done | Codex | Added explicit launch storage stub, per-document admin review queue, provider-visible doc decisions, and focused backend verification/admin tests. |
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | not_started | | Admin users and moderation workflow. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | not_started | | Cash/offline vs paid booking policy. |
 | WS-12 | P1 | Yes | Test Harness | Can start after first P0 | not_started | | Regression coverage for launch-critical flows. |
@@ -285,3 +285,12 @@ When handing back:
 - Added provider-to-client review creation at `/api/reviews/clients`, recomputed `User.clientScore` plus `clientTrustLevel`, and surfaced provider client-review state where providers act on completed bookings.
 - Extended booking responses with provider-to-client review metadata (`clientReviewed`, `clientRating`, `clientReview`) so mobile can render completed-booking reputation state without guessing.
 - Added focused backend review service coverage in `apps/backend/src/modules/reviews/reviews.service.spec.ts` and revalidated backend/mobile/web type safety after the shared schema changes.
+
+### 2026-04-22 — WS-09 Verification And Admin Review
+
+- Replaced pretend verification upload URLs with an explicit launch storage stub: backend now generates auditable `launch-stub://verification/...` references, returns storage-policy metadata in verification state, and stops trusting arbitrary client-supplied URLs.
+- Exposed per-document verification status, review timestamps, and rejection reasons through shared schemas plus the mobile/web provider verification screens so providers can see exactly which document is pending, approved, or rejected.
+- Added admin verification queue APIs and a dashboard review surface that lists verification submissions, lets ops approve/reject individual documents, and shows provider-level verification counts.
+- Made admin document review derive provider `verificationStatus` from actual `VerificationDoc` decisions, update the provider’s public `isVerified` state and trust artifacts in lockstep, and log review activity for traceability.
+- Fixed manual admin rejection/verification overrides so they write back to `VerificationDoc` instead of unrelated certifications, and added focused backend coverage in `apps/backend/src/modules/{admin,verification}/*.spec.ts`.
+- Revalidated with `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/api build`, `pnpm --filter @kayu/{schemas,api,backend,web,mobile} type-check`, and `node --test -r ts-node/register src/modules/verification/verification.service.spec.ts src/modules/admin/admin.service.spec.ts` from `apps/backend`.

@@ -109,6 +109,11 @@ export default function AdminDashboardPage() {
   const [providersSearch, setProvidersSearch] = useState('');
   const [providersStatusFilter, setProvidersStatusFilter] = useState('all');
   const [providersPage, setProvidersPage] = useState(1);
+  const [verificationDialog, setVerificationDialog] = useState<{
+    open: boolean;
+    submission: any | null;
+  }>({ open: false, submission: null });
+  const [rejectionDrafts, setRejectionDrafts] = useState<Record<string, string>>({});
 
   // Reviews filters
   const [reviewsSearch, setReviewsSearch] = useState('');
@@ -171,6 +176,21 @@ export default function AdminDashboardPage() {
     enabled: activeTab === 'providers' && !!user,
   });
 
+  const { data: verificationQueueData } = useQuery({
+    queryKey: queryKeys.admin.verification({
+      page: 1,
+      limit: 100,
+      search: providersSearch || undefined,
+    }),
+    queryFn: () =>
+      adminApi(apiClient).getVerificationSubmissions({
+        page: 1,
+        limit: 100,
+        search: providersSearch || undefined,
+      }),
+    enabled: activeTab === 'providers' && !!user,
+  });
+
   const { data: categoriesData, refetch: refetchCategories } = useQuery({
     queryKey: queryKeys.admin.categories,
     queryFn: () => adminApi(apiClient).getCategories({ includeInactive: true } as any),
@@ -216,6 +236,43 @@ export default function AdminDashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
     },
     onError: () => toast.error('Erreur lors de la mise à jour'),
+  });
+
+  const reviewVerificationMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      adminApi(apiClient).reviewVerificationDoc(payload as any),
+    onSuccess: (result) => {
+      toast.success('Document vérifié');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'providers'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'verification'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'admin'] });
+      setVerificationDialog((current) => {
+        if (!current.submission || current.submission.providerId !== result.providerId) {
+          return current;
+        }
+
+        const nextDocs = result.docs;
+        return {
+          ...current,
+          submission: {
+            ...current.submission,
+            verificationStatus: result.verificationStatus,
+            reviewedAt: result.reviewedAt,
+            rejectionReason: result.rejectionReason,
+            docs: nextDocs,
+            counts: {
+              total: nextDocs.length,
+              pending: nextDocs.filter((doc: any) => !doc.decision).length,
+              approved: nextDocs.filter((doc: any) => doc.decision === 'APPROVED').length,
+              rejected: nextDocs.filter((doc: any) => doc.decision === 'REJECTED').length,
+            },
+          },
+        };
+      });
+      setRejectionDrafts((current) => ({ ...current, [result.reviewedDoc.id]: '' }));
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la revue'),
   });
 
   const createCategoryMutation = useMutation({
@@ -275,7 +332,48 @@ export default function AdminDashboardPage() {
   };
 
   const handleVerifyProvider = (providerId: string, status: 'VERIFIED' | 'REJECTED') => {
+    if (status === 'REJECTED') {
+      const rejectionReason = window.prompt(
+        'Motif du rejet (ce texte sera visible côté prestataire) :',
+      );
+      if (!rejectionReason?.trim()) return;
+      updateProviderMutation.mutate({
+        providerId,
+        verificationStatus: status,
+        rejectionReason: rejectionReason.trim(),
+      });
+      return;
+    }
+
     updateProviderMutation.mutate({ providerId, verificationStatus: status });
+  };
+
+  const openVerificationDialog = (submission: any) => {
+    if (!submission) {
+      toast.error('Dossier introuvable dans la file de revue. Actualisez la page.');
+      return;
+    }
+    setVerificationDialog({ open: true, submission });
+    setRejectionDrafts(
+      Object.fromEntries(
+        (submission.docs ?? []).map((doc: any) => [doc.id, doc.rejectionReason ?? '']),
+      ),
+    );
+  };
+
+  const handleReviewDoc = (submission: any, doc: any, decision: 'APPROVED' | 'REJECTED') => {
+    const rejectionReason = rejectionDrafts[doc.id]?.trim();
+    if (decision === 'REJECTED' && !rejectionReason) {
+      toast.error('Ajoutez un motif avant de rejeter ce document');
+      return;
+    }
+
+    reviewVerificationMutation.mutate({
+      providerId: submission.providerId,
+      docId: doc.id,
+      decision,
+      rejectionReason: decision === 'REJECTED' ? rejectionReason : undefined,
+    });
   };
 
   const handleTogglePremium = (providerId: string, isPremium: boolean) => {
@@ -898,6 +996,106 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  File de revue KYC
+                </CardTitle>
+                <CardDescription>
+                  Les décisions documentaires mettent maintenant à jour l’état de
+                  vérification du prestataire.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border bg-amber-50 p-4">
+                    <div className="text-xs uppercase tracking-wide text-amber-700">
+                      En revue
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-amber-900">
+                      {verificationQueueData?.stats?.underReview ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-red-50 p-4">
+                    <div className="text-xs uppercase tracking-wide text-red-700">
+                      Rejetés
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-red-900">
+                      {verificationQueueData?.stats?.rejected ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-emerald-50 p-4">
+                    <div className="text-xs uppercase tracking-wide text-emerald-700">
+                      Vérifiés
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-emerald-900">
+                      {verificationQueueData?.stats?.verified ?? 0}
+                    </div>
+                  </div>
+                </div>
+
+                {!verificationQueueData?.submissions?.length ? (
+                  <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                    Aucun dossier en attente de revue avec les filtres actuels.
+                  </div>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {verificationQueueData.submissions.map((submission: any) => (
+                      <div key={submission.providerId} className="rounded-xl border p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="font-semibold">{submission.providerName}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {submission.profession}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {submission.providerEmail || 'Email indisponible'}
+                            </div>
+                          </div>
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+                            {submission.counts.pending} en attente
+                          </Badge>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {submission.docs.map((doc: any) => (
+                            <div
+                              key={doc.id}
+                              className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium">
+                                  {formatVerificationKind(doc.kind)}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {doc.fileName || 'Référence sans nom'}
+                                </div>
+                              </div>
+                              <Badge variant="outline">
+                                {doc.decision === 'APPROVED'
+                                  ? 'Approuvé'
+                                  : doc.decision === 'REJECTED'
+                                    ? 'Refusé'
+                                    : 'À revoir'}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="text-xs text-muted-foreground">
+                            Soumis le {formatAdminDate(submission.submittedAt)}
+                          </div>
+                          <Button onClick={() => openVerificationDialog(submission)}>
+                            Examiner le dossier
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Providers Table */}
             <Card>
               <CardContent className="p-0">
@@ -1021,25 +1219,37 @@ export default function AdminDashboardPage() {
                                       Voir le profil
                                     </Link>
                                   </DropdownMenuItem>
-                                  {p.verificationStatus === 'PENDING' && (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          handleVerifyProvider(p.id, 'VERIFIED')
-                                        }
-                                      >
-                                        <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                                        Approuver
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={() =>
-                                          handleVerifyProvider(p.id, 'REJECTED')
-                                        }
-                                      >
-                                        <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                                        Rejeter
-                                      </DropdownMenuItem>
-                                    </>
+                                  {['UNDER_REVIEW', 'REJECTED'].includes(
+                                    p.verificationStatus,
+                                  ) && (
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        const submission =
+                                          verificationQueueData?.submissions?.find(
+                                            (item: any) => item.providerId === p.id,
+                                          );
+                                        openVerificationDialog(submission);
+                                      }}
+                                    >
+                                      <FileText className="h-4 w-4 mr-2" />
+                                      Examiner le dossier
+                                    </DropdownMenuItem>
+                                  )}
+                                  {p.verificationStatus !== 'VERIFIED' && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleVerifyProvider(p.id, 'VERIFIED')}
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                      Forcer vérifié
+                                    </DropdownMenuItem>
+                                  )}
+                                  {p.verificationStatus !== 'REJECTED' && (
+                                    <DropdownMenuItem
+                                      onClick={() => handleVerifyProvider(p.id, 'REJECTED')}
+                                    >
+                                      <XCircle className="h-4 w-4 mr-2 text-red-600" />
+                                      Forcer rejet
+                                    </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem
                                     onClick={() => handleTogglePremium(p.id, p.isPremium)}
@@ -1533,6 +1743,158 @@ export default function AdminDashboardPage() {
         </Tabs>
       </div>
 
+      <Dialog
+        open={verificationDialog.open}
+        onOpenChange={(open) =>
+          setVerificationDialog((current) => ({ ...current, open }))
+        }
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Revue de vérification</DialogTitle>
+            <DialogDescription>
+              {verificationDialog.submission
+                ? `${verificationDialog.submission.providerName} · ${verificationDialog.submission.profession}`
+                : 'Aucun dossier sélectionné'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {verificationDialog.submission && (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Statut
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {formatVerificationStatus(
+                      verificationDialog.submission.verificationStatus,
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Docs approuvés
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {verificationDialog.submission.counts.approved}
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Docs en attente
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {verificationDialog.submission.counts.pending}
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Dernière revue
+                  </div>
+                  <div className="mt-1 font-semibold">
+                    {formatAdminDate(verificationDialog.submission.reviewedAt)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {verificationDialog.submission.docs.map((doc: any) => (
+                  <div key={doc.id} className="rounded-xl border p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="font-semibold">
+                            {formatVerificationKind(doc.kind)}
+                          </div>
+                          <Badge variant="outline">
+                            {doc.decision === 'APPROVED'
+                              ? 'Approuvé'
+                              : doc.decision === 'REJECTED'
+                                ? 'Refusé'
+                                : 'À revoir'}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {doc.fileName || 'Référence sans nom'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Envoyé le {formatAdminDate(doc.uploadedAt)} · Politique{' '}
+                          {doc.storagePolicy}
+                        </div>
+                        {doc.reviewedAt && (
+                          <div className="text-xs text-muted-foreground">
+                            Revu le {formatAdminDate(doc.reviewedAt)}
+                          </div>
+                        )}
+                        {doc.rejectionReason && (
+                          <div className="text-sm text-red-600">
+                            Motif: {doc.rejectionReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="w-full max-w-md space-y-2">
+                        <Textarea
+                          value={rejectionDrafts[doc.id] ?? ''}
+                          onChange={(event) =>
+                            setRejectionDrafts((current) => ({
+                              ...current,
+                              [doc.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Motif obligatoire pour un rejet"
+                          rows={3}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              handleReviewDoc(
+                                verificationDialog.submission,
+                                doc,
+                                'APPROVED',
+                              )
+                            }
+                            disabled={reviewVerificationMutation.isPending}
+                          >
+                            Approuver
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() =>
+                              handleReviewDoc(
+                                verificationDialog.submission,
+                                doc,
+                                'REJECTED',
+                              )
+                            }
+                            disabled={reviewVerificationMutation.isPending}
+                          >
+                            Rejeter
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setVerificationDialog({ open: false, submission: null })
+              }
+            >
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mobile Tab Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t z-50">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
@@ -1608,4 +1970,44 @@ function DashboardSkeleton() {
       </div>
     </div>
   );
+}
+
+function formatAdminDate(value?: string | Date | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function formatVerificationKind(kind: string) {
+  switch (kind) {
+    case 'ID_FRONT':
+      return 'Pièce d’identité · recto';
+    case 'ID_BACK':
+      return 'Pièce d’identité · verso';
+    case 'SELFIE':
+      return 'Selfie';
+    case 'ADDRESS':
+      return 'Justificatif de domicile';
+    case 'CERT_OPTIONAL':
+      return 'Certificat métier';
+    default:
+      return kind;
+  }
+}
+
+function formatVerificationStatus(status: string) {
+  switch (status) {
+    case 'PENDING':
+      return 'En attente';
+    case 'UNDER_REVIEW':
+      return 'En revue';
+    case 'VERIFIED':
+      return 'Vérifié';
+    case 'REJECTED':
+      return 'Rejeté';
+    default:
+      return status;
+  }
 }

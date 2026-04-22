@@ -3,7 +3,10 @@ import {
   DateTimeSchema,
   IdSchema,
   NullableDateTimeSchema,
+  PaginationMetaSchema,
+  PaginationParams,
 } from "./common.js";
+import { VerificationStatus } from "./enums.js";
 
 export const VerificationDocKind = z.enum([
   "ID_FRONT",
@@ -16,6 +19,13 @@ export type VerificationDocKind = z.infer<typeof VerificationDocKind>;
 
 export const VerificationDecision = z.enum(["APPROVED", "REJECTED"]);
 export type VerificationDecision = z.infer<typeof VerificationDecision>;
+
+export const VerificationStoragePolicy = z.enum([
+  "LAUNCH_STUB_METADATA_ONLY",
+]);
+export type VerificationStoragePolicy = z.infer<
+  typeof VerificationStoragePolicy
+>;
 
 export const VerificationState = z.enum([
   "NOT_STARTED",
@@ -30,14 +40,26 @@ export const VerificationDocSchema = z.object({
   id: IdSchema,
   kind: VerificationDocKind,
   url: z.string().min(1),
+  storagePolicy: VerificationStoragePolicy,
   fileName: z.string().nullable(),
   fileSize: z.number().int().nullable(),
   mimeType: z.string().nullable(),
   uploadedAt: DateTimeSchema,
+  reviewedAt: NullableDateTimeSchema,
+  reviewedBy: z.string().nullable(),
   decision: VerificationDecision.nullable(),
   rejectionReason: z.string().nullable(),
 });
 export type VerificationDoc = z.infer<typeof VerificationDocSchema>;
+
+export const VerificationStoragePolicyDetailsSchema = z.object({
+  mode: VerificationStoragePolicy,
+  title: z.string(),
+  description: z.string(),
+});
+export type VerificationStoragePolicyDetails = z.infer<
+  typeof VerificationStoragePolicyDetailsSchema
+>;
 
 export const VerificationStateResponseSchema = z.object({
   state: VerificationState,
@@ -47,6 +69,7 @@ export const VerificationStateResponseSchema = z.object({
   rejectionReason: z.string().nullable(),
   submittedAt: NullableDateTimeSchema,
   reviewedAt: NullableDateTimeSchema,
+  storage: VerificationStoragePolicyDetailsSchema,
 });
 export type VerificationStateResponse = z.infer<
   typeof VerificationStateResponseSchema
@@ -54,7 +77,6 @@ export type VerificationStateResponse = z.infer<
 
 export const UploadVerificationDocDto = z.object({
   kind: VerificationDocKind,
-  url: z.string().min(1).max(2048),
   fileName: z.string().max(255).optional(),
   fileSize: z.number().int().positive().optional(),
   mimeType: z.string().max(120).optional(),
@@ -155,3 +177,85 @@ export type RespondDisputeResponse = z.infer<
 
 export const SubmitVerificationResponseSchema = VerificationStateResponseSchema;
 export type SubmitVerificationResponse = VerificationStateResponse;
+
+export const AdminVerificationQueueSearchParams = PaginationParams.extend({
+  status: VerificationStatus.optional(),
+  search: z.string().optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+export type AdminVerificationQueueSearchParams = z.infer<
+  typeof AdminVerificationQueueSearchParams
+>;
+
+export const AdminVerificationSubmissionSchema = z.object({
+  providerId: IdSchema,
+  providerName: z.string(),
+  providerEmail: z.string().nullable(),
+  profession: z.string(),
+  verificationStatus: VerificationStatus,
+  submittedAt: NullableDateTimeSchema,
+  reviewedAt: NullableDateTimeSchema,
+  rejectionReason: z.string().nullable(),
+  docs: z.array(VerificationDocSchema),
+  counts: z.object({
+    total: z.number().int().min(0),
+    pending: z.number().int().min(0),
+    approved: z.number().int().min(0),
+    rejected: z.number().int().min(0),
+  }),
+});
+export type AdminVerificationSubmission = z.infer<
+  typeof AdminVerificationSubmissionSchema
+>;
+
+export const AdminVerificationQueueResponseSchema = z.object({
+  success: z.literal(true),
+  submissions: z.array(AdminVerificationSubmissionSchema),
+  pagination: PaginationMetaSchema,
+  stats: z.object({
+    underReview: z.number().int().min(0),
+    rejected: z.number().int().min(0),
+    verified: z.number().int().min(0),
+  }),
+});
+export type AdminVerificationQueueResponse = z.infer<
+  typeof AdminVerificationQueueResponseSchema
+>;
+
+export const AdminReviewVerificationDocDto = z
+  .object({
+    providerId: IdSchema,
+    docId: IdSchema,
+    decision: VerificationDecision,
+    rejectionReason: z.string().trim().max(500).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.decision === "REJECTED" &&
+      (!value.rejectionReason || value.rejectionReason.trim().length === 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rejectionReason"],
+        message: "rejectionReason is required when rejecting a document",
+      });
+    }
+  });
+export type AdminReviewVerificationDocDtoType = z.infer<
+  typeof AdminReviewVerificationDocDto
+>;
+
+export const AdminReviewVerificationDocResponseSchema = z.object({
+  success: z.literal(true),
+  providerId: IdSchema,
+  previousStatus: VerificationStatus,
+  verificationStatus: VerificationStatus,
+  docs: z.array(VerificationDocSchema),
+  reviewedDoc: VerificationDocSchema,
+  reviewedAt: NullableDateTimeSchema,
+  rejectionReason: z.string().nullable(),
+});
+export type AdminReviewVerificationDocResponse = z.infer<
+  typeof AdminReviewVerificationDocResponseSchema
+>;

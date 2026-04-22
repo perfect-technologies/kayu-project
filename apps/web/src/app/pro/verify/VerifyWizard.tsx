@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import {
   I,
@@ -13,7 +13,7 @@ import type {
   UploadVerificationDocDtoType,
   VerificationDocKind,
 } from "@kayu/schemas";
-import { VERIFY_STEPS, pretendUploadUrl } from "./fixtures";
+import { VERIFY_STEPS } from "./fixtures";
 
 const INDICATOR_STEPS: StepIndicatorStep[] = VERIFY_STEPS.map((s, i) => ({
   key: s.id,
@@ -24,6 +24,8 @@ const INDICATOR_STEPS: StepIndicatorStep[] = VERIFY_STEPS.map((s, i) => ({
 
 type WizardProps = {
   uploadedKinds: VerificationDocKind[];
+  storageTitle: string;
+  storageDescription: string;
   isUploading: boolean;
   isSubmitting: boolean;
   onUpload: (data: UploadVerificationDocDtoType) => Promise<void>;
@@ -33,6 +35,8 @@ type WizardProps = {
 
 export function VerifyWizard({
   uploadedKinds,
+  storageTitle,
+  storageDescription,
   isUploading,
   isSubmitting,
   onUpload,
@@ -68,11 +72,15 @@ export function VerifyWizard({
     }
   };
 
-  const handleUpload = async (kind: VerificationDocKind, fileName: string) => {
+  const handleUpload = async (
+    kind: VerificationDocKind,
+    file: { fileName: string; fileSize?: number; mimeType?: string },
+  ) => {
     await onUpload({
       kind,
-      url: pretendUploadUrl(kind),
-      fileName,
+      fileName: file.fileName,
+      fileSize: file.fileSize,
+      mimeType: file.mimeType,
     });
   };
 
@@ -124,6 +132,20 @@ export function VerifyWizard({
 
       <div style={{ marginBottom: 28 }}>
         <StepIndicator steps={INDICATOR_STEPS} step={step + 1} />
+      </div>
+
+      <div
+        style={{
+          marginBottom: 18,
+          padding: 16,
+          borderRadius: 14,
+          background: "#FFF7ED",
+          border: "1px solid #FED7AA",
+          color: "#9A3412",
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>{storageTitle}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.5 }}>{storageDescription}</div>
       </div>
 
       <div
@@ -232,7 +254,10 @@ type UploadTargetProps = {
   kind: VerificationDocKind;
   done: boolean;
   isUploading: boolean;
-  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+  onUpload: (
+    kind: VerificationDocKind,
+    file: { fileName: string; fileSize?: number; mimeType?: string },
+  ) => Promise<void>;
 };
 
 function UploadTarget({
@@ -245,86 +270,107 @@ function UploadTarget({
   onUpload,
 }: UploadTargetProps) {
   const Icon = I[icon] ?? I.upload;
-  const handleClick = async () => {
-    if (isUploading) return;
-    const fileName = `${kind.toLowerCase()}-${Date.now()}.jpg`;
-    await onUpload(kind, fileName);
-  };
+  const inputId = useId();
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={isUploading}
-      style={{
-        width: "100%",
-        textAlign: "left",
-        cursor: isUploading ? "wait" : "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: 16,
-        borderRadius: 12,
-        border: done
-          ? `1px solid ${tokens.color.success}`
-          : `1.5px dashed ${tokens.color.border}`,
-        background: done ? tokens.color.successSubtle : tokens.color.surface,
-        marginBottom: 10,
-        transition: "border-color 120ms",
-      }}
-    >
-      <div
+    <>
+      <input
+        id={inputId}
+        type="file"
+        hidden
+        accept="image/*,.pdf"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          if (!file || isUploading) {
+            return;
+          }
+
+          await onUpload(kind, {
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type || undefined,
+          });
+          event.target.value = "";
+        }}
+      />
+      <label
+        htmlFor={inputId}
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: 10,
-          background: done ? tokens.color.success : tokens.color.surfaceMuted,
-          color: done ? tokens.color.textInverse : tokens.color.textMuted,
+          width: "100%",
+          textAlign: "left",
+          cursor: isUploading ? "wait" : "pointer",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
+          gap: 14,
+          padding: 16,
+          borderRadius: 12,
+          border: done
+            ? `1px solid ${tokens.color.success}`
+            : `1.5px dashed ${tokens.color.border}`,
+          background: done ? tokens.color.successSubtle : tokens.color.surface,
+          marginBottom: 10,
+          transition: "border-color 120ms",
+          opacity: isUploading ? 0.7 : 1,
         }}
       >
-        {done ? <I.check size={20} stroke={2.5} /> : <Icon size={19} />}
-      </div>
-      <div style={{ flex: 1 }}>
         <div
           style={{
-            fontWeight: 600,
-            fontSize: 14,
-            color: tokens.color.textPrimary,
-            marginBottom: 2,
+            width: 44,
+            height: 44,
+            borderRadius: 10,
+            background: done ? tokens.color.success : tokens.color.surfaceMuted,
+            color: done ? tokens.color.textInverse : tokens.color.textMuted,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
           }}
         >
-          {done ? `✓ ${label}` : label}
+          {done ? <I.check size={20} stroke={2.5} /> : <Icon size={19} />}
         </div>
-        <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
-          {done ? "Document enregistré · cliquez pour remplacer" : sub}
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: 14,
+              color: tokens.color.textPrimary,
+              marginBottom: 2,
+            }}
+          >
+            {done ? `✓ ${label}` : label}
+          </div>
+          <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
+            {done
+              ? "Fichier selectionne · vous pouvez le remplacer"
+              : `${sub} · le fichier reste en collecte manuelle pour le lancement`}
+          </div>
         </div>
-      </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
-          background: tokens.color.surfaceMuted,
-          color: tokens.color.textMuted,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <I.camera size={15} />
-      </div>
-    </button>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: tokens.color.surfaceMuted,
+            color: tokens.color.textMuted,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <I.camera size={15} />
+        </div>
+      </label>
+    </>
   );
 }
 
 type StepProps = {
   uploadedSet: Set<VerificationDocKind>;
   isUploading: boolean;
-  onUpload: (kind: VerificationDocKind, fileName: string) => Promise<void>;
+  onUpload: (
+    kind: VerificationDocKind,
+    file: { fileName: string; fileSize?: number; mimeType?: string },
+  ) => Promise<void>;
 };
 
 function StepDocIdentity({ uploadedSet, isUploading, onUpload }: StepProps) {

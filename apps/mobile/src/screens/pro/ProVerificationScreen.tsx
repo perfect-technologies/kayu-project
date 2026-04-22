@@ -39,7 +39,6 @@ import {
   STATUS_CONFIG,
   VERIFY_BENEFITS,
   VERIFY_STEPS,
-  pretendUploadUrl,
   type VerifyStep,
 } from './verifyData';
 
@@ -293,10 +292,8 @@ function VerifyStatusView({
         <View style={styles.securityRow}>
           <I.lock size={16} color={tokens.color.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.securityTitle}>Vos données sont sécurisées.</Text>
-            <Text style={styles.securityBody}>
-              Chiffrées et stockées conformément aux réglementations RDC et Congo-B.
-            </Text>
+            <Text style={styles.securityTitle}>{liveState.storage.title}</Text>
+            <Text style={styles.securityBody}>{liveState.storage.description}</Text>
           </View>
         </View>
       </ScrollView>
@@ -332,6 +329,13 @@ function DisputeBanner({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+function formatDate(value: string | Date) {
+  return new Date(value).toLocaleString('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
 function DocRow({
   step,
   state,
@@ -346,20 +350,34 @@ function DocRow({
   last: boolean;
 }) {
   const Icon = I[step.icon] ?? I.fileText;
+  const isRejected = uploadedDoc?.decision === 'REJECTED';
   const isApproved = uploadedDoc?.decision === 'APPROVED' || state === 'VERIFIED';
   const isUploaded = Boolean(uploadedDoc);
-  const isUnderReview = isUploaded && state === 'IN_REVIEW';
+  const isUnderReview = isUploaded && !isApproved && !isRejected && state === 'IN_REVIEW';
   const tag = isApproved
     ? { bg: '#ECFDF5', fg: '#047857', label: 'Vérifié' }
+    : isRejected
+      ? { bg: '#FEE2E2', fg: '#B91C1C', label: 'Refusé' }
     : isUnderReview
       ? { bg: '#EDE9FE', fg: '#6D28D9', label: 'En cours' }
       : isUploaded
-        ? { bg: '#E0F2FE', fg: '#0369A1', label: 'Téléversé' }
+        ? { bg: '#E0F2FE', fg: '#0369A1', label: 'Enregistré' }
         : {
             bg: theme.colors.surfaceMuted,
             fg: theme.colors.textMuted,
             label: 'À fournir',
           };
+  const detail = uploadedDoc
+    ? [
+        uploadedDoc.fileName ? `Fichier: ${uploadedDoc.fileName}` : null,
+        uploadedDoc.uploadedAt ? `Enregistré le ${formatDate(uploadedDoc.uploadedAt)}` : null,
+        uploadedDoc.reviewedAt && uploadedDoc.decision === 'APPROVED'
+          ? `Approuvé le ${formatDate(uploadedDoc.reviewedAt)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : step.caption;
   return (
     <View
       style={[
@@ -378,7 +396,10 @@ function DocRow({
           <Text style={styles.docLabel}>{step.label}</Text>
           {!step.required && <Text style={styles.optTag}>Optionnel</Text>}
         </View>
-        <Text style={styles.docCaption}>{step.caption}</Text>
+        <Text style={styles.docCaption}>{detail}</Text>
+        {isRejected && uploadedDoc?.rejectionReason ? (
+          <Text style={styles.docRejectedReason}>Motif: {uploadedDoc.rejectionReason}</Text>
+        ) : null}
       </View>
       {isUploaded && !isApproved && state !== 'IN_REVIEW' && uploadedDoc && (
         <Pressable onPress={() => onRemove(uploadedDoc.id)} hitSlop={8}>
@@ -448,7 +469,6 @@ function VerifyWizard({
   const handleUpload = async (kind: VerificationDocKind, fileName: string) => {
     await onUpload({
       kind,
-      url: pretendUploadUrl(kind),
       fileName,
     });
   };
@@ -481,6 +501,10 @@ function VerifyWizard({
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+        <View style={styles.storageNotice}>
+          <Text style={styles.storageNoticeTitle}>{liveState.storage.title}</Text>
+          <Text style={styles.storageNoticeBody}>{liveState.storage.description}</Text>
+        </View>
         <Text style={styles.wizardTitle}>{current.label}</Text>
         <Text style={styles.wizardSub}>{current.caption}</Text>
 
@@ -565,7 +589,19 @@ function UploadTarget({
     <Pressable
       onPress={() => {
         if (isUploading) return;
-        onUpload(kind, `${kind.toLowerCase()}-${Date.now()}.jpg`);
+        Alert.alert(
+          'Collecte de lancement',
+          "Cette version enregistre la référence du document pour revue manuelle. Le fichier n'est pas encore stocké depuis l'app.",
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Enregistrer',
+              onPress: () => {
+                onUpload(kind, `${kind.toLowerCase()}-${Date.now()}.bin`);
+              },
+            },
+          ],
+        );
       }}
       style={[styles.uploadTarget, done && styles.uploadTargetDone]}
     >
@@ -586,7 +622,9 @@ function UploadTarget({
       <View style={{ flex: 1 }}>
         <Text style={styles.uploadLabel}>{done ? `✓ ${label}` : label}</Text>
         <Text style={styles.uploadSub}>
-          {done ? 'Document enregistré · appuyez pour remplacer' : sub}
+          {done
+            ? 'Référence enregistrée · appuyez pour remplacer'
+            : `${sub} · stub de lancement`}
         </Text>
       </View>
       <I.camera size={18} color={theme.colors.textMuted} />
@@ -1085,6 +1123,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     marginTop: 1,
   },
+  docRejectedReason: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 6,
+    lineHeight: 17,
+  },
   optTag: {
     fontSize: 10.5,
     color: theme.colors.textMuted,
@@ -1193,6 +1237,25 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     marginBottom: 22,
     lineHeight: 20,
+  },
+  storageNotice: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginBottom: 16,
+  },
+  storageNoticeTitle: {
+    fontWeight: '700',
+    fontSize: 13,
+    color: '#9A3412',
+  },
+  storageNoticeBody: {
+    fontSize: 12.5,
+    color: '#9A3412',
+    marginTop: 4,
+    lineHeight: 18,
   },
   uploadTarget: {
     flexDirection: 'row',

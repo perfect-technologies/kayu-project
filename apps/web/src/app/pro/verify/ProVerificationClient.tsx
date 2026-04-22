@@ -126,6 +126,8 @@ export function ProVerificationClient({ debug = false }: { debug?: boolean }) {
     return (
       <VerifyWizard
         uploadedKinds={liveState.docs.map((d) => d.kind)}
+        storageTitle={liveState.storage.title}
+        storageDescription={liveState.storage.description}
         isUploading={uploadMut.isPending}
         isSubmitting={submitMut.isPending}
         onUpload={async (data) => {

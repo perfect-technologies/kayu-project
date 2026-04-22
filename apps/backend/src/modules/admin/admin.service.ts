@@ -9,6 +9,8 @@ import type {
   TrustLevel,
   User,
   UserRole,
+  VerificationDecision,
+  VerificationDoc,
   VerificationStatus,
 } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";
@@ -36,6 +38,13 @@ type AdminProviderQuery = {
 
 type AdminCategoryQuery = {
   includeInactive?: boolean;
+};
+
+type AdminVerificationQueueQuery = {
+  page: number;
+  limit: number;
+  status?: VerificationStatus;
+  search?: string;
 };
 
 type AdminReviewQuery = {
@@ -90,6 +99,13 @@ type UpdateCategoryBody = Partial<CreateCategoryBody> & {
   id?: string;
   categoryId?: string;
   isActive?: boolean;
+};
+
+type ReviewVerificationDocBody = {
+  providerId: string;
+  docId: string;
+  decision: VerificationDecision;
+  rejectionReason?: string;
 };
 
 type ModerateReviewBody = {
@@ -162,8 +178,34 @@ const adminProviderInclude = {
   },
 } satisfies Prisma.ProviderInclude;
 
+const REQUIRED_VERIFICATION_KINDS = [
+  "ID_FRONT",
+  "ID_BACK",
+  "SELFIE",
+  "ADDRESS",
+] as const;
+
+const adminVerificationInclude = {
+  user: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isVerified: true,
+    },
+  },
+  verificationDocs: {
+    orderBy: [{ uploadedAt: "asc" }, { kind: "asc" }],
+  },
+} satisfies Prisma.ProviderInclude;
+
 type AdminProviderRecord = Prisma.ProviderGetPayload<{
   include: typeof adminProviderInclude;
+}>;
+
+type AdminVerificationRecord = Prisma.ProviderGetPayload<{
+  include: typeof adminVerificationInclude;
 }>;
 
 @Injectable()
@@ -348,6 +390,33 @@ export class AdminService {
     };
   }
 
+  async listVerificationSubmissions(query: AdminVerificationQueueQuery) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, query.limit || 10);
+    const where = this.buildVerificationQueueWhere(query);
+
+    const [total, providers, stats] = await Promise.all([
+      this.prisma.provider.count({ where }),
+      this.prisma.provider.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        include: adminVerificationInclude,
+      }),
+      this.getVerificationQueueStats(),
+    ]);
+
+    return {
+      success: true as const,
+      submissions: providers.map((provider) =>
+        this.mapVerificationSubmission(provider),
+      ),
+      pagination: this.buildPagination(page, limit, total),
+      stats,
+    };
+  }
+
   async updateProvider(actor: User, body: UpdateProviderBody, ipAddress?: string) {
     const provider = await this.prisma.provider.findUnique({
       where: {
@@ -382,41 +451,47 @@ export class AdminService {
         data.isAvailable = body.isAvailable;
       }
 
-      await tx.provider.update({
-        where: {
-          id: body.providerId,
-        },
-        data,
-      });
-
       if (body.verificationStatus === "VERIFIED") {
-        await tx.user.update({
-          where: {
-            id: provider.userId,
-          },
-          data: {
-            isVerified: true,
-            emailVerifiedAt: new Date(),
-          },
-        });
-
-        await this.syncProviderTrustArtifacts(tx, body.providerId);
+        await this.approveVerificationDocsForManualOverride(
+          tx,
+          body.providerId,
+          actor.id,
+        );
       }
 
-      if (
-        body.verificationStatus === "REJECTED" &&
-        body.rejectionReason &&
-        body.rejectionReason.trim().length > 0
-      ) {
-        await tx.certification.updateMany({
+      if (body.verificationStatus === "REJECTED") {
+        const rejectionReason = body.rejectionReason?.trim();
+        if (!rejectionReason) {
+          throw new BadRequestException("Rejection reason is required");
+        }
+
+        await this.rejectVerificationDocsForManualOverride(
+          tx,
+          body.providerId,
+          actor.id,
+          rejectionReason,
+        );
+      }
+
+      if (body.verificationStatus !== undefined) {
+        await tx.provider.update({
           where: {
-            providerId: body.providerId,
-            status: "PENDING",
+            id: body.providerId,
           },
-          data: {
-            status: "REJECTED",
-            rejectionReason: body.rejectionReason,
+          data,
+        });
+        await this.syncProviderVerificationArtifacts(
+          tx,
+          body.providerId,
+          provider.userId,
+          body.verificationStatus,
+        );
+      } else {
+        await tx.provider.update({
+          where: {
+            id: body.providerId,
           },
+          data,
         });
       }
 
@@ -430,6 +505,7 @@ export class AdminService {
           entityType: "Provider",
           entityId: body.providerId,
           metadata: {
+            previousVerificationStatus: provider.verificationStatus,
             verificationStatus: body.verificationStatus,
             isPremium: body.isPremium,
             isAvailable: body.isAvailable,
@@ -473,7 +549,6 @@ export class AdminService {
           tx,
         );
       }
-
       return saved;
     });
 
@@ -481,6 +556,130 @@ export class AdminService {
       success: true as const,
       provider: updatedProvider,
       message: "Provider updated successfully",
+    };
+  }
+
+  async reviewVerificationDoc(
+    actor: User,
+    body: ReviewVerificationDocBody,
+    ipAddress?: string,
+  ) {
+    const rejectionReason = body.rejectionReason?.trim() || undefined;
+    if (body.decision === "REJECTED" && !rejectionReason) {
+      throw new BadRequestException("Rejection reason is required");
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const provider = await tx.provider.findUnique({
+        where: { id: body.providerId },
+        select: {
+          id: true,
+          userId: true,
+          verificationStatus: true,
+          user: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!provider) {
+        throw new NotFoundException("Provider not found");
+      }
+
+      const existingDoc = await tx.verificationDoc.findFirst({
+        where: {
+          id: body.docId,
+          providerId: body.providerId,
+        },
+      });
+
+      if (!existingDoc) {
+        throw new NotFoundException("Verification document not found");
+      }
+
+      const reviewedAt = new Date();
+      const reviewedDoc = await tx.verificationDoc.update({
+        where: { id: existingDoc.id },
+        data: {
+          decision: body.decision,
+          rejectionReason:
+            body.decision === "REJECTED" ? rejectionReason ?? null : null,
+          reviewedAt,
+          reviewedBy: actor.id,
+        },
+      });
+
+      const docs = await tx.verificationDoc.findMany({
+        where: { providerId: body.providerId },
+        orderBy: [{ uploadedAt: "asc" }, { kind: "asc" }],
+      });
+      const verificationStatus = this.deriveVerificationStatusFromDocs(docs);
+
+      await tx.provider.update({
+        where: { id: body.providerId },
+        data: { verificationStatus },
+      });
+      await this.syncProviderVerificationArtifacts(
+        tx,
+        body.providerId,
+        provider.userId,
+        verificationStatus,
+      );
+
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "REVIEW_VERIFICATION_DOC",
+          entityType: "VerificationDoc",
+          entityId: body.docId,
+          metadata: {
+            providerId: body.providerId,
+            kind: reviewedDoc.kind,
+            decision: body.decision,
+            rejectionReason: rejectionReason ?? null,
+            previousStatus: provider.verificationStatus,
+            verificationStatus,
+          },
+          ipAddress,
+        },
+      });
+
+      if (verificationStatus !== provider.verificationStatus) {
+        const notification = this.buildProviderNotification({
+          providerId: body.providerId,
+          verificationStatus,
+          rejectionReason:
+            this.findVerificationRejectionReason(docs) ?? undefined,
+        });
+        if (notification) {
+          await this.notifications.create(
+            {
+              userId: provider.user.id,
+              ...notification,
+            },
+            tx,
+          );
+        }
+      }
+
+      return {
+        providerId: body.providerId,
+        previousStatus: provider.verificationStatus,
+        verificationStatus,
+        docs,
+        reviewedDoc,
+        reviewedAt: this.latestReviewedAt(docs),
+        rejectionReason: this.findVerificationRejectionReason(docs),
+      };
+    });
+
+    return {
+      success: true as const,
+      ...result,
+      docs: result.docs.map((doc) => this.mapVerificationDoc(doc)),
+      reviewedDoc: this.mapVerificationDoc(result.reviewedDoc),
     };
   }
 
@@ -1439,6 +1638,283 @@ export class AdminService {
         totalReviews: provider._count.reviews,
       },
     };
+  }
+
+  private buildVerificationQueueWhere(query: AdminVerificationQueueQuery) {
+    const search = query.search?.trim();
+    const where: Prisma.ProviderWhereInput = {
+      verificationDocs: {
+        some: {},
+      },
+    };
+
+    if (query.status) {
+      where.verificationStatus = query.status;
+    } else {
+      where.verificationStatus = {
+        in: ["UNDER_REVIEW", "REJECTED"],
+      };
+    }
+
+    if (search) {
+      where.OR = [
+        {
+          profession: {
+            contains: search,
+            mode: "insensitive",
+          },
+        },
+        {
+          user: {
+            firstName: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          user: {
+            lastName: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          user: {
+            email: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+        },
+      ];
+    }
+
+    return where;
+  }
+
+  private async getVerificationQueueStats() {
+    const [underReview, rejected, verified] = await Promise.all([
+      this.prisma.provider.count({
+        where: {
+          verificationStatus: "UNDER_REVIEW",
+          verificationDocs: { some: {} },
+        },
+      }),
+      this.prisma.provider.count({
+        where: {
+          verificationStatus: "REJECTED",
+          verificationDocs: { some: {} },
+        },
+      }),
+      this.prisma.provider.count({
+        where: {
+          verificationStatus: "VERIFIED",
+          verificationDocs: { some: {} },
+        },
+      }),
+    ]);
+
+    return {
+      underReview,
+      rejected,
+      verified,
+    };
+  }
+
+  private mapVerificationSubmission(provider: AdminVerificationRecord) {
+    return {
+      providerId: provider.id,
+      providerName: this.formatDisplayName(
+        provider.user.firstName,
+        provider.user.lastName,
+      ),
+      providerEmail: provider.user.email,
+      profession: provider.profession,
+      verificationStatus: provider.verificationStatus,
+      submittedAt: this.latestUploadedAt(provider.verificationDocs),
+      reviewedAt: this.latestReviewedAt(provider.verificationDocs),
+      rejectionReason: this.findVerificationRejectionReason(
+        provider.verificationDocs,
+      ),
+      docs: provider.verificationDocs.map((doc) => this.mapVerificationDoc(doc)),
+      counts: {
+        total: provider.verificationDocs.length,
+        pending: provider.verificationDocs.filter((doc) => !doc.decision).length,
+        approved: provider.verificationDocs.filter(
+          (doc) => doc.decision === "APPROVED",
+        ).length,
+        rejected: provider.verificationDocs.filter(
+          (doc) => doc.decision === "REJECTED",
+        ).length,
+      },
+    };
+  }
+
+  private mapVerificationDoc(doc: VerificationDoc) {
+    return {
+      id: doc.id,
+      kind: doc.kind,
+      url: doc.url,
+      storagePolicy: "LAUNCH_STUB_METADATA_ONLY" as const,
+      fileName: doc.fileName,
+      fileSize: doc.fileSize,
+      mimeType: doc.mimeType,
+      uploadedAt: doc.uploadedAt,
+      reviewedAt: doc.reviewedAt,
+      reviewedBy: doc.reviewedBy,
+      decision: doc.decision,
+      rejectionReason: doc.rejectionReason,
+    };
+  }
+
+  private deriveVerificationStatusFromDocs(docs: VerificationDoc[]): VerificationStatus {
+    const presentKinds = new Set(docs.map((doc) => doc.kind));
+    const missingRequired = REQUIRED_VERIFICATION_KINDS.some(
+      (kind) => !presentKinds.has(kind),
+    );
+    if (missingRequired) {
+      return "PENDING";
+    }
+
+    if (docs.some((doc) => doc.decision === "REJECTED")) {
+      return "REJECTED";
+    }
+
+    const requiredDocs = docs.filter((doc) =>
+      REQUIRED_VERIFICATION_KINDS.includes(doc.kind as (typeof REQUIRED_VERIFICATION_KINDS)[number]),
+    );
+    if (requiredDocs.every((doc) => doc.decision === "APPROVED")) {
+      return "VERIFIED";
+    }
+
+    return "UNDER_REVIEW";
+  }
+
+  private async syncProviderVerificationArtifacts(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    userId: string,
+    verificationStatus: VerificationStatus,
+  ) {
+    await tx.user.update({
+      where: {
+        id: userId,
+      },
+      data:
+        verificationStatus === "VERIFIED"
+          ? {
+              isVerified: true,
+              emailVerifiedAt: new Date(),
+              phoneVerifiedAt: new Date(),
+            }
+          : {
+              isVerified: false,
+            },
+    });
+
+    await this.syncProviderTrustArtifacts(tx, providerId);
+  }
+
+  private async approveVerificationDocsForManualOverride(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    reviewerId: string,
+  ) {
+    const docs = await tx.verificationDoc.findMany({
+      where: { providerId },
+      orderBy: [{ uploadedAt: "asc" }, { kind: "asc" }],
+    });
+
+    const presentKinds = new Set(docs.map((doc) => doc.kind));
+    const missingRequired = REQUIRED_VERIFICATION_KINDS.filter(
+      (kind) => !presentKinds.has(kind),
+    );
+    if (missingRequired.length > 0) {
+      throw new BadRequestException("Required verification documents are missing");
+    }
+
+    const reviewedAt = new Date();
+    for (const doc of docs) {
+      if (doc.decision === "APPROVED") {
+        continue;
+      }
+
+      await tx.verificationDoc.update({
+        where: { id: doc.id },
+        data: {
+          decision: "APPROVED",
+          rejectionReason: null,
+          reviewedAt,
+          reviewedBy: reviewerId,
+        },
+      });
+    }
+  }
+
+  private async rejectVerificationDocsForManualOverride(
+    tx: Prisma.TransactionClient,
+    providerId: string,
+    reviewerId: string,
+    rejectionReason: string,
+  ) {
+    const docs = await tx.verificationDoc.findMany({
+      where: { providerId },
+      orderBy: [{ uploadedAt: "asc" }, { kind: "asc" }],
+    });
+
+    if (docs.length === 0) {
+      throw new BadRequestException("No verification documents submitted");
+    }
+
+    const target =
+      docs.find((doc) => !doc.decision) ??
+      docs.find((doc) => doc.decision === "APPROVED") ??
+      docs[0];
+
+    await tx.verificationDoc.update({
+      where: { id: target.id },
+      data: {
+        decision: "REJECTED",
+        rejectionReason,
+        reviewedAt: new Date(),
+        reviewedBy: reviewerId,
+      },
+    });
+  }
+
+  private latestUploadedAt(docs: VerificationDoc[]) {
+    return docs.reduce<Date | null>((latest, doc) => {
+      if (!latest || doc.uploadedAt > latest) {
+        return doc.uploadedAt;
+      }
+      return latest;
+    }, null);
+  }
+
+  private latestReviewedAt(docs: VerificationDoc[]) {
+    return docs.reduce<Date | null>((latest, doc) => {
+      if (!doc.reviewedAt) {
+        return latest;
+      }
+      if (!latest || doc.reviewedAt > latest) {
+        return doc.reviewedAt;
+      }
+      return latest;
+    }, null);
+  }
+
+  private findVerificationRejectionReason(docs: VerificationDoc[]) {
+    return docs.find((doc) => doc.decision === "REJECTED")?.rejectionReason ?? null;
+  }
+
+  private formatDisplayName(
+    firstName?: string | null,
+    lastName?: string | null,
+  ) {
+    const value = [firstName, lastName].filter(Boolean).join(" ").trim();
+    return value || "Prestataire";
   }
 
   private async syncProviderTrustArtifacts(
