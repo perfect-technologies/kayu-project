@@ -36,6 +36,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const { isAuthenticated } = useAuth();
 
   const [step, setStep] = useState(0); // 0..2 content, 3 celebrate
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [service, setService] = useState("Dépannage urgent");
   const [duration, setDuration] = useState(2);
   const [day, setDay] = useState(18);
@@ -54,7 +55,10 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const createBooking = useMutation({
     mutationFn: (payload: Parameters<ReturnType<typeof bookingsApi>["create"]>[0]) =>
       bookingsApi(apiClient).create(payload),
-    onSuccess: () => setStep(3),
+    onSuccess: (result) => {
+      setCreatedBookingId(result.booking.id);
+      setStep(3);
+    },
     onError: (err: Error) => {
       alert(err.message || "Erreur lors de la réservation");
     },
@@ -107,7 +111,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
           dateLabel={dateLabel.replace(",", " ·")}
           onMessage={() => router.push("/dashboard/client")}
           onViewBooking={() =>
-            router.replace(`/review/${provider.id}?fromBooking=1`)
+            router.replace(createdBookingId ? `/bookings/${createdBookingId}` : "/bookings")
           }
         />
       </Layout>
@@ -623,4 +627,3 @@ function MiniCalendar({
     </div>
   );
 }
-

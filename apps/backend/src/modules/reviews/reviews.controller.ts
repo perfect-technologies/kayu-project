@@ -33,6 +33,18 @@ type CreateReviewBody = {
   communication?: number;
   value?: number;
   professionalism?: number;
+  satisfactionTags?: string[];
+  comment?: string;
+  isPublic: boolean;
+};
+
+type CreateClientReviewBody = {
+  bookingId: string;
+  clientId: string;
+  paymentRating: "PREPAID" | "ONTIME" | "LATE" | "PARTIAL" | "DISPUTED";
+  communication?: number;
+  respectfulness?: number;
+  tags: string[];
   comment?: string;
   isPublic: boolean;
 };
@@ -45,6 +57,11 @@ const reviewsQueryPipe = new LazyZodValidationPipe(async () => {
 const createReviewBodyPipe = new LazyZodValidationPipe(async () => {
   const { CreateReviewDto } = await import("@kayu/schemas");
   return CreateReviewDto;
+});
+
+const createClientReviewBodyPipe = new LazyZodValidationPipe(async () => {
+  const { CreateClientReviewDto } = await import("@kayu/schemas");
+  return CreateClientReviewDto;
 });
 
 @Controller("reviews")
@@ -64,5 +81,15 @@ export class ReviewsController {
     @Body(createReviewBodyPipe) body: CreateReviewBody,
   ) {
     return this.reviews.create(actor, body);
+  }
+
+  @Post("clients")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  createClient(
+    @CurrentActor() actor: Actor,
+    @Body(createClientReviewBodyPipe) body: CreateClientReviewBody,
+  ) {
+    return this.reviews.createClientReview(actor, body);
   }
 }

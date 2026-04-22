@@ -19,6 +19,7 @@ import type { CompositeNavigationProp, RouteProp } from '@react-navigation/nativ
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Avatar, I, type IconName } from '@kayu/ui/mobile';
 import { api } from '@/lib/api';
+import { hasProviderReview } from '@/lib/bookingV2';
 import { theme } from '@/lib/theme';
 import type {
   BookingsStackParamList,
@@ -129,7 +130,6 @@ export function ReviewScreen() {
   const [ratings, setRatings] = useState<Ratings>({});
   const [tags, setTags] = useState<string[]>([]);
   const [text, setText] = useState('');
-  const [photos, setPhotos] = useState<number[]>([]);
   const [done, setDone] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -141,7 +141,7 @@ export function ReviewScreen() {
 
   const allRated = Object.keys(ratings).length === REVIEW_DIMENSIONS.length;
   const booking = bookingData?.booking;
-  const alreadyReviewed = Boolean(booking?.reviewed ?? booking?.review);
+  const alreadyReviewed = booking ? hasProviderReview(booking) : false;
   const canReviewBooking = booking?.status === 'COMPLETED' && !alreadyReviewed;
   const canFinish = canReviewBooking && allRated && text.trim().length >= 10;
   const canAdvance = step === 1 ? allRated : step === 2 ? true : canFinish;
@@ -151,8 +151,6 @@ export function ReviewScreen() {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const tagText = tags.length ? `\n\nPoints forts : ${tags.join(' · ')}` : '';
-      const photoText = photos.length ? `\n(${photos.length} photo${photos.length > 1 ? 's' : ''} à suivre)` : '';
       return api.reviews.create({
         bookingId: params.bookingId,
         providerId: params.providerId,
@@ -162,7 +160,8 @@ export function ReviewScreen() {
         communication: ratings.communication,
         value: ratings.value,
         professionalism: ratings.professionalism,
-        comment: `${text.trim()}${tagText}${photoText}`,
+        satisfactionTags: tags,
+        comment: text.trim(),
         isPublic: true,
       });
     },
@@ -173,6 +172,9 @@ export function ReviewScreen() {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
       queryClient.invalidateQueries({
         queryKey: queryKeys.reviews.byProvider(params.providerId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.providers.detail(params.providerId),
       });
       setDone(true);
     },
@@ -339,21 +341,9 @@ export function ReviewScreen() {
                 })}
               </View>
 
-              <Text style={[styles.sectionOverline, { marginTop: 28 }]}>
-                Photos (optionnel)
+              <Text style={[styles.sectionHint, { marginTop: 18 }]}>
+                Les photos seront ajoutees quand l'upload existera. Pour le lancement, seuls les tags et le commentaire sont enregistres.
               </Text>
-              <View style={styles.photoGrid}>
-                {photos.map((_, i) => (
-                  <View key={i} style={styles.photoTileFilled} />
-                ))}
-                <Pressable
-                  onPress={() => setPhotos((p) => [...p, p.length + 1])}
-                  style={styles.photoTileAdd}
-                >
-                  <I.plus size={20} color={theme.colors.textMuted} />
-                  <Text style={styles.photoAddLabel}>Ajouter</Text>
-                </Pressable>
-              </View>
             </View>
           )}
 
@@ -634,34 +624,6 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 13,
     fontWeight: '500',
-    fontFamily: theme.fonts.bodyMed,
-  },
-  // Photos
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  photoTileFilled: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    backgroundColor: '#BAE6FD',
-  },
-  photoTileAdd: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  photoAddLabel: {
-    fontSize: 11,
-    color: theme.colors.textMuted,
     fontFamily: theme.fonts.bodyMed,
   },
   // Text + summary

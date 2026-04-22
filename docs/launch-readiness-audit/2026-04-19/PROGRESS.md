@@ -1,12 +1,12 @@
 # KAYOU Launch Readiness Remediation Progress
 
-Last updated: 2026-04-21
+Last updated: 2026-04-22
 
 This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`. It intentionally does not replace `docs/implementation-plan/PROGRESS.md`, which tracks the earlier implementation/migration plan.
 
 ## Current Phase
 
-WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
+WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -28,7 +28,7 @@ WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. 
 | WS-05 | P1 | Yes for provider launch | Provider Dashboard And Request Actions | WS-02/WS-04 | done | Codex | Changed provider dashboard/request mobile screens, provider navigation, dashboard/job-request backend services and tests, and shared dashboard/request schemas. |
 | WS-06 | P1 | Yes | Provider Onboarding And Publication Consistency | WS-01 | done | Codex | Changed provider onboarding/identity/provider search services, mobile onboarding draft mapping, shared draft schema, and focused backend tests. |
 | WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | done | Codex | Changed mobile discovery filters/sort/map messaging, provider search pagination/filtering, provider card mapping, and provider-search regression tests. |
-| WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | not_started | | Completed-booking review state and client reviews. |
+| WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | done | Codex | Changed backend/mobile review flows, booking review state, provider client-review path, shared review schemas/API, and focused backend review tests. |
 | WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | not_started | | Real upload/review policy or honest launch stub. |
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | not_started | | Admin users and moderation workflow. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | not_started | | Cash/offline vs paid booking policy. |
@@ -179,6 +179,19 @@ Manual search validation on 2026-04-21 against `http://127.0.0.1:3001/api/provid
 - `minPrice=10000&maxPrice=12000` narrowed results to 3 providers.
 - `sortBy=hourlyRate&sortOrder=asc|desc` changed the leading hourly rates from `8000 -> 10000 -> 12000` to `30000 -> 25000 -> 25000`.
 
+WS-08 validation:
+
+```bash
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend test:reviews
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
+```
+
+Result: passed on 2026-04-22.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -264,3 +277,11 @@ When handing back:
 - Added backend sort support for recommended/newest/price ordering and shared search-param typing for `sortBy`/`sortOrder`.
 - Tightened provider card mapping in `apps/mobile/src/lib/providerAdapter.ts` so search cards use real provider verification state, sane response-time fallback text, and a more stable displayed location.
 - Added focused provider-search regression coverage for launch-ready gating plus rating-filter/database-pagination behavior in `apps/backend/src/modules/providers/providers.service.spec.ts`.
+
+### 2026-04-22 — WS-08 Reviews And Client Reputation
+
+- Kept client review entry strictly tied to completed bookings and reused backend review presence for booking detail/list state so review CTAs disappear once a review exists.
+- Stored client-to-provider satisfaction tags structurally in the backend review record and removed the pretend mobile photo-upload path from the launch review flow.
+- Added provider-to-client review creation at `/api/reviews/clients`, recomputed `User.clientScore` plus `clientTrustLevel`, and surfaced provider client-review state where providers act on completed bookings.
+- Extended booking responses with provider-to-client review metadata (`clientReviewed`, `clientRating`, `clientReview`) so mobile can render completed-booking reputation state without guessing.
+- Added focused backend review service coverage in `apps/backend/src/modules/reviews/reviews.service.spec.ts` and revalidated backend/mobile/web type safety after the shared schema changes.

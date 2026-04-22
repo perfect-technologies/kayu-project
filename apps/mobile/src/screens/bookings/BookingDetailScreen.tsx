@@ -24,14 +24,23 @@ import {
   formatRelativeFR,
   formatWhen,
   fullAddress,
+  hasClientReview,
+  hasProviderReview,
   initialsFromName,
   priceLabelFor,
   toV2Status,
   type V2Status,
 } from '@/lib/bookingV2';
-import type { BookingsStackParamList } from '@/navigation/AppNavigator';
+import type {
+  BookingsStackParamList,
+  ProviderStackParamList,
+  RequestsStackParamList,
+} from '@/navigation/AppNavigator';
 
-type Nav = NativeStackNavigationProp<BookingsStackParamList, 'BookingDetail'>;
+type DetailStackParamList = BookingsStackParamList &
+  ProviderStackParamList &
+  RequestsStackParamList;
+type Nav = NativeStackNavigationProp<DetailStackParamList, 'BookingDetail'>;
 type Route = RouteProp<BookingsStackParamList, 'BookingDetail'>;
 type BackendBookingStatus = 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 type BookingUpdateInput = {
@@ -152,7 +161,8 @@ export function BookingDetailScreen() {
   const booking = data.booking as Booking;
   const v2 = toV2Status(booking.status);
   const isClient = user?.role !== 'PROVIDER';
-  const reviewed = Boolean(booking.reviewed ?? booking.review);
+  const reviewed = hasProviderReview(booking);
+  const clientReviewed = hasClientReview(booking);
   const perspective: 'client' | 'pro' = isClient ? 'client' : 'pro';
   const steps = TIMELINE_STEPS[v2];
   const step = currentStepIndex(booking.status ?? '', v2);
@@ -222,6 +232,13 @@ export function BookingDetailScreen() {
     });
   };
 
+  const onClientReview = () => {
+    if (isClient || booking.status !== 'COMPLETED' || clientReviewed) return;
+    navigation.navigate('ClientReview', {
+      bookingId: booking.id,
+    });
+  };
+
   return (
     <View style={styles.screen}>
       {/* Sticky top bar */}
@@ -266,6 +283,7 @@ export function BookingDetailScreen() {
             backendStatus={booking.status}
             isClient={isClient}
             reviewed={reviewed}
+            clientReviewed={clientReviewed}
             busy={updateMutation.isPending}
             onMessage={() => {
               const userId = isClient ? booking.provider?.userId : booking.client?.id;
@@ -284,6 +302,7 @@ export function BookingDetailScreen() {
             onStart={onStart}
             onComplete={onComplete}
             onReview={onReview}
+            onClientReview={onClientReview}
           />
         </View>
 
@@ -365,6 +384,21 @@ export function BookingDetailScreen() {
           ) : null}
         </MobileSection>
 
+        {!isClient && booking.status === 'COMPLETED' ? (
+          <MobileSection title="Reputation client">
+            <ClientReviewSummary
+              reviewed={clientReviewed}
+              rating={booking.clientRating ?? booking.clientReview?.rating ?? null}
+              paymentRating={
+                booking.clientReview?.paymentRating ??
+                booking.clientReview?.paymentTimeliness ??
+                null
+              }
+              comment={booking.clientReview?.comment ?? null}
+            />
+          </MobileSection>
+        ) : null}
+
         {/* Help */}
         <View style={styles.helpWrap}>
           <Pressable style={styles.helpBtn}>
@@ -438,6 +472,51 @@ function MobileSection({
         {subtitle && <Text style={styles.sectionSubtitle}>{subtitle}</Text>}
       </View>
       <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
+}
+
+function ClientReviewSummary({
+  reviewed,
+  rating,
+  paymentRating,
+  comment,
+}: {
+  reviewed: boolean;
+  rating: number | null;
+  paymentRating: string | null;
+  comment: string | null;
+}) {
+  if (!reviewed) {
+    return (
+      <Text style={styles.reviewHint}>
+        Ajoutez un retour sur le paiement et le comportement du client pour enrichir sa reputation avant la prochaine mission.
+      </Text>
+    );
+  }
+
+  return (
+    <View style={styles.clientReviewCard}>
+      <View style={styles.clientReviewRow}>
+        <Text style={styles.clientReviewLabel}>Etat</Text>
+        <Text style={styles.clientReviewValue}>Avis envoye</Text>
+      </View>
+      {paymentRating ? (
+        <View style={styles.clientReviewRow}>
+          <Text style={styles.clientReviewLabel}>Paiement</Text>
+          <Text style={styles.clientReviewValue}>{paymentCopy(paymentRating)}</Text>
+        </View>
+      ) : null}
+      {rating != null ? (
+        <View style={styles.clientReviewRow}>
+          <Text style={styles.clientReviewLabel}>Comportement</Text>
+          <View style={styles.clientReviewRating}>
+            <I.star size={13} color={theme.colors.warning} />
+            <Text style={styles.clientReviewValue}>{rating.toFixed(1)}</Text>
+          </View>
+        </View>
+      ) : null}
+      {comment ? <Text style={styles.clientReviewComment}>{comment}</Text> : null}
     </View>
   );
 }
@@ -670,6 +749,23 @@ function AddressBlock({
   );
 }
 
+function paymentCopy(value: string) {
+  switch (value) {
+    case 'PREPAID':
+      return 'Prepaye';
+    case 'ONTIME':
+      return "A l'heure";
+    case 'LATE':
+      return 'Paiement en retard';
+    case 'PARTIAL':
+      return 'Paiement partiel';
+    case 'DISPUTED':
+      return 'Paiement en litige';
+    default:
+      return value;
+  }
+}
+
 function MetaRow({
   label,
   value,
@@ -699,6 +795,7 @@ function ActionButtons({
   backendStatus,
   isClient,
   reviewed,
+  clientReviewed,
   busy,
   onMessage,
   onCancel,
@@ -706,11 +803,13 @@ function ActionButtons({
   onStart,
   onComplete,
   onReview,
+  onClientReview,
 }: {
   v2: V2Status;
   backendStatus?: string | null;
   isClient: boolean;
   reviewed: boolean;
+  clientReviewed: boolean;
   busy: boolean;
   onMessage: () => void;
   onCancel: () => void;
@@ -718,6 +817,7 @@ function ActionButtons({
   onStart: () => void;
   onComplete: () => void;
   onReview: () => void;
+  onClientReview: () => void;
 }) {
   if (backendStatus === 'PENDING') {
     return (
@@ -809,6 +909,28 @@ function ActionButtons({
     );
   }
   if (v2 === 'completed') {
+    if (!isClient) {
+      return (
+        <View style={{ gap: 8 }}>
+          {!clientReviewed ? (
+            <Pressable style={styles.primaryBtn} onPress={onClientReview}>
+              <I.star size={14} color="#fff" />
+              <Text style={styles.primaryBtnText}>Evaluer le client</Text>
+            </Pressable>
+          ) : (
+            <Pressable style={styles.secondaryBtn}>
+              <I.check size={14} color={theme.colors.textPrimary} />
+              <Text style={styles.secondaryBtnText}>Avis client envoye</Text>
+            </Pressable>
+          )}
+          <Pressable style={styles.secondaryBtn}>
+            <I.fileText size={14} color={theme.colors.textPrimary} />
+            <Text style={styles.secondaryBtnText}>Facture</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
     return (
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {isClient && !reviewed && (
@@ -872,10 +994,19 @@ interface Booking {
   progress?: string | null;
   reviewed?: boolean | null;
   myRating?: number | null;
+  clientReviewed?: boolean | null;
+  clientRating?: number | null;
   review?: {
     id?: string | null;
     rating?: number | null;
     overallScore?: number | null;
+  } | null;
+  clientReview?: {
+    id?: string | null;
+    rating?: number | null;
+    paymentRating?: string | null;
+    paymentTimeliness?: string | null;
+    comment?: string | null;
   } | null;
   quote?: {
     lines: { label: string; qty: number; unit: string; unitPrice: number }[];
@@ -977,6 +1108,41 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: 12,
     padding: 14,
+  },
+  reviewHint: {
+    ...theme.text.bodyM,
+    color: theme.colors.textMuted,
+    lineHeight: 22,
+  },
+  clientReviewCard: {
+    gap: 12,
+  },
+  clientReviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  clientReviewLabel: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 13,
+    color: theme.colors.textMuted,
+  },
+  clientReviewValue: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  clientReviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clientReviewComment: {
+    ...theme.text.bodyM,
+    color: theme.colors.textBody,
+    lineHeight: 22,
+    paddingTop: 2,
   },
 
   // Hero

@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { BadgeType, Prisma, TrustLevel } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type {
+  BadgeType,
+  ClientTrustLevel,
+  PaymentRating,
+  TrustLevel,
+} from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -25,6 +31,18 @@ type CreateReviewBody = {
   communication?: number;
   value?: number;
   professionalism?: number;
+  satisfactionTags?: string[];
+  comment?: string;
+  isPublic: boolean;
+};
+
+type CreateClientReviewBody = {
+  bookingId: string;
+  clientId: string;
+  paymentRating: PaymentRating;
+  communication?: number;
+  respectfulness?: number;
+  tags: string[];
   comment?: string;
   isPublic: boolean;
 };
@@ -52,6 +70,34 @@ const reviewInclude = {
 
 type ReviewRecord = Prisma.ReviewGetPayload<{
   include: typeof reviewInclude;
+}>;
+
+const clientReviewInclude = {
+  client: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+    },
+  },
+  provider: {
+    select: {
+      id: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.ClientReviewInclude;
+
+type ClientReviewRecord = Prisma.ClientReviewGetPayload<{
+  include: typeof clientReviewInclude;
 }>;
 
 const managedBadges: BadgeType[] = [
@@ -157,7 +203,8 @@ export class ReviewsService {
 
     const overallScore = this.calculateOverallScore(body);
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result: ReviewRecord = await this.prisma.$transaction(
+      async (tx): Promise<ReviewRecord> => {
       const review = await tx.review.create({
         data: {
           bookingId: body.bookingId,
@@ -169,6 +216,10 @@ export class ReviewsService {
           value: body.value ?? null,
           professionalism: body.professionalism ?? null,
           overallScore,
+          satisfactionTags:
+            body.satisfactionTags && body.satisfactionTags.length > 0
+              ? body.satisfactionTags
+              : Prisma.JsonNull,
           comment: body.comment ?? null,
           isPublic: body.isPublic,
         },
@@ -193,11 +244,101 @@ export class ReviewsService {
       );
 
       return review;
-    });
+      },
+    );
 
     return {
       success: true as const,
       review: this.mapReview(result),
+    };
+  }
+
+  async createClientReview(actor: Actor, body: CreateClientReviewBody) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: body.bookingId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        provider: {
+          select: {
+            id: true,
+            userId: true,
+          },
+        },
+        clientReview: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    if (booking.provider.userId !== actor.id) {
+      throw new BadRequestException("You can only review clients for your own bookings");
+    }
+
+    if (booking.clientId !== body.clientId) {
+      throw new BadRequestException("clientId does not match the booking client");
+    }
+
+    if (booking.status !== "COMPLETED") {
+      throw new BadRequestException("Only completed bookings can be reviewed");
+    }
+
+    if (booking.clientReview) {
+      throw new ConflictException("A client review already exists for this booking");
+    }
+
+    const result: ClientReviewRecord = await this.prisma.$transaction(
+      async (tx): Promise<ClientReviewRecord> => {
+      const clientReview = await tx.clientReview.create({
+        data: {
+          bookingId: body.bookingId,
+          providerId: booking.providerId,
+          clientId: body.clientId,
+          paymentTimeliness: body.paymentRating,
+          communication: body.communication ?? null,
+          respectfulness: body.respectfulness ?? null,
+          tags: body.tags.length > 0 ? body.tags : Prisma.JsonNull,
+          comment: body.comment ?? null,
+          isPublic: body.isPublic,
+        },
+        include: clientReviewInclude,
+      });
+
+      await this.syncClientMetrics(tx, body.clientId);
+
+      await this.notifications.create(
+        {
+          userId: booking.clientId,
+          type: "NEW_CLIENT_REVIEW",
+          title: "Retour du prestataire",
+          message: `${this.getDisplayName(actor)} a evalue votre comportement client`,
+          data: {
+            bookingId: booking.id,
+            clientReviewId: clientReview.id,
+            providerId: booking.providerId,
+          },
+        },
+        tx,
+      );
+
+      return clientReview;
+      },
+    );
+
+    return {
+      success: true as const,
+      clientReview: this.mapClientReview(result),
     };
   }
 
@@ -436,6 +577,75 @@ export class ReviewsService {
     }
   }
 
+  private async syncClientMetrics(tx: Prisma.TransactionClient, clientId: string) {
+    const [client, reviewAggregate, paymentReviews] = await Promise.all([
+      tx.user.findUnique({
+        where: { id: clientId },
+        select: {
+          id: true,
+        },
+      }),
+      tx.clientReview.aggregate({
+        where: { clientId },
+        _count: {
+          _all: true,
+        },
+        _avg: {
+          communication: true,
+          respectfulness: true,
+        },
+      }),
+      tx.clientReview.findMany({
+        where: { clientId },
+        select: {
+          paymentTimeliness: true,
+        },
+      }),
+    ]);
+
+    if (!client) {
+      throw new NotFoundException("Client not found");
+    }
+
+    const weightedScores = [
+      reviewAggregate._avg.communication != null
+        ? { weight: 0.35, value: this.toPercentage(reviewAggregate._avg.communication) }
+        : null,
+      reviewAggregate._avg.respectfulness != null
+        ? { weight: 0.35, value: this.toPercentage(reviewAggregate._avg.respectfulness) }
+        : null,
+      paymentReviews.length > 0
+        ? {
+            weight: 0.3,
+            value:
+              paymentReviews.reduce(
+                (sum, review) => sum + this.paymentRatingScore(review.paymentTimeliness),
+                0,
+              ) / paymentReviews.length,
+          }
+        : null,
+    ].filter((entry): entry is { weight: number; value: number } => entry !== null);
+
+    const clientScore =
+      weightedScores.length > 0
+        ? this.round(
+            weightedScores.reduce((sum, entry) => sum + entry.value * entry.weight, 0) /
+              weightedScores.reduce((sum, entry) => sum + entry.weight, 0),
+          )
+        : 0;
+
+    await tx.user.update({
+      where: { id: clientId },
+      data: {
+        clientScore,
+        clientTrustLevel: this.getClientTrustLevel(
+          reviewAggregate._count._all,
+          clientScore,
+        ),
+      },
+    });
+  }
+
   private getTrustLevel(completedJobs: number, overallScore: number): TrustLevel {
     if (completedJobs >= 50 && overallScore >= 90) {
       return "TOP_RATED";
@@ -450,6 +660,22 @@ export class ReviewsService {
       return "ESTABLISHED";
     }
     return "NEWCOMER";
+  }
+
+  private getClientTrustLevel(
+    totalReviews: number,
+    clientScore: number,
+  ): ClientTrustLevel {
+    if (totalReviews >= 10 && clientScore >= 90) {
+      return "VIP_CLIENT";
+    }
+    if (totalReviews >= 5 && clientScore >= 75) {
+      return "GOOD_CLIENT";
+    }
+    if (totalReviews >= 2 && clientScore >= 55) {
+      return "REGULAR";
+    }
+    return "NEW_CLIENT";
   }
 
   private mapReview(review: ReviewRecord) {
@@ -480,12 +706,64 @@ export class ReviewsService {
     };
   }
 
+  private mapClientReview(review: ClientReviewRecord) {
+    return {
+      id: review.id,
+      bookingId: review.bookingId,
+      clientId: review.clientId,
+      providerId: review.providerId,
+      rating: this.clientReviewRating(review),
+      paymentRating: review.paymentTimeliness,
+      paymentTimeliness: review.paymentTimeliness,
+      communication: review.communication,
+      respectfulness: review.respectfulness,
+      comment: review.comment,
+      tags: review.tags ? JSON.stringify(review.tags) : null,
+      isPublic: review.isPublic,
+      createdAt: review.createdAt,
+    };
+  }
+
   private toPercentage(value: number) {
     return this.round((value / 5) * 100);
   }
 
   private round(value: number) {
     return Math.round(value * 10) / 10;
+  }
+
+  private clientReviewRating(review: {
+    communication: number | null;
+    respectfulness: number | null;
+  }) {
+    const ratings = [review.communication, review.respectfulness].filter(
+      (value): value is number => typeof value === "number",
+    );
+
+    if (ratings.length === 0) {
+      return null;
+    }
+
+    return this.round(
+      ratings.reduce((sum, value) => sum + value, 0) / ratings.length,
+    );
+  }
+
+  private paymentRatingScore(rating: PaymentRating) {
+    switch (rating) {
+      case "PREPAID":
+        return 100;
+      case "ONTIME":
+        return 85;
+      case "LATE":
+        return 55;
+      case "PARTIAL":
+        return 35;
+      case "DISPUTED":
+        return 0;
+      default:
+        return 0;
+    }
   }
 
   private getDisplayName(actor: Actor) {

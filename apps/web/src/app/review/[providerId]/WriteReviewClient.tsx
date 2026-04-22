@@ -174,10 +174,7 @@ export function WriteReviewClient({
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!bookingId) {
-        // Backend requires bookingId — if we don't have one, we still show
-        // the success state client-side so the design is exercisable, but
-        // skip the network write.
-        return { success: true as const };
+        throw new Error("Un identifiant de réservation terminé est requis pour laisser un avis.");
       }
       const tagText = tags.length ? `\n\nPoints forts : ${tags.join(" · ")}` : "";
       const photoText = photos.length ? `\n(${photos.length} photo${photos.length > 1 ? "s" : ""} à suivre)` : "";
@@ -190,6 +187,7 @@ export function WriteReviewClient({
         communication: ratings.communication,
         value: ratings.value,
         professionalism: ratings.professionalism,
+        satisfactionTags: tags,
         comment: `${text.trim()}${tagText}${photoText}`,
         isPublic: true,
       });
@@ -219,6 +217,52 @@ export function WriteReviewClient({
 
   if (done) {
     return <ReviewSuccess provider={provider} onDone={onDone} />;
+  }
+
+  if (!bookingId) {
+    return (
+      <div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 32px 64px" }}>
+        <button
+          onClick={() => (fromBooking ? router.replace("/bookings") : router.back())}
+          style={{
+            border: 0,
+            background: "transparent",
+            color: "var(--k-text-muted)",
+            fontSize: 13,
+            cursor: "pointer",
+            padding: 0,
+            marginBottom: 20,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <I.arrowLeft size={15} /> Retour
+        </button>
+
+        <div
+          style={{
+            padding: "28px 24px",
+            borderRadius: "var(--k-r-lg)",
+            background: "var(--k-surface)",
+            border: "1px solid var(--k-border)",
+          }}
+        >
+          <div className="k-display-m" style={{ color: "var(--k-text-primary)", marginBottom: 10 }}>
+            Avis indisponible
+          </div>
+          <div className="k-body-m" style={{ color: "var(--k-text-muted)", marginBottom: 18 }}>
+            Un identifiant de réservation terminée est requis pour publier un avis.
+          </div>
+          <button
+            className="k-btn k-btn-primary"
+            onClick={() => router.replace("/bookings")}
+          >
+            Voir mes réservations
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const contextLine = [provider.profession, provider.city, fromBooking ? "aujourd'hui" : null]

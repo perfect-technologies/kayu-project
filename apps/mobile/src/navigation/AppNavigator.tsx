@@ -29,6 +29,7 @@ import { AllReviewsScreen } from '@/screens/search/AllReviewsScreen';
 // Bookings tab
 import { BookingsScreen } from '@/screens/bookings/BookingsScreen';
 import { BookingDetailScreen } from '@/screens/bookings/BookingDetailScreen';
+import { ClientReviewScreen } from '@/screens/bookings/ClientReviewScreen';
 import { ReviewScreen } from '@/screens/bookings/ReviewScreen';
 
 import { BookingScreen } from '@/screens/booking/BookingScreen';
@@ -80,6 +81,7 @@ export type BookingsStackParamList = {
   BookingsMain: undefined;
   BookingDetail: { bookingId: string };
   Review: { bookingId: string; providerId: string; providerName: string };
+  ClientReview: { bookingId: string };
 };
 
 export type MessagesStackParamList = {
@@ -91,6 +93,7 @@ export type RequestsStackParamList = {
   RequestsMain: undefined;
   QuoteCompose: { requestId?: string };
   BookingDetail: { bookingId: string };
+  ClientReview: { bookingId: string };
 };
 
 export type ClientRequestsStackParamList = {
@@ -105,6 +108,7 @@ export type ProviderStackParamList = {
   ProVerification: undefined;
   QuoteCompose: { requestId?: string };
   BookingDetail: { bookingId: string };
+  ClientReview: { bookingId: string };
 };
 
 export type ProfileStackParamList = {
@@ -230,6 +234,11 @@ function BookingsNavigator() {
         component={ReviewScreen}
         options={{ title: 'Laisser un avis' }}
       />
+      <BookingsStack.Screen
+        name="ClientReview"
+        component={ClientReviewScreen}
+        options={{ title: 'Evaluer le client' }}
+      />
     </BookingsStack.Navigator>
   );
 }
@@ -281,6 +290,10 @@ function ProviderNavigator() {
         name="BookingDetail"
         component={BookingDetailScreen}
       />
+      <ProviderStack.Screen
+        name="ClientReview"
+        component={ClientReviewScreen}
+      />
     </ProviderStack.Navigator>
   );
 }
@@ -302,6 +315,11 @@ function RequestsNavigator() {
         name="BookingDetail"
         component={BookingDetailScreen}
         options={{ headerShown: false }}
+      />
+      <RequestsStack.Screen
+        name="ClientReview"
+        component={ClientReviewScreen}
+        options={{ title: 'Evaluer le client' }}
       />
     </RequestsStack.Navigator>
   );
@@ -387,6 +405,7 @@ const HIDE_TAB_BAR_ROUTES = new Set([
   'ProviderProfile',
   // review
   'Review',
+  'ClientReview',
   // chat thread (composer sits at the bottom)
   'Chat',
   // full-screen pro flows

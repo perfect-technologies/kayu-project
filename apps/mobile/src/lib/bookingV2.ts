@@ -125,3 +125,13 @@ export const initialsFromName = (first?: string | null, last?: string | null): s
   const l = (last ?? '').trim();
   return `${f.charAt(0)}${l.charAt(0)}`.toUpperCase() || '?';
 };
+
+export const hasProviderReview = (booking: {
+  reviewed?: boolean | null;
+  review?: unknown;
+}) => Boolean(booking.reviewed ?? booking.review);
+
+export const hasClientReview = (booking: {
+  clientReviewed?: boolean | null;
+  clientReview?: unknown;
+}) => Boolean(booking.clientReviewed ?? booking.clientReview);

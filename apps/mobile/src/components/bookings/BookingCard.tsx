@@ -6,6 +6,7 @@ import {
   categoryFromTitle,
   formatWhen,
   fullAddress,
+  hasProviderReview,
   initialsFromName,
   priceLabelFor,
   toV2Status,
@@ -39,6 +40,7 @@ export interface MobileBookingCardData {
   progress?: string | null;
   reviewed?: boolean | null;
   myRating?: number | null;
+  review?: unknown;
   cancelledByRole?: 'provider' | 'client' | 'admin' | null;
 }
 
@@ -149,7 +151,7 @@ export function BookingCard({
         </View>
         <FooterAction
           v2={v2}
-          reviewed={booking.reviewed}
+          reviewed={hasProviderReview(booking)}
           myRating={booking.myRating}
           cancelledByRole={booking.cancelledByRole}
           perspective={perspective}

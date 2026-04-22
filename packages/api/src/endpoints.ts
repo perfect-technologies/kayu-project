@@ -6,6 +6,7 @@ import type {
   CreateBookingDto,
   UpdateBookingDto,
   CreateReviewDto,
+  CreateClientReviewDto,
   CreateMessageDto,
   UpdateVisibilityDto,
   AdminUpdateUserDto,
@@ -29,12 +30,14 @@ import type {
   GeocodeParams,
   // Response types
   Booking,
+  ClientReview,
   MeResponse,
   CategoriesResponse,
   CategoryHierarchyResponse,
   ProvidersResponse,
   ProviderProfileResponse,
   BookingsResponse,
+  Review,
   ReviewsResponse,
   ConversationsResponse,
   MessagesResponse,
@@ -83,6 +86,11 @@ import type {
 import type { ApiClient } from "./client.js";
 
 type BookingMutationResponse = { success: boolean; booking: Booking };
+type ReviewMutationResponse = { success: boolean; review: Review };
+type ClientReviewMutationResponse = {
+  success: boolean;
+  clientReview: ClientReview;
+};
 
 // ---------- Identity ----------
 
@@ -145,7 +153,9 @@ export const reviewsApi = (client: ApiClient) => ({
       ...params,
     } as Record<string, string | number | boolean | undefined>),
   create: (data: CreateReviewDto) =>
-    client.post<{ success: boolean }>("/reviews", data),
+    client.post<ReviewMutationResponse>("/reviews", data),
+  createClient: (data: CreateClientReviewDto) =>
+    client.post<ClientReviewMutationResponse>("/reviews/clients", data),
 });
 
 // ---------- Messages ----------

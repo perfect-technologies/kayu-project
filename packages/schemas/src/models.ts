@@ -336,6 +336,19 @@ export const BookingReviewSummarySchema = z.object({
   createdAt: DateTimeSchema.optional(),
 });
 
+export const BookingClientReviewSummarySchema = z.object({
+  id: IdSchema,
+  bookingId: IdSchema,
+  clientId: IdSchema,
+  providerId: IdSchema,
+  rating: z.number().min(1).max(5).nullable().optional(),
+  paymentRating: PaymentRating.optional(),
+  paymentTimeliness: PaymentRating.optional(),
+  comment: z.string().nullable().optional(),
+  isPublic: z.boolean().optional(),
+  createdAt: DateTimeSchema.optional(),
+});
+
 export const BookingSchema = z.object({
   id: IdSchema,
   clientId: IdSchema.optional(),
@@ -365,6 +378,8 @@ export const BookingSchema = z.object({
   cancelledByRole: z.enum(["client", "provider", "admin"]).nullable().optional(),
   reviewed: z.boolean().optional(),
   myRating: z.number().nullable().optional(),
+  clientReviewed: z.boolean().optional(),
+  clientRating: z.number().nullable().optional(),
   createdAt: DateTimeSchema.optional(),
   updatedAt: DateTimeSchema.optional(),
   client: UserSummarySchema.optional(),
@@ -376,6 +391,7 @@ export const BookingSchema = z.object({
   }).optional(),
   service: ServiceSchema.pick({ id: true, name: true }).nullable().optional(),
   review: BookingReviewSummarySchema.nullable().optional(),
+  clientReview: BookingClientReviewSummarySchema.nullable().optional(),
 });
 
 export const ReviewSchema = z.object({
@@ -407,7 +423,7 @@ export const ClientReviewSchema = z.object({
   bookingId: IdSchema,
   clientId: IdSchema,
   providerId: IdSchema,
-  rating: z.number().min(1).max(5).optional(),
+  rating: z.number().min(1).max(5).nullable().optional(),
   paymentRating: PaymentRating.optional(),
   paymentTimeliness: PaymentRating.optional(),
   communication: z.number().int().min(1).max(5).nullable().optional(),

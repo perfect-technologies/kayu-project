@@ -140,6 +140,7 @@ export const CreateReviewDto = z.object({
   communication: RatingSchema.optional(),
   value: RatingSchema.optional(),
   professionalism: RatingSchema.optional(),
+  satisfactionTags: z.array(z.string().min(1)).max(10).default([]),
   comment: z.string().max(2000).optional(),
   isPublic: z.boolean().default(true),
 });

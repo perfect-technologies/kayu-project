@@ -74,6 +74,20 @@ const bookingInclude = {
       createdAt: true,
     },
   },
+  clientReview: {
+    select: {
+      id: true,
+      bookingId: true,
+      clientId: true,
+      providerId: true,
+      paymentTimeliness: true,
+      communication: true,
+      respectfulness: true,
+      comment: true,
+      isPublic: true,
+      createdAt: true,
+    },
+  },
 } satisfies Prisma.BookingInclude;
 
 const bookingDetailInclude = {
@@ -567,6 +581,10 @@ export class BookingsService {
       cancelledByRole: this.getCancelledByRole(booking),
       reviewed: Boolean(booking.review),
       myRating: booking.review ? this.roundRating(booking.review.overallScore) : null,
+      clientReviewed: Boolean(booking.clientReview),
+      clientRating: booking.clientReview
+        ? this.roundClientRating(booking.clientReview)
+        : null,
       createdAt: booking.createdAt,
       updatedAt: booking.updatedAt,
       client: booking.client,
@@ -606,11 +624,42 @@ export class BookingsService {
               booking.review.booking.service?.name ?? booking.review.booking.title,
           }
         : null,
+      clientReview: booking.clientReview
+        ? {
+            id: booking.clientReview.id,
+            bookingId: booking.clientReview.bookingId,
+            clientId: booking.clientReview.clientId,
+            providerId: booking.clientReview.providerId,
+            rating: this.roundClientRating(booking.clientReview),
+            paymentRating: booking.clientReview.paymentTimeliness,
+            paymentTimeliness: booking.clientReview.paymentTimeliness,
+            comment: booking.clientReview.comment,
+            isPublic: booking.clientReview.isPublic,
+            createdAt: booking.clientReview.createdAt,
+          }
+        : null,
     };
   }
 
   private roundRating(value: number) {
     return Math.round(value * 10) / 10;
+  }
+
+  private roundClientRating(review: {
+    communication: number | null;
+    respectfulness: number | null;
+  }) {
+    const ratings = [review.communication, review.respectfulness].filter(
+      (value): value is number => typeof value === "number",
+    );
+
+    if (ratings.length === 0) {
+      return null;
+    }
+
+    return this.roundRating(
+      ratings.reduce((sum, value) => sum + value, 0) / ratings.length,
+    );
   }
 
   private getCancelledByRole(booking: {
