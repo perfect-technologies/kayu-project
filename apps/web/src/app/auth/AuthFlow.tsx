@@ -82,7 +82,7 @@ const DEMO_ACCOUNTS = [
     hint: "Pilotage et modération",
     tone: "danger" as const,
     initials: "AK",
-    landing: "/admin" as const,
+    landing: "/dashboard/admin" as const,
   },
 ];
 
@@ -293,7 +293,7 @@ function AuthFlowInner() {
 
       // ADMIN or happy-path client
       await refreshUser();
-      router.replace(userRole === "ADMIN" ? "/admin" : "/");
+      router.replace(userRole === "ADMIN" ? "/dashboard/admin" : "/");
     } catch (err) {
       setOtpError(supabaseErrorCopy(err));
       setOtp(Array.from({ length: OTP_LENGTH }, () => ""));

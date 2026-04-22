@@ -6,7 +6,7 @@ This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`
 
 ## Current Phase
 
-WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
+WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next P0 launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -30,7 +30,7 @@ WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. 
 | WS-07 | P1 | Yes | Discovery, Map, And Filters | WS-06 | done | Codex | Changed mobile discovery filters/sort/map messaging, provider search pagination/filtering, provider card mapping, and provider-search regression tests. |
 | WS-08 | P1 | Yes | Reviews And Client Reputation | WS-02 | done | Codex | Changed backend/mobile review flows, booking review state, provider client-review path, shared review schemas/API, and focused backend review tests. |
 | WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | done | Codex | Added explicit launch storage stub, per-document admin review queue, provider-visible doc decisions, and focused backend verification/admin tests. |
-| WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | not_started | | Admin users and moderation workflow. |
+| WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | done | Codex | Added admin booking/dispute support tooling, fixed web admin route hygiene, and blocked mobile admins from client/provider tabs with a web-admin handoff screen. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | not_started | | Cash/offline vs paid booking policy. |
 | WS-12 | P1 | Yes | Test Harness | Can start after first P0 | not_started | | Regression coverage for launch-critical flows. |
 | WS-13 | P0/P1 | Yes if web launches | Web Launch Parity And Route Hygiene | WS-01/WS-02/WS-03 helpful | not_started | | Bring `apps/web` into parity with launch backend/mobile flows or hide unfinished web surfaces. |
@@ -42,7 +42,7 @@ WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. 
 | Web booking | Web booking success routes to review without a booking id; review can fake success without backend write. | `08-web-flow-audit.md` |
 | Web booking | Web provider booking detail has no confirm/start actions for direct bookings. | `08-web-flow-audit.md` |
 | Web messaging | Web first-contact dialog sends and closes without selecting or showing the created conversation. | `08-web-flow-audit.md` |
-| Web auth/admin | Web auth/admin routing still has launch gaps, including `/admin` redirect and web role-selection parity. | `08-web-flow-audit.md` |
+| Web auth | Web role-selection parity is still incomplete on web, even though `/admin` now redirects correctly and admin pages are role-guarded. | `08-web-flow-audit.md` |
 
 ## Decisions Log
 
@@ -55,6 +55,7 @@ WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. 
 | 2026-04-19 | Add web as a launch surface if public at launch. | `apps/web` implements client, provider, booking, messages, quote, and admin routes; it cannot be treated as marketing-only. |
 | 2026-04-20 | Keep the job request/quote flow exposed for launch and complete the client path instead of hiding provider quote entry points. | Mobile clients can now create requests, view quotes, accept/decline, and open the confirmed booking created from an accepted quote. |
 | 2026-04-21 | Hide mobile discovery map mode for launch instead of shipping a placeholder toggle. | Provider search results do not have reliable per-result map coordinates yet; the launch UI should not imply geographic precision that the backend cannot provide. |
+| 2026-04-22 | Keep the launch admin surface on web; mobile admin logins must stop at an explicit handoff screen instead of reusing client tabs. | Admin moderation/support is now coherent on the web dashboard, while mobile would otherwise drop admins into misleading client/provider flows. |
 
 ## Validation Evidence
 
@@ -192,6 +193,21 @@ pnpm --filter @kayu/web type-check
 
 Result: passed on 2026-04-22.
 
+WS-10 validation:
+
+```bash
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/backend exec node --test -r ts-node/register src/modules/admin/admin.service.spec.ts
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/web type-check
+pnpm --filter @kayu/mobile type-check
+```
+
+Result: passed on 2026-04-22. Web/mobile type-checks were run after rebuilding `@kayu/schemas` and `@kayu/api` because those workspaces consume generated declaration files.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -294,3 +310,11 @@ When handing back:
 - Made admin document review derive provider `verificationStatus` from actual `VerificationDoc` decisions, update the provider’s public `isVerified` state and trust artifacts in lockstep, and log review activity for traceability.
 - Fixed manual admin rejection/verification overrides so they write back to `VerificationDoc` instead of unrelated certifications, and added focused backend coverage in `apps/backend/src/modules/{admin,verification}/*.spec.ts`.
 - Revalidated with `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/api build`, `pnpm --filter @kayu/{schemas,api,backend,web,mobile} type-check`, and `node --test -r ts-node/register src/modules/verification/verification.service.spec.ts src/modules/admin/admin.service.spec.ts` from `apps/backend`.
+
+### 2026-04-22 — WS-10 Admin / Ops MVP
+
+- Kept the launch admin surface on web and made it coherent: `/admin` now redirects to `/dashboard/admin`, the web auth flow lands admins on `/dashboard/admin`, admin pages are role-guarded, and the shared dashboard shell points to real admin tabs instead of dead routes.
+- Replaced the placeholder admin settings tab with a real support workspace in `apps/web/src/app/dashboard/admin/page.tsx`, including booking lookup, dispute queue, ticket creation, and ticket resolution controls.
+- Added backend admin support endpoints in `apps/backend/src/modules/admin/*` plus shared schema/API/query-key contracts so ops can search bookings and manage disputes without database access.
+- Added focused admin service coverage for booking support lookup and dispute create/resolve flows in `apps/backend/src/modules/admin/admin.service.spec.ts`.
+- Blocked mobile admins from falling through client/provider navigation by routing `ADMIN` users to a dedicated handoff screen in `apps/mobile/src/screens/admin/AdminLaunchScreen.tsx` that directs launch ops to the web admin dashboard.

@@ -5,6 +5,10 @@ import {
 } from "@nestjs/common";
 import type {
   BadgeType,
+  BookingStatus,
+  DisputeOrigin,
+  DisputeSeverity,
+  DisputeStatus,
   Prisma,
   TrustLevel,
   User,
@@ -56,6 +60,21 @@ type AdminReviewQuery = {
   search?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+};
+
+type AdminSupportBookingQuery = {
+  page: number;
+  limit: number;
+  status?: BookingStatus;
+  search?: string;
+};
+
+type AdminDisputeQuery = {
+  page: number;
+  limit: number;
+  status?: DisputeStatus;
+  severity?: DisputeSeverity;
+  search?: string;
 };
 
 type UpdateUserBody = {
@@ -113,6 +132,23 @@ type ModerateReviewBody = {
   isPublic?: boolean;
   isEdited?: boolean;
   reply?: string | null;
+};
+
+type CreateDisputeBody = {
+  bookingId: string;
+  reporterRole: DisputeOrigin;
+  reason: string;
+  statement: string;
+  severity?: DisputeSeverity;
+};
+
+type UpdateDisputeBody = {
+  disputeId: string;
+  status?: DisputeStatus;
+  severity?: DisputeSeverity;
+  resolution?: string | null;
+  resolutionPct?: number | null;
+  deadlineAt?: string | Date | null;
 };
 
 const managedBadges: BadgeType[] = [
@@ -185,6 +221,14 @@ const REQUIRED_VERIFICATION_KINDS = [
   "ADDRESS",
 ] as const;
 
+const ACTIVE_DISPUTE_STATUSES: DisputeStatus[] = [
+  "NEW",
+  "PENDING_PRO",
+  "PENDING_CLIENT",
+  "INVESTIGATING",
+  "ESCALATED",
+];
+
 const adminVerificationInclude = {
   user: {
     select: {
@@ -206,6 +250,92 @@ type AdminProviderRecord = Prisma.ProviderGetPayload<{
 
 type AdminVerificationRecord = Prisma.ProviderGetPayload<{
   include: typeof adminVerificationInclude;
+}>;
+
+const adminSupportBookingInclude = {
+  client: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+    },
+  },
+  provider: {
+    select: {
+      id: true,
+      userId: true,
+      profession: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  },
+  disputes: {
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      status: true,
+      severity: true,
+      createdAt: true,
+    },
+  },
+} satisfies Prisma.BookingInclude;
+
+type AdminSupportBookingRecord = Prisma.BookingGetPayload<{
+  include: typeof adminSupportBookingInclude;
+}>;
+
+const adminDisputeInclude = {
+  booking: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      price: true,
+      scheduledDate: true,
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          avatar: true,
+        },
+      },
+      provider: {
+        select: {
+          id: true,
+          userId: true,
+          profession: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  evidences: {
+    orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+  },
+} satisfies Prisma.DisputeInclude;
+
+type AdminDisputeRecord = Prisma.DisputeGetPayload<{
+  include: typeof adminDisputeInclude;
 }>;
 
 @Injectable()
@@ -1230,6 +1360,286 @@ export class AdminService {
     };
   }
 
+  async listSupportBookings(query: AdminSupportBookingQuery) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, query.limit || 10);
+    const where = this.buildSupportBookingWhere(query);
+
+    const [total, bookings] = await Promise.all([
+      this.prisma.booking.count({ where }),
+      this.prisma.booking.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        include: adminSupportBookingInclude,
+      }),
+    ]);
+
+    return {
+      success: true as const,
+      bookings: bookings.map((booking) => this.mapSupportBooking(booking)),
+      pagination: this.buildPagination(page, limit, total),
+    };
+  }
+
+  async listDisputes(query: AdminDisputeQuery) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, query.limit || 10);
+    const where = this.buildDisputeWhere(query);
+    const baseWhere = this.buildDisputeWhere({ ...query, status: undefined });
+
+    const [total, disputes, open, escalated, resolved] = await Promise.all([
+      this.prisma.dispute.count({ where }),
+      this.prisma.dispute.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: [{ resolvedAt: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+        include: adminDisputeInclude,
+      }),
+      this.prisma.dispute.count({
+        where: {
+          ...baseWhere,
+          status: {
+            in: ACTIVE_DISPUTE_STATUSES,
+          },
+        },
+      }),
+      this.prisma.dispute.count({
+        where: {
+          ...baseWhere,
+          status: "ESCALATED",
+        },
+      }),
+      this.prisma.dispute.count({
+        where: {
+          ...baseWhere,
+          status: "RESOLVED",
+        },
+      }),
+    ]);
+
+    return {
+      success: true as const,
+      disputes: disputes.map((dispute) => this.mapAdminDispute(dispute)),
+      pagination: this.buildPagination(page, limit, total),
+      stats: {
+        open,
+        escalated,
+        resolved,
+      },
+    };
+  }
+
+  async createDispute(actor: User, body: CreateDisputeBody, ipAddress?: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: body.bookingId },
+      select: {
+        id: true,
+        title: true,
+        clientId: true,
+        providerId: true,
+        provider: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    const existingActiveDispute = await this.prisma.dispute.findFirst({
+      where: {
+        bookingId: body.bookingId,
+        status: {
+          in: ACTIVE_DISPUTE_STATUSES,
+        },
+      },
+      select: {
+        id: true,
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    if (existingActiveDispute) {
+      throw new BadRequestException(
+        "An active support ticket already exists for this booking",
+      );
+    }
+
+    const dispute = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.dispute.create({
+        data: {
+          bookingId: body.bookingId,
+          origin: body.reporterRole,
+          openedById:
+            body.reporterRole === "CLIENT"
+              ? booking.clientId
+              : booking.provider.userId,
+          reason: body.reason.trim(),
+          clientStatement:
+            body.reporterRole === "CLIENT" ? body.statement.trim() : null,
+          proStatement:
+            body.reporterRole === "PROVIDER" ? body.statement.trim() : null,
+          severity: body.severity ?? "MEDIUM",
+          status:
+            body.reporterRole === "CLIENT" ? "PENDING_PRO" : "PENDING_CLIENT",
+        },
+        include: adminDisputeInclude,
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "CREATE_DISPUTE",
+          entityType: "Dispute",
+          entityId: created.id,
+          metadata: {
+            bookingId: body.bookingId,
+            reporterRole: body.reporterRole,
+            severity: created.severity,
+            status: created.status,
+          },
+          ipAddress,
+        },
+      });
+
+      const notificationTargets = [
+        created.booking.client.id,
+        created.booking.provider.user.id,
+      ];
+      await Promise.all(
+        notificationTargets.map((userId) =>
+          this.notifications.create(
+            {
+              userId,
+              type: "SYSTEM",
+              title: "Support ticket ouvert",
+              message: `Un ticket support a ete ouvert pour la reservation ${booking.title}.`,
+            },
+            tx,
+          ),
+        ),
+      );
+
+      return created;
+    });
+
+    return {
+      success: true as const,
+      dispute: this.mapAdminDispute(dispute),
+      message: "Support ticket created successfully",
+    };
+  }
+
+  async updateDispute(actor: User, body: UpdateDisputeBody, ipAddress?: string) {
+    const dispute = await this.prisma.dispute.findUnique({
+      where: { id: body.disputeId },
+      select: {
+        id: true,
+        status: true,
+        severity: true,
+        booking: {
+          select: {
+            title: true,
+            clientId: true,
+            provider: {
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!dispute) {
+      throw new NotFoundException("Dispute not found");
+    }
+
+    const nextStatus = body.status ?? dispute.status;
+    const resolution = body.resolution === undefined ? undefined : body.resolution?.trim() || null;
+
+    if (nextStatus === "RESOLVED" && !resolution) {
+      throw new BadRequestException("Resolution note is required");
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.dispute.update({
+        where: { id: body.disputeId },
+        data: {
+          status: body.status,
+          severity: body.severity,
+          resolution,
+          resolutionPct:
+            body.resolutionPct === undefined ? undefined : body.resolutionPct,
+          deadlineAt:
+            body.deadlineAt === undefined
+              ? undefined
+              : body.deadlineAt
+                ? new Date(body.deadlineAt)
+                : null,
+          resolvedAt:
+            body.status === undefined
+              ? undefined
+              : body.status === "RESOLVED"
+                ? new Date()
+                : null,
+        },
+        include: adminDisputeInclude,
+      });
+
+      await tx.activityLog.create({
+        data: {
+          userId: actor.id,
+          action: "UPDATE_DISPUTE",
+          entityType: "Dispute",
+          entityId: body.disputeId,
+          metadata: {
+            previousStatus: dispute.status,
+            status: body.status,
+            previousSeverity: dispute.severity,
+            severity: body.severity,
+            resolutionPct: body.resolutionPct,
+            hasResolution: Boolean(resolution),
+          },
+          ipAddress,
+        },
+      });
+
+      const transitionedToResolved =
+        dispute.status !== "RESOLVED" && saved.status === "RESOLVED";
+
+      if (transitionedToResolved) {
+        await Promise.all(
+          [saved.booking.client.id, saved.booking.provider.user.id].map((userId) =>
+            this.notifications.create(
+              {
+                userId,
+                type: "SYSTEM",
+                title: "Support ticket resolu",
+                message: `Le ticket support pour la reservation ${saved.booking.title} a ete marque comme resolu.`,
+              },
+              tx,
+            ),
+          ),
+        );
+      }
+
+      return saved;
+    });
+
+    return {
+      success: true as const,
+      dispute: this.mapAdminDispute(updated),
+      message: "Support ticket updated successfully",
+    };
+  }
+
   private buildUserWhere(query: AdminUserQuery): Prisma.UserWhereInput {
     const where: Prisma.UserWhereInput = {};
 
@@ -1281,6 +1691,155 @@ export class AdminService {
           { user: { firstName: { contains: query.search, mode: "insensitive" } } },
           { user: { lastName: { contains: query.search, mode: "insensitive" } } },
           { user: { email: { contains: query.search, mode: "insensitive" } } },
+        ],
+      });
+    }
+
+    return conditions.length > 0 ? { AND: conditions } : {};
+  }
+
+  private buildSupportBookingWhere(
+    query: AdminSupportBookingQuery,
+  ): Prisma.BookingWhereInput {
+    const conditions: Prisma.BookingWhereInput[] = [];
+
+    if (query.status) {
+      conditions.push({ status: query.status });
+    }
+
+    if (query.search) {
+      conditions.push({
+        OR: [
+          { id: { contains: query.search, mode: "insensitive" } },
+          { title: { contains: query.search, mode: "insensitive" } },
+          { city: { contains: query.search, mode: "insensitive" } },
+          { address: { contains: query.search, mode: "insensitive" } },
+          {
+            client: {
+              firstName: { contains: query.search, mode: "insensitive" },
+            },
+          },
+          {
+            client: {
+              lastName: { contains: query.search, mode: "insensitive" },
+            },
+          },
+          { client: { email: { contains: query.search, mode: "insensitive" } } },
+          { client: { phone: { contains: query.search, mode: "insensitive" } } },
+          {
+            provider: {
+              profession: { contains: query.search, mode: "insensitive" },
+            },
+          },
+          {
+            provider: {
+              user: {
+                firstName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+          {
+            provider: {
+              user: {
+                lastName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+          {
+            provider: {
+              user: {
+                email: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    return conditions.length > 0 ? { AND: conditions } : {};
+  }
+
+  private buildDisputeWhere(query: AdminDisputeQuery): Prisma.DisputeWhereInput {
+    const conditions: Prisma.DisputeWhereInput[] = [];
+
+    if (query.status) {
+      conditions.push({ status: query.status });
+    }
+
+    if (query.severity) {
+      conditions.push({ severity: query.severity });
+    }
+
+    if (query.search) {
+      conditions.push({
+        OR: [
+          { id: { contains: query.search, mode: "insensitive" } },
+          { bookingId: { contains: query.search, mode: "insensitive" } },
+          { reason: { contains: query.search, mode: "insensitive" } },
+          { clientStatement: { contains: query.search, mode: "insensitive" } },
+          { proStatement: { contains: query.search, mode: "insensitive" } },
+          { resolution: { contains: query.search, mode: "insensitive" } },
+          {
+            booking: {
+              title: {
+                contains: query.search,
+                mode: "insensitive",
+              },
+            },
+          },
+          {
+            booking: {
+              client: {
+                firstName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+          {
+            booking: {
+              client: {
+                lastName: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
+              },
+            },
+          },
+          {
+            booking: {
+              provider: {
+                user: {
+                  firstName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          },
+          {
+            booking: {
+              provider: {
+                user: {
+                  lastName: {
+                    contains: query.search,
+                    mode: "insensitive",
+                  },
+                },
+              },
+            },
+          },
         ],
       });
     }
@@ -1640,6 +2199,122 @@ export class AdminService {
     };
   }
 
+  private mapSupportBooking(booking: AdminSupportBookingRecord) {
+    const activeDispute = booking.disputes.find((dispute) =>
+      ACTIVE_DISPUTE_STATUSES.includes(dispute.status),
+    );
+    const latestDispute = booking.disputes[0] ?? null;
+
+    return {
+      id: booking.id,
+      title: booking.title,
+      status: booking.status,
+      scheduledDate: booking.scheduledDate,
+      createdAt: booking.createdAt,
+      price: booking.price,
+      city: booking.city,
+      address: booking.address,
+      isPaid: booking.isPaid,
+      paymentMethod: booking.paymentMethod ?? null,
+      client: {
+        id: booking.client.id,
+        name: this.formatDisplayName(
+          booking.client.firstName,
+          booking.client.lastName,
+          "Client",
+        ),
+        email: booking.client.email,
+        phone: booking.client.phone,
+      },
+      provider: {
+        id: booking.provider.id,
+        userId: booking.provider.userId,
+        name: this.formatDisplayName(
+          booking.provider.user.firstName,
+          booking.provider.user.lastName,
+          "Prestataire",
+        ),
+        profession: booking.provider.profession,
+        email: booking.provider.user.email,
+        phone: booking.provider.user.phone,
+      },
+      support: {
+        disputeCount: booking.disputes.length,
+        activeDisputeId: activeDispute?.id ?? null,
+        activeDisputeStatus: activeDispute?.status ?? null,
+        activeDisputeSeverity: activeDispute?.severity ?? null,
+        lastDisputeAt: latestDispute?.createdAt ?? null,
+      },
+    };
+  }
+
+  private mapAdminDispute(dispute: AdminDisputeRecord) {
+    return {
+      id: dispute.id,
+      bookingId: dispute.bookingId,
+      origin: dispute.origin,
+      openedById: dispute.openedById,
+      reason: dispute.reason,
+      clientStatement: dispute.clientStatement,
+      proStatement: dispute.proStatement,
+      status: dispute.status,
+      severity: dispute.severity,
+      resolution: dispute.resolution,
+      resolutionPct: dispute.resolutionPct,
+      resolvedAt: dispute.resolvedAt,
+      deadlineAt: dispute.deadlineAt,
+      createdAt: dispute.createdAt,
+      updatedAt: dispute.updatedAt,
+      evidences: dispute.evidences.map((evidence) => ({
+        id: evidence.id,
+        url: evidence.url,
+        note: evidence.note,
+        uploadedAt: evidence.uploadedAt,
+        uploadedByRole:
+          evidence.uploadedById === dispute.booking.client.id
+            ? "client"
+            : evidence.uploadedById === dispute.booking.provider.user.id
+              ? "pro"
+              : "ops",
+      })),
+      booking: {
+        id: dispute.booking.id,
+        title: dispute.booking.title,
+        status: dispute.booking.status,
+        price: dispute.booking.price,
+        scheduledDate: dispute.booking.scheduledDate,
+        client: {
+          id: dispute.booking.client.id,
+          name: this.formatDisplayName(
+            dispute.booking.client.firstName,
+            dispute.booking.client.lastName,
+            "Client",
+          ),
+          email: dispute.booking.client.email,
+          phone: dispute.booking.client.phone,
+        },
+        provider: {
+          id: dispute.booking.provider.id,
+          userId: dispute.booking.provider.userId,
+          name: this.formatDisplayName(
+            dispute.booking.provider.user.firstName,
+            dispute.booking.provider.user.lastName,
+            "Prestataire",
+          ),
+          profession: dispute.booking.provider.profession,
+          email: dispute.booking.provider.user.email,
+          phone: dispute.booking.provider.user.phone,
+        },
+      },
+      client: {
+        id: dispute.booking.client.id,
+        firstName: dispute.booking.client.firstName,
+        lastName: dispute.booking.client.lastName,
+        avatar: dispute.booking.client.avatar,
+      },
+    };
+  }
+
   private buildVerificationQueueWhere(query: AdminVerificationQueueQuery) {
     const search = query.search?.trim();
     const where: Prisma.ProviderWhereInput = {
@@ -1912,9 +2587,10 @@ export class AdminService {
   private formatDisplayName(
     firstName?: string | null,
     lastName?: string | null,
+    fallback = "Prestataire",
   ) {
     const value = [firstName, lastName].filter(Boolean).join(" ").trim();
-    return value || "Prestataire";
+    return value || fallback;
   }
 
   private async syncProviderTrustArtifacts(

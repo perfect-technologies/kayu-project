@@ -63,6 +63,27 @@ type AdminReviewQuery = {
   sortOrder?: "asc" | "desc";
 };
 
+type AdminSupportBookingQuery = {
+  page: number;
+  limit: number;
+  status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  search?: string;
+};
+
+type AdminDisputeQuery = {
+  page: number;
+  limit: number;
+  status?:
+    | "NEW"
+    | "PENDING_PRO"
+    | "PENDING_CLIENT"
+    | "INVESTIGATING"
+    | "ESCALATED"
+    | "RESOLVED";
+  severity?: "LOW" | "MEDIUM" | "HIGH";
+  search?: string;
+};
+
 type UpdateUserBody = {
   userId: string;
   firstName?: string;
@@ -120,6 +141,29 @@ type ModerateReviewBody = {
   reply?: string | null;
 };
 
+type CreateDisputeBody = {
+  bookingId: string;
+  reporterRole: "CLIENT" | "PROVIDER";
+  reason: string;
+  statement: string;
+  severity?: "LOW" | "MEDIUM" | "HIGH";
+};
+
+type UpdateDisputeBody = {
+  disputeId: string;
+  status?:
+    | "NEW"
+    | "PENDING_PRO"
+    | "PENDING_CLIENT"
+    | "INVESTIGATING"
+    | "ESCALATED"
+    | "RESOLVED";
+  severity?: "LOW" | "MEDIUM" | "HIGH";
+  resolution?: string | null;
+  resolutionPct?: number | null;
+  deadlineAt?: string | Date | null;
+};
+
 const usersQueryPipe = new LazyZodValidationPipe(async () => {
   const { AdminUserSearchParams } = await import("@kayu/schemas");
   return AdminUserSearchParams;
@@ -170,9 +214,29 @@ const reviewsQueryPipe = new LazyZodValidationPipe(async () => {
   return AdminReviewSearchParams;
 });
 
+const supportBookingsQueryPipe = new LazyZodValidationPipe(async () => {
+  const { AdminSupportBookingSearchParams } = await import("@kayu/schemas");
+  return AdminSupportBookingSearchParams;
+});
+
+const disputesQueryPipe = new LazyZodValidationPipe(async () => {
+  const { AdminDisputeSearchParams } = await import("@kayu/schemas");
+  return AdminDisputeSearchParams;
+});
+
 const moderateReviewBodyPipe = new LazyZodValidationPipe(async () => {
   const { AdminModerateReviewDto } = await import("@kayu/schemas");
   return AdminModerateReviewDto;
+});
+
+const createDisputeBodyPipe = new LazyZodValidationPipe(async () => {
+  const { AdminCreateDisputeDto } = await import("@kayu/schemas");
+  return AdminCreateDisputeDto;
+});
+
+const updateDisputeBodyPipe = new LazyZodValidationPipe(async () => {
+  const { AdminUpdateDisputeDto } = await import("@kayu/schemas");
+  return AdminUpdateDisputeDto;
 });
 
 @Controller("admin")
@@ -280,5 +344,35 @@ export class AdminController {
     @Req() request: Request,
   ) {
     return this.admin.deleteReview(actor, reviewId ?? id ?? "", request.ip);
+  }
+
+  @Get("bookings/support")
+  listSupportBookings(
+    @Query(supportBookingsQueryPipe) query: AdminSupportBookingQuery,
+  ) {
+    return this.admin.listSupportBookings(query);
+  }
+
+  @Get("disputes")
+  listDisputes(@Query(disputesQueryPipe) query: AdminDisputeQuery) {
+    return this.admin.listDisputes(query);
+  }
+
+  @Post("disputes")
+  createDispute(
+    @CurrentActor() actor: Actor,
+    @Body(createDisputeBodyPipe) body: CreateDisputeBody,
+    @Req() request: Request,
+  ) {
+    return this.admin.createDispute(actor, body, request.ip);
+  }
+
+  @Put("disputes")
+  updateDispute(
+    @CurrentActor() actor: Actor,
+    @Body(updateDisputeBodyPipe) body: UpdateDisputeBody,
+    @Req() request: Request,
+  ) {
+    return this.admin.updateDispute(actor, body, request.ip);
   }
 }

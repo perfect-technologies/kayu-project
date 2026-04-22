@@ -4,6 +4,7 @@ import {
   DateTimeSchema,
   IdSchema,
   JsonObjectSchema,
+  PaginationMetaSchema,
   PaginationParams,
   createApiSuccessResponseSchema,
 } from "./common.js";
@@ -37,6 +38,12 @@ import {
   UserSchema,
   VisibilitySettingsSchema,
 } from "./models.js";
+import {
+  DisputeOrigin,
+  DisputeSchema,
+  DisputeSeverity,
+  DisputeStatus,
+} from "./verification.js";
 
 const RatingSchema = z.number().int().min(1).max(5);
 
@@ -313,6 +320,143 @@ export const AdminReviewSearchParams = PaginationParams.extend({
 
 export const AdminCategorySearchParams = z.object({
   includeInactive: BooleanQueryParamSchema.optional(),
+});
+
+export const AdminSupportBookingSearchParams = PaginationParams.extend({
+  status: BookingStatus.optional(),
+  search: z.string().optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const AdminSupportBookingSummarySchema = z.object({
+  id: IdSchema,
+  title: z.string(),
+  status: BookingStatus,
+  scheduledDate: DateTimeSchema.nullable().optional(),
+  createdAt: DateTimeSchema,
+  price: z.number().nullable().optional(),
+  city: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  isPaid: z.boolean(),
+  paymentMethod: z.string().nullable().optional(),
+  client: z.object({
+    id: IdSchema,
+    name: z.string(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+  }),
+  provider: z.object({
+    id: IdSchema,
+    userId: IdSchema,
+    name: z.string(),
+    profession: z.string(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+  }),
+  support: z.object({
+    disputeCount: z.number().int().min(0),
+    activeDisputeId: IdSchema.nullable(),
+    activeDisputeStatus: DisputeStatus.nullable(),
+    activeDisputeSeverity: DisputeSeverity.nullable(),
+    lastDisputeAt: DateTimeSchema.nullable(),
+  }),
+});
+
+export const AdminSupportBookingsResponseSchema = z.object({
+  success: z.literal(true),
+  bookings: z.array(AdminSupportBookingSummarySchema),
+  pagination: PaginationMetaSchema,
+});
+
+export const AdminDisputeSearchParams = PaginationParams.extend({
+  status: DisputeStatus.optional(),
+  severity: DisputeSeverity.optional(),
+  search: z.string().optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const AdminDisputeSummarySchema = DisputeSchema.extend({
+  booking: z
+    .object({
+      id: IdSchema,
+      title: z.string(),
+      status: BookingStatus,
+      price: z.number().nullable().optional(),
+      scheduledDate: DateTimeSchema.nullable().optional(),
+      client: z.object({
+        id: IdSchema,
+        name: z.string(),
+        email: z.string().nullable(),
+        phone: z.string().nullable(),
+      }),
+      provider: z.object({
+        id: IdSchema,
+        userId: IdSchema,
+        name: z.string(),
+        profession: z.string(),
+        email: z.string().nullable(),
+        phone: z.string().nullable(),
+      }),
+    })
+    .nullable(),
+});
+
+export const AdminDisputesResponseSchema = z.object({
+  success: z.literal(true),
+  disputes: z.array(AdminDisputeSummarySchema),
+  pagination: PaginationMetaSchema,
+  stats: z.object({
+    open: z.number().int().min(0),
+    escalated: z.number().int().min(0),
+    resolved: z.number().int().min(0),
+  }),
+});
+
+export const AdminCreateDisputeDto = z.object({
+  bookingId: IdSchema,
+  reporterRole: DisputeOrigin,
+  reason: z.string().trim().min(10).max(500),
+  statement: z.string().trim().min(10).max(2000),
+  severity: DisputeSeverity.default("MEDIUM"),
+});
+
+export const AdminUpdateDisputeDto = z
+  .object({
+    disputeId: IdSchema,
+    status: DisputeStatus.optional(),
+    severity: DisputeSeverity.optional(),
+    resolution: z.string().trim().min(3).max(2000).nullable().optional(),
+    resolutionPct: z.number().int().min(0).max(100).nullable().optional(),
+    deadlineAt: DateTimeSchema.nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.status === undefined &&
+      value.severity === undefined &&
+      value.resolution === undefined &&
+      value.resolutionPct === undefined &&
+      value.deadlineAt === undefined
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "At least one dispute field must be updated",
+      });
+    }
+
+    if (value.status === "RESOLVED" && !value.resolution?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["resolution"],
+        message: "Resolution note is required when resolving a dispute",
+      });
+    }
+  });
+
+export const AdminDisputeMutationResponseSchema = z.object({
+  success: z.literal(true),
+  dispute: AdminDisputeSummarySchema,
 });
 
 export const DistanceParams = z.object({
@@ -867,6 +1011,23 @@ export type AdminUserSearchParams = z.infer<typeof AdminUserSearchParams>;
 export type AdminProviderSearchParams = z.infer<typeof AdminProviderSearchParams>;
 export type AdminReviewSearchParams = z.infer<typeof AdminReviewSearchParams>;
 export type AdminCategorySearchParams = z.infer<typeof AdminCategorySearchParams>;
+export type AdminSupportBookingSearchParams = z.infer<
+  typeof AdminSupportBookingSearchParams
+>;
+export type AdminSupportBookingSummary = z.infer<
+  typeof AdminSupportBookingSummarySchema
+>;
+export type AdminSupportBookingsResponse = z.infer<
+  typeof AdminSupportBookingsResponseSchema
+>;
+export type AdminDisputeSearchParams = z.infer<typeof AdminDisputeSearchParams>;
+export type AdminDisputeSummary = z.infer<typeof AdminDisputeSummarySchema>;
+export type AdminDisputesResponse = z.infer<typeof AdminDisputesResponseSchema>;
+export type AdminCreateDisputeDto = z.infer<typeof AdminCreateDisputeDto>;
+export type AdminUpdateDisputeDto = z.infer<typeof AdminUpdateDisputeDto>;
+export type AdminDisputeMutationResponse = z.infer<
+  typeof AdminDisputeMutationResponseSchema
+>;
 export type DistanceParams = z.infer<typeof DistanceParams>;
 export type GeocodeParams = z.infer<typeof GeocodeParams>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +38,7 @@ import {
   Shield,
   Users,
   Inbox,
+  FileText,
   BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -72,22 +73,23 @@ const providerNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
-  { name: 'Tableau de bord', href: '/dashboard/admin', icon: LayoutDashboard },
-  { name: 'Utilisateurs', href: '/dashboard/admin/users', icon: Users },
-  { name: 'Prestataires', href: '/dashboard/admin/providers', icon: Briefcase },
-  { name: 'Réservations', href: '/bookings', icon: Calendar },
-  { name: 'Catégories', href: '/dashboard/admin/categories', icon: Briefcase },
-  { name: 'Statistiques', href: '/dashboard/admin/stats', icon: TrendingUp },
-  { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
+  { name: 'Tableau de bord', href: '/dashboard/admin?tab=overview', icon: LayoutDashboard },
+  { name: 'Utilisateurs', href: '/dashboard/admin?tab=users', icon: Users },
+  { name: 'Prestataires', href: '/dashboard/admin?tab=providers', icon: Briefcase },
+  { name: 'Catégories', href: '/dashboard/admin?tab=categories', icon: FileText },
+  { name: 'Avis', href: '/dashboard/admin?tab=reviews', icon: MessageSquare },
+  { name: 'Support', href: '/dashboard/admin?tab=support', icon: HelpCircle },
 ];
 
 function SidebarContent({
   userRole,
   currentPath,
+  currentAdminTab,
   onNavigate,
 }: {
   userRole: 'CLIENT' | 'PROVIDER' | 'ADMIN';
   currentPath: string;
+  currentAdminTab?: string;
   onNavigate?: () => void;
 }) {
   const navItems =
@@ -98,6 +100,13 @@ function SidebarContent({
         : clientNavItems;
 
   const isItemActive = (href: string) => {
+    if (userRole === 'ADMIN') {
+      const [path, query] = href.split('?tab=');
+      if (path === '/dashboard/admin') {
+        return currentPath === path && (query ?? 'overview') === (currentAdminTab ?? 'overview');
+      }
+    }
+
     if (href === currentPath) return true;
     // Exact match on dashboard roots so they don't swallow sibling routes
     // (e.g. /pro/earnings shouldn't also light up /pro).
@@ -215,6 +224,7 @@ export function AppShell({
   const { user, isLoading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -236,6 +246,7 @@ export function AppShell({
   }
 
   const userRole = user.role as 'CLIENT' | 'PROVIDER' | 'ADMIN';
+  const currentAdminTab = searchParams.get('tab') ?? 'overview';
 
   const handleLogout = async () => {
     await logout();
@@ -246,7 +257,11 @@ export function AppShell({
     <div className="min-h-screen bg-muted/30">
       {/* Desktop sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col border-r bg-background">
-        <SidebarContent userRole={userRole} currentPath={pathname} />
+        <SidebarContent
+          userRole={userRole}
+          currentPath={pathname}
+          currentAdminTab={currentAdminTab}
+        />
       </aside>
 
       {/* Mobile sidebar (Sheet) */}
@@ -255,6 +270,7 @@ export function AppShell({
           <SidebarContent
             userRole={userRole}
             currentPath={pathname}
+            currentAdminTab={currentAdminTab}
             onNavigate={() => setSidebarOpen(false)}
           />
         </SheetContent>

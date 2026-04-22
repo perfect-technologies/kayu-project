@@ -59,6 +59,7 @@ import { JobRequestsScreen } from '@/screens/pro/JobRequestsScreen';
 import { QuoteComposeScreen } from '@/screens/pro/QuoteComposeScreen';
 import { ProviderOnboardingScreen } from '@/screens/pro/ProviderOnboardingScreen';
 import { ProVerificationScreen } from '@/screens/pro/ProVerificationScreen';
+import { AdminLaunchScreen } from '@/screens/admin/AdminLaunchScreen';
 
 // --- Type definitions ---
 
@@ -146,6 +147,7 @@ const RequestsStack = createNativeStackNavigator<RequestsStackParamList>();
 const ClientRequestsStack =
   createNativeStackNavigator<ClientRequestsStackParamList>();
 const ProviderStack = createNativeStackNavigator<ProviderStackParamList>();
+const AdminStack = createNativeStackNavigator<{ AdminLaunch: undefined }>();
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 
 function AuthNavigator() {
@@ -325,6 +327,18 @@ function RequestsNavigator() {
   );
 }
 
+function AdminNavigator() {
+  return (
+    <AdminStack.Navigator screenOptions={HEADER_STYLE}>
+      <AdminStack.Screen
+        name="AdminLaunch"
+        component={AdminLaunchScreen}
+        options={{ title: 'Administration' }}
+      />
+    </AdminStack.Navigator>
+  );
+}
+
 function ClientRequestsNavigator() {
   return (
     <ClientRequestsStack.Navigator screenOptions={HEADER_STYLE}>
@@ -462,7 +476,7 @@ function ProTabs() {
 
 function MainNavigator() {
   const { user } = useAuth();
-  // Providers see the pro tab set; CLIENT + ADMIN (TODO: DS10) use client tabs.
+  if (user?.role === 'ADMIN') return <AdminNavigator />;
   if (user?.role === 'PROVIDER') return <ProTabs />;
   return <ClientTabs />;
 }

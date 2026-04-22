@@ -26,6 +26,13 @@ import type {
   AdminProviderSearchParams,
   AdminReviewSearchParams,
   AdminCategorySearchParams,
+  AdminSupportBookingSearchParams,
+  AdminSupportBookingsResponse,
+  AdminDisputeSearchParams,
+  AdminDisputesResponse,
+  AdminCreateDisputeDto,
+  AdminUpdateDisputeDto,
+  AdminDisputeMutationResponse,
   AdminVerificationQueueSearchParams,
   DistanceParams,
   GeocodeParams,
@@ -367,4 +374,20 @@ export const adminApi = (client: ApiClient) => ({
     client.put<{ success: boolean }>("/admin/reviews", data),
   deleteReview: (id: string) =>
     client.delete<{ success: boolean }>("/admin/reviews", { reviewId: id }),
+
+  // Support / disputes
+  getSupportBookings: (params?: Partial<AdminSupportBookingSearchParams>) =>
+    client.get<AdminSupportBookingsResponse>(
+      "/admin/bookings/support",
+      params as Record<string, string | number | boolean | undefined>,
+    ),
+  getDisputes: (params?: Partial<AdminDisputeSearchParams>) =>
+    client.get<AdminDisputesResponse>(
+      "/admin/disputes",
+      params as Record<string, string | number | boolean | undefined>,
+    ),
+  createDispute: (data: AdminCreateDisputeDto) =>
+    client.post<AdminDisputeMutationResponse>("/admin/disputes", data),
+  updateDispute: (data: AdminUpdateDisputeDto) =>
+    client.put<AdminDisputeMutationResponse>("/admin/disputes", data),
 });

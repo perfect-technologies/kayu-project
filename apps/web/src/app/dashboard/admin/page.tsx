@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api';
 import { dashboardApi, adminApi, queryKeys } from '@kayu/api';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -90,14 +91,38 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-type TabValue = 'overview' | 'users' | 'providers' | 'categories' | 'reviews' | 'settings';
+type TabValue =
+  | 'overview'
+  | 'users'
+  | 'providers'
+  | 'categories'
+  | 'reviews'
+  | 'support';
+
+function parseAdminTab(value: string | null): TabValue {
+  switch (value) {
+    case 'users':
+    case 'providers':
+    case 'categories':
+    case 'reviews':
+    case 'support':
+      return value;
+    default:
+      return 'overview';
+  }
+}
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabValue>('overview');
+  const isAdmin = user?.role === 'ADMIN';
+  const [activeTab, setActiveTab] = useState<TabValue>(() =>
+    parseAdminTab(searchParams.get('tab')),
+  );
 
   // Users filters
   const [usersSearch, setUsersSearch] = useState('');
@@ -120,12 +145,54 @@ export default function AdminDashboardPage() {
   const [reviewsPublicFilter, setReviewsPublicFilter] = useState('all');
   const [reviewsPage, setReviewsPage] = useState(1);
 
+  // Support filters
+  const [supportSearch, setSupportSearch] = useState('');
+  const [supportBookingStatusFilter, setSupportBookingStatusFilter] = useState('all');
+  const [supportBookingsPage, setSupportBookingsPage] = useState(1);
+  const [disputesStatusFilter, setDisputesStatusFilter] = useState('all');
+  const [disputesPage, setDisputesPage] = useState(1);
+  const [createDisputeDialog, setCreateDisputeDialog] = useState<{
+    open: boolean;
+    booking: any | null;
+  }>({ open: false, booking: null });
+  const [createDisputeDraft, setCreateDisputeDraft] = useState({
+    reporterRole: 'CLIENT',
+    severity: 'MEDIUM',
+    reason: '',
+    statement: '',
+  });
+  const [updateDisputeDialog, setUpdateDisputeDialog] = useState<{
+    open: boolean;
+    dispute: any | null;
+  }>({ open: false, dispute: null });
+  const [updateDisputeDraft, setUpdateDisputeDraft] = useState({
+    status: 'INVESTIGATING',
+    severity: 'MEDIUM',
+    resolution: '',
+    resolutionPct: '',
+  });
+
   // Category dialog
   const [categoryDialog, setCategoryDialog] = useState<{
     open: boolean;
     mode: 'create' | 'edit';
     category: any | null;
   }>({ open: false, mode: 'create', category: null });
+
+  useEffect(() => {
+    setActiveTab(parseAdminTab(searchParams.get('tab')));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (user && user.role !== 'ADMIN') {
+      router.replace('/dashboard');
+    }
+  }, [router, user]);
+
+  const handleTabChange = (nextTab: TabValue) => {
+    setActiveTab(nextTab);
+    router.replace(`/dashboard/admin?tab=${nextTab}`, { scroll: false });
+  };
 
   // ---- Queries ----
 
@@ -137,7 +204,7 @@ export default function AdminDashboardPage() {
   } = useQuery({
     queryKey: queryKeys.dashboard.admin,
     queryFn: () => dashboardApi(apiClient).getAdminDashboard(),
-    enabled: !!user,
+    enabled: isAdmin,
   });
 
   const { data: usersData } = useQuery({
@@ -156,7 +223,7 @@ export default function AdminDashboardPage() {
         role: usersRoleFilter !== 'all' ? (usersRoleFilter as any) : undefined,
         status: usersStatusFilter !== 'all' ? (usersStatusFilter as any) : undefined,
       }),
-    enabled: activeTab === 'users' && !!user,
+    enabled: activeTab === 'users' && isAdmin,
   });
 
   const { data: providersData } = useQuery({
@@ -173,7 +240,7 @@ export default function AdminDashboardPage() {
         search: providersSearch || undefined,
         status: providersStatusFilter !== 'all' ? (providersStatusFilter as any) : undefined,
       }),
-    enabled: activeTab === 'providers' && !!user,
+    enabled: activeTab === 'providers' && isAdmin,
   });
 
   const { data: verificationQueueData } = useQuery({
@@ -188,13 +255,13 @@ export default function AdminDashboardPage() {
         limit: 100,
         search: providersSearch || undefined,
       }),
-    enabled: activeTab === 'providers' && !!user,
+    enabled: activeTab === 'providers' && isAdmin,
   });
 
   const { data: categoriesData, refetch: refetchCategories } = useQuery({
     queryKey: queryKeys.admin.categories,
     queryFn: () => adminApi(apiClient).getCategories({ includeInactive: true } as any),
-    enabled: activeTab === 'categories' && !!user,
+    enabled: activeTab === 'categories' && isAdmin,
   });
 
   const { data: reviewsData } = useQuery({
@@ -213,7 +280,49 @@ export default function AdminDashboardPage() {
         isPublic:
           reviewsPublicFilter !== 'all' ? (reviewsPublicFilter === 'true') : undefined,
       }),
-    enabled: activeTab === 'reviews' && !!user,
+    enabled: activeTab === 'reviews' && isAdmin,
+  });
+
+  const { data: supportBookingsData } = useQuery({
+    queryKey: queryKeys.admin.supportBookings({
+      page: supportBookingsPage,
+      limit: 8,
+      search: supportSearch || undefined,
+      status:
+        supportBookingStatusFilter !== 'all'
+          ? (supportBookingStatusFilter as any)
+          : undefined,
+    }),
+    queryFn: () =>
+      adminApi(apiClient).getSupportBookings({
+        page: supportBookingsPage,
+        limit: 8,
+        search: supportSearch || undefined,
+        status:
+          supportBookingStatusFilter !== 'all'
+            ? (supportBookingStatusFilter as any)
+            : undefined,
+      }),
+    enabled: activeTab === 'support' && isAdmin,
+  });
+
+  const { data: disputesData } = useQuery({
+    queryKey: queryKeys.admin.disputes({
+      page: disputesPage,
+      limit: 8,
+      search: supportSearch || undefined,
+      status:
+        disputesStatusFilter !== 'all' ? (disputesStatusFilter as any) : undefined,
+    }),
+    queryFn: () =>
+      adminApi(apiClient).getDisputes({
+        page: disputesPage,
+        limit: 8,
+        search: supportSearch || undefined,
+        status:
+          disputesStatusFilter !== 'all' ? (disputesStatusFilter as any) : undefined,
+      }),
+    enabled: activeTab === 'support' && isAdmin,
   });
 
   // ---- Mutations ----
@@ -325,6 +434,44 @@ export default function AdminDashboardPage() {
     onError: () => toast.error('Erreur lors de la suppression'),
   });
 
+  const createDisputeMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      adminApi(apiClient).createDispute(payload as any),
+    onSuccess: () => {
+      toast.success('Ticket support créé');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'support-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'disputes'] });
+      setCreateDisputeDialog({ open: false, booking: null });
+      setCreateDisputeDraft({
+        reporterRole: 'CLIENT',
+        severity: 'MEDIUM',
+        reason: '',
+        statement: '',
+      });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la création'),
+  });
+
+  const updateDisputeMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) =>
+      adminApi(apiClient).updateDispute(payload as any),
+    onSuccess: () => {
+      toast.success('Ticket support mis à jour');
+      queryClient.invalidateQueries({ queryKey: ['admin', 'support-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'disputes'] });
+      setUpdateDisputeDialog({ open: false, dispute: null });
+      setUpdateDisputeDraft({
+        status: 'INVESTIGATING',
+        severity: 'MEDIUM',
+        resolution: '',
+        resolutionPct: '',
+      });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la mise à jour'),
+  });
+
   // ---- Action handlers ----
 
   const handleToggleUserStatus = (userId: string, isActive: boolean) => {
@@ -402,7 +549,69 @@ export default function AdminDashboardPage() {
     deleteReviewMutation.mutate(reviewId);
   };
 
+  const openCreateDisputeDialog = (booking: any) => {
+    setCreateDisputeDialog({ open: true, booking });
+    setCreateDisputeDraft({
+      reporterRole: 'CLIENT',
+      severity: booking.support.activeDisputeSeverity ?? 'MEDIUM',
+      reason: '',
+      statement: '',
+    });
+  };
+
+  const openUpdateDisputeDialog = (dispute: any) => {
+    setUpdateDisputeDialog({ open: true, dispute });
+    setUpdateDisputeDraft({
+      status: dispute.status ?? 'INVESTIGATING',
+      severity: dispute.severity ?? 'MEDIUM',
+      resolution: dispute.resolution ?? '',
+      resolutionPct:
+        typeof dispute.resolutionPct === 'number' ? String(dispute.resolutionPct) : '',
+    });
+  };
+
+  const handleCreateDispute = () => {
+    if (!createDisputeDialog.booking) return;
+    createDisputeMutation.mutate({
+      bookingId: createDisputeDialog.booking.id,
+      reporterRole: createDisputeDraft.reporterRole,
+      severity: createDisputeDraft.severity,
+      reason: createDisputeDraft.reason,
+      statement: createDisputeDraft.statement,
+    });
+  };
+
+  const handleUpdateDispute = () => {
+    if (!updateDisputeDialog.dispute) return;
+    updateDisputeMutation.mutate({
+      disputeId: updateDisputeDialog.dispute.id,
+      status: updateDisputeDraft.status,
+      severity: updateDisputeDraft.severity,
+      resolution: updateDisputeDraft.resolution.trim() || null,
+      resolutionPct:
+        updateDisputeDraft.resolutionPct.trim().length > 0
+          ? Number(updateDisputeDraft.resolutionPct)
+          : null,
+    });
+  };
+
   // ---- Render ----
+
+  if (user && !isAdmin) {
+    return (
+      <Card>
+        <CardContent className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+          <Shield className="h-10 w-10 text-red-500" />
+          <div>
+            <div className="text-lg font-semibold">Accès administrateur requis</div>
+            <div className="text-sm text-muted-foreground">
+              Cette surface est réservée aux comptes admin. Redirection en cours.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -467,6 +676,20 @@ export default function AdminDashboardPage() {
     totalPages: 0,
   };
 
+  const supportBookings: any[] = supportBookingsData?.bookings ?? [];
+  const supportBookingsPagination: any = supportBookingsData?.pagination ?? {
+    page: 1,
+    total: 0,
+    totalPages: 0,
+  };
+
+  const disputes: any[] = disputesData?.disputes ?? [];
+  const disputesPagination: any = disputesData?.pagination ?? {
+    page: 1,
+    total: 0,
+    totalPages: 0,
+  };
+
   return (
     <div className="flex gap-6">
       {/* Sidebar */}
@@ -480,11 +703,11 @@ export default function AdminDashboardPage() {
                 { value: 'providers', icon: Briefcase, label: 'Prestataires' },
                 { value: 'categories', icon: FileText, label: 'Catégories' },
                 { value: 'reviews', icon: MessageSquare, label: 'Avis' },
-                { value: 'settings', icon: Settings, label: 'Paramètres' },
+                { value: 'support', icon: AlertCircle, label: 'Support' },
               ].map((item) => (
                 <button
                   key={item.value}
-                  onClick={() => setActiveTab(item.value as TabValue)}
+                  onClick={() => handleTabChange(item.value as TabValue)}
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                     activeTab === item.value
@@ -503,7 +726,7 @@ export default function AdminDashboardPage() {
 
       {/* Main Content */}
       <div className="flex-1 min-w-0">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
+        <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as TabValue)}>
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6 mt-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1679,66 +1902,306 @@ export default function AdminDashboardPage() {
             )}
           </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6 mt-0">
+          {/* Support Tab */}
+          <TabsContent value="support" className="space-y-6 mt-0">
             <div>
-              <h2 className="text-2xl font-bold">Paramètres</h2>
-              <p className="text-muted-foreground">Configuration de la plateforme</p>
+              <h2 className="text-2xl font-bold">Support booking et litiges</h2>
+              <p className="text-muted-foreground">
+                Recherchez une réservation, ouvrez un ticket support et pilotez sa
+                résolution sans accès base de données.
+              </p>
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Paramètres généraux</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Mode maintenance</p>
-                    <p className="text-sm text-muted-foreground">
-                      Désactiver l&apos;accès au site pour les utilisateurs
-                    </p>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-4 lg:flex-row">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Booking id, nom client/prestataire, ville..."
+                      value={supportSearch}
+                      onChange={(event) => {
+                        setSupportSearch(event.target.value);
+                        setSupportBookingsPage(1);
+                        setDisputesPage(1);
+                      }}
+                      className="pl-8"
+                    />
                   </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Inscriptions ouvertes</p>
-                    <p className="text-sm text-muted-foreground">
-                      Permettre aux nouveaux utilisateurs de s&apos;inscrire
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Vérification obligatoire</p>
-                    <p className="text-sm text-muted-foreground">
-                      Les prestataires doivent être vérifiés pour accepter des réservations
-                    </p>
-                  </div>
-                  <Switch defaultChecked />
+                  <Select
+                    value={supportBookingStatusFilter}
+                    onValueChange={(value) => {
+                      setSupportBookingStatusFilter(value);
+                      setSupportBookingsPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-full lg:w-48">
+                      <SelectValue placeholder="Statut réservation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les réservations</SelectItem>
+                      <SelectItem value="PENDING">En attente</SelectItem>
+                      <SelectItem value="CONFIRMED">Confirmées</SelectItem>
+                      <SelectItem value="IN_PROGRESS">En cours</SelectItem>
+                      <SelectItem value="COMPLETED">Terminées</SelectItem>
+                      <SelectItem value="CANCELLED">Annulées</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={disputesStatusFilter}
+                    onValueChange={(value) => {
+                      setDisputesStatusFilter(value);
+                      setDisputesPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-full lg:w-48">
+                      <SelectValue placeholder="Statut litige" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les tickets</SelectItem>
+                      <SelectItem value="NEW">Nouveau</SelectItem>
+                      <SelectItem value="PENDING_PRO">Attente prestataire</SelectItem>
+                      <SelectItem value="PENDING_CLIENT">Attente client</SelectItem>
+                      <SelectItem value="INVESTIGATING">En enquête</SelectItem>
+                      <SelectItem value="ESCALATED">Escaladé</SelectItem>
+                      <SelectItem value="RESOLVED">Résolu</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Commission</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Commission standard (%)</Label>
-                    <Input type="number" defaultValue="10" />
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Tickets ouverts
                   </div>
-                  <div className="space-y-2">
-                    <Label>Commission Premium (%)</Label>
-                    <Input type="number" defaultValue="5" />
+                  <div className="mt-1 text-2xl font-semibold">
+                    {disputesData?.stats?.open ?? 0}
                   </div>
-                </div>
-                <Button>Sauvegarder</Button>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Escaladés
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-amber-700">
+                    {disputesData?.stats?.escalated ?? 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Résolus
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-emerald-700">
+                    {disputesData?.stats?.resolved ?? 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[1.2fr,0.8fr]">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lookup réservations</CardTitle>
+                  <CardDescription>
+                    Ouvrez un ticket depuis une réservation si aucun litige actif n&apos;existe.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {supportBookings.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                      Aucune réservation trouvée avec les filtres actuels.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {supportBookings.map((booking: any) => (
+                        <div key={booking.id} className="rounded-xl border p-4">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="font-semibold">{booking.title}</div>
+                                <Badge variant="outline">{booking.id}</Badge>
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    booking.status === 'COMPLETED' &&
+                                      'bg-green-100 text-green-700',
+                                    booking.status === 'PENDING' &&
+                                      'bg-amber-100 text-amber-700',
+                                    booking.status === 'CANCELLED' &&
+                                      'bg-red-100 text-red-700',
+                                    booking.status === 'CONFIRMED' &&
+                                      'bg-blue-100 text-blue-700',
+                                    booking.status === 'IN_PROGRESS' &&
+                                      'bg-purple-100 text-purple-700'
+                                  )}
+                                >
+                                  {booking.status}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {booking.client.name} → {booking.provider.name} ·{' '}
+                                {booking.provider.profession}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {booking.city || 'Ville non renseignée'} ·{' '}
+                                {booking.price ? `${booking.price.toLocaleString()} CDF` : 'Prix non défini'}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Prévue le {formatAdminDate(booking.scheduledDate)} · créée le{' '}
+                                {formatAdminDate(booking.createdAt)}
+                              </div>
+                            </div>
+                            <div className="min-w-[220px] space-y-2">
+                              <div className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                                {booking.support.activeDisputeId ? (
+                                  <>
+                                    Ticket actif: {formatDisputeStatus(booking.support.activeDisputeStatus)}
+                                  </>
+                                ) : (
+                                  <>Aucun ticket actif</>
+                                )}
+                              </div>
+                              <Button
+                                className="w-full"
+                                variant={
+                                  booking.support.activeDisputeId ? 'outline' : 'default'
+                                }
+                                disabled={Boolean(booking.support.activeDisputeId)}
+                                onClick={() => openCreateDisputeDialog(booking)}
+                              >
+                                {booking.support.activeDisputeId
+                                  ? 'Déjà pris en charge'
+                                  : 'Ouvrir un ticket support'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {supportBookingsPagination.totalPages > 1 && (
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={supportBookingsPage === 1}
+                        onClick={() => setSupportBookingsPage((page) => page - 1)}
+                      >
+                        Précédent
+                      </Button>
+                      <span className="flex items-center px-4 text-sm">
+                        Page {supportBookingsPage} sur {supportBookingsPagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        disabled={
+                          supportBookingsPage === supportBookingsPagination.totalPages
+                        }
+                        onClick={() => setSupportBookingsPage((page) => page + 1)}
+                      >
+                        Suivant
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Queue litiges</CardTitle>
+                  <CardDescription>
+                    Mettez à jour le statut, l&apos;escalade et la résolution.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {disputes.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                      Aucun ticket support trouvé.
+                    </div>
+                  ) : (
+                    disputes.map((dispute: any) => (
+                      <div key={dispute.id} className="rounded-xl border p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="font-semibold">{dispute.booking?.title}</div>
+                              <Badge variant="outline">{dispute.id}</Badge>
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  dispute.status === 'RESOLVED' &&
+                                    'bg-emerald-100 text-emerald-700',
+                                  dispute.status === 'ESCALATED' &&
+                                    'bg-red-100 text-red-700',
+                                  dispute.status === 'INVESTIGATING' &&
+                                    'bg-blue-100 text-blue-700',
+                                  dispute.status?.startsWith('PENDING_') &&
+                                    'bg-amber-100 text-amber-700'
+                                )}
+                              >
+                                {formatDisputeStatus(dispute.status)}
+                              </Badge>
+                              <Badge variant="outline">{dispute.severity}</Badge>
+                            </div>
+                            <div className="text-sm">{dispute.reason}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Reporter: {dispute.origin === 'CLIENT' ? 'Client' : 'Prestataire'} ·
+                              créé le {formatAdminDate(dispute.createdAt)}
+                            </div>
+                            {dispute.clientStatement && (
+                              <div className="text-sm text-muted-foreground">
+                                Déclaration client: {dispute.clientStatement}
+                              </div>
+                            )}
+                            {dispute.proStatement && (
+                              <div className="text-sm text-muted-foreground">
+                                Réponse prestataire: {dispute.proStatement}
+                              </div>
+                            )}
+                            {dispute.resolution && (
+                              <div className="text-sm text-emerald-700">
+                                Résolution: {dispute.resolution}
+                              </div>
+                            )}
+                          </div>
+                          <Button variant="outline" onClick={() => openUpdateDisputeDialog(dispute)}>
+                            Gérer
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {disputesPagination.totalPages > 1 && (
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        disabled={disputesPage === 1}
+                        onClick={() => setDisputesPage((page) => page - 1)}
+                      >
+                        Précédent
+                      </Button>
+                      <span className="flex items-center px-4 text-sm">
+                        Page {disputesPage} sur {disputesPagination.totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        disabled={disputesPage === disputesPagination.totalPages}
+                        onClick={() => setDisputesPage((page) => page + 1)}
+                      >
+                        Suivant
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -1895,9 +2358,232 @@ export default function AdminDashboardPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={createDisputeDialog.open}
+        onOpenChange={(open) =>
+          setCreateDisputeDialog((current) => ({ ...current, open }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ouvrir un ticket support</DialogTitle>
+            <DialogDescription>
+              {createDisputeDialog.booking
+                ? `${createDisputeDialog.booking.title} · ${createDisputeDialog.booking.id}`
+                : 'Sélectionnez une réservation'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Signalé par</Label>
+                <Select
+                  value={createDisputeDraft.reporterRole}
+                  onValueChange={(value) =>
+                    setCreateDisputeDraft((current) => ({
+                      ...current,
+                      reporterRole: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CLIENT">Client</SelectItem>
+                    <SelectItem value="PROVIDER">Prestataire</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sévérité</Label>
+                <Select
+                  value={createDisputeDraft.severity}
+                  onValueChange={(value) =>
+                    setCreateDisputeDraft((current) => ({
+                      ...current,
+                      severity: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Basse</SelectItem>
+                    <SelectItem value="MEDIUM">Moyenne</SelectItem>
+                    <SelectItem value="HIGH">Haute</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Motif</Label>
+              <Input
+                value={createDisputeDraft.reason}
+                onChange={(event) =>
+                  setCreateDisputeDraft((current) => ({
+                    ...current,
+                    reason: event.target.value,
+                  }))
+                }
+                placeholder="Ex: Paiement contesté, prestation incomplète..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Déclaration initiale</Label>
+              <Textarea
+                value={createDisputeDraft.statement}
+                onChange={(event) =>
+                  setCreateDisputeDraft((current) => ({
+                    ...current,
+                    statement: event.target.value,
+                  }))
+                }
+                rows={5}
+                placeholder="Résumez les faits et le besoin support."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateDisputeDialog({ open: false, booking: null })}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleCreateDispute}
+              disabled={createDisputeMutation.isPending}
+            >
+              Créer le ticket
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={updateDisputeDialog.open}
+        onOpenChange={(open) =>
+          setUpdateDisputeDialog((current) => ({ ...current, open }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mettre à jour le ticket</DialogTitle>
+            <DialogDescription>
+              {updateDisputeDialog.dispute
+                ? `${updateDisputeDialog.dispute.booking?.title} · ${updateDisputeDialog.dispute.id}`
+                : 'Aucun ticket sélectionné'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Statut</Label>
+                <Select
+                  value={updateDisputeDraft.status}
+                  onValueChange={(value) =>
+                    setUpdateDisputeDraft((current) => ({
+                      ...current,
+                      status: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NEW">Nouveau</SelectItem>
+                    <SelectItem value="PENDING_PRO">Attente prestataire</SelectItem>
+                    <SelectItem value="PENDING_CLIENT">Attente client</SelectItem>
+                    <SelectItem value="INVESTIGATING">En enquête</SelectItem>
+                    <SelectItem value="ESCALATED">Escaladé</SelectItem>
+                    <SelectItem value="RESOLVED">Résolu</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sévérité</Label>
+                <Select
+                  value={updateDisputeDraft.severity}
+                  onValueChange={(value) =>
+                    setUpdateDisputeDraft((current) => ({
+                      ...current,
+                      severity: value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">Basse</SelectItem>
+                    <SelectItem value="MEDIUM">Moyenne</SelectItem>
+                    <SelectItem value="HIGH">Haute</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Résolution / note ops</Label>
+              <Textarea
+                value={updateDisputeDraft.resolution}
+                onChange={(event) =>
+                  setUpdateDisputeDraft((current) => ({
+                    ...current,
+                    resolution: event.target.value,
+                  }))
+                }
+                rows={4}
+                placeholder="Obligatoire si vous marquez le ticket comme résolu."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Remboursement ou geste (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={updateDisputeDraft.resolutionPct}
+                onChange={(event) =>
+                  setUpdateDisputeDraft((current) => ({
+                    ...current,
+                    resolutionPct: event.target.value,
+                  }))
+                }
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setUpdateDisputeDialog({ open: false, dispute: null })}
+            >
+              Fermer
+            </Button>
+            <Button
+              onClick={handleUpdateDispute}
+              disabled={updateDisputeMutation.isPending}
+            >
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mobile Tab Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t z-50">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)}>
+        <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as TabValue)}>
           <TabsList className="w-full justify-around h-16 bg-transparent">
             <TabsTrigger value="overview" className="flex flex-col gap-1 px-2 py-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -1913,7 +2599,11 @@ export default function AdminDashboardPage() {
             </TabsTrigger>
             <TabsTrigger value="reviews" className="flex flex-col gap-1 px-2 py-1">
               <MessageSquare className="h-4 w-4" />
-              <span className="text-xs">Reviews</span>
+              <span className="text-xs">Avis</span>
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex flex-col gap-1 px-2 py-1">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-xs">Support</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -2009,5 +2699,24 @@ function formatVerificationStatus(status: string) {
       return 'Rejeté';
     default:
       return status;
+  }
+}
+
+function formatDisputeStatus(status?: string | null) {
+  switch (status) {
+    case 'NEW':
+      return 'Nouveau';
+    case 'PENDING_PRO':
+      return 'Attente prestataire';
+    case 'PENDING_CLIENT':
+      return 'Attente client';
+    case 'INVESTIGATING':
+      return 'En enquête';
+    case 'ESCALATED':
+      return 'Escaladé';
+    case 'RESOLVED':
+      return 'Résolu';
+    default:
+      return '—';
   }
 }

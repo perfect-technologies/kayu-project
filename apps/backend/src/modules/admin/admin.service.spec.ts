@@ -277,3 +277,380 @@ test("manual provider rejection writes the reason onto verification docs and cle
   });
   assert.equal(notifications.length, 1);
 });
+
+test("support booking lookup exposes active dispute metadata", async () => {
+  const prisma = {
+    booking: {
+      count: async () => 1,
+      findMany: async () => [
+        {
+          id: "booking_1",
+          title: "Réparation climatisation",
+          status: "CONFIRMED",
+          scheduledDate: new Date("2026-04-23T09:00:00.000Z"),
+          createdAt: new Date("2026-04-22T08:00:00.000Z"),
+          price: 45000,
+          city: "Kinshasa",
+          address: "Gombe",
+          isPaid: false,
+          paymentMethod: "cash",
+          client: {
+            id: "client_1",
+            firstName: "Paul",
+            lastName: "Kabasele",
+            email: "paul@example.com",
+            phone: "+243900000001",
+          },
+          provider: {
+            id: "provider_1",
+            userId: "provider_user_1",
+            profession: "Frigoriste",
+            user: {
+              id: "provider_user_1",
+              firstName: "Jean",
+              lastName: "Kasongo",
+              email: "jean@example.com",
+              phone: "+243900000002",
+            },
+          },
+          disputes: [
+            {
+              id: "dispute_1",
+              status: "INVESTIGATING",
+              severity: "HIGH",
+              createdAt: new Date("2026-04-22T10:00:00.000Z"),
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const service = new AdminService(
+    prisma as never,
+    { create: async () => undefined } as never,
+  );
+
+  const result = await service.listSupportBookings({
+    page: 1,
+    limit: 10,
+    search: "clim",
+  });
+
+  assert.equal(result.bookings.length, 1);
+  assert.equal(result.bookings[0].support.activeDisputeId, "dispute_1");
+  assert.equal(result.bookings[0].support.activeDisputeStatus, "INVESTIGATING");
+  assert.equal(result.pagination.total, 1);
+});
+
+test("admin can create a dispute from a booking without an active ticket", async () => {
+  const notifications: unknown[] = [];
+  const activityLogs: unknown[] = [];
+
+  const tx = {
+    dispute: {
+      create: async () => ({
+        id: "dispute_1",
+        bookingId: "booking_1",
+        origin: "CLIENT",
+        openedById: "client_1",
+        reason: "Paiement contesté après intervention",
+        clientStatement: "Le client conteste le montant final demandé.",
+        proStatement: null,
+        status: "PENDING_PRO",
+        severity: "HIGH",
+        resolution: null,
+        resolutionPct: null,
+        resolvedAt: null,
+        deadlineAt: null,
+        createdAt: new Date("2026-04-22T11:00:00.000Z"),
+        updatedAt: new Date("2026-04-22T11:00:00.000Z"),
+        evidences: [],
+        booking: {
+          id: "booking_1",
+          title: "Réparation climatisation",
+          status: "CONFIRMED",
+          price: 45000,
+          scheduledDate: new Date("2026-04-23T09:00:00.000Z"),
+          client: {
+            id: "client_1",
+            firstName: "Paul",
+            lastName: "Kabasele",
+            email: "paul@example.com",
+            phone: "+243900000001",
+            avatar: null,
+          },
+          provider: {
+            id: "provider_1",
+            userId: "provider_user_1",
+            profession: "Frigoriste",
+            user: {
+              id: "provider_user_1",
+              firstName: "Jean",
+              lastName: "Kasongo",
+              email: "jean@example.com",
+              phone: "+243900000002",
+            },
+          },
+        },
+      }),
+    },
+    activityLog: {
+      create: async (input: unknown) => {
+        activityLogs.push(input);
+      },
+    },
+  };
+
+  const prisma = {
+    booking: {
+      findUnique: async () => ({
+        id: "booking_1",
+        title: "Réparation climatisation",
+        clientId: "client_1",
+        providerId: "provider_1",
+        provider: {
+          userId: "provider_user_1",
+        },
+      }),
+    },
+    dispute: {
+      findFirst: async () => null,
+    },
+    $transaction: async <T>(
+      callback: (client: typeof tx) => Promise<T>,
+    ) => callback(tx),
+  };
+
+  const service = new AdminService(
+    prisma as never,
+    {
+      create: async (input: unknown) => {
+        notifications.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.createDispute(
+    makeAdminActor() as never,
+    {
+      bookingId: "booking_1",
+      reporterRole: "CLIENT",
+      severity: "HIGH",
+      reason: "Paiement contesté après intervention",
+      statement: "Le client conteste le montant final demandé.",
+    },
+    "127.0.0.1",
+  );
+
+  assert.equal(result.dispute.status, "PENDING_PRO");
+  assert.equal(result.dispute.booking?.id, "booking_1");
+  assert.equal(notifications.length, 2);
+  assert.equal(activityLogs.length, 1);
+});
+
+test("admin can resolve a dispute with a resolution note", async () => {
+  const notifications: unknown[] = [];
+  const activityLogs: unknown[] = [];
+
+  const tx = {
+    dispute: {
+      update: async () => ({
+        id: "dispute_1",
+        bookingId: "booking_1",
+        origin: "CLIENT",
+        openedById: "client_1",
+        reason: "Paiement contesté après intervention",
+        clientStatement: "Le client conteste le montant final demandé.",
+        proStatement: "Le prestataire a fourni les justificatifs.",
+        status: "RESOLVED",
+        severity: "MEDIUM",
+        resolution: "Remboursement partiel validé par ops.",
+        resolutionPct: 40,
+        resolvedAt: new Date("2026-04-22T12:00:00.000Z"),
+        deadlineAt: null,
+        createdAt: new Date("2026-04-22T11:00:00.000Z"),
+        updatedAt: new Date("2026-04-22T12:00:00.000Z"),
+        evidences: [],
+        booking: {
+          id: "booking_1",
+          title: "Réparation climatisation",
+          status: "CONFIRMED",
+          price: 45000,
+          scheduledDate: new Date("2026-04-23T09:00:00.000Z"),
+          client: {
+            id: "client_1",
+            firstName: "Paul",
+            lastName: "Kabasele",
+            email: "paul@example.com",
+            phone: "+243900000001",
+            avatar: null,
+          },
+          provider: {
+            id: "provider_1",
+            userId: "provider_user_1",
+            profession: "Frigoriste",
+            user: {
+              id: "provider_user_1",
+              firstName: "Jean",
+              lastName: "Kasongo",
+              email: "jean@example.com",
+              phone: "+243900000002",
+            },
+          },
+        },
+      }),
+    },
+    activityLog: {
+      create: async (input: unknown) => {
+        activityLogs.push(input);
+      },
+    },
+  };
+
+  const prisma = {
+    dispute: {
+      findUnique: async () => ({
+        id: "dispute_1",
+        status: "INVESTIGATING",
+        severity: "MEDIUM",
+        booking: {
+          title: "Réparation climatisation",
+          clientId: "client_1",
+          provider: {
+            userId: "provider_user_1",
+          },
+        },
+      }),
+    },
+    $transaction: async <T>(
+      callback: (client: typeof tx) => Promise<T>,
+    ) => callback(tx),
+  };
+
+  const service = new AdminService(
+    prisma as never,
+    {
+      create: async (input: unknown) => {
+        notifications.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.updateDispute(
+    makeAdminActor() as never,
+    {
+      disputeId: "dispute_1",
+      status: "RESOLVED",
+      severity: "MEDIUM",
+      resolution: "Remboursement partiel validé par ops.",
+      resolutionPct: 40,
+    },
+    "127.0.0.1",
+  );
+
+  assert.equal(result.dispute.status, "RESOLVED");
+  assert.equal(result.dispute.resolutionPct, 40);
+  assert.equal(notifications.length, 2);
+  assert.equal(activityLogs.length, 1);
+});
+
+test("editing an already resolved dispute does not resend resolved notifications", async () => {
+  const notifications: unknown[] = [];
+
+  const tx = {
+    dispute: {
+      update: async () => ({
+        id: "dispute_1",
+        bookingId: "booking_1",
+        origin: "CLIENT",
+        openedById: "client_1",
+        reason: "Paiement contesté après intervention",
+        clientStatement: "Le client conteste le montant final demandé.",
+        proStatement: "Le prestataire a fourni les justificatifs.",
+        status: "RESOLVED",
+        severity: "MEDIUM",
+        resolution: "Note ops mise à jour.",
+        resolutionPct: 40,
+        resolvedAt: new Date("2026-04-22T12:00:00.000Z"),
+        deadlineAt: null,
+        createdAt: new Date("2026-04-22T11:00:00.000Z"),
+        updatedAt: new Date("2026-04-22T12:30:00.000Z"),
+        evidences: [],
+        booking: {
+          id: "booking_1",
+          title: "Réparation climatisation",
+          status: "CONFIRMED",
+          price: 45000,
+          scheduledDate: new Date("2026-04-23T09:00:00.000Z"),
+          client: {
+            id: "client_1",
+            firstName: "Paul",
+            lastName: "Kabasele",
+            email: "paul@example.com",
+            phone: "+243900000001",
+            avatar: null,
+          },
+          provider: {
+            id: "provider_1",
+            userId: "provider_user_1",
+            profession: "Frigoriste",
+            user: {
+              id: "provider_user_1",
+              firstName: "Jean",
+              lastName: "Kasongo",
+              email: "jean@example.com",
+              phone: "+243900000002",
+            },
+          },
+        },
+      }),
+    },
+    activityLog: {
+      create: async () => undefined,
+    },
+  };
+
+  const prisma = {
+    dispute: {
+      findUnique: async () => ({
+        id: "dispute_1",
+        status: "RESOLVED",
+        severity: "MEDIUM",
+        booking: {
+          title: "Réparation climatisation",
+          clientId: "client_1",
+          provider: {
+            userId: "provider_user_1",
+          },
+        },
+      }),
+    },
+    $transaction: async <T>(
+      callback: (client: typeof tx) => Promise<T>,
+    ) => callback(tx),
+  };
+
+  const service = new AdminService(
+    prisma as never,
+    {
+      create: async (input: unknown) => {
+        notifications.push(input);
+      },
+    } as never,
+  );
+
+  const result = await service.updateDispute(
+    makeAdminActor() as never,
+    {
+      disputeId: "dispute_1",
+      severity: "MEDIUM",
+      resolution: "Note ops mise à jour.",
+      resolutionPct: 40,
+    },
+    "127.0.0.1",
+  );
+
+  assert.equal(result.dispute.status, "RESOLVED");
+  assert.equal(notifications.length, 0);
+});
