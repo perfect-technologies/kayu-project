@@ -47,13 +47,35 @@ export const priceLabelFor = (booking: {
   const s = booking.status;
   if (s === 'COMPLETED') {
     if (booking.isPaid && booking.paymentMethod) {
-      return `Payé via ${booking.paymentMethod}`;
+      return `Payé ${paymentMethodLabel(booking.paymentMethod)}`;
     }
-    return booking.isPaid ? 'Payé' : 'Terminée';
+    return booking.isPaid ? 'Payé' : 'Paiement à confirmer';
   }
-  if (s === 'CANCELLED') return 'Remboursé';
+  if (s === 'CANCELLED') return 'Annulée';
   if (s === 'CONFIRMED' || s === 'IN_PROGRESS') return 'Confirmée';
   return 'Estimation';
+};
+
+export const paymentMethodLabel = (
+  paymentMethod: string | null | undefined,
+): string => {
+  switch (paymentMethod?.toLowerCase()) {
+    case 'cash':
+      return 'en espèces';
+    default:
+      return 'en espèces';
+  }
+};
+
+export const paymentStatusLabel = (booking: {
+  isPaid?: boolean | null;
+  paymentMethod?: string | null;
+}): string => {
+  if (booking.isPaid) {
+    return `Confirmé ${paymentMethodLabel(booking.paymentMethod)}`;
+  }
+
+  return 'Paiement en espèces à confirmer';
 };
 
 const WEEKDAY_SHORT = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'];

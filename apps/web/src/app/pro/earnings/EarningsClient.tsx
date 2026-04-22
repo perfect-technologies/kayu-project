@@ -117,7 +117,8 @@ export function EarningsClient() {
             className="k-body-m"
             style={{ color: "var(--k-text-muted)", marginTop: 4 }}
           >
-            Virement Mobile Money en 2 à 5 minutes, à toute heure.
+            Les gains deviennent disponibles apres confirmation du paiement hors
+            plateforme.
           </div>
         </div>
         <button
@@ -126,8 +127,27 @@ export function EarningsClient() {
           onClick={() => setSheetOpen(true)}
           disabled={isSummaryLoading || balance <= 0}
         >
-          <I.arrowRight size={16} /> Demander un paiement
+          <I.arrowRight size={16} /> Demander un retrait manuel
         </button>
+      </div>
+
+      <div
+        style={{
+          marginBottom: 20,
+          padding: "14px 18px",
+          borderRadius: "var(--k-r-lg)",
+          background: "var(--k-surface-primary)",
+          border: "1px solid #BAE6FD",
+          color: "var(--k-text-body)",
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>
+          Politique de paiement MVP
+        </div>
+        <div className="k-caption" style={{ color: "var(--k-text-muted)" }}>
+          Le client regle directement le pro en especes. Les gains restent en
+          attente tant que ce paiement n’est pas confirme.
+        </div>
       </div>
 
       <div
@@ -349,12 +369,12 @@ export function EarningsClient() {
             label="Solde disponible"
             value={`${balance.toLocaleString("fr-FR")} FC`}
             valueColor="var(--k-success)"
-            caption={`Prêt à virer`}
+            caption="Eligible au retrait manuel"
           />
           <StatTile
             label="En attente"
             value={`${pending.toLocaleString("fr-FR")} FC`}
-            caption="Sur missions non réglées"
+            caption="Missions terminées sans paiement confirmé"
           />
           <StatTile
             label="Gains totaux"
@@ -376,7 +396,7 @@ export function EarningsClient() {
               className="k-overline"
               style={{ color: "var(--k-primary-hover)", marginBottom: 6 }}
             >
-              Prochain virement
+              Retrait manuel
             </div>
             <div
               style={{
@@ -386,14 +406,14 @@ export function EarningsClient() {
                 color: "var(--k-text-primary)",
               }}
             >
-              Automatique lundi matin
+              Verification par l’equipe KAYOU
             </div>
             <div
               className="k-caption"
               style={{ color: "var(--k-text-muted)", marginTop: 4 }}
             >
-              Vers {MM_OPERATORS[0].name}. Déclenche un virement manuel quand tu
-              veux.
+              Les demandes sont enregistrees puis traitees manuellement vers{" "}
+              {MM_OPERATORS[0].name}.
             </div>
           </div>
 

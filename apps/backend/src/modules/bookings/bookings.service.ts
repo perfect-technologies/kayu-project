@@ -32,6 +32,8 @@ type UpdateBookingBody = {
   status?: BookingStatus;
   cancelReason?: string;
   providerNotes?: string;
+  isPaid?: true;
+  paymentMethod?: "cash";
 };
 
 const participantUserSelect = {
@@ -129,6 +131,11 @@ type BookingAccessRecord = Prisma.BookingGetPayload<{
     };
   };
 }>;
+
+const OFFLINE_PAYMENT_PENDING_NOTE =
+  "Paiement en especes a confirmer avant disponibilite.";
+const OFFLINE_PAYMENT_CONFIRMED_NOTE =
+  "Paiement en especes confirme.";
 
 @Injectable()
 export class BookingsService {
@@ -258,6 +265,11 @@ export class BookingsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      const completedNow =
+        updateData.status === "COMPLETED" && booking.status !== "COMPLETED";
+      const paymentConfirmedNow =
+        updateData.isPaid === true && booking.isPaid !== true;
+
       if (updateData.status === "COMPLETED" && booking.status !== "COMPLETED") {
         await tx.provider.update({
           where: { id: booking.providerId },
@@ -275,15 +287,20 @@ export class BookingsService {
         include: bookingDetailInclude,
       });
 
-      if (
-        updateData.status === "COMPLETED" &&
-        booking.status !== "COMPLETED"
-      ) {
+      if (completedNow) {
         await this.createEarningTransaction(tx, saved);
+      }
+
+      if (paymentConfirmedNow && !completedNow) {
+        await this.completeEarningTransaction(tx, saved);
       }
 
       if (typeof updateData.status === "string") {
         await this.createStatusNotification(tx, booking, actor, updateData.status);
+      }
+
+      if (paymentConfirmedNow) {
+        await this.createPaymentNotification(tx, saved, actor);
       }
 
       return saved;
@@ -397,6 +414,7 @@ export class BookingsService {
     const isClient = booking.clientId === actor.id;
     const isProvider = booking.provider.userId === actor.id;
     const isAdmin = actor.role === "ADMIN";
+    const paymentConfirmationRequested = body.isPaid === true;
 
     if (body.providerNotes !== undefined) {
       if (!isProvider && !isAdmin) {
@@ -406,11 +424,13 @@ export class BookingsService {
       updateData.providerNotes = body.providerNotes;
     }
 
-    if (!body.status) {
-      return updateData;
-    }
-
     if (body.status === "CANCELLED") {
+      if (paymentConfirmationRequested || body.paymentMethod) {
+        throw new BadRequestException(
+          "Cancelled bookings cannot confirm payment",
+        );
+      }
+
       if (!isClient && !isProvider && !isAdmin) {
         throw new ForbiddenException("Only booking participants can cancel a booking");
       }
@@ -423,6 +443,37 @@ export class BookingsService {
       updateData.cancelReason = body.cancelReason ?? null;
       updateData.cancelledAt = new Date();
       updateData.cancelledBy = actor.id;
+      return updateData;
+    }
+
+    if (paymentConfirmationRequested) {
+      if (!isProvider && !isAdmin) {
+        throw new ForbiddenException("Only the provider can confirm payment");
+      }
+
+      const willBeCompleted =
+        booking.status === "COMPLETED" || body.status === "COMPLETED";
+
+      if (!willBeCompleted) {
+        throw new BadRequestException(
+          "Payment can only be confirmed for completed bookings",
+        );
+      }
+
+      if (booking.isPaid) {
+        throw new BadRequestException("Payment is already confirmed");
+      }
+
+      updateData.isPaid = true;
+      updateData.paidAt = new Date();
+      updateData.paymentMethod = body.paymentMethod ?? booking.paymentMethod ?? "cash";
+    } else if (body.paymentMethod) {
+      throw new BadRequestException(
+        "paymentMethod requires payment confirmation",
+      );
+    }
+
+    if (!body.status) {
       return updateData;
     }
 
@@ -487,7 +538,40 @@ export class BookingsService {
         netAmt,
         paymentMethod: booking.paymentMethod ?? "cash",
         status: isPaid ? "COMPLETED" : "PENDING",
+        note: isPaid
+          ? OFFLINE_PAYMENT_CONFIRMED_NOTE
+          : OFFLINE_PAYMENT_PENDING_NOTE,
         occurredAt: new Date(),
+      },
+    });
+  }
+
+  private async completeEarningTransaction(
+    tx: Prisma.TransactionClient,
+    booking: BookingRecord,
+  ) {
+    const existing = await tx.transaction.findFirst({
+      where: {
+        providerId: booking.providerId,
+        bookingId: booking.id,
+        type: "EARNING",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing) {
+      await this.createEarningTransaction(tx, booking);
+      return;
+    }
+
+    await tx.transaction.update({
+      where: { id: existing.id },
+      data: {
+        paymentMethod: booking.paymentMethod ?? "cash",
+        status: "COMPLETED",
+        note: OFFLINE_PAYMENT_CONFIRMED_NOTE,
       },
     });
   }
@@ -514,6 +598,30 @@ export class BookingsService {
         data: {
           bookingId: booking.id,
           status,
+        },
+      },
+      tx,
+    );
+  }
+
+  private async createPaymentNotification(
+    tx: Prisma.TransactionClient,
+    booking: BookingRecord,
+    actor: Actor,
+  ) {
+    const targetUserId = booking.clientId === actor.id ? booking.provider.userId : booking.clientId;
+    const paymentMethod = formatPaymentMethodLabel(booking.paymentMethod);
+
+    await this.notifications.create(
+      {
+        userId: targetUserId,
+        type: "PAYMENT_RECEIVED",
+        title: "Paiement confirme",
+        message: `Le paiement ${paymentMethod} de la reservation "${booking.title}" a ete confirme`,
+        data: {
+          bookingId: booking.id,
+          paymentMethod: booking.paymentMethod ?? "cash",
+          isPaid: true,
         },
       },
       tx,
@@ -685,5 +793,15 @@ export class BookingsService {
   private getDisplayName(actor: Actor) {
     const fullName = `${actor.firstName ?? ""} ${actor.lastName ?? ""}`.trim();
     return fullName || "Un client";
+  }
+}
+
+function formatPaymentMethodLabel(
+  paymentMethod: "cash" | string | null | undefined,
+) {
+  switch (paymentMethod?.toLowerCase()) {
+    case "cash":
+    default:
+      return "en especes";
   }
 }

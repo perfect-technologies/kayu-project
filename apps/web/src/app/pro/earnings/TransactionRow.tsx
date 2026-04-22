@@ -175,6 +175,19 @@ export function TransactionRow({
             </span>
           )}
         </div>
+        {tx.note && (
+          <div
+            className="k-caption"
+            style={{
+              color: "var(--k-text-muted)",
+              marginTop: 4,
+              fontSize: 11.5,
+              lineHeight: 1.4,
+            }}
+          >
+            {tx.note}
+          </div>
+        )}
       </div>
 
       <div style={{ textAlign: "right", flexShrink: 0 }}>

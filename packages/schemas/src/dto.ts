@@ -136,6 +136,8 @@ export const UpdateBookingDto = z.object({
   status: BookingStatus.optional(),
   cancelReason: z.string().optional(),
   providerNotes: z.string().optional(),
+  isPaid: z.literal(true).optional(),
+  paymentMethod: z.literal("cash").optional(),
 });
 
 export const CreateReviewDto = z.object({

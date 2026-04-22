@@ -11,6 +11,7 @@ import {
   formatWhen,
   fullAddress,
   initialsFromName,
+  paymentStatusLabel,
   priceLabelFor,
   toV2Status,
   type V2Status,
@@ -62,6 +63,12 @@ export interface BookingDetailData {
   } | null;
 }
 
+type BookingMutationInput = {
+  status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  isPaid?: true;
+  paymentMethod?: "cash";
+};
+
 // ─── Timeline metadata ────────────────────────────────────────────────────
 
 const TIMELINE_STEPS: Record<V2Status, string[]> = {
@@ -82,10 +89,14 @@ const STEP_META: Record<string, StepMeta> = {
   cancelled: { label: "Annulée", icon: "x" },
 };
 
-const currentStepIndex = (backend: string, v2: V2Status): number => {
+const currentStepIndex = (
+  backend: string,
+  v2: V2Status,
+  isPaid?: boolean | null,
+): number => {
   if (v2 === "upcoming") return backend === "PENDING" ? 0 : 1;
   if (v2 === "active") return 3;
-  if (v2 === "completed") return 5;
+  if (v2 === "completed") return isPaid ? 5 : 4;
   if (v2 === "cancelled") return 1;
   return 0;
 };
@@ -104,7 +115,7 @@ export function BookingDetail({
   const v2Status = toV2Status(booking.status);
   const isClient = perspective === "client";
   const steps = TIMELINE_STEPS[v2Status];
-  const step = currentStepIndex(booking.status, v2Status);
+  const step = currentStepIndex(booking.status, v2Status, booking.isPaid);
 
   const counterparty = isClient
     ? {
@@ -134,13 +145,17 @@ export function BookingDetail({
     },
   });
   const updateMutation = useMutation({
-    mutationFn: (status: string) =>
-      bookingsApi(apiClient).update(booking.id, { status: status as never }),
+    mutationFn: (data: BookingMutationInput) =>
+      bookingsApi(apiClient).update(booking.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
     },
   });
+
+  const onConfirmPayment = () => {
+    updateMutation.mutate({ isPaid: true, paymentMethod: "cash" });
+  };
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto", padding: "8px 0 32px" }}>
@@ -296,7 +311,8 @@ export function BookingDetail({
                   booking.providerId && router.push(`/providers/${booking.providerId}`)
                 }
                 onCancel={() => cancelMutation.mutate()}
-                onComplete={() => updateMutation.mutate("COMPLETED")}
+                onComplete={() => updateMutation.mutate({ status: "COMPLETED" })}
+                onConfirmPayment={onConfirmPayment}
               />
             </div>
 
@@ -328,10 +344,10 @@ export function BookingDetail({
                 mono
               />
               <MetaRow label="Créée" value={formatRelativeFR(booking.createdAt)} />
-              {isClient && (
-                <MetaRow label="Paiement" value={booking.paymentMethod ?? "Via KAYOU"} />
-              )}
-              {!isClient && <MetaRow label="Paiement" value="Via KAYOU" />}
+              <MetaRow
+                label={isClient ? "Paiement" : "Etat du paiement"}
+                value={paymentStatusLabel(booking)}
+              />
               {!isClient && <MetaRow label="Zone" value={booking.city ?? "—"} />}
             </div>
 
@@ -345,15 +361,16 @@ export function BookingDetail({
                 alignItems: "flex-start",
               }}
             >
-              <I.shieldCheck
+              <I.coins
                 size={16}
                 strokeColor="var(--k-primary)"
                 style={{ marginTop: 2, flexShrink: 0 }}
               />
               <div style={{ fontSize: 12, color: "var(--k-text-body)", lineHeight: 1.5 }}>
-                <strong>Garantie KAYOU</strong>
+                <strong>Paiement en espèces</strong>
                 <div style={{ color: "var(--k-text-muted)", marginTop: 3 }}>
-                  Paiement sécurisé · remboursement si le pro ne se présente pas.
+                  KAYOU n'encaisse pas encore le client. Le prestataire confirme le
+                  règlement en espèces après la mission pour débloquer ses gains.
                 </div>
                 <button
                   onClick={() => router.push("/help")}
@@ -808,6 +825,7 @@ function ActionButtons({
   onRebook,
   onCancel,
   onComplete,
+  onConfirmPayment,
 }: {
   v2Status: V2Status;
   isClient: boolean;
@@ -818,6 +836,7 @@ function ActionButtons({
   onRebook: () => void;
   onCancel: () => void;
   onComplete: () => void;
+  onConfirmPayment: () => void;
 }) {
   if (v2Status === "upcoming") {
     return (
@@ -873,20 +892,32 @@ function ActionButtons({
   }
   if (v2Status === "completed") {
     return (
-      <div style={{ display: "flex", gap: 8 }}>
-        {isClient && !booking.reviewed && (
-          <button onClick={onReview} className="k-btn k-btn-primary" style={{ flex: 1 }}>
-            <I.star size={14} /> Laisser un avis
+      <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
+        {!isClient && !booking.isPaid && (
+          <button
+            onClick={onConfirmPayment}
+            className="k-btn k-btn-primary"
+            style={{ width: "100%" }}
+            disabled={busy}
+          >
+            <I.coins size={14} /> Confirmer le paiement reçu
           </button>
         )}
-        {isClient && booking.reviewed && (
-          <button onClick={onRebook} className="k-btn k-btn-primary" style={{ flex: 1 }}>
-            Réserver à nouveau
+        <div style={{ display: "flex", gap: 8 }}>
+          {isClient && !booking.reviewed && (
+            <button onClick={onReview} className="k-btn k-btn-primary" style={{ flex: 1 }}>
+              <I.star size={14} /> Laisser un avis
+            </button>
+          )}
+          {isClient && booking.reviewed && (
+            <button onClick={onRebook} className="k-btn k-btn-primary" style={{ flex: 1 }}>
+              Réserver à nouveau
+            </button>
+          )}
+          <button className="k-btn k-btn-secondary">
+            <I.fileText size={14} /> Facture
           </button>
-        )}
-        <button className="k-btn k-btn-secondary">
-          <I.fileText size={14} /> Facture
-        </button>
+        </div>
       </div>
     );
   }

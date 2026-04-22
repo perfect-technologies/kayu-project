@@ -74,15 +74,20 @@ function makeBooking(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeService(booking: ReturnType<typeof makeBooking>) {
+function makeService(
+  booking: ReturnType<typeof makeBooking>,
+  options: { existingEarningTransactionId?: string } = {},
+) {
   const calls: {
     updateData?: Record<string, unknown>;
     providerUpdates: unknown[];
-    transactions: unknown[];
+    createdTransactions: unknown[];
+    updatedTransactions: unknown[];
     notifications: unknown[];
   } = {
     providerUpdates: [],
-    transactions: [],
+    createdTransactions: [],
+    updatedTransactions: [],
     notifications: [],
   };
 
@@ -104,7 +109,16 @@ function makeService(booking: ReturnType<typeof makeBooking>) {
     },
     transaction: {
       create: async (input: unknown) => {
-        calls.transactions.push(input);
+        calls.createdTransactions.push(input);
+      },
+      findFirst: async () => {
+        if (!options.existingEarningTransactionId) {
+          return null;
+        }
+        return { id: options.existingEarningTransactionId };
+      },
+      update: async (input: unknown) => {
+        calls.updatedTransactions.push(input);
       },
     },
   };
@@ -165,7 +179,44 @@ test("provider completes an in-progress booking and creates pending earning", as
   assert.equal(calls.updateData?.status, "COMPLETED");
   assert.ok(calls.updateData?.completedAt instanceof Date);
   assert.equal(calls.providerUpdates.length, 1);
-  assert.equal(calls.transactions.length, 1);
+  assert.equal(calls.createdTransactions.length, 1);
+});
+
+test("provider completes an in-progress booking and confirms offline payment", async () => {
+  const { service, calls } = makeService(makeBooking({ status: "IN_PROGRESS" }));
+
+  const result = await service.update(makeActor(), "booking_1", {
+    status: "COMPLETED",
+    isPaid: true,
+    paymentMethod: "cash",
+  });
+
+  assert.equal(result.booking.status, "COMPLETED");
+  assert.equal(result.booking.isPaid, true);
+  assert.equal(result.booking.paymentMethod, "cash");
+  assert.ok(calls.updateData?.completedAt instanceof Date);
+  assert.ok(calls.updateData?.paidAt instanceof Date);
+  assert.equal(calls.createdTransactions.length, 1);
+  assert.equal(calls.updatedTransactions.length, 0);
+  assert.equal(calls.notifications.length, 2);
+});
+
+test("provider confirms payment for a completed booking and settles earning", async () => {
+  const { service, calls } = makeService(
+    makeBooking({ status: "COMPLETED", completedAt: now }),
+    { existingEarningTransactionId: "tx_1" },
+  );
+
+  const result = await service.update(makeActor(), "booking_1", {
+    isPaid: true,
+    paymentMethod: "cash",
+  });
+
+  assert.equal(result.booking.status, "COMPLETED");
+  assert.equal(result.booking.isPaid, true);
+  assert.equal(calls.createdTransactions.length, 0);
+  assert.equal(calls.updatedTransactions.length, 1);
+  assert.ok(calls.updateData?.paidAt instanceof Date);
 });
 
 test("client cancellation stores role-aware user and reason", async () => {
@@ -198,6 +249,20 @@ test("client cannot confirm a booking", async () => {
 
   await assert.rejects(
     () => service.update(actor, "booking_1", { status: "CONFIRMED" }),
+    (error) => error instanceof ForbiddenException,
+  );
+});
+
+test("client cannot confirm payment", async () => {
+  const actor = makeActor({
+    id: "client_user_1",
+    authUserId: "auth_client_1",
+    role: "CLIENT",
+  });
+  const { service } = makeService(makeBooking({ status: "COMPLETED", completedAt: now }));
+
+  await assert.rejects(
+    () => service.update(actor, "booking_1", { isPaid: true, paymentMethod: "cash" }),
     (error) => error instanceof ForbiddenException,
   );
 });

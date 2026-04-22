@@ -67,7 +67,7 @@ export function PayoutSheet({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Demander un paiement"
+      aria-label="Demander un retrait manuel"
       onClick={onClose}
       style={{
         position: "fixed",
@@ -107,7 +107,7 @@ export function PayoutSheet({
               className="k-display-m"
               style={{ margin: 0, fontSize: 22, letterSpacing: "-0.01em" }}
             >
-              Demander un paiement
+              Demander un retrait manuel
             </h2>
             <div
               className="k-caption"
@@ -321,7 +321,7 @@ export function PayoutSheet({
               >
                 {mutation.error instanceof Error
                   ? mutation.error.message
-                  : "Impossible d'enregistrer le paiement. Réessayez."}
+                  : "Impossible d'enregistrer la demande. Réessayez."}
               </div>
             )}
 
@@ -342,7 +342,7 @@ export function PayoutSheet({
                 })
               }
             >
-              {mutation.isPending ? "Enregistrement…" : "Valider le paiement"}
+              {mutation.isPending ? "Enregistrement…" : "Valider la demande"}
             </button>
             <div
               className="k-caption"
@@ -352,7 +352,7 @@ export function PayoutSheet({
                 color: "var(--k-text-muted)",
               }}
             >
-              Délai : 2–5 minutes · sécurisé par KAYOU
+              Traitement manuel KAYOU avant envoi Mobile Money
             </div>
           </>
         )}
@@ -515,8 +515,8 @@ function SubmittedNotice({
         className="k-body"
         style={{ color: "var(--k-text-muted)", margin: "0 auto", maxWidth: 360 }}
       >
-        {amount.toLocaleString("fr-FR")} FC en route vers {op.name}. Tu recevras
-        une notification dès que le virement est reçu.
+        {amount.toLocaleString("fr-FR")} FC ont ete enregistres pour verification
+        manuelle avant envoi vers {op.name}.
       </p>
       <div
         className="k-caption"

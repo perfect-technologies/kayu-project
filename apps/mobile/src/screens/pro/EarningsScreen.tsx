@@ -106,7 +106,8 @@ export function EarningsScreen() {
           <Text style={styles.overlineAccent}>Espace pro</Text>
           <Text style={styles.h1}>Mes gains</Text>
           <Text style={styles.subtitle}>
-            Virement Mobile Money en 2 à 5 minutes.
+            Les gains deviennent disponibles apres confirmation du paiement hors
+            plateforme.
           </Text>
         </View>
 
@@ -128,6 +129,16 @@ export function EarningsScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.section}>
+              <View style={styles.policyCard}>
+                <Text style={styles.policyTitle}>Politique de paiement MVP</Text>
+                <Text style={styles.policyBody}>
+                  Le client regle directement le pro en especes. Les gains
+                  restent en attente tant que ce paiement n'est pas confirme.
+                </Text>
+              </View>
+            </View>
+
             {/* Balance card */}
             <View style={styles.section}>
               <View style={styles.balanceCard}>
@@ -174,7 +185,7 @@ export function EarningsScreen() {
                   ]}
                 >
                   <I.arrowRight size={16} color="#FFFFFF" />
-                  <Text style={styles.primaryCtaText}>Demander un paiement</Text>
+                  <Text style={styles.primaryCtaText}>Demander un retrait manuel</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -197,7 +208,7 @@ export function EarningsScreen() {
                 <StatTile
                   label="En attente"
                   value={`${pending.toLocaleString('fr-FR')} FC`}
-                  caption="Sur missions non réglées"
+                  caption="Missions terminées sans paiement confirmé"
                 />
                 <StatTile
                   label="Gains totaux"
@@ -517,6 +528,7 @@ function TransactionRow({ tx, last }: { tx: Transaction; last: boolean }) {
           )}
           {tx.reference && <Text style={styles.txRef}>{tx.reference}</Text>}
         </View>
+        {tx.note ? <Text style={styles.txNote}>{tx.note}</Text> : null}
       </View>
 
       <View style={styles.txAmountCol}>
@@ -629,7 +641,7 @@ function PayoutSheet({
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.sheetTitle}>Demander un paiement</Text>
+              <Text style={styles.sheetTitle}>Demander un retrait manuel</Text>
               <Text style={styles.sheetCaption}>
                 Votre solde : {balance.toLocaleString('fr-FR')} FC
               </Text>
@@ -651,7 +663,8 @@ function PayoutSheet({
               </View>
               <Text style={styles.successTitle}>Demande enregistrée</Text>
               <Text style={styles.successBody}>
-                {amount.toLocaleString('fr-FR')} FC en route vers {selected.name}.
+                {amount.toLocaleString('fr-FR')} FC seront verifies puis envoyes vers{' '}
+                {selected.name}.
               </Text>
               <Text style={styles.successRef}>
                 Réf : {result.payout.reference ?? 'PSP en attente'}
@@ -747,7 +760,7 @@ function PayoutSheet({
                 <Text style={styles.errorInline}>
                   {mutation.error instanceof Error
                     ? mutation.error.message
-                    : "Impossible d'enregistrer le paiement. Réessayez."}
+                    : "Impossible d'enregistrer la demande. Réessayez."}
                 </Text>
               )}
 
@@ -764,11 +777,11 @@ function PayoutSheet({
                 style={[styles.primaryCta, invalid && styles.primaryCtaDisabled]}
               >
                 <Text style={styles.primaryCtaText}>
-                  {mutation.isPending ? 'Enregistrement…' : 'Valider le paiement'}
+                  {mutation.isPending ? 'Enregistrement…' : 'Valider la demande'}
                 </Text>
               </TouchableOpacity>
               <Text style={styles.sheetFootnote}>
-                Délai : 2–5 minutes · sécurisé par KAYOU
+                Traitement manuel KAYOU avant envoi Mobile Money
               </Text>
             </ScrollView>
           )}
@@ -880,6 +893,26 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 20,
     paddingTop: 14,
+  },
+  policyCard: {
+    ...(card as object),
+    padding: 16,
+    backgroundColor: theme.colors.primarySubtle,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  policyTitle: {
+    fontFamily: theme.fonts.bodySemi,
+    fontWeight: '700',
+    fontSize: 14,
+    color: theme.colors.textPrimary,
+  },
+  policyBody: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
+    marginTop: 4,
   },
 
   errorCard: {
@@ -1168,6 +1201,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: theme.colors.textSubtle,
+  },
+  txNote: {
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: theme.colors.textMuted,
+    marginTop: 4,
   },
   txAmountCol: {
     alignItems: 'flex-end',

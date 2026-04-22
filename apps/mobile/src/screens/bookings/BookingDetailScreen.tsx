@@ -27,6 +27,7 @@ import {
   hasClientReview,
   hasProviderReview,
   initialsFromName,
+  paymentStatusLabel,
   priceLabelFor,
   toV2Status,
   type V2Status,
@@ -44,8 +45,10 @@ type Nav = NativeStackNavigationProp<DetailStackParamList, 'BookingDetail'>;
 type Route = RouteProp<BookingsStackParamList, 'BookingDetail'>;
 type BackendBookingStatus = 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 type BookingUpdateInput = {
-  status: BackendBookingStatus;
+  status?: BackendBookingStatus;
   cancelReason?: string;
+  isPaid?: true;
+  paymentMethod?: 'cash';
 };
 
 // ─── Timeline ─────────────────────────────────────────────────────────────
@@ -68,10 +71,14 @@ const STEP_META = {
   cancelled: { label: 'Annulée', icon: 'x' as const },
 };
 
-const currentStepIndex = (backend: string, v2: V2Status): number => {
+const currentStepIndex = (
+  backend: string,
+  v2: V2Status,
+  isPaid?: boolean | null,
+): number => {
   if (v2 === 'upcoming') return backend === 'PENDING' ? 0 : 1;
   if (v2 === 'active') return 3;
-  if (v2 === 'completed') return 5;
+  if (v2 === 'completed') return isPaid ? 5 : 4;
   if (v2 === 'cancelled') return 1;
   return 0;
 };
@@ -165,7 +172,7 @@ export function BookingDetailScreen() {
   const clientReviewed = hasClientReview(booking);
   const perspective: 'client' | 'pro' = isClient ? 'client' : 'pro';
   const steps = TIMELINE_STEPS[v2];
-  const step = currentStepIndex(booking.status ?? '', v2);
+  const step = currentStepIndex(booking.status ?? '', v2, booking.isPaid);
 
   const counterparty = isClient
     ? {
@@ -220,8 +227,25 @@ export function BookingDetailScreen() {
   const onComplete = () =>
     Alert.alert('Terminer', 'Confirmer que la mission est terminée ?', [
       { text: 'Non', style: 'cancel' },
-      { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'COMPLETED' }) },
+      {
+        text: 'Oui',
+        onPress: () => updateMutation.mutate({ status: 'COMPLETED' }),
+      },
     ]);
+
+  const onConfirmPayment = () =>
+    Alert.alert(
+      'Paiement reçu',
+      'Confirmer que le client a payé en espèces ?',
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui, paiement reçu',
+          onPress: () =>
+            updateMutation.mutate({ isPaid: true, paymentMethod: 'cash' }),
+        },
+      ],
+    );
 
   const onReview = () => {
     if (!booking.providerId || booking.status !== 'COMPLETED' || reviewed) return;
@@ -281,6 +305,7 @@ export function BookingDetailScreen() {
           <ActionButtons
             v2={v2}
             backendStatus={booking.status}
+            booking={booking}
             isClient={isClient}
             reviewed={reviewed}
             clientReviewed={clientReviewed}
@@ -301,6 +326,7 @@ export function BookingDetailScreen() {
             onConfirm={onConfirm}
             onStart={onStart}
             onComplete={onComplete}
+            onConfirmPayment={onConfirmPayment}
             onReview={onReview}
             onClientReview={onClientReview}
           />
@@ -371,14 +397,10 @@ export function BookingDetailScreen() {
             label="Créée"
             value={formatRelativeFR(booking.createdAt) || '—'}
           />
-          {isClient ? (
-            <MetaRow
-              label="Moyen de paiement"
-              value={booking.paymentMethod ?? 'Via KAYOU'}
-            />
-          ) : (
-            <MetaRow label="Paiement" value="Via KAYOU" />
-          )}
+          <MetaRow
+            label={isClient ? 'Paiement' : 'Etat du paiement'}
+            value={paymentStatusLabel(booking)}
+          />
           {booking.status === 'CANCELLED' && booking.cancelReason ? (
             <MetaRow label="Raison d’annulation" value={booking.cancelReason} />
           ) : null}
@@ -401,11 +423,16 @@ export function BookingDetailScreen() {
 
         {/* Help */}
         <View style={styles.helpWrap}>
-          <Pressable style={styles.helpBtn}>
-            <I.shieldCheck size={16} color={theme.colors.primary} />
-            <Text style={styles.helpText}>Un problème ? Contactez KAYOU</Text>
-            <I.chevronRight size={13} color={theme.colors.textMuted} />
-          </Pressable>
+          <View style={styles.helpBtn}>
+            <I.coins size={16} color={theme.colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.helpText}>Paiement en espèces</Text>
+              <Text style={styles.helpSubtext}>
+                KAYOU n'encaisse pas encore le client. Le pro confirme le règlement
+                en espèces après la mission pour débloquer ses gains.
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -793,6 +820,7 @@ function MetaRow({
 function ActionButtons({
   v2,
   backendStatus,
+  booking,
   isClient,
   reviewed,
   clientReviewed,
@@ -802,11 +830,13 @@ function ActionButtons({
   onConfirm,
   onStart,
   onComplete,
+  onConfirmPayment,
   onReview,
   onClientReview,
 }: {
   v2: V2Status;
   backendStatus?: string | null;
+  booking: Booking;
   isClient: boolean;
   reviewed: boolean;
   clientReviewed: boolean;
@@ -816,6 +846,7 @@ function ActionButtons({
   onConfirm: () => void;
   onStart: () => void;
   onComplete: () => void;
+  onConfirmPayment: () => void;
   onReview: () => void;
   onClientReview: () => void;
 }) {
@@ -912,10 +943,28 @@ function ActionButtons({
     if (!isClient) {
       return (
         <View style={{ gap: 8 }}>
+          {!booking.isPaid && (
+            <Pressable style={[styles.primaryBtn, styles.primaryBtnLg]} onPress={onConfirmPayment}>
+              <I.coins size={15} color="#fff" />
+              <Text style={styles.primaryBtnText}>Confirmer le paiement reçu</Text>
+            </Pressable>
+          )}
           {!clientReviewed ? (
-            <Pressable style={styles.primaryBtn} onPress={onClientReview}>
-              <I.star size={14} color="#fff" />
-              <Text style={styles.primaryBtnText}>Evaluer le client</Text>
+            <Pressable
+              style={booking.isPaid ? styles.primaryBtn : styles.secondaryBtn}
+              onPress={onClientReview}
+            >
+              <I.star
+                size={14}
+                color={booking.isPaid ? '#fff' : theme.colors.textPrimary}
+              />
+              <Text
+                style={
+                  booking.isPaid ? styles.primaryBtnText : styles.secondaryBtnText
+                }
+              >
+                Evaluer le client
+              </Text>
             </Pressable>
           ) : (
             <Pressable style={styles.secondaryBtn}>
@@ -1485,7 +1534,7 @@ const styles = StyleSheet.create({
   helpWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   helpBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 10,
     backgroundColor: 'transparent',
     borderWidth: 1,
@@ -1494,9 +1543,14 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   helpText: {
-    flex: 1,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: theme.colors.textBody,
+  },
+  helpSubtext: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
   },
 });
