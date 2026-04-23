@@ -6,7 +6,7 @@ This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`
 
 ## Current Phase
 
-WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next launch remediation is WS-12 test harness, then WS-13 web launch parity if web is public at launch.
+WS-12 complete. WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next launch remediation is WS-13 web launch parity if web is public at launch.
 
 ## Status Legend
 
@@ -32,7 +32,7 @@ WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. 
 | WS-09 | P1 | Operational | Verification And Admin Review | WS-06/WS-10 | done | Codex | Added explicit launch storage stub, per-document admin review queue, provider-visible doc decisions, and focused backend verification/admin tests. |
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | done | Codex | Added admin booking/dispute support tooling, fixed web admin route hygiene, and blocked mobile admins from client/provider tabs with a web-admin handoff screen. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | done | Codex | Added offline payment confirmation on completed bookings, reconciled earning transaction status, and replaced misleading protected/instant payout copy on booking/earnings surfaces. |
-| WS-12 | P1 | Yes | Test Harness | Can start after first P0 | not_started | | Regression coverage for launch-critical flows. |
+| WS-12 | P1 | Yes | Test Harness | Can start after first P0 | done | Codex | Added root/backend launch-harness scripts, a Nest HTTP integration harness for launch-critical backend routes, mobile manual smoke runbooks under `apps/mobile/e2e/`, and CI wiring in `.github/workflows/launch-harness.yml`. |
 | WS-13 | P0/P1 | Yes if web launches | Web Launch Parity And Route Hygiene | WS-01/WS-02/WS-03 helpful | not_started | | Bring `apps/web` into parity with launch backend/mobile flows or hide unfinished web surfaces. |
 
 ## Current P0 Blockers
@@ -57,6 +57,7 @@ WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. 
 | 2026-04-21 | Hide mobile discovery map mode for launch instead of shipping a placeholder toggle. | Provider search results do not have reliable per-result map coordinates yet; the launch UI should not imply geographic precision that the backend cannot provide. |
 | 2026-04-22 | Keep the launch admin surface on web; mobile admin logins must stop at an explicit handoff screen instead of reusing client tabs. | Admin moderation/support is now coherent on the web dashboard, while mobile would otherwise drop admins into misleading client/provider flows. |
 | 2026-04-22 | Keep launch payments offline-first and require explicit payment confirmation before provider earnings become available. | There is no launch-ready client PSP, refund, webhook, or reconciliation path; booking completion and earnings must reflect direct cash/off-platform settlement instead of implying KAYOU-held funds. |
+| 2026-04-22 | Keep WS-12 mobile smoke coverage manual-first until the repo has a dedicated mobile E2E runtime, but enforce the backend launch harness in CI now. | The backend service layer already covers the audit’s P0 regressions well; mobile still needs deterministic runbooks and seeded accounts, while full device automation can be added later without blocking launch hardening. |
 
 ## Validation Evidence
 
@@ -209,6 +210,15 @@ pnpm --filter @kayu/mobile type-check
 
 Result: passed on 2026-04-22. Web/mobile type-checks were run after rebuilding `@kayu/schemas` and `@kayu/api` because those workspaces consume generated declaration files.
 
+WS-12 validation:
+
+```bash
+pnpm --filter @kayu/backend test:launch
+pnpm test:launch
+```
+
+Result: passed on 2026-04-22. `pnpm test:launch` now rebuilds `@kayu/schemas` and `@kayu/api`, runs the backend launch harness, and then runs the backend and mobile type checks. The backend harness includes the focused service specs for identity, onboarding/providers, bookings, messaging, quotes, reviews, admin, and verification, plus `apps/backend/src/test/launch/launch-critical.harness.spec.ts` as a Nest HTTP integration harness for launch-critical auth, booking, messaging, quote, and review routes.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -328,3 +338,11 @@ When handing back:
 - Updated mobile and web booking detail timelines plus payment labels so completed-but-unpaid jobs stay on the payment step until confirmation.
 - Replaced misleading protected-payment / instant-payout copy on mobile and web earnings surfaces with explicit offline-payment and manual-withdrawal policy messaging, and surfaced transaction notes for pending earnings.
 - Revalidated with `pnpm --filter @kayu/schemas run type-check`, `pnpm --filter @kayu/backend run type-check`, `pnpm --filter @kayu/mobile run type-check`, `pnpm --filter @kayu/backend run test:bookings`, plus `pnpm --filter @kayu/schemas run build`, `pnpm --filter @kayu/api run build`, and `pnpm --filter @kayu/web run type-check`.
+
+### 2026-04-22 — WS-12 Test Harness
+
+- Added a single local launch command at the repo root: `pnpm test:launch`.
+- Added `@kayu/backend` `test:launch` so CI and developers run the full launch-critical backend suite through one stable entry point, now including the admin and verification service specs from WS-09 and WS-10.
+- Replaced the old service-only launch harness with `apps/backend/src/test/launch/launch-critical.harness.spec.ts`, a Nest HTTP integration harness that exercises real controllers, auth/role guards, and Zod validation for role selection, direct booking creation/lifecycle, messaging bootstrap, quote acceptance, and completed-booking reviews.
+- Added mobile launch smoke documentation under `apps/mobile/e2e/manual/` with seeded-account prerequisites and step-by-step client/provider runbooks for auth role selection, direct booking, status transitions, messaging bootstrap, quote acceptance, and completed-booking review.
+- Added `.github/workflows/launch-harness.yml` so pull requests and pushes to `main` run the launch harness automatically.

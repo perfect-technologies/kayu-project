@@ -163,11 +163,18 @@ Current launch checks:
 pnpm db:up
 pnpm db:push
 pnpm db:seed
+pnpm test:launch
 pnpm type-check
-pnpm dev:web
 ```
 
-Formal unit/e2e test suites are not configured yet. When added, they should live beside each app/package and be routed through Turbo root scripts.
+Launch-critical automated coverage now lives in `pnpm test:launch`. That command rebuilds shared packages, runs the backend launch harness (`@kayu/backend test:launch`), then runs the backend and mobile type checks used by the launch audit.
+
+The backend launch harness now combines:
+
+- focused service specs for identity, onboarding/providers, bookings, messaging, quotes, reviews, admin, and verification
+- a Nest HTTP integration harness that drives real controllers, guards, roles, and Zod validation pipes for launch-critical auth, booking, messaging, quote, and review flows
+
+Mobile smoke coverage is documented under `apps/mobile/e2e/manual/` and should be run against the seeded environment before release candidates.
 
 ## Deployment Notes
 
