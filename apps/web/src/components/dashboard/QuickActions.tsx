@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LucideIcon, Plus, Search, Calendar, Settings, Eye, Clock, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { launchFlags } from '@/lib/launch-flags';
 
 interface QuickAction {
   label: string;
@@ -86,7 +87,10 @@ export function clientQuickActions(): QuickAction[] {
 export function providerQuickActions(): QuickAction[] {
   return [
     { label: 'Tableau de bord', icon: Eye, href: '/pro' },
-    { label: 'Mes demandes', icon: Clock, href: '/pro/requests' },
+    ...(launchFlags.enableJobRequests
+      ? [{ label: 'Mes demandes', icon: Clock, href: '/pro/requests' }]
+      : []),
+    { label: 'Mes réservations', icon: Calendar, href: '/bookings' },
     { label: 'Gains', icon: TrendingUp, href: '/pro/earnings' },
     { label: 'Paramètres', icon: Settings, href: '/dashboard/settings' },
   ];

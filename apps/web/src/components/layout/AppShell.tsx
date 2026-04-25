@@ -40,6 +40,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { launchFlags } from '@/lib/launch-flags';
 
 interface NavItem {
   name: string;
@@ -57,7 +58,9 @@ const clientNavItems: NavItem[] = [
 
 const providerNavItems: NavItem[] = [
   { name: 'Tableau de bord', href: '/pro', icon: LayoutDashboard },
-  { name: 'Demandes', href: '/pro/requests', icon: Inbox },
+  ...(launchFlags.enableJobRequests
+    ? [{ name: 'Demandes', href: '/pro/requests', icon: Inbox }]
+    : []),
   { name: 'Mes réservations', href: '/bookings', icon: Calendar },
   { name: 'Messages', href: '/messages', icon: MessageSquare },
   { name: 'Gains', href: '/pro/earnings', icon: Wallet },

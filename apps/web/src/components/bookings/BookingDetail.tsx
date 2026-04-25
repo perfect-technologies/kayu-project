@@ -137,7 +137,7 @@ export function BookingDetail({
         reviews: null,
       };
 
-  const onBack = () => router.push(isClient ? "/bookings" : "/pro/requests");
+  const onBack = () => router.push("/bookings");
 
   const cancelMutation = useMutation({
     mutationFn: () => bookingsApi(apiClient).cancel(booking.id),
@@ -176,7 +176,7 @@ export function BookingDetail({
             marginBottom: 12,
           }}
         >
-          <I.arrowLeft size={14} /> {isClient ? "Mes réservations" : "Mes demandes"}
+          <I.arrowLeft size={14} /> Mes réservations
         </button>
 
         {/* Header row: id + title + price */}

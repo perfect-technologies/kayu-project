@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { launchFlags } from "@/lib/launch-flags";
 import { JobRequestsClient } from "./JobRequestsClient";
 
 export const metadata: Metadata = {
@@ -8,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function JobRequestsPage() {
+  if (!launchFlags.enableJobRequests) {
+    redirect("/pro");
+  }
+
   return <JobRequestsClient />;
 }

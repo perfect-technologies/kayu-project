@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { needsClientProfileCompletion, useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
+import { launchFlags } from '@/lib/launchFlags';
 import { MobileTabBar } from '@/components/shell';
 
 // Auth screens
@@ -284,10 +285,12 @@ function ProviderNavigator() {
         name="ProVerification"
         component={ProVerificationScreen}
       />
-      <ProviderStack.Screen
-        name="QuoteCompose"
-        component={QuoteComposeScreen}
-      />
+      {(launchFlags.enableJobRequests || launchFlags.enableQuoteMarketplace) && (
+        <ProviderStack.Screen
+          name="QuoteCompose"
+          component={QuoteComposeScreen}
+        />
+      )}
       <ProviderStack.Screen
         name="BookingDetail"
         component={BookingDetailScreen}
@@ -448,7 +451,9 @@ function ClientTabs() {
     >
       <MainTab.Screen name="Home" component={HomeScreen} />
       <MainTab.Screen name="Search" component={SearchNavigator} />
-      <MainTab.Screen name="Requests" component={ClientRequestsNavigator} />
+      {launchFlags.enableJobRequests && (
+        <MainTab.Screen name="Requests" component={ClientRequestsNavigator} />
+      )}
       <MainTab.Screen name="Bookings" component={BookingsNavigator} />
       <MainTab.Screen name="Messages" component={MessagesNavigator} />
       <MainTab.Screen name="Profile" component={ProfileNavigator} />
@@ -466,7 +471,10 @@ function ProTabs() {
       })}
     >
       <MainTab.Screen name="ProviderDashboard" component={ProviderNavigator} />
-      <MainTab.Screen name="Requests" component={RequestsNavigator} />
+      {launchFlags.enableJobRequests && (
+        <MainTab.Screen name="Requests" component={RequestsNavigator} />
+      )}
+      <MainTab.Screen name="Bookings" component={BookingsNavigator} />
       <MainTab.Screen name="Messages" component={MessagesNavigator} />
       <MainTab.Screen name="Earnings" component={EarningsScreen} />
       <MainTab.Screen name="Profile" component={ProfileNavigator} />

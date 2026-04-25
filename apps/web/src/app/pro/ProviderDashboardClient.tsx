@@ -22,6 +22,7 @@ import type {
 import { JobCard } from "@/components/pro/JobCard";
 import { RequestCard } from "@/components/pro/RequestCard";
 import type { DashboardJob, DashboardRequest } from "@/components/pro/types";
+import { launchFlags } from "@/lib/launch-flags";
 
 const AVATAR_COLORS = [
   "#FB7185",
@@ -142,7 +143,10 @@ export function ProviderDashboardClient() {
     [data],
   );
   const newRequests: DashboardRequest[] = useMemo(
-    () => (data?.newRequests ?? []).map(toDashboardRequest),
+    () =>
+      launchFlags.enableJobRequests
+        ? (data?.newRequests ?? []).map(toDashboardRequest)
+        : [],
     [data],
   );
   const todayTotal = data?.today.estimatedRecette ?? 0;
@@ -264,13 +268,15 @@ export function ProviderDashboardClient() {
           >
             <I.calendar size={15} /> Calendrier
           </button>
-          <button
-            type="button"
-            className="k-btn k-btn-primary"
-            onClick={() => router.push("/pro/requests")}
-          >
-            <I.inbox size={15} /> Voir les demandes
-          </button>
+          {launchFlags.enableJobRequests && (
+            <button
+              type="button"
+              className="k-btn k-btn-primary"
+              onClick={() => router.push("/pro/requests")}
+            >
+              <I.inbox size={15} /> Voir les demandes
+            </button>
+          )}
         </div>
       </div>
 
@@ -302,7 +308,7 @@ export function ProviderDashboardClient() {
         <div style={{ flex: 1, minWidth: 240 }}>
           <div style={{ fontWeight: 600, color: isAvailable ? "#065F46" : "var(--k-text-primary)" }}>
             {isAvailable
-              ? "Disponible aujourd'hui · reçoit des demandes"
+              ? "Disponible aujourd'hui · visible aux clients"
               : "Indisponible · tu n'apparais pas dans les résultats"}
           </div>
           <div
@@ -454,66 +460,68 @@ export function ProviderDashboardClient() {
           )}
         </section>
 
-        <section>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              marginBottom: 14,
-            }}
-          >
-            <h2
-              className="k-heading"
+        {launchFlags.enableJobRequests && (
+          <section>
+            <div
               style={{
-                margin: 0,
-                fontFamily: "var(--font-display)",
-                fontWeight: 600,
-                fontSize: 20,
-                color: "var(--k-text-primary)",
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                marginBottom: 14,
               }}
             >
-              Nouvelles demandes{" "}
-              <span
+              <h2
+                className="k-heading"
                 style={{
-                  fontSize: 14,
-                  color: "var(--k-accent)",
+                  margin: 0,
+                  fontFamily: "var(--font-display)",
                   fontWeight: 600,
+                  fontSize: 20,
+                  color: "var(--k-text-primary)",
                 }}
               >
-                ({newRequests.length})
-              </span>
-            </h2>
-            <button
-              type="button"
-              onClick={() => router.push("/pro/requests")}
-              style={{
-                border: 0,
-                background: "transparent",
-                color: "var(--k-primary-hover)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              Tout voir
-            </button>
-          </div>
-          {newRequests.length === 0 ? (
-            <EmptyLine icon="inbox" copy="Pas de demande en attente" />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {newRequests.map((r) => (
-                <RequestCard
-                  key={r.id}
-                  req={r}
-                  onQuote={() => router.push(`/pro/devis/new?requestId=${r.id}`)}
-                />
-              ))}
+                Nouvelles demandes{" "}
+                <span
+                  style={{
+                    fontSize: 14,
+                    color: "var(--k-accent)",
+                    fontWeight: 600,
+                  }}
+                >
+                  ({newRequests.length})
+                </span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => router.push("/pro/requests")}
+                style={{
+                  border: 0,
+                  background: "transparent",
+                  color: "var(--k-primary-hover)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "var(--font-body)",
+                }}
+              >
+                Tout voir
+              </button>
             </div>
-          )}
-        </section>
+            {newRequests.length === 0 ? (
+              <EmptyLine icon="inbox" copy="Pas de demande en attente" />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {newRequests.map((r) => (
+                  <RequestCard
+                    key={r.id}
+                    req={r}
+                    onQuote={() => router.push(`/pro/devis/new?requestId=${r.id}`)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {isFetching && (

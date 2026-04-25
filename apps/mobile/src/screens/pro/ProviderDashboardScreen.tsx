@@ -22,6 +22,7 @@ import type { DashboardBooking, RequestPreview, TodayJob } from '@kayu/schemas';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
+import { launchFlags } from '@/lib/launchFlags';
 import type { ProviderStackParamList } from '@/navigation/AppNavigator';
 
 type ProviderDashboardNav = NativeStackNavigationProp<
@@ -286,7 +287,10 @@ export function ProviderDashboardScreen() {
     [data],
   );
   const newRequests = useMemo(
-    () => (data?.newRequests ?? []).map(toDashboardRequest),
+    () =>
+      launchFlags.enableJobRequests
+        ? (data?.newRequests ?? []).map(toDashboardRequest)
+        : [],
     [data],
   );
   const todayTotal = data?.today.estimatedRecette ?? 0;
@@ -529,7 +533,7 @@ export function ProviderDashboardScreen() {
           <Text style={styles.heading}>Planning du jour</Text>
           <TouchableOpacity
             activeOpacity={0.6}
-            onPress={() => navigation.getParent()?.navigate('Requests' as never)}
+            onPress={() => navigation.getParent()?.navigate('Bookings' as never)}
           >
             <Text style={styles.linkLabel}>Missions</Text>
           </TouchableOpacity>
@@ -551,37 +555,38 @@ export function ProviderDashboardScreen() {
         )}
       </View>
 
-      {/* New requests */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.heading}>
-            Nouvelles demandes{' '}
-            <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
-              ({newRequests.length})
+      {launchFlags.enableJobRequests && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.heading}>
+              Nouvelles demandes{' '}
+              <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
+                ({newRequests.length})
+              </Text>
             </Text>
-          </Text>
-        </View>
-        {newRequests.length === 0 ? (
-          <EmptyLine iconName="inbox" copy="Pas de demande en attente" />
-        ) : (
-          <View style={{ gap: 12 }}>
-            {newRequests.map((r) => (
-              <RequestCard
-                key={r.id}
-                req={r}
-                busy={
-                  dismissRequestMutation.isPending &&
-                  dismissRequestMutation.variables === r.id
-                }
-                onDecline={() => dismissRequestMutation.mutate(r.id)}
-                onQuote={() =>
-                  navigation.navigate('QuoteCompose', { requestId: r.id })
-                }
-              />
-            ))}
           </View>
-        )}
-      </View>
+          {newRequests.length === 0 ? (
+            <EmptyLine iconName="inbox" copy="Pas de demande en attente" />
+          ) : (
+            <View style={{ gap: 12 }}>
+              {newRequests.map((r) => (
+                <RequestCard
+                  key={r.id}
+                  req={r}
+                  busy={
+                    dismissRequestMutation.isPending &&
+                    dismissRequestMutation.variables === r.id
+                  }
+                  onDecline={() => dismissRequestMutation.mutate(r.id)}
+                  onQuote={() =>
+                    navigation.navigate('QuoteCompose', { requestId: r.id })
+                  }
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Earnings */}
       <View style={styles.section}>
