@@ -10,6 +10,7 @@ import {
 } from "./common.js";
 import {
   BookingStatus,
+  FinalOfferStatus,
   MessageType,
   PayoutOperator,
   TransactionType,
@@ -24,6 +25,7 @@ import {
   ConversationSchema,
   EarningsSummarySchema,
   FavoriteSchema,
+  FinalOfferSchema,
   MessageSchema,
   NotificationSchema,
   PayoutSchema,
@@ -138,6 +140,23 @@ export const UpdateBookingDto = z.object({
   providerNotes: z.string().optional(),
   isPaid: z.literal(true).optional(),
   paymentMethod: z.literal("cash").optional(),
+});
+
+export const CreateFinalOfferDto = z.object({
+  providerId: IdSchema,
+  clientId: IdSchema,
+  conversationId: IdSchema.optional(),
+  bookingId: IdSchema.optional(),
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1).optional(),
+  price: z.number().nonnegative(),
+  duration: z.number().int().positive().optional(),
+  scheduledDate: z.coerce.date(),
+  address: z.string().trim().min(1).optional(),
+  city: z.string().trim().min(1).optional(),
+  notes: z.string().trim().min(1).optional(),
+  paymentMethod: z.literal("cash").default("cash"),
+  expiresAt: z.coerce.date().optional(),
 });
 
 export const CreateReviewDto = z.object({
@@ -270,6 +289,14 @@ export const ProviderSearchParams = PaginationParams.extend({
 export const BookingSearchParams = PaginationParams.extend({
   status: BookingStatus.optional(),
   role: z.enum(["client", "provider"]).default("client"),
+});
+
+export const FinalOfferSearchParams = PaginationParams.extend({
+  status: FinalOfferStatus.optional(),
+  conversationId: IdSchema.optional(),
+  bookingId: IdSchema.optional(),
+}).extend({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const ReviewSearchParams = PaginationParams.extend({
@@ -820,6 +847,23 @@ export const BookingsResponseSchema = z.object({
   }),
 });
 
+export const FinalOffersResponseSchema = z.object({
+  success: z.literal(true),
+  finalOffers: z.array(FinalOfferSchema),
+  pagination: PaginationMetaSchema,
+});
+
+export const FinalOfferResponseSchema = z.object({
+  success: z.literal(true),
+  finalOffer: FinalOfferSchema,
+});
+
+export const FinalOfferAcceptResponseSchema = z.object({
+  success: z.literal(true),
+  finalOffer: FinalOfferSchema,
+  booking: BookingSchema,
+});
+
 export const ReviewsResponseSchema = z.object({
   reviews: z.array(ReviewSchema),
   pagination: z.object({
@@ -991,6 +1035,7 @@ export type ProviderOnboardingDto = z.infer<typeof ProviderOnboardingDto>;
 export type UpdateProviderDto = z.infer<typeof UpdateProviderDto>;
 export type CreateBookingDto = z.infer<typeof CreateBookingDto>;
 export type UpdateBookingDto = z.infer<typeof UpdateBookingDto>;
+export type CreateFinalOfferDtoType = z.infer<typeof CreateFinalOfferDto>;
 export type CreateReviewDto = z.infer<typeof CreateReviewDto>;
 export type CreateClientReviewDto = z.infer<typeof CreateClientReviewDto>;
 export type CreateMessageDto = z.infer<typeof CreateMessageDto>;
@@ -1005,6 +1050,7 @@ export type AdminModerateReviewDto = z.infer<typeof AdminModerateReviewDto>;
 export type FavoriteProviderDto = z.infer<typeof FavoriteProviderDto>;
 export type ProviderSearchParams = z.infer<typeof ProviderSearchParams>;
 export type BookingSearchParams = z.infer<typeof BookingSearchParams>;
+export type FinalOfferSearchParams = z.infer<typeof FinalOfferSearchParams>;
 export type ReviewSearchParams = z.infer<typeof ReviewSearchParams>;
 export type MessageSearchParams = z.infer<typeof MessageSearchParams>;
 export type NotificationSearchParams = z.infer<typeof NotificationSearchParams>;
@@ -1054,6 +1100,11 @@ export type CategoryHierarchyResponse = z.infer<typeof CategoryHierarchyResponse
 export type ProvidersResponse = z.infer<typeof ProvidersResponseSchema>;
 export type ProviderProfileResponse = z.infer<typeof ProviderProfileResponseSchema>;
 export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
+export type FinalOffersResponse = z.infer<typeof FinalOffersResponseSchema>;
+export type FinalOfferResponse = z.infer<typeof FinalOfferResponseSchema>;
+export type FinalOfferAcceptResponse = z.infer<
+  typeof FinalOfferAcceptResponseSchema
+>;
 export type ReviewsResponse = z.infer<typeof ReviewsResponseSchema>;
 export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;
 export type MessagesResponse = z.infer<typeof MessagesResponseSchema>;

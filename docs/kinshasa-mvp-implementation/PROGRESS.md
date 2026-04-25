@@ -21,7 +21,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | --- | --- | --- | --- |
 | 00 - Product Reset | Done | Planning | Product direction documented |
 | 01 - Feature Flags And Navigation Cleanup | Done | Codex | Launch flags default off; request/quote marketplace hidden from web/mobile navigation |
-| 02 - Backend Final Offer And Booking Lifecycle | Not started | Unassigned | Define and implement final-offer contract |
+| 02 - Backend Final Offer And Booking Lifecycle | Done | Codex | First-class final-offer API creates/confirms cash bookings without job requests |
 | 03 - Web Direct Flow | Not started | Unassigned | Web discovery/chat/booking/final-offer launch flow |
 | 04 - Mobile Direct Flow | Not started | Unassigned | Mobile discovery/chat/booking/final-offer launch flow |
 | 05 - Discovery Filters And Provider Profile | Not started | Unassigned | Fix filters and provider profile truthfulness |
@@ -37,10 +37,10 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 2026-04-25 | Keep cash as the only launch payment mode | Mobile money/online payment can come later; launch flow must be clear |
 | 2026-04-25 | Remove en route / arrived from launch-facing UI | Not needed for MVP and not fully modeled in backend |
 | 2026-04-25 | Add final offer after discussion | Gives both parties a simple agreement without quote competition |
+| 2026-04-25 | Model final offers as first-class backend records | Keeps the launch agreement flow independent from job requests and competitive quotes while still linking to conversations/bookings |
 
 ## Open Questions
 
-- Should final offer be a new first-class model, or should it reuse/update bookings?
 - Should phone call be a primary CTA everywhere provider phone is visible and allowed?
 - Should provider completion require client cash confirmation before review, or can review happen after provider marks completed?
 
@@ -86,6 +86,78 @@ Routes and screens checked:
 Hidden routes intentionally left in repo:
 
 - Existing job request, provider inbox, quote composer, and quote detail code remains available behind flags for later internal reactivation.
+
+## Workstream 02 Evidence
+
+Completed: 2026-04-25
+
+Changed files:
+
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/src/modules/bookings/bookings.module.ts`
+- `apps/backend/src/modules/bookings/bookings.service.ts`
+- `apps/backend/src/modules/bookings/bookings.service.spec.ts`
+- `apps/backend/src/modules/bookings/final-offers.controller.ts`
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts`
+- `packages/schemas/src/enums.ts`
+- `packages/schemas/src/models.ts`
+- `packages/schemas/src/dto.ts`
+- `packages/api/src/endpoints.ts`
+- `packages/api/src/index.ts`
+- `packages/api/src/query-keys.ts`
+
+Backend/API contract added:
+
+- `GET /final-offers`
+- `POST /final-offers`
+- `GET /final-offers/:id`
+- `POST /final-offers/:id/accept`
+- `POST /final-offers/:id/decline`
+
+Behavior implemented:
+
+- Provider can send a cash-only final offer to a client with optional `conversationId` and optional pending `bookingId`.
+- Final offers can only target users with the `CLIENT` role.
+- Client can accept a pending final offer.
+- Accepting creates a confirmed booking when no booking exists.
+- Accepting updates an attached pending booking to confirmed when `bookingId` exists.
+- Expired final offers are persisted as `EXPIRED` before acceptance rejects.
+- Client can decline a pending final offer and continue discussion.
+- Final-offer notifications are created for sent, accepted, and declined events.
+- Authorization rejects providers sending offers for another provider and rejects non-target clients accepting/declining.
+- Quote/job-request flow is not required and is not mutated by final-offer acceptance.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend prisma:generate` - passed.
+- `pnpm --filter @kayu/backend prisma:push` - passed; synced local PostgreSQL database `kayu` on `localhost:5433`.
+- `pnpm --filter @kayu/schemas build` - passed.
+- `pnpm --filter @kayu/schemas type-check` - passed.
+- `pnpm --filter @kayu/api type-check` - passed.
+- `pnpm --filter @kayu/backend exec prisma format` - passed.
+- `pnpm --filter @kayu/backend exec prisma validate` - passed.
+- `pnpm --filter @kayu/backend type-check` - passed.
+- `pnpm --filter @kayu/backend test:bookings` - passed, 16 tests.
+- `pnpm --filter @kayu/backend test:launch` - passed, 58 tests.
+
+Seeded API scenario used:
+
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts` includes `final offer route lets provider send terms and client accept into booking`.
+- Seeded provider posts `/final-offers` for seeded client with cash terms.
+- Seeded client posts `/final-offers/:id/accept`.
+- Test verifies the final offer becomes `ACCEPTED`, returned booking is `CONFIRMED`, payment method is `cash`, and existing quote state is unchanged.
+
+Review follow-up:
+
+- Added validation that `clientId` must resolve to a `CLIENT` user before creating a final offer.
+- Moved expired-offer persistence outside the throwing accept transaction so `EXPIRED` is not rolled back.
+- Added regression coverage for non-client targets and expired-offer persistence.
+
+Schema migration:
+
+- Added Prisma `FinalOfferStatus`, `FinalOffer` model, final-offer relations, and final-offer notification types.
+- No migration directory exists in the current backend; no migration file was added.
+- Applied the schema through the project’s existing Prisma push workflow to local PostgreSQL database `kayu` on `localhost:5433`.
 
 ## How To Update This File
 

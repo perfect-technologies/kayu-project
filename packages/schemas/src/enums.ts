@@ -52,6 +52,15 @@ export const BookingStatus = z.enum([
 ]);
 export type BookingStatus = z.infer<typeof BookingStatus>;
 
+export const FinalOfferStatus = z.enum([
+  "PENDING",
+  "ACCEPTED",
+  "DECLINED",
+  "CANCELLED",
+  "EXPIRED",
+]);
+export type FinalOfferStatus = z.infer<typeof FinalOfferStatus>;
+
 export const PaymentRating = z.enum([
   "PREPAID",
   "ONTIME",
@@ -87,6 +96,9 @@ export const NotificationType = z.enum([
   "QUOTE_RECEIVED",
   "QUOTE_ACCEPTED",
   "QUOTE_DECLINED",
+  "FINAL_OFFER_RECEIVED",
+  "FINAL_OFFER_ACCEPTED",
+  "FINAL_OFFER_DECLINED",
   "SYSTEM",
 ]);
 export type NotificationType = z.infer<typeof NotificationType>;

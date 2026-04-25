@@ -12,6 +12,7 @@ import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { PrismaService } from "../../database/prisma.service";
 import { BookingsController } from "../../modules/bookings/bookings.controller";
 import { BookingsService } from "../../modules/bookings/bookings.service";
+import { FinalOffersController } from "../../modules/bookings/final-offers.controller";
 import { IdentityController } from "../../modules/identity/identity.controller";
 import { IdentityRepository, type UserWithProvider } from "../../modules/identity/identity.repository";
 import { IdentityService } from "../../modules/identity/identity.service";
@@ -58,10 +59,12 @@ function createState() {
   const conversationsByKey = new Map<string, { id: string; user1Id: string; user2Id: string }>();
   const messagesByConversationId = new Map<string, Array<Record<string, unknown>>>();
   const quotesById = new Map<string, Record<string, unknown>>();
+  const finalOffersById = new Map<string, Record<string, unknown>>();
   const notifications: Array<Record<string, unknown>> = [];
   const earningTransactions: Array<Record<string, unknown>> = [];
   let nextBookingIndex = 2;
   let nextConversationIndex = 1;
+  let nextFinalOfferIndex = 0;
 
   const clientUser = makeUser({
     id: "client_user_1",
@@ -214,6 +217,7 @@ function createState() {
     conversationsByKey,
     messagesByConversationId,
     quotesById,
+    finalOffersById,
     notifications,
     earningTransactions,
     nextBookingId() {
@@ -223,6 +227,10 @@ function createState() {
     nextConversationId() {
       nextConversationIndex += 1;
       return `conversation_${nextConversationIndex}`;
+    },
+    nextFinalOfferId() {
+      nextFinalOfferIndex += 1;
+      return `final_offer_${nextFinalOfferIndex}`;
     },
   };
 }
@@ -415,6 +423,15 @@ function createPrisma(state: IntegrationState) {
       },
     },
     booking: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const booking = state.bookingsById.get(where.id);
+        if (!booking) return null;
+        return {
+          clientId: booking.clientId,
+          providerId: booking.providerId,
+          status: booking.status,
+        };
+      },
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const provider = state.providersById.get(String(data.providerId));
         const client = state.usersById.get(String(data.clientId));
@@ -444,6 +461,87 @@ function createPrisma(state: IntegrationState) {
         state.bookingsById.set(where.id, booking);
         return booking;
       },
+    },
+    finalOffer: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const provider = state.providersById.get(String(data.providerId));
+        const client = state.usersById.get(String(data.clientId));
+        if (!provider || !client) throw new Error("Missing final offer participants");
+        const finalOffer = {
+          id: state.nextFinalOfferId(),
+          providerId: data.providerId,
+          clientId: data.clientId,
+          conversationId: data.conversationId ?? null,
+          bookingId: data.bookingId ?? null,
+          title: data.title,
+          description: data.description ?? null,
+          price: data.price,
+          duration: data.duration ?? null,
+          scheduledDate: data.scheduledDate,
+          address: data.address ?? null,
+          city: data.city ?? null,
+          notes: data.notes ?? null,
+          paymentMethod: "cash",
+          status: data.status ?? "PENDING",
+          sentAt: now,
+          acceptedAt: null,
+          declinedAt: null,
+          cancelledAt: null,
+          expiresAt: data.expiresAt ?? null,
+          createdAt: now,
+          updatedAt: now,
+          client: {
+            id: client.id,
+            firstName: client.firstName,
+            lastName: client.lastName,
+            avatar: client.avatar,
+            isVerified: client.isVerified,
+          },
+          provider: {
+            id: provider.id,
+            userId: provider.userId,
+            profession: provider.profession,
+            user: {
+              id: provider.user.id,
+              firstName: provider.user.firstName,
+              lastName: provider.user.lastName,
+              avatar: provider.user.avatar,
+              isVerified: provider.user.isVerified,
+            },
+          },
+          booking: null,
+        };
+        state.finalOffersById.set(String(finalOffer.id), finalOffer);
+        return finalOffer;
+      },
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        state.finalOffersById.get(where.id) ?? null,
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const finalOffer = state.finalOffersById.get(where.id);
+        if (!finalOffer) throw new Error("Final offer not found");
+        Object.assign(finalOffer, data, { updatedAt: now });
+        if (finalOffer.bookingId) {
+          const booking = state.bookingsById.get(String(finalOffer.bookingId));
+          finalOffer.booking = booking
+            ? {
+                id: booking.id,
+                title: booking.title,
+                status: booking.status,
+                scheduledDate: booking.scheduledDate,
+                price: booking.price,
+              }
+            : null;
+        }
+        state.finalOffersById.set(where.id, finalOffer);
+        return finalOffer;
+      },
+      updateMany: async () => ({ count: 0 }),
     },
     transaction: {
       create: async (input: Record<string, unknown>) => {
@@ -570,8 +668,17 @@ function createPrisma(state: IntegrationState) {
         if (!user) return null;
         return {
           id: user.id,
+          role: user.role,
           visibilitySettings: null,
         };
+      },
+    },
+    conversation: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        for (const conversation of state.conversationsByKey.values()) {
+          if (conversation.id === where.id) return conversation;
+        }
+        return null;
       },
     },
     provider: {
@@ -599,6 +706,12 @@ function createPrisma(state: IntegrationState) {
     booking: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         state.bookingsById.get(where.id) ?? null,
+    },
+    finalOffer: {
+      count: async () => state.finalOffersById.size,
+      findMany: async () => Array.from(state.finalOffersById.values()),
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        state.finalOffersById.get(where.id) ?? null,
     },
     $transaction: async <T>(
       callback: (tx: ReturnType<typeof buildTransactionClient>) => Promise<T>,
@@ -666,6 +779,7 @@ async function createHarness() {
     controllers: [
       IdentityController,
       BookingsController,
+      FinalOffersController,
       MessagingController,
       QuotesController,
       ReviewsController,
@@ -882,6 +996,49 @@ test("messaging route bootstraps first contact through the real controller and g
     assert.equal(sent.body?.success, true);
     assert.equal((sent.body as { conversationId: string }).conversationId.startsWith("conversation_"), true);
     assert.equal(((sent.body as { message: { conversationId: string } }).message.conversationId), (sent.body as { conversationId: string }).conversationId);
+  } finally {
+    await app.close();
+  }
+});
+
+test("final offer route lets provider send terms and client accept into booking", async () => {
+  const { app, baseUrl, state } = await createHarness();
+
+  try {
+    const created = await requestJson(baseUrl, "/final-offers", {
+      method: "POST",
+      token: "provider-token",
+      body: {
+        providerId: "provider_1",
+        clientId: "client_user_1",
+        title: "Réparer une fuite",
+        description: "Remplacement du joint et test.",
+        price: 65000,
+        duration: 90,
+        scheduledDate: "2026-04-23T10:00:00.000Z",
+        address: "12 Avenue Kasa-Vubu",
+        city: "Kinshasa",
+        notes: "Paiement en espèces à la fin.",
+        paymentMethod: "cash",
+      },
+    });
+
+    assert.equal(created.status, 201);
+    assert.equal(created.body?.success, true);
+    const finalOffer = created.body?.finalOffer as { id: string; status: string; paymentMethod: string };
+    assert.equal(finalOffer.status, "PENDING");
+    assert.equal(finalOffer.paymentMethod, "cash");
+
+    const accepted = await requestJson(baseUrl, `/final-offers/${finalOffer.id}/accept`, {
+      method: "POST",
+      token: "client-token",
+    });
+
+    assert.equal(accepted.status, 201);
+    assert.equal((accepted.body?.finalOffer as { status: string }).status, "ACCEPTED");
+    assert.equal((accepted.body?.booking as { status: string }).status, "CONFIRMED");
+    assert.equal((accepted.body?.booking as { paymentMethod: string }).paymentMethod, "cash");
+    assert.equal(state.quotesById.get("quote_1")?.status, "SENT");
   } finally {
     await app.close();
   }

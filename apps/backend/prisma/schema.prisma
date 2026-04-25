@@ -63,6 +63,7 @@ model User {
   conversations1        Conversation[]      @relation("User1Conversations")
   conversations2        Conversation[]      @relation("User2Conversations")
   notifications         Notification[]
+  finalOffersAsClient   FinalOffer[]        @relation("ClientFinalOffers")
   favorites             Favorite[]
   visibilitySettings    VisibilitySettings?
   activityLogs          ActivityLog[]
@@ -146,6 +147,7 @@ model Provider {
   transactions           Transaction[]
   payouts                Payout[]
   quotes                 Quote[]
+  finalOffers            FinalOffer[]
   verificationDocs       VerificationDoc[]
 
   // Indexes pour performance
@@ -610,6 +612,7 @@ model Booking {
   portfolioProject PortfolioProject?
   transactions     Transaction[]
   quote            Quote?            @relation("BookingFromQuote")
+  finalOffers      FinalOffer[]
   disputes         Dispute[]
 
   // Indexes pour performance
@@ -628,6 +631,55 @@ enum BookingStatus {
   IN_PROGRESS // En cours
   COMPLETED // Terminé
   CANCELLED // Annulé
+}
+
+enum FinalOfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  EXPIRED
+}
+
+model FinalOffer {
+  id String @id @default(cuid())
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   User   @relation("ClientFinalOffers", fields: [clientId], references: [id])
+
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  title         String
+  description   String?
+  price         Float
+  duration      Int?
+  scheduledDate DateTime
+  address       String?
+  city          String?
+  notes         String?
+  paymentMethod String           @default("cash")
+  status        FinalOfferStatus @default(PENDING)
+
+  sentAt      DateTime  @default(now())
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+  cancelledAt DateTime?
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([providerId, status])
+  @@index([clientId, status])
+  @@index([conversationId, status])
+  @@index([bookingId])
 }
 
 // ==================== AVIS CLIENTS SUR PRESTATAIRES ====================
@@ -720,7 +772,8 @@ model Conversation {
   createdAt     DateTime @default(now())
 
   // Relations
-  messages Message[]
+  messages    Message[]
+  finalOffers FinalOffer[]
 
   @@unique([user1Id, user2Id])
   @@index([user1Id])
@@ -796,6 +849,9 @@ enum NotificationType {
   QUOTE_RECEIVED
   QUOTE_ACCEPTED
   QUOTE_DECLINED
+  FINAL_OFFER_RECEIVED
+  FINAL_OFFER_ACCEPTED
+  FINAL_OFFER_DECLINED
   SYSTEM
 }
 

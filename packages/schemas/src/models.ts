@@ -4,6 +4,7 @@ import {
   BookingStatus,
   ClientTrustLevel,
   DocType,
+  FinalOfferStatus,
   MessageType,
   NotificationType,
   PaymentRating,
@@ -394,6 +395,45 @@ export const BookingSchema = z.object({
   clientReview: BookingClientReviewSummarySchema.nullable().optional(),
 });
 
+export const FinalOfferSchema = z.object({
+  id: IdSchema,
+  providerId: IdSchema,
+  clientId: IdSchema,
+  conversationId: IdSchema.nullable().optional(),
+  bookingId: IdSchema.nullable().optional(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  price: z.number(),
+  duration: z.number().int().nullable().optional(),
+  scheduledDate: DateTimeSchema,
+  address: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  paymentMethod: z.literal("cash"),
+  status: FinalOfferStatus,
+  sentAt: DateTimeSchema,
+  acceptedAt: NullableDateTimeSchema.optional(),
+  declinedAt: NullableDateTimeSchema.optional(),
+  cancelledAt: NullableDateTimeSchema.optional(),
+  expiresAt: NullableDateTimeSchema.optional(),
+  createdAt: DateTimeSchema,
+  updatedAt: DateTimeSchema.optional(),
+  client: UserSummarySchema.optional(),
+  provider: ProviderSchema.pick({
+    id: true,
+    userId: true,
+    profession: true,
+    user: true,
+  }).optional(),
+  booking: BookingSchema.pick({
+    id: true,
+    title: true,
+    status: true,
+    scheduledDate: true,
+    price: true,
+  }).nullable().optional(),
+});
+
 export const ReviewSchema = z.object({
   id: IdSchema,
   bookingId: IdSchema,
@@ -583,6 +623,7 @@ export type Provider = z.infer<typeof ProviderSchema>;
 export type ProviderDetail = z.infer<typeof ProviderDetailSchema>;
 export type Service = z.infer<typeof ServiceSchema>;
 export type Booking = z.infer<typeof BookingSchema>;
+export type FinalOffer = z.infer<typeof FinalOfferSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
 export type ClientReview = z.infer<typeof ClientReviewSchema>;
 export type Message = z.infer<typeof MessageSchema>;

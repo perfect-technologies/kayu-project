@@ -13,6 +13,7 @@ export {
   dashboardApi,
   statsApi,
   geoApi,
+  finalOffersApi,
   adminApi,
   earningsApi,
   jobRequestsApi,

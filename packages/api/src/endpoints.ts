@@ -5,6 +5,7 @@ import type {
   UpdateProviderDto,
   CreateBookingDto,
   UpdateBookingDto,
+  CreateFinalOfferDtoType,
   CreateReviewDto,
   CreateClientReviewDto,
   CreateMessageDto,
@@ -18,6 +19,7 @@ import type {
   // Search params
   ProviderSearchParams,
   BookingSearchParams,
+  FinalOfferSearchParams,
   ReviewSearchParams,
   MessageSearchParams,
   NotificationSearchParams,
@@ -45,6 +47,9 @@ import type {
   ProvidersResponse,
   ProviderProfileResponse,
   BookingsResponse,
+  FinalOfferAcceptResponse,
+  FinalOfferResponse,
+  FinalOffersResponse,
   Review,
   ReviewsResponse,
   ConversationsResponse,
@@ -153,6 +158,24 @@ export const bookingsApi = (client: ApiClient) => ({
     client.patch<BookingMutationResponse>(`/bookings/${id}`, data),
   cancel: (id: string) =>
     client.delete<BookingMutationResponse>(`/bookings/${id}`),
+});
+
+// ---------- Final Offers ----------
+
+export const finalOffersApi = (client: ApiClient) => ({
+  getAll: (params?: Partial<FinalOfferSearchParams>) =>
+    client.get<FinalOffersResponse>(
+      "/final-offers",
+      params as Record<string, string | number | boolean | undefined>,
+    ),
+  create: (data: CreateFinalOfferDtoType) =>
+    client.post<FinalOfferResponse>("/final-offers", data),
+  getById: (id: string) =>
+    client.get<FinalOfferResponse>(`/final-offers/${id}`),
+  accept: (id: string) =>
+    client.post<FinalOfferAcceptResponse>(`/final-offers/${id}/accept`),
+  decline: (id: string) =>
+    client.post<FinalOfferResponse>(`/final-offers/${id}/decline`),
 });
 
 // ---------- Reviews ----------

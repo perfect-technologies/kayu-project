@@ -1,6 +1,7 @@
 import type {
   ProviderSearchParams,
   BookingSearchParams,
+  FinalOfferSearchParams,
   ReviewSearchParams,
   MessageSearchParams,
   NotificationSearchParams,
@@ -30,6 +31,11 @@ export const queryKeys = {
     all: (params?: Partial<BookingSearchParams>) =>
       ["bookings", params] as const,
     detail: (id: string) => ["bookings", "detail", id] as const,
+  },
+  finalOffers: {
+    all: (params?: Partial<FinalOfferSearchParams>) =>
+      ["finalOffers", params] as const,
+    detail: (id: string) => ["finalOffers", "detail", id] as const,
   },
   reviews: {
     byProvider: (providerId: string, params?: Partial<ReviewSearchParams>) =>

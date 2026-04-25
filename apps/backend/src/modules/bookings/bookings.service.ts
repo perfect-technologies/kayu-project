@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { BookingStatus, Prisma } from "@prisma/client";
+import type { BookingStatus, FinalOfferStatus, Prisma } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -26,6 +26,31 @@ type CreateBookingBody = {
   duration?: number;
   price?: number;
   clientNotes?: string;
+};
+
+type FinalOfferQuery = {
+  status?: FinalOfferStatus;
+  conversationId?: string;
+  bookingId?: string;
+  page: number;
+  limit: number;
+};
+
+type CreateFinalOfferBody = {
+  providerId: string;
+  clientId: string;
+  conversationId?: string;
+  bookingId?: string;
+  title: string;
+  description?: string;
+  price: number;
+  duration?: number;
+  scheduledDate: Date;
+  address?: string;
+  city?: string;
+  notes?: string;
+  paymentMethod?: "cash";
+  expiresAt?: Date;
 };
 
 type UpdateBookingBody = {
@@ -113,12 +138,41 @@ const bookingDetailInclude = {
   },
 } satisfies Prisma.BookingInclude;
 
+const finalOfferInclude = {
+  client: {
+    select: participantUserSelect,
+  },
+  provider: {
+    select: {
+      id: true,
+      userId: true,
+      profession: true,
+      user: {
+        select: participantUserSelect,
+      },
+    },
+  },
+  booking: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      scheduledDate: true,
+      price: true,
+    },
+  },
+} satisfies Prisma.FinalOfferInclude;
+
 type BookingRecord = Prisma.BookingGetPayload<{
   include: typeof bookingInclude;
 }>;
 
 type BookingDetailRecord = Prisma.BookingGetPayload<{
   include: typeof bookingDetailInclude;
+}>;
+
+type FinalOfferRecord = Prisma.FinalOfferGetPayload<{
+  include: typeof finalOfferInclude;
 }>;
 
 type BookingAccessRecord = Prisma.BookingGetPayload<{
@@ -236,6 +290,291 @@ export class BookingsService {
     };
   }
 
+  async findFinalOffers(actor: Actor, query: FinalOfferQuery) {
+    const page = query.page;
+    const limit = query.limit;
+    const skip = (page - 1) * limit;
+    const where = await this.buildFinalOfferWhere(actor, query);
+
+    const [total, finalOffers] = await Promise.all([
+      this.prisma.finalOffer.count({ where }),
+      this.prisma.finalOffer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: "desc" }],
+        include: finalOfferInclude,
+      }),
+    ]);
+
+    return {
+      success: true as const,
+      finalOffers: finalOffers.map((offer) => this.mapFinalOffer(offer)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
+    };
+  }
+
+  async createFinalOffer(actor: Actor, body: CreateFinalOfferBody) {
+    if (body.paymentMethod && body.paymentMethod !== "cash") {
+      throw new BadRequestException("Final offers only support cash payment");
+    }
+
+    const provider = await this.getProviderForFinalOffer(actor, body.providerId);
+
+    if (provider.userId === body.clientId) {
+      throw new BadRequestException("You cannot send a final offer to yourself");
+    }
+
+    const client = await this.prisma.user.findUnique({
+      where: { id: body.clientId },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!client) {
+      throw new NotFoundException("Client not found");
+    }
+
+    if (client.role !== "CLIENT") {
+      throw new BadRequestException("Final offers can only be sent to clients");
+    }
+
+    await this.assertConversationMatchesParticipants(
+      body.conversationId,
+      body.clientId,
+      provider.userId,
+    );
+
+    await this.assertOfferBookingMatchesParticipants(
+      body.bookingId,
+      body.clientId,
+      body.providerId,
+    );
+
+    const finalOffer = await this.prisma.$transaction(async (tx) => {
+      if (body.bookingId) {
+        await tx.finalOffer.updateMany({
+          where: {
+            bookingId: body.bookingId,
+            status: "PENDING",
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+          },
+        });
+      }
+
+      const created = await tx.finalOffer.create({
+        data: {
+          providerId: body.providerId,
+          clientId: body.clientId,
+          conversationId: body.conversationId ?? null,
+          bookingId: body.bookingId ?? null,
+          title: body.title,
+          description: body.description ?? null,
+          price: body.price,
+          duration: body.duration ?? null,
+          scheduledDate: body.scheduledDate,
+          address: body.address ?? null,
+          city: body.city ?? null,
+          notes: body.notes ?? null,
+          paymentMethod: "cash",
+          expiresAt: body.expiresAt ?? null,
+          status: "PENDING",
+        },
+        include: finalOfferInclude,
+      });
+
+      await this.notifications.create(
+        {
+          userId: body.clientId,
+          type: "FINAL_OFFER_RECEIVED",
+          title: "Offre finale recue",
+          message: `${this.getDisplayName(actor)} vous a envoye une offre finale pour "${body.title}"`,
+          data: {
+            finalOfferId: created.id,
+            bookingId: created.bookingId ?? undefined,
+            conversationId: created.conversationId ?? undefined,
+            paymentMethod: "cash",
+          },
+        },
+        tx,
+      );
+
+      return created;
+    });
+
+    return {
+      success: true as const,
+      finalOffer: this.mapFinalOffer(finalOffer),
+    };
+  }
+
+  async findFinalOfferById(actor: Actor, id: string) {
+    const finalOffer = await this.prisma.finalOffer.findUnique({
+      where: { id },
+      include: finalOfferInclude,
+    });
+
+    if (!finalOffer) {
+      throw new NotFoundException("Final offer not found");
+    }
+
+    this.assertFinalOfferAccess(actor, finalOffer);
+
+    return {
+      success: true as const,
+      finalOffer: this.mapFinalOffer(finalOffer),
+    };
+  }
+
+  async acceptFinalOffer(actor: Actor, id: string) {
+    const existing = await this.prisma.finalOffer.findUnique({
+      where: { id },
+      include: finalOfferInclude,
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Final offer not found");
+    }
+
+    this.assertFinalOfferClient(actor, existing);
+
+    const now = new Date();
+    if (existing.expiresAt && existing.expiresAt < now) {
+      await this.prisma.finalOffer.update({
+        where: { id },
+        data: { status: "EXPIRED" },
+      });
+      throw new BadRequestException("Final offer has expired");
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const finalOffer = await tx.finalOffer.findUnique({
+        where: { id },
+        include: finalOfferInclude,
+      });
+
+      if (!finalOffer) {
+        throw new NotFoundException("Final offer not found");
+      }
+
+      this.assertFinalOfferClient(actor, finalOffer);
+
+      if (finalOffer.status !== "PENDING") {
+        throw new BadRequestException("Only pending final offers can be accepted");
+      }
+
+      const booking = finalOffer.bookingId
+        ? await this.confirmBookingFromFinalOffer(tx, finalOffer, now)
+        : await this.createBookingFromFinalOffer(tx, finalOffer, now);
+
+      const updatedOffer = await tx.finalOffer.update({
+        where: { id },
+        data: {
+          status: "ACCEPTED",
+          acceptedAt: now,
+          bookingId: booking.id,
+        },
+        include: finalOfferInclude,
+      });
+
+      if (finalOffer.bookingId) {
+        await tx.finalOffer.updateMany({
+          where: {
+            bookingId: finalOffer.bookingId,
+            id: { not: id },
+            status: "PENDING",
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: now,
+          },
+        });
+      }
+
+      await this.notifications.create(
+        {
+          userId: finalOffer.provider.userId,
+          type: "FINAL_OFFER_ACCEPTED",
+          title: "Offre finale acceptee",
+          message: `Votre offre finale pour "${finalOffer.title}" a ete acceptee`,
+          data: {
+            finalOfferId: id,
+            bookingId: booking.id,
+            status: "ACCEPTED",
+          },
+        },
+        tx,
+      );
+
+      return {
+        success: true as const,
+        finalOffer: this.mapFinalOffer(updatedOffer),
+        booking: this.mapBooking(booking),
+      };
+    });
+  }
+
+  async declineFinalOffer(actor: Actor, id: string) {
+    const existing = await this.prisma.finalOffer.findUnique({
+      where: { id },
+      include: finalOfferInclude,
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Final offer not found");
+    }
+
+    this.assertFinalOfferClient(actor, existing);
+
+    if (existing.status !== "PENDING") {
+      throw new BadRequestException("Only pending final offers can be declined");
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.finalOffer.update({
+        where: { id },
+        data: {
+          status: "DECLINED",
+          declinedAt: new Date(),
+        },
+        include: finalOfferInclude,
+      });
+
+      await this.notifications.create(
+        {
+          userId: existing.provider.userId,
+          type: "FINAL_OFFER_DECLINED",
+          title: "Offre finale refusee",
+          message: `Votre offre finale pour "${existing.title}" a ete refusee`,
+          data: {
+            finalOfferId: id,
+            bookingId: existing.bookingId ?? undefined,
+            status: "DECLINED",
+          },
+        },
+        tx,
+      );
+
+      return saved;
+    });
+
+    return {
+      success: true as const,
+      finalOffer: this.mapFinalOffer(updated),
+    };
+  }
+
   async findById(actor: Actor, id: string) {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
@@ -339,6 +678,227 @@ export class BookingsService {
     return {
       success: true as const,
       booking: this.mapBooking(updated),
+    };
+  }
+
+  private async buildFinalOfferWhere(
+    actor: Actor,
+    query: FinalOfferQuery,
+  ): Promise<Prisma.FinalOfferWhereInput> {
+    const filters: Prisma.FinalOfferWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.conversationId ? { conversationId: query.conversationId } : {}),
+      ...(query.bookingId ? { bookingId: query.bookingId } : {}),
+    };
+
+    if (actor.role === "ADMIN") {
+      return filters;
+    }
+
+    if (actor.role === "PROVIDER") {
+      const provider = await this.prisma.provider.findUnique({
+        where: { userId: actor.id },
+        select: { id: true },
+      });
+
+      if (!provider) {
+        throw new BadRequestException("Provider profile is required");
+      }
+
+      return {
+        ...filters,
+        providerId: provider.id,
+      };
+    }
+
+    return {
+      ...filters,
+      clientId: actor.id,
+    };
+  }
+
+  private async getProviderForFinalOffer(actor: Actor, providerId: string) {
+    if (actor.role !== "PROVIDER") {
+      throw new ForbiddenException("Only providers can send final offers");
+    }
+
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: providerId },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!provider) {
+      throw new NotFoundException("Provider not found");
+    }
+
+    if (provider.userId !== actor.id) {
+      throw new ForbiddenException("You can only send your own final offers");
+    }
+
+    return provider;
+  }
+
+  private async assertConversationMatchesParticipants(
+    conversationId: string | undefined,
+    clientId: string,
+    providerUserId: string,
+  ) {
+    if (!conversationId) {
+      return;
+    }
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        user1Id: true,
+        user2Id: true,
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException("Conversation not found");
+    }
+
+    const participantIds = [conversation.user1Id, conversation.user2Id];
+    if (!participantIds.includes(clientId) || !participantIds.includes(providerUserId)) {
+      throw new BadRequestException(
+        "Conversation does not match the final offer participants",
+      );
+    }
+  }
+
+  private async assertOfferBookingMatchesParticipants(
+    bookingId: string | undefined,
+    clientId: string,
+    providerId: string,
+  ) {
+    if (!bookingId) {
+      return;
+    }
+
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        clientId: true,
+        providerId: true,
+        status: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    if (booking.clientId !== clientId || booking.providerId !== providerId) {
+      throw new BadRequestException(
+        "Booking does not match the final offer participants",
+      );
+    }
+
+    if (booking.status !== "PENDING") {
+      throw new BadRequestException(
+        "Only pending bookings can receive a final offer",
+      );
+    }
+  }
+
+  private assertFinalOfferAccess(
+    actor: Actor,
+    finalOffer: { clientId: string; provider: { userId: string } },
+  ) {
+    const isParticipant =
+      finalOffer.clientId === actor.id || finalOffer.provider.userId === actor.id;
+
+    if (!isParticipant && actor.role !== "ADMIN") {
+      throw new ForbiddenException("You do not have access to this final offer");
+    }
+  }
+
+  private assertFinalOfferClient(
+    actor: Actor,
+    finalOffer: { clientId: string },
+  ) {
+    if (finalOffer.clientId !== actor.id) {
+      throw new ForbiddenException("Only the target client can update this final offer");
+    }
+  }
+
+  private async confirmBookingFromFinalOffer(
+    tx: Prisma.TransactionClient,
+    finalOffer: FinalOfferRecord,
+    now: Date,
+  ): Promise<BookingRecord> {
+    if (!finalOffer.bookingId) {
+      throw new BadRequestException("Final offer is not attached to a booking");
+    }
+
+    const booking = await tx.booking.findUnique({
+      where: { id: finalOffer.bookingId },
+      select: {
+        clientId: true,
+        providerId: true,
+        status: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException("Booking not found");
+    }
+
+    if (
+      booking.clientId !== finalOffer.clientId ||
+      booking.providerId !== finalOffer.providerId
+    ) {
+      throw new BadRequestException(
+        "Booking does not match the final offer participants",
+      );
+    }
+
+    if (booking.status !== "PENDING") {
+      throw new BadRequestException("Only pending bookings can be confirmed");
+    }
+
+    return tx.booking.update({
+      where: { id: finalOffer.bookingId },
+      data: this.buildBookingDataFromFinalOffer(finalOffer, now),
+      include: bookingInclude,
+    });
+  }
+
+  private async createBookingFromFinalOffer(
+    tx: Prisma.TransactionClient,
+    finalOffer: FinalOfferRecord,
+    now: Date,
+  ): Promise<BookingRecord> {
+    return tx.booking.create({
+      data: {
+        clientId: finalOffer.clientId,
+        providerId: finalOffer.providerId,
+        ...this.buildBookingDataFromFinalOffer(finalOffer, now),
+      },
+      include: bookingInclude,
+    });
+  }
+
+  private buildBookingDataFromFinalOffer(
+    finalOffer: FinalOfferRecord,
+    now: Date,
+  ) {
+    return {
+      title: finalOffer.title,
+      description: finalOffer.description,
+      address: finalOffer.address,
+      city: finalOffer.city,
+      scheduledDate: finalOffer.scheduledDate,
+      duration: finalOffer.duration,
+      price: finalOffer.price,
+      providerNotes: finalOffer.notes,
+      paymentMethod: "cash",
+      status: "CONFIRMED" as const,
+      confirmedAt: now,
     };
   }
 
@@ -746,6 +1306,36 @@ export class BookingsService {
             createdAt: booking.clientReview.createdAt,
           }
         : null,
+    };
+  }
+
+  private mapFinalOffer(finalOffer: FinalOfferRecord) {
+    return {
+      id: finalOffer.id,
+      providerId: finalOffer.providerId,
+      clientId: finalOffer.clientId,
+      conversationId: finalOffer.conversationId,
+      bookingId: finalOffer.bookingId,
+      title: finalOffer.title,
+      description: finalOffer.description,
+      price: finalOffer.price,
+      duration: finalOffer.duration,
+      scheduledDate: finalOffer.scheduledDate,
+      address: finalOffer.address,
+      city: finalOffer.city,
+      notes: finalOffer.notes,
+      paymentMethod: "cash" as const,
+      status: finalOffer.status,
+      sentAt: finalOffer.sentAt,
+      acceptedAt: finalOffer.acceptedAt,
+      declinedAt: finalOffer.declinedAt,
+      cancelledAt: finalOffer.cancelledAt,
+      expiresAt: finalOffer.expiresAt,
+      createdAt: finalOffer.createdAt,
+      updatedAt: finalOffer.updatedAt,
+      client: finalOffer.client,
+      provider: finalOffer.provider,
+      booking: finalOffer.booking,
     };
   }
 

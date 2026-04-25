@@ -74,6 +74,54 @@ function makeBooking(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeFinalOffer(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "final_offer_1",
+    providerId: "provider_1",
+    clientId: "client_user_1",
+    conversationId: "conversation_1",
+    bookingId: null,
+    title: "Réparer une fuite",
+    description: "Remplacement du joint et test.",
+    price: 65000,
+    duration: 90,
+    scheduledDate: now,
+    address: "12 Avenue Kasa-Vubu",
+    city: "Kinshasa",
+    notes: "Paiement en espèces à la fin.",
+    paymentMethod: "cash",
+    status: "PENDING",
+    sentAt: now,
+    acceptedAt: null,
+    declinedAt: null,
+    cancelledAt: null,
+    expiresAt: null,
+    createdAt: now,
+    updatedAt: now,
+    client: {
+      id: "client_user_1",
+      firstName: "Client",
+      lastName: "User",
+      avatar: null,
+      isVerified: false,
+    },
+    provider: {
+      id: "provider_1",
+      userId: "provider_user_1",
+      profession: "Plombier",
+      user: {
+        id: "provider_user_1",
+        firstName: "Pro",
+        lastName: "User",
+        avatar: null,
+        isVerified: true,
+      },
+    },
+    booking: null,
+    ...overrides,
+  };
+}
+
 function makeService(
   booking: ReturnType<typeof makeBooking>,
   options: { existingEarningTransactionId?: string } = {},
@@ -274,4 +322,323 @@ test("provider cannot skip directly from pending to completed", async () => {
     () => service.update(makeActor(), "booking_1", { status: "COMPLETED" }),
     (error) => error instanceof BadRequestException,
   );
+});
+
+test("provider sends a cash final offer to a client", async () => {
+  const calls: {
+    createdOfferData?: Record<string, unknown>;
+    notifications: unknown[];
+  } = { notifications: [] };
+  const createdOffer = makeFinalOffer();
+  const tx = {
+    finalOffer: {
+      updateMany: async () => ({ count: 0 }),
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.createdOfferData = data;
+        return { ...createdOffer, ...data };
+      },
+    },
+  };
+  const prisma = {
+    provider: {
+      findUnique: async () => ({ id: "provider_1", userId: "provider_user_1" }),
+    },
+    user: {
+      findUnique: async () => ({ id: "client_user_1", role: "CLIENT" }),
+    },
+    conversation: {
+      findUnique: async () => ({
+        user1Id: "client_user_1",
+        user2Id: "provider_user_1",
+      }),
+    },
+    booking: {
+      findUnique: async () => {
+        throw new Error("booking lookup should not run without bookingId");
+      },
+    },
+    $transaction: async <T>(callback: (client: typeof tx) => Promise<T>) =>
+      callback(tx),
+  };
+  const notifications = {
+    create: async (input: unknown) => {
+      calls.notifications.push(input);
+    },
+  };
+  const service = new BookingsService(prisma as never, notifications as never);
+
+  const result = await service.createFinalOffer(makeActor(), {
+    providerId: "provider_1",
+    clientId: "client_user_1",
+    conversationId: "conversation_1",
+    title: "Réparer une fuite",
+    description: "Remplacement du joint et test.",
+    price: 65000,
+    duration: 90,
+    scheduledDate: now,
+    address: "12 Avenue Kasa-Vubu",
+    city: "Kinshasa",
+    notes: "Paiement en espèces à la fin.",
+    paymentMethod: "cash",
+  });
+
+  assert.equal(result.finalOffer.status, "PENDING");
+  assert.equal(result.finalOffer.paymentMethod, "cash");
+  assert.equal(calls.createdOfferData?.providerId, "provider_1");
+  assert.equal(calls.createdOfferData?.clientId, "client_user_1");
+  assert.equal(calls.createdOfferData?.paymentMethod, "cash");
+  assert.equal(calls.notifications.length, 1);
+});
+
+test("provider cannot send a final offer to a non-client user", async () => {
+  const prisma = {
+    provider: {
+      findUnique: async () => ({ id: "provider_1", userId: "provider_user_1" }),
+    },
+    user: {
+      findUnique: async () => ({ id: "other_provider_user", role: "PROVIDER" }),
+    },
+  };
+  const service = new BookingsService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.createFinalOffer(makeActor(), {
+        providerId: "provider_1",
+        clientId: "other_provider_user",
+        title: "Réparer une fuite",
+        price: 65000,
+        scheduledDate: now,
+        paymentMethod: "cash",
+      }),
+    (error) => error instanceof BadRequestException,
+  );
+});
+
+test("client accepts a final offer and a confirmed booking is created", async () => {
+  const finalOffer = makeFinalOffer();
+  const calls: {
+    bookingCreateData?: Record<string, unknown>;
+    finalOfferUpdateData?: Record<string, unknown>;
+    notifications: unknown[];
+  } = { notifications: [] };
+  const tx = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.finalOfferUpdateData = data;
+        return {
+          ...finalOffer,
+          ...data,
+          booking: {
+            id: "booking_1",
+            title: finalOffer.title,
+            status: "CONFIRMED",
+            scheduledDate: finalOffer.scheduledDate,
+            price: finalOffer.price,
+          },
+        };
+      },
+      updateMany: async () => ({ count: 0 }),
+    },
+    booking: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.bookingCreateData = data;
+        return makeBooking(data);
+      },
+    },
+  };
+  const prisma = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+      update: async () => {
+        throw new Error("top-level final offer update should not run");
+      },
+    },
+    $transaction: async <T>(callback: (client: typeof tx) => Promise<T>) =>
+      callback(tx),
+  };
+  const notifications = {
+    create: async (input: unknown) => {
+      calls.notifications.push(input);
+    },
+  };
+  const service = new BookingsService(prisma as never, notifications as never);
+
+  const result = await service.acceptFinalOffer(
+    makeActor({ id: "client_user_1", role: "CLIENT" }),
+    "final_offer_1",
+  );
+
+  assert.equal(result.finalOffer.status, "ACCEPTED");
+  assert.equal(result.booking.status, "CONFIRMED");
+  assert.equal(result.booking.paymentMethod, "cash");
+  assert.equal(calls.bookingCreateData?.clientId, "client_user_1");
+  assert.equal(calls.bookingCreateData?.providerId, "provider_1");
+  assert.equal(calls.bookingCreateData?.status, "CONFIRMED");
+  assert.equal(calls.bookingCreateData?.price, 65000);
+  assert.equal(calls.finalOfferUpdateData?.status, "ACCEPTED");
+  assert.equal(calls.finalOfferUpdateData?.bookingId, "booking_1");
+  assert.equal(calls.notifications.length, 1);
+});
+
+test("client accepts a final offer attached to a pending booking", async () => {
+  const finalOffer = makeFinalOffer({ bookingId: "booking_1" });
+  const calls: {
+    bookingUpdateData?: Record<string, unknown>;
+    finalOfferUpdateData?: Record<string, unknown>;
+  } = {};
+  const tx = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.finalOfferUpdateData = data;
+        return {
+          ...finalOffer,
+          ...data,
+          booking: {
+            id: "booking_1",
+            title: finalOffer.title,
+            status: "CONFIRMED",
+            scheduledDate: finalOffer.scheduledDate,
+            price: finalOffer.price,
+          },
+        };
+      },
+      updateMany: async () => ({ count: 0 }),
+    },
+    booking: {
+      findUnique: async () => ({
+        clientId: "client_user_1",
+        providerId: "provider_1",
+        status: "PENDING",
+      }),
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.bookingUpdateData = data;
+        return makeBooking({ id: "booking_1", ...data });
+      },
+    },
+  };
+  const prisma = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+      update: async () => {
+        throw new Error("top-level final offer update should not run");
+      },
+    },
+    $transaction: async <T>(callback: (client: typeof tx) => Promise<T>) =>
+      callback(tx),
+  };
+  const notifications = { create: async () => undefined };
+  const service = new BookingsService(prisma as never, notifications as never);
+
+  const result = await service.acceptFinalOffer(
+    makeActor({ id: "client_user_1", role: "CLIENT" }),
+    "final_offer_1",
+  );
+
+  assert.equal(result.booking.id, "booking_1");
+  assert.equal(result.booking.status, "CONFIRMED");
+  assert.equal(calls.bookingUpdateData?.title, "Réparer une fuite");
+  assert.equal(calls.bookingUpdateData?.paymentMethod, "cash");
+  assert.equal(calls.finalOfferUpdateData?.status, "ACCEPTED");
+});
+
+test("wrong client cannot accept someone else's final offer", async () => {
+  const tx = {
+    finalOffer: {
+      findUnique: async () => makeFinalOffer(),
+    },
+  };
+  const prisma = {
+    finalOffer: {
+      findUnique: async () => makeFinalOffer(),
+      update: async () => {
+        throw new Error("top-level final offer update should not run");
+      },
+    },
+    $transaction: async <T>(callback: (client: typeof tx) => Promise<T>) =>
+      callback(tx),
+  };
+  const service = new BookingsService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.acceptFinalOffer(
+        makeActor({ id: "other_client", role: "CLIENT" }),
+        "final_offer_1",
+      ),
+    (error) => error instanceof ForbiddenException,
+  );
+});
+
+test("expired final offer is persisted as expired before accept rejects", async () => {
+  const finalOffer = makeFinalOffer({
+    expiresAt: new Date("2026-04-18T10:00:00.000Z"),
+  });
+  const calls: { finalOfferUpdateData?: Record<string, unknown>; transactionCalled: boolean } = {
+    transactionCalled: false,
+  };
+  const prisma = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        calls.finalOfferUpdateData = data;
+        return { ...finalOffer, ...data };
+      },
+    },
+    $transaction: async () => {
+      calls.transactionCalled = true;
+      throw new Error("transaction should not run for expired offers");
+    },
+  };
+  const service = new BookingsService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.acceptFinalOffer(
+        makeActor({ id: "client_user_1", role: "CLIENT" }),
+        "final_offer_1",
+      ),
+    (error) => error instanceof BadRequestException,
+  );
+
+  assert.equal(calls.finalOfferUpdateData?.status, "EXPIRED");
+  assert.equal(calls.transactionCalled, false);
+});
+
+test("client declines a pending final offer", async () => {
+  const finalOffer = makeFinalOffer();
+  const calls: { finalOfferUpdateData?: Record<string, unknown>; notifications: unknown[] } = {
+    notifications: [],
+  };
+  const prisma = {
+    finalOffer: {
+      findUnique: async () => finalOffer,
+    },
+    $transaction: async <T>(callback: (client: unknown) => Promise<T>) =>
+      callback({
+        finalOffer: {
+          update: async ({ data }: { data: Record<string, unknown> }) => {
+            calls.finalOfferUpdateData = data;
+            return { ...finalOffer, ...data };
+          },
+        },
+      }),
+  };
+  const notifications = {
+    create: async (input: unknown) => {
+      calls.notifications.push(input);
+    },
+  };
+  const service = new BookingsService(prisma as never, notifications as never);
+
+  const result = await service.declineFinalOffer(
+    makeActor({ id: "client_user_1", role: "CLIENT" }),
+    "final_offer_1",
+  );
+
+  assert.equal(result.finalOffer.status, "DECLINED");
+  assert.ok(calls.finalOfferUpdateData?.declinedAt instanceof Date);
+  assert.equal(calls.notifications.length, 1);
 });
