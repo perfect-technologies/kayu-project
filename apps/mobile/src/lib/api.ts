@@ -15,6 +15,7 @@ import {
   jobRequestsApi,
   earningsApi,
   quotesApi,
+  finalOffersApi,
   onboardingApi,
   verificationApi,
 } from '@kayu/api';
@@ -39,6 +40,7 @@ export const api = {
   jobRequests: jobRequestsApi(apiClient),
   earnings: earningsApi(apiClient),
   quotes: quotesApi(apiClient),
+  finalOffers: finalOffersApi(apiClient),
   onboarding: onboardingApi(apiClient),
   verification: verificationApi(apiClient),
 };

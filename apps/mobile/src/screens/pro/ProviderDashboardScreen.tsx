@@ -676,12 +676,8 @@ export function ProviderDashboardScreen() {
 function StatusPill({ status }: { status: JobStatus }) {
   if (status === 'en_route') {
     return (
-      <Chip
-        variant="warning"
-        size="sm"
-        leadingIcon={<I.clock size={11} color="#B45309" />}
-      >
-        En route
+      <Chip variant="success" size="sm">
+        Confirmé
       </Chip>
     );
   }

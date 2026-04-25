@@ -10,9 +10,8 @@ export const toV2Status = (status: string | undefined | null): V2Status => {
   switch (status) {
     case 'PENDING':
     case 'CONFIRMED':
-      return 'upcoming';
     case 'IN_PROGRESS':
-      return 'active';
+      return 'upcoming';
     case 'COMPLETED':
       return 'completed';
     case 'CANCELLED':

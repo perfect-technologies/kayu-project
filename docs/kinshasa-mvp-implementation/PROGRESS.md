@@ -23,7 +23,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 01 - Feature Flags And Navigation Cleanup | Done | Codex | Launch flags default off; request/quote marketplace hidden from web/mobile navigation |
 | 02 - Backend Final Offer And Booking Lifecycle | Done | Codex | First-class final-offer API creates/confirms cash bookings without job requests |
 | 03 - Web Direct Flow | Done | Codex | Web direct discovery/chat/booking/final-offer launch flow completed |
-| 04 - Mobile Direct Flow | Not started | Unassigned | Mobile discovery/chat/booking/final-offer launch flow |
+| 04 - Mobile Direct Flow | Done | Codex | Mobile direct discovery/chat/booking/final-offer launch flow completed |
 | 05 - Discovery Filters And Provider Profile | Not started | Unassigned | Fix filters and provider profile truthfulness |
 | 06 - Cash Payment And Copy Cleanup | Not started | Unassigned | Align all launch-facing copy with cash MVP |
 | 07 - Provider Operations And Dashboards | Not started | Unassigned | Provider actions and direct booking operations |
@@ -38,6 +38,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 2026-04-25 | Remove en route / arrived from launch-facing UI | Not needed for MVP and not fully modeled in backend |
 | 2026-04-25 | Add final offer after discussion | Gives both parties a simple agreement without quote competition |
 | 2026-04-25 | Model final offers as first-class backend records | Keeps the launch agreement flow independent from job requests and competitive quotes while still linking to conversations/bookings |
+| 2026-04-25 | Mobile cash completion can be confirmed from completed booking detail | Launch payment is cash; the UI exposes the existing booking paid flag without introducing mobile money or invoices |
 
 ## Open Questions
 
@@ -217,6 +218,67 @@ Routes and flows checked:
 Hidden launch-deferred routes intentionally left in repo:
 
 - Existing job-request inbox, quote composer, and quote detail routes remain behind the launch flags from workstream 01.
+
+## Workstream 04 Evidence
+
+Completed: 2026-04-25
+
+Changed files:
+
+- `apps/mobile/src/components/bookings/BookingStatusBadge.tsx`
+- `apps/mobile/src/lib/api.ts`
+- `apps/mobile/src/lib/bookingV2.ts`
+- `apps/mobile/src/screens/booking/BookingScreen.tsx`
+- `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx`
+- `apps/mobile/src/screens/bookings/BookingsScreen.tsx`
+- `apps/mobile/src/screens/bookings/ReviewScreen.tsx`
+- `apps/mobile/src/screens/home/HomeScreen.tsx`
+- `apps/mobile/src/screens/messages/ChatScreen.tsx`
+- `apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx`
+- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx`
+
+Behavior implemented:
+
+- Mobile home copy now points to finding a pro, direct discussion, direct reservation, and cash payment.
+- Provider profile keeps discovery/favorites/reviews and exposes direct message, optional phone call, and a direct reservation request CTA.
+- Direct booking no longer uses a hardcoded April calendar; clients choose a future requested day/time and the UI explains the pro confirms it in chat or by final offer.
+- Direct booking and booking detail use cash-only launch copy: `Paiement en espèces à la fin de la mission`.
+- Mobile chat now reads and writes final offers through `finalOffersApi`.
+- Provider can create an `Offre finale` from a conversation after discussion.
+- Client can accept, decline, or continue discussion on a pending final offer in chat; accepting routes to the created/confirmed booking.
+- Booking detail launch lifecycle shows pending/confirmed/completed/cancelled only; visible en-route/start/facture/devis language was removed from launch-facing mobile booking surfaces.
+- Provider can confirm/cancel direct booking requests and mark confirmed work completed.
+- Client and provider can confirm cash payment on completed bookings where applicable.
+- Client review remains gated to completed bookings.
+- Existing client request tab and provider request inbox remain hidden unless launch flags re-enable job requests.
+
+Review follow-up:
+
+- Fixed mobile provider completion to keep one visible `Marquer comme terminée` action while sending the backend-required hidden transition `CONFIRMED` -> `IN_PROGRESS` -> `COMPLETED`.
+- Removed client-side cash confirmation from completed booking detail because the backend only allows providers/admins to confirm payment.
+- Verified final-offer backend validation already rejects non-client targets and has regression coverage in `bookings.service.spec.ts`.
+
+Commands run:
+
+- `pnpm --filter @kayu/mobile type-check` - passed.
+- `pnpm --filter @kayu/mobile type-check` - passed after review follow-up.
+- `pnpm --filter @kayu/mobile lint` - passed; script reports `no linter configured`.
+- `git diff --check` - passed.
+- `rg -n "Devis|devis|paiement protégé|Paiement protégé|Paie protégé|Remboursement|En route|Arrivé|arrivé|arrived|Démarrer|Suivre|Facture|demandes qualifiées" apps/mobile/src/screens/home apps/mobile/src/screens/search apps/mobile/src/screens/booking apps/mobile/src/screens/bookings apps/mobile/src/screens/messages apps/mobile/src/components/bookings apps/mobile/src/components/providers apps/mobile/src/lib -g '!*.map'` - no launch-facing matches.
+- `rg -n "MainTab.Screen name=\"Requests\"|QuoteCompose|JobRequestsScreen|ClientRequestsNavigator|enableJobRequests|enableQuoteMarketplace" apps/mobile/src/navigation/AppNavigator.tsx apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx` - request/quote routes remain flag-gated.
+- `rg -n "Confirmer le paiement espèces|Paiement effectué|updateMutation\\.mutate\\(\\{ status: 'COMPLETED'|status: 'COMPLETED' \\}\\)|status: 'IN_PROGRESS'|Final offers can only be sent to clients|provider cannot send a final offer to a non-client" apps/mobile/src/screens/bookings/BookingDetailScreen.tsx apps/backend/src/modules/bookings/bookings.service.ts apps/backend/src/modules/bookings/bookings.service.spec.ts` - confirmed hidden mobile completion transition is used, client payment copy is gone, and backend non-client final-offer validation exists.
+
+Device/simulator/manual flow checked:
+
+- Static mobile route walkthrough checked for Home -> Search -> ProviderProfile -> CreateBooking -> BookingDetail.
+- Static mobile route walkthrough checked for Messages -> Chat -> provider final-offer form -> client accept/decline actions.
+- Static provider route walkthrough checked for ProviderDashboard direct booking cards -> BookingDetail confirm/cancel/complete/payment.
+- No device simulator was launched in this pass; verification was limited to type-check, lint script, and static route/copy inspection.
+
+Routes intentionally deferred:
+
+- Client job request creation/listing remains present in the repo but hidden behind `EXPO_PUBLIC_ENABLE_JOB_REQUESTS`.
+- Provider job-request inbox and quote composer remain present in the repo but hidden behind `EXPO_PUBLIC_ENABLE_JOB_REQUESTS` / `EXPO_PUBLIC_ENABLE_QUOTE_MARKETPLACE`.
 
 ## How To Update This File
 

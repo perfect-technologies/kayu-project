@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Image,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -111,6 +112,7 @@ export function ProviderProfileScreen() {
   const ratingAverages = profile.stats.ratingAverages;
   const portfolioItems = profile.portfolio ?? [];
   const recentReviews = profile.recentReviews ?? [];
+  const phone = profile.user.phone ?? null;
 
   return (
     <View style={styles.root}>
@@ -425,6 +427,15 @@ export function ProviderProfileScreen() {
         >
           <I.messageCircle size={17} color={theme.colors.textPrimary} />
         </IconButton>
+        {phone ? (
+          <IconButton
+            accessibilityLabel="Appeler"
+            size={44}
+            onPress={() => Linking.openURL(`tel:${phone}`)}
+          >
+            <I.phone size={17} color={theme.colors.textPrimary} />
+          </IconButton>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           style={styles.reserve}
@@ -435,7 +446,7 @@ export function ProviderProfileScreen() {
             })
           }
         >
-          <Text style={styles.reserveText}>Réserver</Text>
+          <Text style={styles.reserveText}>Demander</Text>
         </Pressable>
       </StickyBottomBar>
     </View>

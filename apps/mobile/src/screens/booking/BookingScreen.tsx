@@ -43,13 +43,54 @@ type ServiceOption = {
 const SERVICE_OPTIONS: ServiceOption[] = [
   { key: 'Dépannage urgent', icon: 'zap', desc: 'Problème immédiat' },
   { key: 'Installation nouvelle', icon: 'wrench', desc: 'Nouveau matériel' },
-  { key: 'Devis / diagnostic', icon: 'sparkles', desc: 'Évaluation gratuite' },
+  { key: 'Diagnostic après discussion', icon: 'sparkles', desc: 'À confirmer avec le pro' },
   { key: 'Rénovation complète', icon: 'hammer', desc: 'Projet de fond' },
 ];
 
 const DURATIONS = [1, 2, 4, 8] as const;
 const TIME_SLOTS = ['08:00', '10:00', '14:00', '16:00', '18:00'] as const;
-const AVAILABLE_DAYS = new Set([18, 19, 20, 22, 24, 25, 27]);
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function nextRequestedDays(count = 14) {
+  const today = startOfToday();
+  return Array.from({ length: count }, (_, index) => {
+    const day = new Date(today);
+    day.setDate(today.getDate() + index + 1);
+    return day;
+  });
+}
+
+function sameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
+function formatRequestedDay(date: Date) {
+  return {
+    day: date.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', ''),
+    num: date.getDate().toString(),
+    month: date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''),
+  };
+}
+
+function formatRequestedDateTime(date: Date, time: string) {
+  const scheduled = new Date(date);
+  const [h, m] = time.split(':').map(Number);
+  scheduled.setHours(h, m, 0, 0);
+  return scheduled
+    .toLocaleString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', ' ·');
+}
 
 export function BookingScreen() {
   const navigation = useNavigation<Nav>();
@@ -61,7 +102,7 @@ export function BookingScreen() {
   const [step, setStep] = React.useState(0);
   const [service, setService] = React.useState<string>(SERVICE_OPTIONS[0].key);
   const [duration, setDuration] = React.useState<number>(2);
-  const [date, setDate] = React.useState<number>(18);
+  const [date, setDate] = React.useState<Date>(() => nextRequestedDays(1)[0]!);
   const [time, setTime] = React.useState<string>('10:00');
   const [address, setAddress] = React.useState<string>('');
   const [note, setNote] = React.useState<string>('');
@@ -75,8 +116,7 @@ export function BookingScreen() {
 
   const createBooking = useMutation({
     mutationFn: () => {
-      const scheduled = new Date();
-      scheduled.setDate(date);
+      const scheduled = new Date(date);
       const [h, m] = time.split(':').map(Number);
       scheduled.setHours(h, m, 0, 0);
       return api.bookings.create({
@@ -135,8 +175,7 @@ export function BookingScreen() {
     const firstName = provider.user.firstName ?? 'Jean';
     const lastName = provider.user.lastName ?? '';
     const providerInitials = `${firstName[0] ?? '?'}${lastName[0] ?? ''}`.toUpperCase();
-    const scheduled = new Date();
-    scheduled.setDate(date);
+    const scheduled = new Date(date);
     const [h, m] = time.split(':').map(Number);
     scheduled.setHours(h, m, 0, 0);
     const dateLabel = new Intl.DateTimeFormat('fr-FR', {
@@ -198,7 +237,7 @@ export function BookingScreen() {
   const total = hourly * duration;
   const rating = provider.rating ?? 0;
 
-  const stepTitle = ['Quel service ?', 'Quand ça t\u2019arrange ?', 'Récapitulatif'][step];
+  const stepTitle = ['Quel service ?', 'Quel moment demander ?', 'Récapitulatif'][step];
 
   return (
     <KeyboardAvoidingView
@@ -473,68 +512,49 @@ function Step1({
   address,
   onChangeAddress,
 }: {
-  date: number;
-  onSelectDate: (d: number) => void;
+  date: Date;
+  onSelectDate: (d: Date) => void;
   time: string;
   onSelectTime: (t: string) => void;
   address: string;
   onChangeAddress: (a: string) => void;
 }) {
+  const days = React.useMemo(() => nextRequestedDays(), []);
   return (
     <>
-      <View style={[styles.calendarCard, theme.shadow.e2]}>
-        <View style={styles.calendarHead}>
-          <Pressable style={styles.roundBtn}>
-            <I.arrowLeft size={15} color={theme.colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.calendarTitle}>Avril 2026</Text>
-          <Pressable style={styles.roundBtn}>
-            <I.arrowRight size={15} color={theme.colors.textPrimary} />
-          </Pressable>
-        </View>
-        <View style={styles.dayLetterRow}>
-          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
-            <Text key={i} style={styles.dayLetter}>
-              {d}
-            </Text>
-          ))}
-        </View>
-        <View style={styles.daysGrid}>
-          {Array.from({ length: 35 }, (_, i) => i - 1).map((d, idx) => {
-            const valid = d >= 1 && d <= 30;
-            const isPast = d < 18;
-            const isAvail = valid && !isPast && AVAILABLE_DAYS.has(d);
-            const isSel = d === date;
-            return (
-              <Pressable
-                key={idx}
-                disabled={!isAvail}
-                onPress={() => isAvail && onSelectDate(d)}
-                style={[
-                  styles.dayCell,
-                  !valid && { opacity: 0 },
-                  isSel && {
-                    backgroundColor: theme.colors.textPrimary,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dayText,
-                    isSel && { color: theme.colors.textInverse, fontWeight: '700' },
-                    !isAvail && !isSel && valid && { color: theme.colors.textSubtle },
-                  ]}
-                >
-                  {valid ? String(d) : ''}
-                </Text>
-                {isAvail && !isSel ? <View style={styles.availDot} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <Text style={styles.blockLabel}>Jour souhaité</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.requestedDaysRow}
+      >
+        {days.map((d) => {
+          const isSel = sameDay(d, date);
+          const labels = formatRequestedDay(d);
+          return (
+            <Pressable
+              key={d.toISOString()}
+              onPress={() => onSelectDate(d)}
+              style={[
+                styles.requestedDay,
+                isSel && styles.requestedDayActive,
+              ]}
+            >
+              <Text style={[styles.requestedDayName, isSel && styles.requestedDayTextActive]}>
+                {labels.day}
+              </Text>
+              <Text style={[styles.requestedDayNum, isSel && styles.requestedDayTextActive]}>
+                {labels.num}
+              </Text>
+              <Text style={[styles.requestedDayMonth, isSel && styles.requestedDayTextActive]}>
+                {labels.month}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
-      <Text style={styles.blockLabel}>Créneaux disponibles</Text>
+      <Text style={styles.blockLabel}>Heure souhaitée</Text>
       <View style={styles.slotGrid}>
         {TIME_SLOTS.map((t) => {
           const active = time === t;
@@ -563,6 +583,9 @@ function Step1({
           );
         })}
       </View>
+      <Text style={styles.requestedTimeHint}>
+        Le pro confirme ce créneau dans la discussion ou avec une offre finale.
+      </Text>
 
       <Text style={styles.blockLabel}>Adresse d&apos;intervention</Text>
       <View style={[styles.addressCard, theme.shadow.e1]}>
@@ -593,7 +616,7 @@ function Step2({
 }: {
   service: string;
   duration: number;
-  date: number;
+  date: Date;
   time: string;
   address: string;
   note: string;
@@ -611,14 +634,14 @@ function Step2({
         />
         <MbSumRow
           icon="calendar"
-          label="Date"
-          value={`Mer. ${date} avril · ${time}`}
+          label="Créneau demandé"
+          value={formatRequestedDateTime(date, time)}
         />
         <MbSumRow icon="mapPin" label="Adresse" value={address || '—'} />
         <MbSumRow icon="messageCircle" label="Note" value={note || '—'} last />
       </View>
 
-      <Text style={styles.blockLabel}>Détails du paiement</Text>
+      <Text style={styles.blockLabel}>Paiement</Text>
       <View style={[styles.priceCard, theme.shadow.e2]}>
         <MbPriceRow
           label={`${formatHourly(hourly)} FC × ${duration}h`}
@@ -633,12 +656,12 @@ function Step2({
       </View>
 
       <View style={styles.protectedPanel}>
-        <I.shieldCheck size={18} color={theme.colors.success} />
+        <I.coins size={18} color={theme.colors.success} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.protectedTitle}>Paiement protégé</Text>
+          <Text style={styles.protectedTitle}>Paiement en espèces à la fin de la mission</Text>
           <Text style={styles.protectedBody}>
-            Tu paies à la fin du travail. Remboursement garanti si le travail
-            n&apos;est pas fait.
+            Ce montant reste une estimation. Le pro peut confirmer l'accord
+            après discussion avec une offre finale.
           </Text>
         </View>
       </View>
@@ -892,68 +915,48 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     padding: 0,
   },
-  calendarCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 18,
-    padding: 18,
-  },
-  calendarHead: {
+  requestedDaysRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 10,
+    paddingRight: 20,
+    paddingBottom: 4,
   },
-  roundBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarTitle: {
-    fontFamily: theme.fonts.display,
-    fontWeight: '700',
-    fontSize: 16,
-    color: theme.colors.textPrimary,
-  },
-  dayLetterRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  dayLetter: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: theme.fonts.bodySemi,
-    fontWeight: '600',
-    fontSize: 12,
-    color: theme.colors.textMuted,
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
+  requestedDay: {
+    width: 72,
+    minHeight: 88,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 2,
   },
-  dayText: {
-    fontFamily: theme.fonts.body,
-    fontSize: 14,
-    fontWeight: '500',
+  requestedDayActive: {
+    backgroundColor: theme.colors.textPrimary,
+    borderColor: theme.colors.textPrimary,
+  },
+  requestedDayName: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  requestedDayNum: {
+    fontFamily: theme.fonts.display,
+    fontSize: 24,
+    fontWeight: '700',
     color: theme.colors.textPrimary,
   },
-  availDot: {
-    position: 'absolute',
-    bottom: 5,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.colors.success,
+  requestedDayMonth: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
+  },
+  requestedDayTextActive: {
+    color: theme.colors.textInverse,
   },
   slotGrid: {
     flexDirection: 'row',
@@ -978,6 +981,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
     color: theme.colors.textPrimary,
+  },
+  requestedTimeHint: {
+    marginTop: 8,
+    fontFamily: theme.fonts.body,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
   },
   addressCard: {
     flexDirection: 'row',

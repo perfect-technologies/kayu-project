@@ -128,7 +128,7 @@ export function HomeScreen() {
             Le bon pro,{'\n'}près de toi.
           </Text>
           <Text style={styles.heroBody}>
-            Des pros vérifiés à Kinshasa, prêts à intervenir.
+            Trouve un pro à Kinshasa, discute directement et demande une réservation.
           </Text>
         </View>
 
@@ -209,7 +209,7 @@ export function HomeScreen() {
             <Text style={styles.ctaOverline}>Pour les pros</Text>
             <Text style={styles.ctaTitle}>Tu es un pro ? Rejoins-nous.</Text>
             <Text style={styles.ctaBody}>
-              Crée ton profil, reçois des demandes qualifiées.
+              Crée ton profil, reçois des messages et des réservations directes.
             </Text>
             <Pressable style={styles.ctaButton}>
               <Text style={styles.ctaButtonText}>Devenir pro</Text>
@@ -224,8 +224,8 @@ export function HomeScreen() {
 
 const HOW_STEPS = [
   { number: '01', title: 'Trouve', desc: 'Parcours les pros vérifiés autour de toi.' },
-  { number: '02', title: 'Réserve', desc: 'Choisis un créneau et décris ton besoin.' },
-  { number: '03', title: 'Paie protégé', desc: 'Le paiement est débloqué une fois le travail validé.' },
+  { number: '02', title: 'Discute', desc: 'Appelle ou envoie un message pour préciser le besoin.' },
+  { number: '03', title: 'Paie cash', desc: 'Paiement en espèces à la fin de la mission.' },
 ];
 
 const styles = StyleSheet.create({

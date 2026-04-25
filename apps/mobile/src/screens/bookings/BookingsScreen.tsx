@@ -32,7 +32,6 @@ type Nav = CompositeNavigationProp<
 
 const TABS: { id: V2Status; label: string }[] = [
   { id: 'upcoming', label: 'À venir' },
-  { id: 'active', label: 'En cours' },
   { id: 'completed', label: 'Terminées' },
   { id: 'cancelled', label: 'Annulées' },
 ];
@@ -44,8 +43,8 @@ const EMPTY_COPY: Record<V2Status, { title: string; sub: string; cta: string | n
     cta: 'Trouver un pro',
   },
   active: {
-    title: 'Rien en cours',
-    sub: 'Les missions actives apparaissent ici, avec le suivi en temps réel.',
+    title: 'Rien à confirmer',
+    sub: 'Les missions confirmées apparaissent dans À venir.',
     cta: 'Parcourir les catégories',
   },
   completed: {

@@ -54,9 +54,9 @@ type BookingUpdateInput = {
 // ─── Timeline ─────────────────────────────────────────────────────────────
 
 const TIMELINE_STEPS: Record<V2Status, string[]> = {
-  upcoming: ['booked', 'confirmed', 'enroute', 'inprogress', 'done'],
-  active: ['booked', 'confirmed', 'enroute', 'inprogress', 'done'],
-  completed: ['booked', 'confirmed', 'enroute', 'inprogress', 'done', 'paid'],
+  upcoming: ['booked', 'confirmed', 'done'],
+  active: ['booked', 'confirmed', 'done'],
+  completed: ['booked', 'confirmed', 'done', 'paid'],
   cancelled: ['booked', 'cancelled'],
 };
 
@@ -64,10 +64,8 @@ type StepKey = keyof typeof STEP_META;
 const STEP_META = {
   booked: { label: 'Réservation créée', icon: 'calendar' as const },
   confirmed: { label: 'Réservation confirmée', icon: 'check' as const },
-  enroute: { label: 'En route', icon: 'mapPin' as const },
-  inprogress: { label: 'Intervention', icon: 'wrench' as const },
   done: { label: 'Terminée', icon: 'badgeCheck' as const },
-  paid: { label: 'Payée', icon: 'coins' as const },
+  paid: { label: 'Paiement espèces confirmé', icon: 'coins' as const },
   cancelled: { label: 'Annulée', icon: 'x' as const },
 };
 
@@ -77,8 +75,8 @@ const currentStepIndex = (
   isPaid?: boolean | null,
 ): number => {
   if (v2 === 'upcoming') return backend === 'PENDING' ? 0 : 1;
-  if (v2 === 'active') return 3;
-  if (v2 === 'completed') return isPaid ? 5 : 4;
+  if (v2 === 'active') return 1;
+  if (v2 === 'completed') return isPaid ? 3 : 2;
   if (v2 === 'cancelled') return 1;
   return 0;
 };
@@ -133,6 +131,33 @@ export function BookingDetailScreen() {
       Alert.alert(
         'Action impossible',
         err.message || "Cette réservation ne peut pas être modifiée maintenant.",
+      );
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      const current = data?.booking as Booking | undefined;
+      if (!current) {
+        throw new Error('Réservation introuvable');
+      }
+
+      if (current.status === 'CONFIRMED') {
+        const started = await api.bookings.update(params.bookingId, {
+          status: 'IN_PROGRESS',
+        });
+        syncBookingCaches(started);
+      }
+
+      return api.bookings.update(params.bookingId, { status: 'COMPLETED' });
+    },
+    onSuccess: (result) => {
+      syncBookingCaches(result);
+    },
+    onError: (err: Error) => {
+      Alert.alert(
+        'Action impossible',
+        err.message || "Cette réservation ne peut pas être terminée maintenant.",
       );
     },
   });
@@ -218,18 +243,12 @@ export function BookingDetailScreen() {
       { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'CONFIRMED' }) },
     ]);
 
-  const onStart = () =>
-    Alert.alert('Démarrer', 'Marquer cette intervention comme démarrée ?', [
-      { text: 'Non', style: 'cancel' },
-      { text: 'Oui', onPress: () => updateMutation.mutate({ status: 'IN_PROGRESS' }) },
-    ]);
-
   const onComplete = () =>
     Alert.alert('Terminer', 'Confirmer que la mission est terminée ?', [
       { text: 'Non', style: 'cancel' },
       {
         text: 'Oui',
-        onPress: () => updateMutation.mutate({ status: 'COMPLETED' }),
+        onPress: () => completeMutation.mutate(),
       },
     ]);
 
@@ -309,7 +328,7 @@ export function BookingDetailScreen() {
             isClient={isClient}
             reviewed={reviewed}
             clientReviewed={clientReviewed}
-            busy={updateMutation.isPending}
+            busy={updateMutation.isPending || completeMutation.isPending}
             onMessage={() => {
               const userId = isClient ? booking.provider?.userId : booking.client?.id;
               if (!userId) return;
@@ -324,7 +343,6 @@ export function BookingDetailScreen() {
             }}
             onCancel={onCancel}
             onConfirm={onConfirm}
-            onStart={onStart}
             onComplete={onComplete}
             onConfirmPayment={onConfirmPayment}
             onReview={onReview}
@@ -378,10 +396,10 @@ export function BookingDetailScreen() {
           <AddressBlock booking={booking} isClient={isClient} />
         </MobileSection>
 
-        {/* Quote */}
+        {/* Final offer / estimate */}
         <MobileSection
-          title="Devis"
-          subtitle={booking.quote ? 'Accepté' : 'Estimation'}
+          title="Accord"
+          subtitle={booking.quote ? 'Confirmé' : 'Estimation'}
         >
           <QuoteBreakdown booking={booking} isClient={isClient} />
         </MobileSection>
@@ -455,9 +473,9 @@ function BdStatusChip({
       fg: theme.colors.primaryHover,
     },
     active: {
-      label: 'En cours',
-      bg: theme.colors.successSubtle,
-      fg: theme.colors.success,
+      label: 'Confirmée',
+      bg: theme.colors.primarySubtle,
+      fg: theme.colors.primaryHover,
     },
     completed: {
       label: 'Terminée',
@@ -623,7 +641,7 @@ function Timeline({
               </Text>
               {current && (
                 <Text style={styles.tlHint}>
-                  {progress || 'En cours · maintenant'}
+                  {progress || 'À confirmer avec le pro'}
                 </Text>
               )}
             </View>
@@ -654,6 +672,7 @@ function QuoteBreakdown({
           label="Durée estimée"
           value={durationHours ? `${durationHours} h` : 'À confirmer'}
         />
+        <MetaRow label="Paiement" value="Paiement en espèces à la fin de la mission" />
         {!isClient && total > 0 ? (
           <>
             <View style={styles.qbExtraRow}>
@@ -828,7 +847,6 @@ function ActionButtons({
   onMessage,
   onCancel,
   onConfirm,
-  onStart,
   onComplete,
   onConfirmPayment,
   onReview,
@@ -844,7 +862,6 @@ function ActionButtons({
   onMessage: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-  onStart: () => void;
   onComplete: () => void;
   onConfirmPayment: () => void;
   onReview: () => void;
@@ -877,17 +894,17 @@ function ActionButtons({
       </View>
     );
   }
-  if (backendStatus === 'CONFIRMED') {
+  if (backendStatus === 'CONFIRMED' || backendStatus === 'IN_PROGRESS') {
     return (
       <View style={{ gap: 8 }}>
         {!isClient && (
           <Pressable
             style={[styles.primaryBtn, styles.primaryBtnLg]}
-            onPress={onStart}
+            onPress={onComplete}
             disabled={busy}
           >
-            <I.wrench size={15} color="#fff" />
-            <Text style={styles.primaryBtnText}>Démarrer l’intervention</Text>
+            <I.check size={15} color="#fff" />
+            <Text style={styles.primaryBtnText}>Marquer comme terminée</Text>
           </Pressable>
         )}
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -930,9 +947,9 @@ function ActionButtons({
             <Text style={styles.secondaryBtnText}>Message</Text>
           </Pressable>
           {isClient && (
-            <Pressable style={[styles.secondaryBtn, { flex: 1 }]}>
-              <I.mapPin size={14} color={theme.colors.textPrimary} />
-              <Text style={styles.secondaryBtnText}>Suivre</Text>
+            <Pressable style={[styles.secondaryBtn, { flex: 1 }]} onPress={onMessage}>
+              <I.messageCircle size={14} color={theme.colors.textPrimary} />
+              <Text style={styles.secondaryBtnText}>Discuter</Text>
             </Pressable>
           )}
         </View>
@@ -972,31 +989,25 @@ function ActionButtons({
               <Text style={styles.secondaryBtnText}>Avis client envoye</Text>
             </Pressable>
           )}
-          <Pressable style={styles.secondaryBtn}>
-            <I.fileText size={14} color={theme.colors.textPrimary} />
-            <Text style={styles.secondaryBtnText}>Facture</Text>
-          </Pressable>
         </View>
       );
     }
 
     return (
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {isClient && !reviewed && (
-          <Pressable style={[styles.primaryBtn, { flex: 1 }]} onPress={onReview}>
-            <I.star size={14} color="#fff" />
-            <Text style={styles.primaryBtnText}>Laisser un avis</Text>
-          </Pressable>
-        )}
-        {isClient && reviewed && (
-          <Pressable style={[styles.primaryBtn, { flex: 1 }]}>
-            <Text style={styles.primaryBtnText}>Réserver à nouveau</Text>
-          </Pressable>
-        )}
-        <Pressable style={styles.secondaryBtn}>
-          <I.fileText size={14} color={theme.colors.textPrimary} />
-          <Text style={styles.secondaryBtnText}>Facture</Text>
-        </Pressable>
+      <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {isClient && !reviewed && (
+            <Pressable style={[booking.isPaid ? styles.primaryBtn : styles.secondaryBtn, { flex: 1 }]} onPress={onReview}>
+              <I.star size={14} color={booking.isPaid ? '#fff' : theme.colors.textPrimary} />
+              <Text style={booking.isPaid ? styles.primaryBtnText : styles.secondaryBtnText}>Laisser un avis</Text>
+            </Pressable>
+          )}
+          {isClient && reviewed && (
+            <Pressable style={[styles.primaryBtn, { flex: 1 }]}>
+              <Text style={styles.primaryBtnText}>Réserver à nouveau</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     );
   }

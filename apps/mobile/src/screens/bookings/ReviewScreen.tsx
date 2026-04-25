@@ -44,7 +44,7 @@ type Dim = {
 };
 
 const REVIEW_DIMENSIONS: Dim[] = [
-  { key: 'punctuality', label: 'Ponctualité', desc: "Arrivé à l'heure ?", icon: 'clock' },
+  { key: 'punctuality', label: 'Ponctualité', desc: 'Ponctuel ?', icon: 'clock' },
   { key: 'quality', label: 'Qualité du travail', desc: 'Résultat à la hauteur ?', icon: 'sparkles' },
   { key: 'communication', label: 'Communication', desc: "Clair, réactif, à l'écoute ?", icon: 'messageCircle' },
   { key: 'value', label: 'Rapport qualité-prix', desc: 'Prix juste pour le service ?', icon: 'coins' },
