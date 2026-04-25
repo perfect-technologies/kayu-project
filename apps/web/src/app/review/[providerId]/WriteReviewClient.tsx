@@ -144,10 +144,12 @@ export function WriteReviewClient({
   provider,
   bookingId,
   fromBooking,
+  reviewUnavailableMessage,
 }: {
   provider: WriteReviewProvider;
   bookingId?: string;
   fromBooking: boolean;
+  reviewUnavailableMessage?: string | null;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -219,7 +221,7 @@ export function WriteReviewClient({
     return <ReviewSuccess provider={provider} onDone={onDone} />;
   }
 
-  if (!bookingId) {
+  if (!bookingId || reviewUnavailableMessage) {
     return (
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 32px 64px" }}>
         <button
@@ -252,7 +254,8 @@ export function WriteReviewClient({
             Avis indisponible
           </div>
           <div className="k-body-m" style={{ color: "var(--k-text-muted)", marginBottom: 18 }}>
-            Un identifiant de réservation terminée est requis pour publier un avis.
+            {reviewUnavailableMessage ??
+              "Un identifiant de réservation terminée est requis pour publier un avis."}
           </div>
           <button
             className="k-btn k-btn-primary"

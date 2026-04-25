@@ -1,6 +1,6 @@
 import type { CategorySlug } from "@kayu/ui";
 
-export type JobStatus = "confirmed" | "en_route" | "completed";
+export type JobStatus = "confirmed" | "completed";
 
 export type ActiveJobStatus = "scheduled" | "enroute" | "arrived" | "in_progress";
 

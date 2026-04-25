@@ -63,7 +63,7 @@ function toDashboardJob(job: TodayJob): DashboardJob {
       bg: colorFor(job.client.id || job.client.name),
     },
     address: job.address,
-    status: job.status,
+    status: job.status === "completed" ? "completed" : "confirmed",
     fee: job.fee,
     distance: job.distance,
   };

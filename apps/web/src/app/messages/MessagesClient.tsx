@@ -3,8 +3,8 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { messagesApi, queryKeys } from "@kayu/api";
-import type { Conversation, Message, UserSummary } from "@kayu/schemas";
+import { dashboardApi, finalOffersApi, messagesApi, queryKeys } from "@kayu/api";
+import type { Conversation, FinalOffer, Message, UserSummary } from "@kayu/schemas";
 import { Avatar, EmptyState, ErrorState, I } from "@kayu/ui/web";
 import { Inbox as InboxIcon } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const SUGGESTED_REPLIES = [
   "Merci beaucoup !",
-  "Pouvez-vous m'envoyer un devis ?",
+  "Pouvez-vous confirmer les détails ?",
   "À quelle heure serez-vous disponible ?",
   "Ça marche pour moi.",
 ];
@@ -27,6 +27,7 @@ const FILTERS: { k: FilterKey; label: string }[] = [
 
 type ConversationsQueryData = { success?: boolean; conversations: Conversation[] };
 type MessagesQueryData = { success?: boolean; messages: Message[] };
+type FinalOffersQueryData = { success?: boolean; finalOffers: FinalOffer[] };
 
 function getOtherName(u?: UserSummary | null) {
   if (!u) return "Utilisateur";
@@ -71,6 +72,31 @@ function formatBubbleTime(iso?: string | Date | null) {
     d.getDate() === now.getDate();
   if (sameDay) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   return `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function formatMoney(amount: number) {
+  return `${amount.toLocaleString("fr-FR")} FC`;
+}
+
+function defaultOfferDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(10, 0, 0, 0);
+  return d;
+}
+
+function toDateTimeLocalValue(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatDurationMinutes(minutes: number | null | undefined) {
+  if (!minutes || minutes <= 0) return "À confirmer";
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours > 0 && remainder > 0) return `${hours}h${String(remainder).padStart(2, "0")}`;
+  if (hours > 0) return `${hours} h`;
+  return `${remainder} min`;
 }
 
 export function MessagesClient() {
@@ -161,6 +187,71 @@ function MessagesClientInner() {
   });
 
   const messages = msgData?.messages ?? [];
+
+  const { data: providerDashboard } = useQuery({
+    queryKey: queryKeys.dashboard.provider,
+    queryFn: () => dashboardApi(apiClient).getProviderDashboard(),
+    enabled: user?.role === "PROVIDER",
+    staleTime: 60_000,
+  });
+
+  const finalOfferParams = useMemo(
+    () => (activeId ? { conversationId: activeId } : undefined),
+    [activeId],
+  );
+
+  const { data: finalOfferData } = useQuery<FinalOffersQueryData>({
+    queryKey: queryKeys.finalOffers.all(finalOfferParams),
+    queryFn: () =>
+      finalOffersApi(apiClient).getAll(finalOfferParams) as Promise<FinalOffersQueryData>,
+    enabled: !!activeId,
+    refetchInterval: 10_000,
+  });
+
+  const finalOffers = finalOfferData?.finalOffers ?? [];
+
+  const acceptOffer = useMutation({
+    mutationFn: (id: string) => finalOffersApi(apiClient).accept(id),
+    onSuccess: (result) => {
+      if (activeId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.finalOffers.all(finalOfferParams),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages.conversation(activeId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(result.booking.id),
+      });
+      router.push(`/bookings/${result.booking.id}`);
+    },
+  });
+
+  const declineOffer = useMutation({
+    mutationFn: (id: string) => finalOffersApi(apiClient).decline(id),
+    onSuccess: () => {
+      if (activeId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.finalOffers.all(finalOfferParams),
+        });
+      }
+    },
+  });
+
+  const createOffer = useMutation({
+    mutationFn: (data: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0]) =>
+      finalOffersApi(apiClient).create(data),
+    onSuccess: () => {
+      if (activeId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.finalOffers.all(finalOfferParams),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+    },
+  });
 
   const sendMut = useMutation({
     mutationFn: (text: string) => {
@@ -332,12 +423,21 @@ function MessagesClientInner() {
           <ThreadView
             conversation={active}
             messages={messages}
+            finalOffers={finalOffers}
             isLoading={msgLoading}
             error={msgError}
             onRetry={() => refetchMsgs()}
             myId={user?.id ?? null}
+            myRole={user?.role ?? null}
+            providerId={providerDashboard?.provider?.id ?? null}
             onSend={(text) => sendMut.mutate(text)}
+            onCreateOffer={(offer) => createOffer.mutateAsync(offer)}
+            onAcceptOffer={(id) => acceptOffer.mutate(id)}
+            onDeclineOffer={(id) => declineOffer.mutate(id)}
             sending={sendMut.isPending}
+            offerBusy={
+              createOffer.isPending || acceptOffer.isPending || declineOffer.isPending
+            }
           />
         ) : convLoading ? (
           <div
@@ -521,23 +621,40 @@ function ThreadListItem({
 function ThreadView({
   conversation,
   messages,
+  finalOffers,
   isLoading,
   error,
   onRetry,
   myId,
+  myRole,
+  providerId,
   onSend,
+  onCreateOffer,
+  onAcceptOffer,
+  onDeclineOffer,
   sending,
+  offerBusy,
 }: {
   conversation: Conversation;
   messages: Message[];
+  finalOffers: FinalOffer[];
   isLoading: boolean;
   error: unknown;
   onRetry: () => void;
   myId: string | null;
+  myRole: "CLIENT" | "PROVIDER" | "ADMIN" | null;
+  providerId: string | null;
   onSend: (text: string) => void;
+  onCreateOffer: (
+    offer: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0],
+  ) => Promise<unknown>;
+  onAcceptOffer: (id: string) => void;
+  onDeclineOffer: (id: string) => void;
   sending: boolean;
+  offerBusy: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [offerOpen, setOfferOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -548,6 +665,11 @@ function ThreadView({
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && !sending;
   const name = getOtherName(conversation.otherUser);
+  const canSendOffer =
+    myRole === "PROVIDER" &&
+    conversation.otherUser?.role === "CLIENT" &&
+    !!providerId &&
+    !!conversation.otherUser?.id;
 
   const submit = (text: string) => {
     const t = text.trim();
@@ -605,23 +727,26 @@ function ThreadView({
           </div>
         </div>
         <button
-          title="Appeler"
-          aria-label="Appeler"
+          title="Envoyer une offre finale"
+          aria-label="Envoyer une offre finale"
+          onClick={() => setOfferOpen(true)}
+          disabled={!canSendOffer}
           style={{
             width: 38,
             height: 38,
             borderRadius: "50%",
             border: "1px solid var(--k-border)",
             background: "var(--k-surface)",
-            cursor: "pointer",
+            cursor: canSendOffer ? "pointer" : "not-allowed",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "var(--k-primary-hover)",
             flexShrink: 0,
+            opacity: canSendOffer ? 1 : 0.4,
           }}
         >
-          <I.phone size={18} />
+          <I.coins size={18} />
         </button>
       </div>
 
@@ -655,7 +780,7 @@ function ThreadView({
             subtitle="Impossible de récupérer les messages."
             cta={{ label: "Réessayer", onClick: onRetry }}
           />
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && finalOffers.length === 0 ? (
           <div
             style={{
               display: "flex",
@@ -671,7 +796,23 @@ function ThreadView({
             Envoyez le premier message pour démarrer la conversation.
           </div>
         ) : (
-          messages.map((m) => <MessageBubble key={m.id} m={m} myId={myId} />)
+          <>
+            {messages.map((m) => <MessageBubble key={m.id} m={m} myId={myId} />)}
+            {finalOffers.length > 0 && (
+              <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
+                {finalOffers.map((offer) => (
+                  <FinalOfferCard
+                    key={offer.id}
+                    offer={offer}
+                    myRole={myRole}
+                    busy={offerBusy}
+                    onAccept={() => onAcceptOffer(offer.id)}
+                    onDecline={() => onDeclineOffer(offer.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -783,6 +924,397 @@ function ThreadView({
         >
           <I.send size={17} />
         </button>
+      </div>
+      {canSendOffer && (
+        <FinalOfferDialog
+          open={offerOpen}
+          onOpenChange={setOfferOpen}
+          providerId={providerId}
+          clientId={conversation.otherUser!.id}
+          conversationId={conversation.id}
+          onSubmit={onCreateOffer}
+          busy={offerBusy}
+        />
+      )}
+    </div>
+  );
+}
+
+function FinalOfferCard({
+  offer,
+  myRole,
+  busy,
+  onAccept,
+  onDecline,
+}: {
+  offer: FinalOffer;
+  myRole: "CLIENT" | "PROVIDER" | "ADMIN" | null;
+  busy: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  const canAct = myRole === "CLIENT" && offer.status === "PENDING";
+  const scheduled = new Date(offer.scheduledDate);
+  const dateLabel = Number.isNaN(scheduled.getTime())
+    ? "Date à confirmer"
+    : scheduled.toLocaleString("fr-FR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  const statusLabel: Record<FinalOffer["status"], string> = {
+    PENDING: "En attente",
+    ACCEPTED: "Acceptée",
+    DECLINED: "Refusée",
+    CANCELLED: "Annulée",
+    EXPIRED: "Expirée",
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--k-border)",
+        borderRadius: 14,
+        background: "var(--k-surface)",
+        padding: 16,
+        boxShadow: "var(--k-e1)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div className="k-overline" style={{ color: "var(--k-primary)" }}>
+            Offre finale
+          </div>
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily: "var(--k-font-display)",
+              fontSize: 17,
+              fontWeight: 700,
+              color: "var(--k-text-primary)",
+            }}
+          >
+            {offer.title}
+          </div>
+        </div>
+        <span className="k-chip k-chip-sm k-chip-primary">
+          {statusLabel[offer.status]}
+        </span>
+      </div>
+      {offer.description && (
+        <p className="k-body-m" style={{ margin: "8px 0 0", color: "var(--k-text-body)" }}>
+          {offer.description}
+        </p>
+      )}
+      <div style={{ display: "grid", gap: 8, marginTop: 12, fontSize: 13 }}>
+        <OfferMeta icon="coins" label="Prix convenu" value={formatMoney(offer.price)} />
+        <OfferMeta icon="calendar" label="Date" value={dateLabel} />
+        <OfferMeta
+          icon="clock"
+          label="Durée"
+          value={formatDurationMinutes(offer.duration)}
+        />
+        <OfferMeta
+          icon="mapPin"
+          label="Adresse"
+          value={[offer.address, offer.city].filter(Boolean).join(", ") || "À confirmer"}
+        />
+      </div>
+      <div
+        className="k-caption"
+        style={{
+          marginTop: 12,
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "var(--k-surface-primary)",
+          color: "var(--k-text-body)",
+        }}
+      >
+        Paiement en espèces à la fin de la mission.
+      </div>
+      {canAct && (
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button
+            className="k-btn k-btn-primary"
+            style={{ flex: 1 }}
+            disabled={busy}
+            onClick={onAccept}
+          >
+            <I.check size={14} /> Accepter
+          </button>
+          <button
+            className="k-btn k-btn-secondary"
+            style={{ flex: 1 }}
+            disabled={busy}
+            onClick={onDecline}
+          >
+            <I.x size={14} /> Décliner
+          </button>
+        </div>
+      )}
+      {canAct && (
+        <div className="k-caption" style={{ marginTop: 8, color: "var(--k-text-muted)" }}>
+          Pour continuer la discussion, répondez simplement dans le fil.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OfferMeta({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof I;
+  label: string;
+  value: string;
+}) {
+  const Icon = I[icon] ?? I.check;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <Icon size={14} strokeColor="var(--k-text-muted)" />
+      <span style={{ color: "var(--k-text-muted)", minWidth: 86 }}>{label}</span>
+      <span style={{ color: "var(--k-text-primary)", fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function FinalOfferDialog({
+  open,
+  onOpenChange,
+  providerId,
+  clientId,
+  conversationId,
+  onSubmit,
+  busy,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  providerId: string;
+  clientId: string;
+  conversationId: string;
+  onSubmit: (
+    offer: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0],
+  ) => Promise<unknown>;
+  busy: boolean;
+}) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [durationHours, setDurationHours] = useState("2");
+  const [scheduledDate, setScheduledDate] = useState(
+    toDateTimeLocalValue(defaultOfferDate()),
+  );
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("Kinshasa");
+  const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    const parsedPrice = Number(price);
+    const parsedDuration = Number(durationHours.replace(",", "."));
+    const parsedScheduledDate = new Date(scheduledDate);
+    if (!title.trim()) {
+      setFormError("Indiquez le service convenu.");
+      return;
+    }
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setFormError("Indiquez un prix valide en FC.");
+      return;
+    }
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setFormError("Indiquez une durée valide, par exemple 1,5 ou 2.");
+      return;
+    }
+    if (!scheduledDate || Number.isNaN(parsedScheduledDate.getTime())) {
+      setFormError("Choisissez une date et une heure valides.");
+      return;
+    }
+    setFormError(null);
+    await onSubmit({
+      providerId,
+      clientId,
+      conversationId,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      price: parsedPrice,
+      duration: Math.max(1, Math.round(parsedDuration * 60)),
+      scheduledDate: parsedScheduledDate,
+      address: address.trim() || undefined,
+      city: city.trim() || undefined,
+      notes: notes.trim() || undefined,
+      paymentMethod: "cash",
+    });
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setNotes("");
+    setFormError(null);
+    onOpenChange(false);
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 80,
+        background: "rgba(15,23,42,0.42)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        style={{
+          width: "min(520px, 100%)",
+          borderRadius: 16,
+          background: "var(--k-surface)",
+          border: "1px solid var(--k-border)",
+          boxShadow: "var(--k-e3)",
+          padding: 20,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <h2 className="k-display-m" style={{ margin: 0, fontSize: 22 }}>
+              Envoyer une offre finale
+            </h2>
+            <p className="k-body-m" style={{ color: "var(--k-text-muted)", margin: "4px 0 0" }}>
+              À utiliser après discussion avec le client.
+            </p>
+          </div>
+          <button
+            aria-label="Fermer"
+            onClick={() => onOpenChange(false)}
+            style={{ border: 0, background: "transparent", cursor: "pointer" }}
+          >
+            <I.x size={20} />
+          </button>
+        </div>
+        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <input
+            className="k-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Service convenu"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description courte"
+            rows={3}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid var(--k-border)",
+              background: "var(--k-surface)",
+              color: "var(--k-text-primary)",
+              font: "inherit",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <input
+              className="k-input"
+              inputMode="numeric"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="Prix en FC"
+            />
+            <input
+              className="k-input"
+              inputMode="decimal"
+              value={durationHours}
+              onChange={(e) => {
+                setDurationHours(e.target.value);
+                setFormError(null);
+              }}
+              placeholder="Durée en heures"
+            />
+          </div>
+          <input
+            className="k-input"
+            type="datetime-local"
+            value={scheduledDate}
+            onChange={(e) => setScheduledDate(e.target.value)}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 10 }}>
+            <input
+              className="k-input"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Adresse"
+            />
+            <input
+              className="k-input"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Ville"
+            />
+          </div>
+          <input
+            className="k-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes internes ou précision"
+          />
+        </div>
+        {formError && (
+          <div
+            role="alert"
+            className="k-caption"
+            style={{
+              marginTop: 12,
+              color: "#BE123C",
+              background: "var(--k-danger-subtle)",
+              borderRadius: 10,
+              padding: "9px 12px",
+            }}
+          >
+            {formError}
+          </div>
+        )}
+        <div
+          className="k-caption"
+          style={{
+            marginTop: 14,
+            padding: "10px 12px",
+            borderRadius: 10,
+            background: "var(--k-surface-primary)",
+            color: "var(--k-text-body)",
+          }}
+        >
+          Paiement en espèces à la fin de la mission.
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button
+            className="k-btn k-btn-secondary"
+            style={{ flex: 1 }}
+            onClick={() => onOpenChange(false)}
+          >
+            Annuler
+          </button>
+          <button
+            className="k-btn k-btn-primary"
+            style={{ flex: 1 }}
+            disabled={busy || !title.trim() || !price.trim()}
+            onClick={submit}
+          >
+            Envoyer l'offre
+          </button>
+        </div>
       </div>
     </div>
   );

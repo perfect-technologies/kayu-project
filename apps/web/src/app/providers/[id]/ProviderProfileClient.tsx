@@ -37,6 +37,7 @@ import {
   Calendar,
   Clock,
   MapPin,
+  Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
@@ -540,12 +541,12 @@ export function ProviderProfileClient({
                 <div>
                   <div className="k-caption">Tarif</div>
                   <div className="k-display-m" style={{ margin: "4px 0 0" }}>
-                    Sur devis
+                    À convenir
                   </div>
                 </div>
               )}
               <div className="k-caption mt-2">
-                Devis gratuit · Paiement sécurisé
+                Paiement en espèces à la fin de la mission
               </div>
 
               <div
@@ -578,8 +579,17 @@ export function ProviderProfileClient({
                     className="k-btn k-btn-primary k-btn-lg mt-4 w-full"
                     onClick={() => router.push(`/book/${provider.id}`)}
                   >
-                    Réserver maintenant
+                    Demander une réservation
                   </button>
+                  {visibleProvider.user.phone && (
+                    <a
+                      className="k-btn k-btn-secondary mt-2 w-full"
+                      href={`tel:${visibleProvider.user.phone}`}
+                    >
+                      <Phone className="h-4 w-4" />
+                      Appeler
+                    </a>
+                  )}
                   {visibility.allowMessages && (
                     <button
                       className="k-btn k-btn-secondary mt-2 w-full"
@@ -604,7 +614,7 @@ export function ProviderProfileClient({
                   className="k-caption"
                   style={{ color: "var(--k-text-body)" }}
                 >
-                  Paiement direct au pro en espèces à la fin de la mission.
+                  Paiement en espèces à la fin de la mission.
                 </span>
               </div>
             </div>
@@ -663,9 +673,9 @@ export function ProviderProfileClient({
           ) : (
             <>
               <div className="k-body-m" style={{ fontWeight: 600 }}>
-                Sur devis
+                À convenir
               </div>
-              <div className="k-caption mt-0.5">Demande rapide</div>
+              <div className="k-caption mt-0.5">Discussion puis offre finale</div>
             </>
           )}
         </div>
@@ -683,6 +693,20 @@ export function ProviderProfileClient({
           >
             <MessageCircle className="h-[18px] w-[18px]" />
           </button>
+        )}
+        {visibleProvider.user.phone && !isOwnProfile && (
+          <a
+            className="flex h-11 w-11 items-center justify-center rounded-full"
+            aria-label="Appeler"
+            href={`tel:${visibleProvider.user.phone}`}
+            style={{
+              background: "var(--k-surface)",
+              border: "1px solid var(--k-border)",
+              color: "var(--k-text-primary)",
+            }}
+          >
+            <Phone className="h-[18px] w-[18px]" />
+          </a>
         )}
         {!isOwnProfile ? (
           <button

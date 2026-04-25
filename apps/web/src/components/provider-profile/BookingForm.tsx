@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,7 @@ export function BookingForm({
   isAuthenticated,
   onLoginRequired,
 }: BookingFormProps) {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [success, setSuccess] = useState(false);
 
@@ -110,11 +112,12 @@ export function BookingForm({
   const createBooking = useMutation({
     mutationFn: (payload: Parameters<ReturnType<typeof bookingsApi>["create"]>[0]) =>
       bookingsApi(apiClient).create(payload),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setSuccess(true);
       setTimeout(() => {
         onOpenChange(false);
         resetForm();
+        router.push(`/bookings/${result.booking.id}`);
       }, 2000);
     },
     onError: (error: Error) => {
@@ -183,7 +186,7 @@ export function BookingForm({
             <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
             <h3 className="text-lg font-semibold mb-2">Réservation envoyée!</h3>
             <p className="text-muted-foreground text-center">
-              Votre demande a été envoyée au prestataire. Vous serez notifié dès qu&apos;il répondra.
+              Votre demande a été envoyée au prestataire. Vous allez être redirigé vers la réservation.
             </p>
           </div>
         ) : (
@@ -403,7 +406,7 @@ export function BookingForm({
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Le prix final peut varier selon la nature du travail
+                      Le prix final sera confirmé après discussion avec le prestataire.
                     </p>
                   </div>
                 )}

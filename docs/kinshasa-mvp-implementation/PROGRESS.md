@@ -22,7 +22,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 00 - Product Reset | Done | Planning | Product direction documented |
 | 01 - Feature Flags And Navigation Cleanup | Done | Codex | Launch flags default off; request/quote marketplace hidden from web/mobile navigation |
 | 02 - Backend Final Offer And Booking Lifecycle | Done | Codex | First-class final-offer API creates/confirms cash bookings without job requests |
-| 03 - Web Direct Flow | Not started | Unassigned | Web discovery/chat/booking/final-offer launch flow |
+| 03 - Web Direct Flow | Done | Codex | Web direct discovery/chat/booking/final-offer launch flow completed |
 | 04 - Mobile Direct Flow | Not started | Unassigned | Mobile discovery/chat/booking/final-offer launch flow |
 | 05 - Discovery Filters And Provider Profile | Not started | Unassigned | Fix filters and provider profile truthfulness |
 | 06 - Cash Payment And Copy Cleanup | Not started | Unassigned | Align all launch-facing copy with cash MVP |
@@ -158,6 +158,65 @@ Schema migration:
 - Added Prisma `FinalOfferStatus`, `FinalOffer` model, final-offer relations, and final-offer notification types.
 - No migration directory exists in the current backend; no migration file was added.
 - Applied the schema through the project’s existing Prisma push workflow to local PostgreSQL database `kayu` on `localhost:5433`.
+
+## Workstream 03 Evidence
+
+Completed: 2026-04-25
+
+Changed files:
+
+- `apps/web/src/app/HomePageClient.tsx`
+- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx`
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/app/messages/page.tsx`
+- `apps/web/src/components/layout/AppShell.tsx`
+- `apps/web/src/app/pro/ProviderDashboardClient.tsx`
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`
+- `apps/web/src/app/review/[providerId]/WriteReviewClient.tsx`
+- `apps/web/src/app/review/[providerId]/page.tsx`
+- `apps/web/src/app/services/ServicesPageContent.tsx`
+- `apps/web/src/components/bookings/BookingDetail.tsx`
+- `apps/web/src/components/pro/JobCard.tsx`
+- `apps/web/src/components/pro/types.ts`
+- `apps/web/src/components/provider-profile/BookingForm.tsx`
+- `apps/web/src/components/provider-profile/ContactDialog.tsx`
+- `apps/web/src/components/providers/ProviderCard.tsx`
+- `apps/web/src/lib/booking-v2.ts`
+
+Behavior implemented:
+
+- Web home copy now describes provider discovery, direct discussion, direct reservation, final offer, and cash payment.
+- Provider profile primary actions are direct contact/message, optional phone call, and `Demander une réservation`; secure-payment/devis copy was removed from launch-facing profile surfaces.
+- Services discovery now preserves and applies `subcategory` URL filters from category subcategory links.
+- Direct booking uses future dates instead of hardcoded April dates, removes online-style service fee display, and routes successful bookings to `/bookings/[id]`.
+- Booking detail uses the launch lifecycle in visible UI: pending, confirmed, completed, cancelled; en-route/arrived/start steps are not shown in visible booking/pro dashboard flows.
+- Provider can send an `Offre finale` from an existing client conversation.
+- Client can accept or decline a pending final offer in chat; accept routes to the confirmed booking detail.
+- Final-offer duration display now preserves partial hours such as `1h30`, and the final-offer form shows an inline validation error for invalid duration values.
+- Review page now blocks review submission unless the attached booking exists, belongs to the provider, and is `COMPLETED`.
+- Category provider card message icon no longer links to unsupported `/messages?to=...`; it opens the provider profile where message creation is supported.
+- `AppShell` now Suspense-wraps the admin-tab search-param reader so `/bookings` can prerender during production build.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed.
+- `pnpm --filter @kayu/web build` - passed.
+- `rg -n "Devis|devis|paiement sécurisé|Paiement sécurisé|secure payment|En route|Arrivé|arrived|Démarrer|demandes qualifiées" apps/web/src/app/page.tsx apps/web/src/app/HomePageClient.tsx apps/web/src/app/services apps/web/src/app/categories apps/web/src/app/providers apps/web/src/app/book apps/web/src/app/bookings apps/web/src/app/messages apps/web/src/components/provider-profile apps/web/src/components/bookings apps/web/src/components/providers apps/web/src/lib -g '!*.map'` - no launch-facing matches.
+- `pnpm --filter @kayu/web exec next dev -p 3002` - blocked by an existing Next dev server for `apps/web` already running at `http://localhost:3000` (PID 23159).
+
+Routes and flows checked:
+
+- `/` copy points to finding a provider, direct discussion, final offer, and cash payment.
+- `/services?category=...&subcategory=...` now carries both filters into provider search.
+- `/providers/[id]` launch CTAs are contact/message, optional call, and direct booking.
+- `/book/[providerId]` creates a direct booking with cash completion copy and redirects to booking detail.
+- `/messages` supports first-message conversations via provider profile and final-offer send/accept/decline.
+- `/bookings/[id]` shows launch lifecycle, chat, completion, cash confirmation, and completed-only review entry.
+- `/review/[providerId]?bookingId=...` rejects non-completed or mismatched bookings before submit.
+
+Hidden launch-deferred routes intentionally left in repo:
+
+- Existing job-request inbox, quote composer, and quote detail routes remain behind the launch flags from workstream 01.
 
 ## How To Update This File
 

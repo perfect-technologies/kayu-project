@@ -74,18 +74,16 @@ type BookingMutationInput = {
 // ─── Timeline metadata ────────────────────────────────────────────────────
 
 const TIMELINE_STEPS: Record<V2Status, string[]> = {
-  upcoming: ["booked", "confirmed", "enroute", "inprogress", "done"],
-  active: ["booked", "confirmed", "enroute", "inprogress", "done"],
-  completed: ["booked", "confirmed", "enroute", "inprogress", "done", "paid"],
+  upcoming: ["booked", "confirmed", "done"],
+  active: ["booked", "confirmed", "done"],
+  completed: ["booked", "confirmed", "done", "paid"],
   cancelled: ["booked", "cancelled"],
 };
 
 type StepMeta = { label: string; icon: keyof typeof I };
 const STEP_META: Record<string, StepMeta> = {
   booked: { label: "Réservation créée", icon: "calendar" },
-  confirmed: { label: "Devis accepté", icon: "check" },
-  enroute: { label: "En route", icon: "mapPin" },
-  inprogress: { label: "Intervention", icon: "wrench" },
+  confirmed: { label: "Accord confirmé", icon: "check" },
   done: { label: "Terminée", icon: "badgeCheck" },
   paid: { label: "Payée", icon: "coins" },
   cancelled: { label: "Annulée", icon: "x" },
@@ -97,8 +95,8 @@ const currentStepIndex = (
   isPaid?: boolean | null,
 ): number => {
   if (v2 === "upcoming") return backend === "PENDING" ? 0 : 1;
-  if (v2 === "active") return 3;
-  if (v2 === "completed") return isPaid ? 5 : 4;
+  if (v2 === "active") return 2;
+  if (v2 === "completed") return isPaid ? 3 : 2;
   if (v2 === "cancelled") return 1;
   return 0;
 };
@@ -157,6 +155,13 @@ export function BookingDetail({
 
   const onConfirmPayment = () => {
     updateMutation.mutate({ isPaid: true, paymentMethod: "cash" });
+  };
+
+  const onCompleteBooking = async () => {
+    if (booking.status === "CONFIRMED") {
+      await updateMutation.mutateAsync({ status: "IN_PROGRESS" });
+    }
+    updateMutation.mutate({ status: "COMPLETED" });
   };
 
   return (
@@ -249,8 +254,8 @@ export function BookingDetail({
             </WebCard>
 
             <WebCard
-              title="Devis"
-              subtitle={booking.quote ? "Accepté par le client" : "Estimation initiale"}
+              title="Accord"
+              subtitle={booking.quote ? "Offre finale acceptée" : "Demande directe"}
             >
               <QuoteBreakdown booking={booking} isClient={isClient} />
             </WebCard>
@@ -315,8 +320,7 @@ export function BookingDetail({
                 }
                 onCancel={() => cancelMutation.mutate()}
                 onConfirm={() => updateMutation.mutate({ status: "CONFIRMED" })}
-                onStart={() => updateMutation.mutate({ status: "IN_PROGRESS" })}
-                onComplete={() => updateMutation.mutate({ status: "COMPLETED" })}
+                onComplete={onCompleteBooking}
                 onConfirmPayment={onConfirmPayment}
               />
             </div>
@@ -658,8 +662,8 @@ function QuoteBreakdown({
             fontSize: 13,
           }}
         >
-          Estimation convenue à la réservation. Le montant final est confirmé sur
-          place selon le travail réalisé.
+          Montant estimé à la réservation. Le prestataire peut confirmer une
+          offre finale après discussion.
         </div>
       )}
       <div
@@ -835,7 +839,6 @@ function ActionButtons({
   onRebook,
   onCancel,
   onConfirm,
-  onStart,
   onComplete,
   onConfirmPayment,
 }: {
@@ -849,7 +852,6 @@ function ActionButtons({
   onRebook: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-  onStart: () => void;
   onComplete: () => void;
   onConfirmPayment: () => void;
 }) {
@@ -863,17 +865,17 @@ function ActionButtons({
             style={{ width: "100%" }}
             disabled={busy}
           >
-            <I.check size={15} /> Confirmer la mission
+            <I.check size={15} /> Confirmer la réservation
           </button>
         )}
         {!isClient && backendStatus === "CONFIRMED" && (
           <button
-            onClick={onStart}
+            onClick={onComplete}
             className="k-btn k-btn-primary k-btn-lg"
             style={{ width: "100%" }}
             disabled={busy}
           >
-            <I.wrench size={15} /> Démarrer la mission
+            <I.check size={15} /> Marquer comme terminée
           </button>
         )}
         <button

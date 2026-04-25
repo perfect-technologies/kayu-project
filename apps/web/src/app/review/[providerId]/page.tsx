@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createAuthenticatedServerApiClient } from "@/lib/api-server";
-import { providersApi } from "@kayu/api";
+import { bookingsApi, providersApi } from "@kayu/api";
 import { Layout } from "@/components/layout";
 import { WriteReviewClient, type WriteReviewProvider } from "./WriteReviewClient";
 import type { Metadata } from "next";
@@ -38,6 +38,24 @@ export default async function WriteReviewPage({
     city,
   };
 
+  let reviewUnavailableMessage: string | null = null;
+  if (bookingId) {
+    try {
+      const bookingResponse = await bookingsApi(client).getById(bookingId);
+      const booking = bookingResponse.booking;
+      if (booking.providerId !== providerId) {
+        reviewUnavailableMessage =
+          "Cette réservation ne correspond pas au prestataire évalué.";
+      } else if (booking.status !== "COMPLETED") {
+        reviewUnavailableMessage =
+          "Vous pourrez laisser un avis quand la réservation sera marquée comme terminée.";
+      }
+    } catch {
+      reviewUnavailableMessage =
+        "Cette réservation n'existe pas ou vous n'y avez pas accès.";
+    }
+  }
+
   return (
     <Layout>
       <div style={{ background: "var(--k-bg)", minHeight: "calc(100vh - 64px)" }}>
@@ -45,6 +63,7 @@ export default async function WriteReviewPage({
           provider={viewProvider}
           bookingId={bookingId}
           fromBooking={fromBooking === "1"}
+          reviewUnavailableMessage={reviewUnavailableMessage}
         />
       </div>
     </Layout>

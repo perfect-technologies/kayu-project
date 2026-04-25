@@ -4,13 +4,6 @@ import { Avatar, Chip, I } from "@kayu/ui/web";
 import type { DashboardJob, JobStatus } from "./types";
 
 function StatusPill({ status }: { status: JobStatus }) {
-  if (status === "en_route") {
-    return (
-      <Chip variant="warning" size="sm" leadingIcon={<I.clock size={11} />}>
-        En route
-      </Chip>
-    );
-  }
   if (status === "confirmed") {
     return (
       <Chip variant="success" size="sm">

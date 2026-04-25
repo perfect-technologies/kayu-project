@@ -66,7 +66,7 @@ export const priceLabelFor = (booking: {
     return booking.isPaid ? "Payé" : "Paiement à confirmer";
   }
   if (s === "CANCELLED") return "Annulée";
-  if (s === "CONFIRMED" || s === "IN_PROGRESS") return "Devis validé";
+  if (s === "CONFIRMED" || s === "IN_PROGRESS") return "Réservation confirmée";
   return "Estimation";
 };
 

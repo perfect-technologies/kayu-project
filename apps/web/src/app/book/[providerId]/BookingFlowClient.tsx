@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -39,15 +39,18 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [service, setService] = useState("Dépannage urgent");
   const [duration, setDuration] = useState(2);
-  const [day, setDay] = useState(18);
+  const [scheduledDate, setScheduledDate] = useState(() => {
+    const next = new Date();
+    next.setDate(next.getDate() + 1);
+    next.setHours(10, 0, 0, 0);
+    return next;
+  });
   const [time, setTime] = useState("10:00");
   const [address, setAddress] = useState("Kinshasa, Gombe");
   const [note, setNote] = useState("");
 
   const hourly = provider.hourlyRate || 0;
   const total = hourly * duration;
-  const fee = Math.round(total * 0.07);
-  const grand = total + fee;
   const fullName = `${provider.firstName} ${provider.lastName}`.trim();
   const initials =
     `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
@@ -69,8 +72,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
       router.push("/auth");
       return;
     }
-    const scheduled = new Date();
-    scheduled.setDate(day);
+    const scheduled = new Date(scheduledDate);
     const [h, m] = time.split(":").map(Number);
     scheduled.setHours(h, m, 0, 0);
     createBooking.mutate({
@@ -89,8 +91,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   if (step === 3) {
     const providerInitials =
       `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
-    const scheduled = new Date();
-    scheduled.setDate(day);
+    const scheduled = new Date(scheduledDate);
     const [h, m] = time.split(":").map(Number);
     scheduled.setHours(h, m, 0, 0);
     const dateLabel = new Intl.DateTimeFormat("fr-FR", {
@@ -109,7 +110,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
             response: "15 min",
           }}
           dateLabel={dateLabel.replace(",", " ·")}
-          onMessage={() => router.push("/dashboard/client")}
+          onMessage={() => router.push("/messages")}
           onViewBooking={() =>
             router.replace(createdBookingId ? `/bookings/${createdBookingId}` : "/bookings")
           }
@@ -231,7 +232,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                 {[
                   "Dépannage urgent",
                   "Installation nouvelle",
-                  "Devis / diagnostic",
+                  "Diagnostic après discussion",
                   "Rénovation complète",
                 ].map((s) => (
                   <label
@@ -341,7 +342,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
               <h2 className="k-heading" style={{ marginTop: 0 }}>
                 Quand ?
               </h2>
-              <MiniCalendar selected={day} onSelect={setDay} />
+              <MiniCalendar selected={scheduledDate} onSelect={setScheduledDate} />
 
               <div className="mt-6">
                 <div className="k-overline" style={{ marginBottom: 8 }}>
@@ -413,7 +414,11 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                 <SumRow label="Durée estimée" value={`${duration}h`} />
                 <SumRow
                   label="Date"
-                  value={`Mer. ${day} avril · ${time}`}
+                  value={`${scheduledDate.toLocaleDateString("fr-FR", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "long",
+                  })} · ${time}`}
                 />
                 <SumRow label="Adresse" value={address} multiline />
                 <SumRow label="Note" value={note || "—"} multiline last />
@@ -437,13 +442,13 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                 </div>
                 <div className="mt-1.5 flex justify-between text-[14px]">
                   <span style={{ color: "var(--k-text-muted)" }}>
-                    Frais de service
+                    Paiement
                   </span>
                   <span
                     className="k-price"
                     style={{ color: "var(--k-text-body)" }}
                   >
-                    {fee.toLocaleString("fr-FR")} FC
+                    Espèces à la fin
                   </span>
                 </div>
                 <div
@@ -457,7 +462,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                     className="k-price"
                     style={{ fontSize: 22, color: "var(--k-primary-hover)" }}
                   >
-                    {grand.toLocaleString("fr-FR")} FC
+                    {total.toLocaleString("fr-FR")} FC
                   </span>
                 </div>
                 <div
@@ -467,7 +472,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                     className="h-3 w-3"
                     style={{ color: "var(--k-success)" }}
                   />
-                  Paiement direct au pro en espèces à la fin de la mission.
+                  Paiement en espèces à la fin de la mission.
                 </div>
               </div>
 
@@ -530,12 +535,34 @@ function MiniCalendar({
   selected,
   onSelect,
 }: {
-  selected: number;
-  onSelect: (d: number) => void;
+  selected: Date;
+  onSelect: (d: Date) => void;
 }) {
   const days = ["L", "M", "M", "J", "V", "S", "D"];
-  const grid = Array.from({ length: 35 }, (_, i) => i - 1);
-  const available = [18, 19, 20, 22, 24, 25, 27];
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(selected.getFullYear(), selected.getMonth(), 1),
+  );
+
+  useEffect(() => {
+    setVisibleMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+  }, [selected]);
+
+  const monthStart = visibleMonth;
+  const firstWeekday = (monthStart.getDay() + 6) % 7;
+  const daysInMonth = new Date(
+    visibleMonth.getFullYear(),
+    visibleMonth.getMonth() + 1,
+    0,
+  ).getDate();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const gridSize = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  const grid = Array.from({ length: gridSize }, (_, i) => i - firstWeekday + 1);
+  const changeMonth = (offset: number) => {
+    setVisibleMonth(
+      (current) => new Date(current.getFullYear(), current.getMonth() + offset, 1),
+    );
+  };
   return (
     <div
       className="mt-3 p-4"
@@ -549,6 +576,7 @@ function MiniCalendar({
         <button
           aria-label="Mois précédent"
           className="flex h-9 w-9 items-center justify-center rounded-full"
+          onClick={() => changeMonth(-1)}
           style={{ background: "var(--k-surface-muted)" }}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -560,11 +588,15 @@ function MiniCalendar({
             fontSize: 16,
           }}
         >
-          Avril 2026
+          {visibleMonth.toLocaleDateString("fr-FR", {
+            month: "long",
+            year: "numeric",
+          })}
         </span>
         <button
           aria-label="Mois suivant"
           className="flex h-9 w-9 items-center justify-center rounded-full"
+          onClick={() => changeMonth(1)}
           style={{ background: "var(--k-surface-muted)" }}
         >
           <ArrowRight className="h-4 w-4" />
@@ -578,15 +610,24 @@ function MiniCalendar({
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
-        {grid.map((d) => {
-          const valid = d >= 1 && d <= 30;
-          const isAvail = valid && d >= 18 && available.includes(d);
-          const isSel = d === selected;
+        {grid.map((d, i) => {
+          const valid = d >= 1 && d <= daysInMonth;
+          const dayDate = new Date(
+            visibleMonth.getFullYear(),
+            visibleMonth.getMonth(),
+            d,
+          );
+          const isAvail = valid && dayDate >= today;
+          const isSel =
+            valid &&
+            selected.getFullYear() === dayDate.getFullYear() &&
+            selected.getMonth() === dayDate.getMonth() &&
+            selected.getDate() === dayDate.getDate();
           return (
             <button
-              key={d}
+              key={`${d}-${i}`}
               disabled={!isAvail}
-              onClick={() => isAvail && onSelect(d)}
+              onClick={() => isAvail && onSelect(dayDate)}
               style={{
                 aspectRatio: "1 / 1",
                 borderRadius: 8,

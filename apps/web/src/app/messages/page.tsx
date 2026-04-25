@@ -3,7 +3,7 @@ import { MessagesClient } from "./MessagesClient";
 
 export const metadata: Metadata = {
   title: "Messages · KAYOU",
-  description: "Vos conversations KAYOU — missions, devis et suivis.",
+  description: "Vos conversations KAYOU — missions, offres finales et suivis.",
 };
 
 export default function MessagesPage() {

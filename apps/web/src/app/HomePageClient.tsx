@@ -299,20 +299,20 @@ function HowItWorks() {
   const steps = [
     {
       n: "01",
-      title: "Dis-nous ce dont tu as besoin",
-      desc: "Décris ton projet en une phrase. Ajoute photos et adresse si tu veux.",
+      title: "Trouve un prestataire",
+      desc: "Cherche par métier, ville et disponibilité pour ouvrir un profil utile.",
       icon: Search,
     },
     {
       n: "02",
-      title: "Compare les pros qui répondent",
-      desc: "Certifications, avis, prix — tout est transparent. Choisis celui qui te parle.",
+      title: "Discute directement",
+      desc: "Appelle ou envoie un message pour confirmer le besoin, le prix et l'adresse.",
       icon: BadgeCheck,
     },
     {
       n: "03",
-      title: "Réserve et paye en toute sécurité",
-      desc: "Confirme la date, discute via KAYOU, paye quand le travail est fait.",
+      title: "Réserve et paie en espèces",
+      desc: "Le pro envoie l'offre finale après discussion. Paiement en espèces à la fin de la mission.",
       icon: Clock,
     },
   ];
@@ -412,7 +412,7 @@ function ProviderCTA({ onJoin }: { onJoin: () => void }) {
             className="k-body-l"
             style={{ color: "#9F1239", margin: "0 0 22px", maxWidth: 460 }}
           >
-            Crée ton profil, reçois des demandes qualifiées, construis ta réputation.
+            Crée ton profil, reçois des messages et réservations directes, construis ta réputation.
             Zéro frais d&apos;inscription.
           </p>
           <div className="flex flex-wrap items-center gap-3">

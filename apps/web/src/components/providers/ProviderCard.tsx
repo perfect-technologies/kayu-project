@@ -252,7 +252,7 @@ export function ProviderCard({
             className="shrink-0 rounded-xl h-8 w-8 sm:h-9 sm:w-9 hover:bg-blue-50 hover:text-blue-500 hover:border-blue-200"
             asChild
           >
-            <Link href={`/messages?to=${provider.userId}`}>
+            <Link href={`/providers/${provider.id}`}>
               <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
           </Button>

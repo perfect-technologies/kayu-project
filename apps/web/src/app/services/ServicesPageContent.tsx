@@ -63,6 +63,7 @@ export function ServicesPageContent() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [minRating, setMinRating] = useState(0);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
@@ -77,6 +78,7 @@ export function ServicesPageContent() {
   useEffect(() => {
     setSearchQuery(searchParams.get("q") || "");
     setSelectedCategory(searchParams.get("category") || "");
+    setSelectedSubcategory(searchParams.get("subcategory") || "");
     setSelectedCity(searchParams.get("city") || "");
     setMinRating(parseFloat(searchParams.get("minRating") || "0"));
     setPriceRange([
@@ -107,6 +109,7 @@ export function ServicesPageContent() {
     () => ({
       q: searchQuery || undefined,
       category: selectedCategory || undefined,
+      subcategory: selectedSubcategory || undefined,
       city: selectedCity || undefined,
       minRating: minRating > 0 ? minRating : undefined,
       minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
@@ -121,6 +124,7 @@ export function ServicesPageContent() {
     [
       searchQuery,
       selectedCategory,
+      selectedSubcategory,
       selectedCity,
       minRating,
       priceRange,
@@ -173,6 +177,13 @@ export function ServicesPageContent() {
       slug: (cat.slug as string) ?? "",
       icon: (cat.icon as string) ?? null,
       color: (cat.color as string) ?? null,
+      subcategories: Array.isArray(cat.subcategories)
+        ? (cat.subcategories as Array<Record<string, unknown>>).map((sub) => ({
+            id: (sub.id as string) ?? "",
+            name: (sub.name as string) ?? "",
+            slug: (sub.slug as string) ?? "",
+          }))
+        : [],
     }));
   }, [categoriesData]);
 
@@ -181,6 +192,7 @@ export function ServicesPageContent() {
       const params = new URLSearchParams();
       if (searchQuery) params.set("q", searchQuery);
       if (selectedCategory) params.set("category", selectedCategory);
+      if (selectedSubcategory) params.set("subcategory", selectedSubcategory);
       if (selectedCity) params.set("city", selectedCity);
       if (minRating > 0) params.set("minRating", String(minRating));
       if (priceRange[0] > 0) params.set("minPrice", String(priceRange[0]));
@@ -204,6 +216,7 @@ export function ServicesPageContent() {
       router,
       searchQuery,
       selectedCategory,
+      selectedSubcategory,
       selectedCity,
       minRating,
       priceRange,
@@ -216,6 +229,7 @@ export function ServicesPageContent() {
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("");
+    setSelectedSubcategory("");
     setSelectedCity("");
     setMinRating(0);
     setPriceRange([0, 100000]);
@@ -225,9 +239,16 @@ export function ServicesPageContent() {
     router.push("/services", { scroll: false });
   };
 
-  const headingLabel = selectedCategory
-    ? categories.find((c) => c.slug === selectedCategory)?.name
-    : "Tous les pros";
+  const selectedCategoryObj = selectedCategory
+    ? categories.find((c) => c.slug === selectedCategory)
+    : undefined;
+  const selectedSubcategoryObj = selectedSubcategory
+    ? selectedCategoryObj?.subcategories?.find((s) => s.slug === selectedSubcategory)
+    : undefined;
+  const headingLabel =
+    selectedSubcategoryObj?.name ??
+    selectedCategoryObj?.name ??
+    "Tous les pros";
 
   if (!mounted) {
     return (
@@ -345,8 +366,15 @@ export function ServicesPageContent() {
             selectedCategory={selectedCategory}
             onCategory={(slug) => {
               setSelectedCategory(slug);
+              setSelectedSubcategory("");
               setPage(1);
-              updateUrl({ category: slug || null, page: null });
+              updateUrl({ category: slug || null, subcategory: null, page: null });
+            }}
+            selectedSubcategory={selectedSubcategory}
+            onSubcategory={(slug) => {
+              setSelectedSubcategory(slug);
+              setPage(1);
+              updateUrl({ subcategory: slug || null, page: null });
             }}
             minRating={minRating}
             onMinRating={(v) => {
@@ -597,8 +625,15 @@ export function ServicesPageContent() {
               selectedCategory={selectedCategory}
               onCategory={(slug) => {
                 setSelectedCategory(slug);
+                setSelectedSubcategory("");
                 setPage(1);
-                updateUrl({ category: slug || null, page: null });
+                updateUrl({ category: slug || null, subcategory: null, page: null });
+              }}
+              selectedSubcategory={selectedSubcategory}
+              onSubcategory={(slug) => {
+                setSelectedSubcategory(slug);
+                setPage(1);
+                updateUrl({ subcategory: slug || null, page: null });
               }}
               minRating={minRating}
               onMinRating={(v) => {
@@ -678,6 +713,8 @@ interface FilterPanelProps {
   categories: Category[];
   selectedCategory: string;
   onCategory: (slug: string) => void;
+  selectedSubcategory: string;
+  onSubcategory: (slug: string) => void;
   minRating: number;
   onMinRating: (v: number) => void;
   priceRange: [number, number];
@@ -694,6 +731,8 @@ function FilterPanel({
   categories,
   selectedCategory,
   onCategory,
+  selectedSubcategory,
+  onSubcategory,
   minRating,
   onMinRating,
   priceRange,
@@ -747,6 +786,33 @@ function FilterPanel({
           ))}
         </div>
       </FilterSection>
+
+      {selectedCategory &&
+        categories.find((c) => c.slug === selectedCategory)?.subcategories?.length ? (
+          <FilterSection title="Spécialité">
+            <div className="grid gap-1.5">
+              {categories
+                .find((c) => c.slug === selectedCategory)
+                ?.subcategories?.slice(0, 8)
+                .map((sub) => (
+                  <label
+                    key={sub.id}
+                    className="flex cursor-pointer items-center gap-2.5 text-[14px]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSubcategory === sub.slug}
+                      onChange={() =>
+                        onSubcategory(selectedSubcategory === sub.slug ? "" : sub.slug)
+                      }
+                      className="h-4 w-4 cursor-pointer accent-[var(--k-primary)]"
+                    />
+                    <span style={{ color: "var(--k-text-body)" }}>{sub.name}</span>
+                  </label>
+                ))}
+            </div>
+          </FilterSection>
+        ) : null}
 
       <FilterSection title="Prix horaire">
         <div className="k-caption k-num mb-2 flex justify-between">
@@ -958,4 +1024,3 @@ function MapLaunchPlaceholder() {
     </div>
   );
 }
-

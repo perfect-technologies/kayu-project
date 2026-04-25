@@ -107,8 +107,8 @@ export function ContactDialog({
 
   const quickMessages = [
     "Bonjour, êtes-vous disponible cette semaine?",
-    "Pouvez-vous me donner un devis pour...",
-    "Quels sont vos tarifs?",
+    "Pouvez-vous confirmer les détails avec moi?",
+    "Quels sont vos tarifs habituels?",
     "Pouvez-vous intervenir en urgence?",
   ];
 
