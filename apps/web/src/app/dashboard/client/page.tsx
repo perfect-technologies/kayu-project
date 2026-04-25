@@ -11,13 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Calendar,
   Heart,
-  Star,
   Clock,
   TrendingUp,
   Search,
   Plus,
   ArrowRight,
   AlertCircle,
+  MessageSquare,
 } from 'lucide-react';
 import {
   DashboardStats,
@@ -93,7 +93,7 @@ export default function ClientDashboardPage() {
     { label: 'Rechercher un service', icon: Search, href: '/services' },
     { label: 'Nouvelle réservation', icon: Plus, href: '/services' },
     { label: 'Mes réservations', icon: Calendar, href: '/bookings' },
-    { label: 'Mes avis', icon: Star, href: '/dashboard/client/reviews' },
+    { label: 'Messages', icon: MessageSquare, href: '/messages' },
   ];
 
   const getGreeting = () => {
@@ -203,12 +203,6 @@ export default function ClientDashboardPage() {
             <Heart className="h-5 w-5" />
             Mes prestataires favoris
           </CardTitle>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/client/favorites">
-              Voir tout
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </Link>
-          </Button>
         </CardHeader>
         <CardContent>
           <FavoriteList

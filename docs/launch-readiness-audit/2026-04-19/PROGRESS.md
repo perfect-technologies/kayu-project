@@ -1,12 +1,12 @@
 # KAYOU Launch Readiness Remediation Progress
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 This file tracks remediation work from `docs/launch-readiness-audit/2026-04-19/`. It intentionally does not replace `docs/implementation-plan/PROGRESS.md`, which tracks the earlier implementation/migration plan.
 
 ## Current Phase
 
-WS-12 complete. WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. Next launch remediation is WS-13 web launch parity if web is public at launch.
+WS-13 complete. WS-12 complete. WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. WS-07 complete. WS-06 complete. WS-05 complete. WS-04 complete. WS-03 complete. WS-02 complete. WS-01 complete. All audit workstreams covered.
 
 ## Status Legend
 
@@ -33,16 +33,11 @@ WS-12 complete. WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. 
 | WS-10 | P1 | Operational | Admin / Ops MVP | WS-09 helpful | done | Codex | Added admin booking/dispute support tooling, fixed web admin route hygiene, and blocked mobile admins from client/provider tabs with a web-admin handoff screen. |
 | WS-11 | P1 | Business decision | Payments And Earnings Policy | WS-02 | done | Codex | Added offline payment confirmation on completed bookings, reconciled earning transaction status, and replaced misleading protected/instant payout copy on booking/earnings surfaces. |
 | WS-12 | P1 | Yes | Test Harness | Can start after first P0 | done | Codex | Added root/backend launch-harness scripts, a Nest HTTP integration harness for launch-critical backend routes, mobile manual smoke runbooks under `apps/mobile/e2e/`, and CI wiring in `.github/workflows/launch-harness.yml`. |
-| WS-13 | P0/P1 | Yes if web launches | Web Launch Parity And Route Hygiene | WS-01/WS-02/WS-03 helpful | not_started | | Bring `apps/web` into parity with launch backend/mobile flows or hide unfinished web surfaces. |
+| WS-13 | P0/P1 | Yes if web launches | Web Launch Parity And Route Hygiene | WS-01/WS-02/WS-03 helpful | done | Codex | Brought `apps/web` auth role selection, booking lifecycle, review guards, messaging bootstrap, route hygiene, admin guard, discovery filters/map, quote entry, verification/onboarding placeholders, and payment copy into launch parity with the shared backend/mobile fixes. |
 
 ## Current P0 Blockers
 
-| Area | Blocker | Source |
-| --- | --- | --- |
-| Web booking | Web booking success routes to review without a booking id; review can fake success without backend write. | `08-web-flow-audit.md` |
-| Web booking | Web provider booking detail has no confirm/start actions for direct bookings. | `08-web-flow-audit.md` |
-| Web messaging | Web first-contact dialog sends and closes without selecting or showing the created conversation. | `08-web-flow-audit.md` |
-| Web auth | Web role-selection parity is still incomplete on web, even though `/admin` now redirects correctly and admin pages are role-guarded. | `08-web-flow-audit.md` |
+None. WS-13 closed the remaining web launch-parity gaps on 2026-04-23.
 
 ## Decisions Log
 
@@ -58,6 +53,8 @@ WS-12 complete. WS-11 complete. WS-10 complete. WS-09 complete. WS-08 complete. 
 | 2026-04-22 | Keep the launch admin surface on web; mobile admin logins must stop at an explicit handoff screen instead of reusing client tabs. | Admin moderation/support is now coherent on the web dashboard, while mobile would otherwise drop admins into misleading client/provider flows. |
 | 2026-04-22 | Keep launch payments offline-first and require explicit payment confirmation before provider earnings become available. | There is no launch-ready client PSP, refund, webhook, or reconciliation path; booking completion and earnings must reflect direct cash/off-platform settlement instead of implying KAYOU-held funds. |
 | 2026-04-22 | Keep WS-12 mobile smoke coverage manual-first until the repo has a dedicated mobile E2E runtime, but enforce the backend launch harness in CI now. | The backend service layer already covers the audit’s P0 regressions well; mobile still needs deterministic runbooks and seeded accounts, while full device automation can be added later without blocking launch hardening. |
+| 2026-04-23 | Hide the web discovery map at launch instead of shipping the synthetic SVG preview, even though the web list still surfaces filtered providers. | Pins were keyed off array index rather than provider coordinates, so the previous map implied geographic precision the backend does not yet support — the launch copy in `ServicesPageContent.tsx` now tells users that map view comes after real provider positions are captured. |
+| 2026-04-23 | Keep the web provider profile photo upload as a launch-deferred stub rather than require it before publish. | Mobile already publishes providers without a real avatar; requiring a fake toggle on web would block launch-day signups without improving the clients' experience, and the backend publish path now strips placeholder avatars. |
 
 ## Validation Evidence
 
@@ -219,6 +216,20 @@ pnpm test:launch
 
 Result: passed on 2026-04-22. `pnpm test:launch` now rebuilds `@kayu/schemas` and `@kayu/api`, runs the backend launch harness, and then runs the backend and mobile type checks. The backend harness includes the focused service specs for identity, onboarding/providers, bookings, messaging, quotes, reviews, admin, and verification, plus `apps/backend/src/test/launch/launch-critical.harness.spec.ts` as a Nest HTTP integration harness for launch-critical auth, booking, messaging, quote, and review routes.
 
+WS-13 validation:
+
+```bash
+pnpm --filter @kayu/schemas build
+pnpm --filter @kayu/api build
+pnpm --filter @kayu/schemas type-check
+pnpm --filter @kayu/api type-check
+pnpm --filter @kayu/backend type-check
+pnpm --filter @kayu/mobile type-check
+pnpm --filter @kayu/web type-check
+```
+
+Result: passed on 2026-04-23. WS-13 only changed `apps/web` source, so no shared-schema rebuild was required beyond keeping the generated declarations current for downstream type checks.
+
 ## Update Rules For Agents
 
 When starting a workstream:
@@ -346,3 +357,16 @@ When handing back:
 - Replaced the old service-only launch harness with `apps/backend/src/test/launch/launch-critical.harness.spec.ts`, a Nest HTTP integration harness that exercises real controllers, auth/role guards, and Zod validation for role selection, direct booking creation/lifecycle, messaging bootstrap, quote acceptance, and completed-booking reviews.
 - Added mobile launch smoke documentation under `apps/mobile/e2e/manual/` with seeded-account prerequisites and step-by-step client/provider runbooks for auth role selection, direct booking, status transitions, messaging bootstrap, quote acceptance, and completed-booking review.
 - Added `.github/workflows/launch-harness.yml` so pull requests and pushes to `main` run the launch harness automatically.
+
+### 2026-04-23 — WS-13 Web Launch Parity And Route Hygiene
+
+- Made the web OTP flow persist the selected signup role even when `/me` initially returns the default `CLIENT`, by deriving explicit role selection from `user.roleSelectedAt` instead of `user.role` in `apps/web/src/app/auth/AuthFlow.tsx`.
+- Realigned the provider booking lifecycle on web: `apps/web/src/components/bookings/BookingDetail.tsx` now exposes explicit `PENDING → CONFIRMED`, `CONFIRMED → IN_PROGRESS`, and `IN_PROGRESS → COMPLETED` actions to providers, and stops rendering synthetic quote lines for direct bookings that never had itemised quotes.
+- Bound first-contact messaging to the real conversation: `apps/web/src/components/provider-profile/ContactDialog.tsx` now stores the `conversationId` returned by the send API, and `apps/web/src/app/messages/MessagesClient.tsx` selects that conversation when it is passed via `/messages?conversationId=...`.
+- Cleaned up web navigation so nothing visible routes to 404 on launch: `apps/web/src/components/layout/AppShell.tsx`, `apps/web/src/components/dashboard/QuickActions.tsx`, and `apps/web/src/app/dashboard/client/page.tsx` now only link to implemented pages, and the profile dropdown points all roles at `/dashboard/settings`.
+- Replaced the prototype discovery sort/pills/map in `apps/web/src/app/services/ServicesPageContent.tsx` with backend-backed sort (`recommended`, price asc/desc, newest) and a clear launch-time placeholder card instead of the synthetic SVG map.
+- Hidden the unsendable standalone quote composer path: `apps/web/src/app/pro/ProviderDashboardClient.tsx` replaces the "Create quote" CTA with "Voir les demandes", and `apps/web/src/app/pro/devis/new/QuoteComposeClient.tsx` now renders an explicit "select a request" gate instead of a locked-out composer when no `requestId` is provided.
+- Removed the `placeholder://avatar` write path from web provider onboarding: `apps/web/src/app/pro/onboarding/ProviderOnboardingClient.tsx` no longer sets a fake avatar on publish, and `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx` reframes the profile step so the photo upload is a marked-as-deferred launch stub rather than a required toggle.
+- Aligned payment/payout copy with the cash-only launch policy on web: booking flow confirmation line, provider profile trust row, and auth role card subtitles in `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx`, `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`, and `apps/web/src/app/auth/AuthFlow.tsx` now match the offline-first messaging already used on mobile and on the web earnings surface.
+- Review follow-up on 2026-04-23: removed the "Signaler un problème" CTA that pointed to a non-existent `/help` route, and replaced the dead "Facture" button on completed bookings with a real "Message" action, both in `apps/web/src/components/bookings/BookingDetail.tsx`.
+- Verified with `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/api build`, and `pnpm --filter @kayu/{schemas,api,backend,mobile,web} type-check`.

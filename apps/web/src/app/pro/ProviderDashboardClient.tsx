@@ -267,9 +267,9 @@ export function ProviderDashboardClient() {
           <button
             type="button"
             className="k-btn k-btn-primary"
-            onClick={() => router.push("/pro/devis/new")}
+            onClick={() => router.push("/pro/requests")}
           >
-            <I.plus size={15} /> Créer un devis
+            <I.inbox size={15} /> Voir les demandes
           </button>
         </div>
       </div>

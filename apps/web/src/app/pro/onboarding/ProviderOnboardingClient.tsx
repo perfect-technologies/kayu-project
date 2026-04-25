@@ -116,7 +116,9 @@ function validateStep(step: number, d: OnboardingData): boolean {
     case 4:
       return d.hourly > 0;
     case 5:
-      return d.photo && d.bio.trim().length >= 10;
+      // Avatar upload is deferred until real storage lands — require only a bio
+      // for launch and stop pretending a photo was uploaded.
+      return d.bio.trim().length >= 10;
     case 6:
       return d.acceptedTerms;
     default:
@@ -733,7 +735,8 @@ function dataToBackend(
     hourlyRate: data.hourly > 0 ? data.hourly : undefined,
     bio: data.bio || undefined,
     languages: data.languages,
-    avatar: data.photo ? "placeholder://avatar" : undefined,
+    // Avatar upload is not yet wired to real storage; don't push a placeholder
+    // string that the backend now strips during publish.
   };
 
   return payload;

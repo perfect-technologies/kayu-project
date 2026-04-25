@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { messagesApi, queryKeys } from "@kayu/api";
 import type { Conversation, Message, UserSummary } from "@kayu/schemas";
@@ -73,9 +74,22 @@ function formatBubbleTime(iso?: string | Date | null) {
 }
 
 export function MessagesClient() {
+  return (
+    <Suspense fallback={null}>
+      <MessagesClientInner />
+    </Suspense>
+  );
+}
+
+function MessagesClientInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedConversationId = searchParams.get("conversationId");
+  const [activeId, setActiveId] = useState<string | null>(
+    requestedConversationId,
+  );
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
 
@@ -92,11 +106,32 @@ export function MessagesClient() {
 
   const conversations = useMemo(() => convData?.conversations ?? [], [convData]);
 
+  // If caller landed here with ?conversationId=... via ContactDialog or a deep
+  // link, select that conversation as soon as it shows up in the inbox.
+  useEffect(() => {
+    if (!requestedConversationId) return;
+    if (conversations.some((c) => c.id === requestedConversationId)) {
+      setActiveId(requestedConversationId);
+      return;
+    }
+    // Conversation may not have propagated to the list yet; keep the id pinned
+    // so the thread query can still load its messages.
+    setActiveId(requestedConversationId);
+  }, [requestedConversationId, conversations]);
+
   useEffect(() => {
     if (!activeId && conversations.length > 0) {
       setActiveId(conversations[0]!.id);
     }
   }, [conversations, activeId]);
+
+  // Strip the conversationId query param once we've selected it so reloads
+  // don't fight client-side state.
+  useEffect(() => {
+    if (!requestedConversationId) return;
+    if (activeId !== requestedConversationId) return;
+    router.replace("/messages", { scroll: false });
+  }, [activeId, requestedConversationId, router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

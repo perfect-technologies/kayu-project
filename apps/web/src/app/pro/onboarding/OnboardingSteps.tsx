@@ -847,44 +847,45 @@ export function StepProfile({ data, setData }: StepProps) {
       <div>
         <FieldLabel
           label="Photo de profil"
-          hint="Une photo claire, visage visible. Double la confiance des clients."
+          optional
+          hint="Le téléversement de photo arrive avec la prochaine version. Vous pourrez ajouter votre portrait depuis votre profil après la publication."
         />
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+            padding: 14,
+            borderRadius: tokens.radius.md,
+            background: tokens.color.surfaceMuted,
+            border: `1px dashed ${tokens.color.borderStrong}`,
+          }}
+        >
           <div
             style={{
-              width: 88,
-              height: 88,
+              width: 64,
+              height: 64,
               borderRadius: "50%",
-              background: data.photo
-                ? "linear-gradient(135deg, #0EA5E9, #0284C7)"
-                : tokens.color.surfaceMuted,
-              border: data.photo
-                ? "2px solid transparent"
-                : `2px dashed ${tokens.color.borderStrong}`,
+              background: tokens.color.surface,
+              color: tokens.color.textSubtle,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: data.photo
-                ? tokens.color.textInverse
-                : tokens.color.textSubtle,
-              fontFamily: tokens.font.display,
-              fontWeight: 700,
-              fontSize: 32,
+              flexShrink: 0,
             }}
           >
-            {data.photo ? (
-              (data.firstName?.[0] || "J") + (data.lastName?.[0] || "M")
-            ) : (
-              <I.user size={32} />
-            )}
+            <I.user size={24} />
           </div>
-          <button
-            type="button"
-            className="k-btn k-btn-secondary"
-            onClick={() => setData({ photo: !data.photo })}
+          <div
+            style={{
+              fontSize: 13,
+              color: tokens.color.textMuted,
+              lineHeight: 1.5,
+            }}
           >
-            {data.photo ? "Remplacer" : "Ajouter une photo"}
-          </button>
+            Votre profil se publie sans photo pour le lancement. Les clients voient
+            un avatar neutre jusqu'à ce que l'upload soit activé.
+          </div>
         </div>
       </div>
 

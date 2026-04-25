@@ -10,11 +10,9 @@ import {
   MapPin,
   Star,
   BadgeCheck,
-  Award,
   Check,
   ChevronLeft,
   ChevronRight,
-  Plus,
 } from "lucide-react";
 import {
   WideProviderCard,
@@ -71,8 +69,9 @@ export function ServicesPageContent() {
   const [availableOnly, setAvailableOnly] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState("pertinence");
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [sort, setSort] = useState<
+    "recommended" | "hourlyRate-asc" | "hourlyRate-desc" | "createdAt-desc"
+  >("recommended");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -90,6 +89,20 @@ export function ServicesPageContent() {
     setMounted(true);
   }, [searchParams]);
 
+  const sortParams = useMemo(() => {
+    switch (sort) {
+      case "hourlyRate-asc":
+        return { sortBy: "hourlyRate" as const, sortOrder: "asc" as const };
+      case "hourlyRate-desc":
+        return { sortBy: "hourlyRate" as const, sortOrder: "desc" as const };
+      case "createdAt-desc":
+        return { sortBy: "createdAt" as const, sortOrder: "desc" as const };
+      case "recommended":
+      default:
+        return { sortBy: undefined, sortOrder: undefined };
+    }
+  }, [sort]);
+
   const searchParamsObj = useMemo(
     () => ({
       q: searchQuery || undefined,
@@ -100,6 +113,8 @@ export function ServicesPageContent() {
       maxPrice: priceRange[1] < 100000 ? priceRange[1] : undefined,
       available: availableOnly || undefined,
       verified: verifiedOnly || undefined,
+      sortBy: sortParams.sortBy,
+      sortOrder: sortParams.sortOrder,
       page,
       limit: 12,
     }),
@@ -111,6 +126,7 @@ export function ServicesPageContent() {
       priceRange,
       availableOnly,
       verifiedOnly,
+      sortParams,
       page,
     ],
   );
@@ -385,7 +401,9 @@ export function ServicesPageContent() {
               <span className="k-caption">Trier par</span>
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value)}
+                onChange={(e) =>
+                  setSort(e.target.value as typeof sort)
+                }
                 className="rounded-[var(--k-r-sm)] px-2.5 py-1.5 text-[13px] font-medium"
                 style={{
                   background: "var(--k-surface)",
@@ -393,10 +411,10 @@ export function ServicesPageContent() {
                   color: "var(--k-text-primary)",
                 }}
               >
-                <option value="pertinence">Pertinence</option>
-                <option value="note">Note</option>
-                <option value="distance">Distance</option>
-                <option value="prix">Prix</option>
+                <option value="recommended">Recommandés</option>
+                <option value="hourlyRate-asc">Prix croissant</option>
+                <option value="hourlyRate-desc">Prix décroissant</option>
+                <option value="createdAt-desc">Nouveaux pros</option>
               </select>
             </div>
           </div>
@@ -422,10 +440,16 @@ export function ServicesPageContent() {
             >
               <BadgeCheck className="h-[13px] w-[13px]" /> Vérifié
             </FilterPill>
-            <FilterPill>{`< 20 km`}</FilterPill>
-            <FilterPill>Top rated</FilterPill>
-            <FilterPill>
-              <Award className="h-[13px] w-[13px]" /> Expert
+            <FilterPill
+              active={minRating >= 4}
+              onClick={() => {
+                const next = minRating >= 4 ? 0 : 4;
+                setMinRating(next);
+                setPage(1);
+                updateUrl({ minRating: next || null, page: null });
+              }}
+            >
+              <Star className="h-[13px] w-[13px]" /> Note 4+
             </FilterPill>
           </div>
 
@@ -489,11 +513,7 @@ export function ServicesPageContent() {
             <>
               <div className="grid gap-3.5">
                 {providers.map((p) => (
-                  <div
-                    key={p.id}
-                    onMouseEnter={() => setHoveredId(p.id)}
-                    onMouseLeave={() => setHoveredId(null)}
-                  >
+                  <div key={p.id}>
                     <WideProviderCard
                       provider={p}
                       onClick={() => router.push(`/providers/${p.id}`)}
@@ -537,16 +557,12 @@ export function ServicesPageContent() {
           )}
         </div>
 
-        {/* MAP */}
+        {/* MAP PLACEHOLDER — launch copy, no synthetic pins */}
         <aside
           className="sticky top-[104px] hidden self-start lg:block"
           style={{ height: "calc(100vh - 140px)" }}
         >
-          <MapPanel
-            providers={providers}
-            hoveredId={hoveredId}
-            onPinClick={(id) => router.push(`/providers/${id}`)}
-          />
+          <MapLaunchPlaceholder />
         </aside>
       </div>
 
@@ -901,158 +917,45 @@ function CategoryMini({ slug }: { slug: string }) {
   );
 }
 
-function MapPanel({
-  providers,
-  hoveredId,
-  onPinClick,
-}: {
-  providers: ProviderCardData[];
-  hoveredId: string | null;
-  onPinClick: (id: string) => void;
-}) {
-  const pins = providers.slice(0, 6);
+function MapLaunchPlaceholder() {
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-[var(--k-r-md)]"
+      className="flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[var(--k-r-md)] p-8 text-center"
       style={{
-        border: "1px solid var(--k-border)",
-        boxShadow: "var(--k-e1)",
-        background: "var(--k-surface-primary)",
+        border: "1px dashed var(--k-border-strong)",
+        background: "var(--k-surface)",
       }}
     >
-      <svg
-        viewBox="0 0 440 800"
-        preserveAspectRatio="xMidYMid slice"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-      >
-        <defs>
-          <pattern id="mapGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M40 0 L0 0 0 40" stroke="#E0F2FE" strokeWidth="1" fill="none" />
-          </pattern>
-        </defs>
-        <rect width="440" height="800" fill="#F0F9FF" />
-        <rect width="440" height="800" fill="url(#mapGrid)" />
-        <path
-          d="M -20 420 Q 80 390 160 440 T 320 480 T 480 430"
-          stroke="#BAE6FD"
-          strokeWidth="64"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <path
-          d="M -20 420 Q 80 390 160 440 T 320 480 T 480 430"
-          stroke="#7DD3FC"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-          opacity="0.6"
-        />
-        <path
-          d="M 40 80 L 200 200 L 240 360 L 180 520 L 220 700"
-          stroke="#CBD5E1"
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <path
-          d="M 400 60 L 320 180 L 280 340 L 300 520 L 360 720"
-          stroke="#CBD5E1"
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-        <ellipse cx="110" cy="270" rx="50" ry="32" fill="#DCFCE7" opacity="0.7" />
-        <ellipse cx="340" cy="580" rx="44" ry="38" fill="#DCFCE7" opacity="0.7" />
-        <text x="100" y="170" fontSize="11" fill="#94A3B8" fontWeight="500">
-          GOMBE
-        </text>
-        <text x="320" y="280" fontSize="11" fill="#94A3B8" fontWeight="500">
-          LIMETE
-        </text>
-        <text x="90" y="560" fontSize="11" fill="#94A3B8" fontWeight="500">
-          LEMBA
-        </text>
-        <text x="300" y="700" fontSize="11" fill="#94A3B8" fontWeight="500">
-          NGABA
-        </text>
-      </svg>
-
-      {pins.map((p, i) => {
-        const positions = [
-          { x: 30, y: 22 },
-          { x: 65, y: 35 },
-          { x: 42, y: 55 },
-          { x: 72, y: 62 },
-          { x: 25, y: 70 },
-          { x: 55, y: 80 },
-        ];
-        const pos = positions[i] || { x: 50, y: 50 };
-        const isHot = hoveredId === p.id;
-        return (
-          <button
-            key={p.id}
-            onClick={() => onPinClick(p.id)}
-            className="absolute"
-            style={{
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              transform: `translate(-50%, -100%) scale(${isHot ? 1.15 : 1})`,
-              transition: "transform 200ms var(--k-ease-bounce)",
-              border: 0,
-              background: "transparent",
-              cursor: "pointer",
-              padding: 0,
-              zIndex: isHot ? 10 : 1,
-            }}
-          >
-            <div
-              style={{
-                background: isHot ? "var(--k-primary)" : "white",
-                color: isHot ? "white" : "var(--k-text-primary)",
-                border: `2px solid ${isHot ? "var(--k-primary)" : "var(--k-border-strong)"}`,
-                borderRadius: 9999,
-                padding: "4px 12px",
-                boxShadow: isHot ? "var(--k-e3)" : "var(--k-e1)",
-                fontFamily: "var(--k-font-mono)",
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              {Math.round((p.hourly || 0) / 1000)}k
-            </div>
-          </button>
-        );
-      })}
-
       <div
-        className="absolute right-3 top-3 overflow-hidden rounded-lg"
-        style={{ background: "white", boxShadow: "var(--k-e2)" }}
-      >
-        <button
-          className="flex h-9 w-9 items-center justify-center"
-          aria-label="Zoom avant"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-        <div style={{ height: 1, background: "var(--k-border)" }} />
-        <button
-          className="flex h-9 w-9 items-center justify-center"
-          aria-label="Zoom arrière"
-        >
-          –
-        </button>
-      </div>
-      <div
-        className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium"
+        className="flex h-12 w-12 items-center justify-center rounded-full"
         style={{
-          background: "white",
-          border: "1px solid var(--k-border)",
-          color: "var(--k-text-muted)",
+          background: "var(--k-surface-primary)",
+          color: "var(--k-primary)",
         }}
       >
-        <MapPin className="h-3 w-3" /> Kinshasa
+        <MapPin className="h-5 w-5" />
       </div>
-
+      <div
+        className="k-heading"
+        style={{ margin: 0, fontSize: 16, color: "var(--k-text-primary)" }}
+      >
+        Vue carte bientôt disponible
+      </div>
+      <div
+        className="k-body"
+        style={{
+          margin: 0,
+          fontSize: 13,
+          color: "var(--k-text-muted)",
+          maxWidth: 260,
+          lineHeight: 1.5,
+        }}
+      >
+        Au lancement, on affiche les pros sous forme de liste classée par ville et
+        note. Les positions géographiques exactes arrivent une fois que les pros
+        ajoutent des adresses vérifiées.
+      </div>
     </div>
   );
 }
+

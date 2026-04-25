@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LucideIcon, Plus, Search, Calendar, Star, Settings, Eye, Clock, TrendingUp } from 'lucide-react';
+import { LucideIcon, Plus, Search, Calendar, Settings, Eye, Clock, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QuickAction {
@@ -79,15 +79,15 @@ export function clientQuickActions(): QuickAction[] {
     { label: 'Rechercher un service', icon: Search, href: '/services' },
     { label: 'Nouvelle réservation', icon: Plus, href: '/services' },
     { label: 'Mes réservations', icon: Calendar, href: '/bookings' },
-    { label: 'Mes favoris', icon: Star, href: '/dashboard/client/favorites' },
+    { label: 'Paramètres', icon: Settings, href: '/dashboard/settings' },
   ];
 }
 
 export function providerQuickActions(): QuickAction[] {
   return [
-    { label: 'Voir mon profil', icon: Eye, href: '/dashboard/provider/profile' },
-    { label: 'Disponibilité', icon: Clock, href: '/dashboard/provider/availability' },
-    { label: 'Mes services', icon: Settings, href: '/dashboard/provider/services' },
-    { label: 'Promouvoir', icon: TrendingUp, href: '/dashboard/provider/premium', variant: 'default', className: 'bg-primary hover:bg-primary/90' },
+    { label: 'Tableau de bord', icon: Eye, href: '/pro' },
+    { label: 'Mes demandes', icon: Clock, href: '/pro/requests' },
+    { label: 'Gains', icon: TrendingUp, href: '/pro/earnings' },
+    { label: 'Paramètres', icon: Settings, href: '/dashboard/settings' },
   ];
 }

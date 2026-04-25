@@ -604,7 +604,7 @@ export function ProviderProfileClient({
                   className="k-caption"
                   style={{ color: "var(--k-text-body)" }}
                 >
-                  Paiement protégé par KAYOU — libéré quand le travail est fini.
+                  Paiement direct au pro en espèces à la fin de la mission.
                 </span>
               </div>
             </div>

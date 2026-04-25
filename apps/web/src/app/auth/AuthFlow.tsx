@@ -252,9 +252,13 @@ function AuthFlowInner() {
       const me = await identityApi(apiClient).me();
       const userRole = me.user?.role as "CLIENT" | "PROVIDER" | "ADMIN" | null | undefined;
       const userFirstName = me.user?.firstName ?? null;
+      const roleSelectedAt = me.user?.roleSelectedAt ?? null;
+      const hasSelectedRole = Boolean(roleSelectedAt);
 
-      // SIGNUP flow
-      if (mode === "signup" && chosenRole && !userRole) {
+      // SIGNUP flow — persist the chosen role even if the backend already returned
+      // a default CLIENT. The backend /me/role call is idempotent and will reject
+      // the request only after the user has already deliberately committed a role.
+      if (mode === "signup" && chosenRole && !hasSelectedRole) {
         await identityApi(apiClient).setRole({ role: chosenRole });
         if (chosenRole === "PROVIDER") {
           await refreshUser();
@@ -268,8 +272,8 @@ function AuthFlowInner() {
         return;
       }
 
-      // LOGIN flow — fallback when no role
-      if (!userRole) {
+      // LOGIN flow — fallback when role has not been explicitly selected yet
+      if (!hasSelectedRole || !userRole) {
         setFallbackKind("rolePicker");
         setStep(3);
         setSubmitting(false);
@@ -403,7 +407,7 @@ function AuthFlowInner() {
         <RoleCard
           icon={<I.sparkles size={22} />}
           title="Je suis un pro"
-          subtitle="Recevez des demandes, gérez vos missions, payez-vous en M-Pesa."
+          subtitle="Recevez des demandes, gérez vos missions, suivez vos gains."
           tone="accent"
           onClick={() => handleSelectRole("PROVIDER")}
         />
@@ -825,7 +829,7 @@ function AuthFlowInner() {
         <RoleCard
           icon={<I.sparkles size={22} />}
           title="Je suis un pro"
-          subtitle="Recevez des demandes, gérez vos missions, payez-vous en M-Pesa."
+          subtitle="Recevez des demandes, gérez vos missions, suivez vos gains."
           tone="accent"
           onClick={() => handleRoleFallback("PROVIDER")}
         />

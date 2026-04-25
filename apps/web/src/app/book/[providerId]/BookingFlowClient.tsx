@@ -467,7 +467,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                     className="h-3 w-3"
                     style={{ color: "var(--k-success)" }}
                   />
-                  Paiement à la fin du travail · remboursement garanti
+                  Paiement direct au pro en espèces à la fin de la mission.
                 </div>
               </div>
 

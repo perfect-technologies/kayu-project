@@ -63,8 +63,10 @@ export interface BookingDetailData {
   } | null;
 }
 
+type BackendStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
 type BookingMutationInput = {
-  status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  status?: BackendStatus;
   isPaid?: true;
   paymentMethod?: "cash";
 };
@@ -296,6 +298,7 @@ export function BookingDetail({
                 />
               </div>
               <ActionButtons
+                backendStatus={booking.status as BackendStatus}
                 v2Status={v2Status}
                 isClient={isClient}
                 booking={booking}
@@ -311,6 +314,8 @@ export function BookingDetail({
                   booking.providerId && router.push(`/providers/${booking.providerId}`)
                 }
                 onCancel={() => cancelMutation.mutate()}
+                onConfirm={() => updateMutation.mutate({ status: "CONFIRMED" })}
+                onStart={() => updateMutation.mutate({ status: "IN_PROGRESS" })}
                 onComplete={() => updateMutation.mutate({ status: "COMPLETED" })}
                 onConfirmPayment={onConfirmPayment}
               />
@@ -372,21 +377,6 @@ export function BookingDetail({
                   KAYOU n'encaisse pas encore le client. Le prestataire confirme le
                   règlement en espèces après la mission pour débloquer ses gains.
                 </div>
-                <button
-                  onClick={() => router.push("/help")}
-                  style={{
-                    marginTop: 8,
-                    background: "transparent",
-                    border: 0,
-                    padding: 0,
-                    color: "var(--k-primary-hover)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  Signaler un problème
-                </button>
               </div>
             </div>
           </aside>
@@ -609,60 +599,69 @@ function QuoteBreakdown({
   booking: BookingDetailData;
   isClient: boolean;
 }) {
-  const lines = booking.quote?.lines ?? [
-    { label: "Diagnostic + déplacement", qty: 1, unit: "Forfait", unitPrice: 5000 },
-    { label: "Main-d'œuvre", qty: 1.5, unit: "Heure", unitPrice: 8000 },
-    { label: "Joint + raccord", qty: 1, unit: "Pièce", unitPrice: 2000 },
-  ];
-  const subtotal = lines.reduce((a, b) => a + b.qty * b.unitPrice, 0);
-  const total = booking.price ?? subtotal;
+  const lines = booking.quote?.lines ?? null;
+  const total = booking.price ?? 0;
   const commission = Math.round(total * 0.1);
   return (
     <div>
-      {lines.map((l, i) => (
-        <div
-          key={i}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto auto",
-            gap: 12,
-            padding: "10px 0",
-            borderBottom: "1px solid var(--k-border-subtle)",
-            alignItems: "baseline",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 13.5, color: "var(--k-text-primary)", fontWeight: 500 }}>
-              {l.label}
+      {lines && lines.length > 0 ? (
+        lines.map((l, i) => (
+          <div
+            key={i}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto auto",
+              gap: 12,
+              padding: "10px 0",
+              borderBottom: "1px solid var(--k-border-subtle)",
+              alignItems: "baseline",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13.5, color: "var(--k-text-primary)", fontWeight: 500 }}>
+                {l.label}
+              </div>
+              <div
+                className="k-caption"
+                style={{ color: "var(--k-text-muted)", fontSize: 11 }}
+              >
+                {l.qty} × {l.unit}
+              </div>
             </div>
             <div
-              className="k-caption"
-              style={{ color: "var(--k-text-muted)", fontSize: 11 }}
+              style={{
+                fontFamily: "var(--k-font-mono)",
+                fontSize: 12,
+                color: "var(--k-text-muted)",
+              }}
             >
-              {l.qty} × {l.unit}
+              {l.unitPrice.toLocaleString("fr-FR")} FC
+            </div>
+            <div
+              className="k-price"
+              style={{
+                fontSize: 13,
+                color: "var(--k-text-primary)",
+                fontFamily: "var(--k-font-mono)",
+              }}
+            >
+              {(l.qty * l.unitPrice).toLocaleString("fr-FR")} FC
             </div>
           </div>
-          <div
-            style={{
-              fontFamily: "var(--k-font-mono)",
-              fontSize: 12,
-              color: "var(--k-text-muted)",
-            }}
-          >
-            {l.unitPrice.toLocaleString("fr-FR")} FC
-          </div>
-          <div
-            className="k-price"
-            style={{
-              fontSize: 13,
-              color: "var(--k-text-primary)",
-              fontFamily: "var(--k-font-mono)",
-            }}
-          >
-            {(l.qty * l.unitPrice).toLocaleString("fr-FR")} FC
-          </div>
+        ))
+      ) : (
+        <div
+          className="k-body"
+          style={{
+            padding: "10px 0",
+            color: "var(--k-text-muted)",
+            fontSize: 13,
+          }}
+        >
+          Estimation convenue à la réservation. Le montant final est confirmé sur
+          place selon le travail réalisé.
         </div>
-      ))}
+      )}
       <div
         style={{
           marginTop: 10,
@@ -674,7 +673,7 @@ function QuoteBreakdown({
         }}
       >
         <span style={{ fontFamily: "var(--k-font-display)", fontWeight: 700, fontSize: 14 }}>
-          Total
+          {lines && lines.length > 0 ? "Total" : "Estimation"}
         </span>
         <span
           className="k-price"
@@ -716,10 +715,20 @@ function QuoteBreakdown({
               fontWeight: 600,
             }}
           >
-            <span style={{ color: "var(--k-text-body)" }}>Votre payout</span>
+            <span style={{ color: "var(--k-text-body)" }}>Gain net estimé</span>
             <span className="k-price" style={{ color: "var(--k-primary)", fontWeight: 700 }}>
               {(total - commission).toLocaleString("fr-FR")} FC
             </span>
+          </div>
+          <div
+            className="k-caption"
+            style={{
+              color: "var(--k-text-muted)",
+              marginTop: 6,
+              fontSize: 11.5,
+            }}
+          >
+            Le gain n'est crédité qu'après confirmation du paiement reçu en espèces.
           </div>
         </>
       )}
@@ -816,6 +825,7 @@ function CounterpartyCard({
 }
 
 function ActionButtons({
+  backendStatus,
   v2Status,
   isClient,
   booking,
@@ -824,9 +834,12 @@ function ActionButtons({
   onReview,
   onRebook,
   onCancel,
+  onConfirm,
+  onStart,
   onComplete,
   onConfirmPayment,
 }: {
+  backendStatus: BackendStatus;
   v2Status: V2Status;
   isClient: boolean;
   booking: BookingDetailData;
@@ -835,15 +848,37 @@ function ActionButtons({
   onReview: () => void;
   onRebook: () => void;
   onCancel: () => void;
+  onConfirm: () => void;
+  onStart: () => void;
   onComplete: () => void;
   onConfirmPayment: () => void;
 }) {
   if (v2Status === "upcoming") {
     return (
       <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
+        {!isClient && backendStatus === "PENDING" && (
+          <button
+            onClick={onConfirm}
+            className="k-btn k-btn-primary k-btn-lg"
+            style={{ width: "100%" }}
+            disabled={busy}
+          >
+            <I.check size={15} /> Confirmer la mission
+          </button>
+        )}
+        {!isClient && backendStatus === "CONFIRMED" && (
+          <button
+            onClick={onStart}
+            className="k-btn k-btn-primary k-btn-lg"
+            style={{ width: "100%" }}
+            disabled={busy}
+          >
+            <I.wrench size={15} /> Démarrer la mission
+          </button>
+        )}
         <button
           onClick={onMessage}
-          className="k-btn k-btn-primary"
+          className="k-btn k-btn-secondary"
           style={{ width: "100%" }}
         >
           <I.messageCircle size={15} />
@@ -881,11 +916,6 @@ function ActionButtons({
           >
             <I.messageCircle size={14} /> Message
           </button>
-          {isClient && (
-            <button className="k-btn k-btn-secondary" style={{ flex: 1 }}>
-              <I.mapPin size={14} /> Suivre
-            </button>
-          )}
         </div>
       </div>
     );
@@ -914,8 +944,12 @@ function ActionButtons({
               Réserver à nouveau
             </button>
           )}
-          <button className="k-btn k-btn-secondary">
-            <I.fileText size={14} /> Facture
+          <button
+            onClick={onMessage}
+            className="k-btn k-btn-secondary"
+            style={{ flex: 1 }}
+          >
+            <I.messageCircle size={14} /> Message
           </button>
         </div>
       </div>

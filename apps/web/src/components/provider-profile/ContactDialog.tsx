@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -14,8 +15,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, CheckCircle, MessageCircle } from "lucide-react";
 import { apiClient } from "@/lib/api";
-import { messagesApi } from "@kayu/api";
-import { useMutation } from "@tanstack/react-query";
+import { messagesApi, queryKeys } from "@kayu/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ContactDialogProps {
   open: boolean;
@@ -42,8 +43,11 @@ export function ContactDialog({
   isAuthenticated,
   onLoginRequired,
 }: ContactDialogProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const fullName = `${provider.user.firstName} ${provider.user.lastName}`;
   const initials = `${provider.user.firstName[0]}${provider.user.lastName[0]}`;
@@ -55,12 +59,18 @@ export function ContactDialog({
         content,
         type: 'TEXT',
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const nextConversationId = result.conversationId ?? null;
+      setConversationId(nextConversationId);
       setSuccess(true);
-      setTimeout(() => {
-        onOpenChange(false);
-        resetForm();
-      }, 2000);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.conversations(),
+      });
+      if (nextConversationId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.messages.conversation(nextConversationId),
+        });
+      }
     },
     onError: (error: Error) => {
       alert(error.message || "Erreur lors de l'envoi du message");
@@ -83,6 +93,16 @@ export function ContactDialog({
   const resetForm = () => {
     setMessage("");
     setSuccess(false);
+    setConversationId(null);
+  };
+
+  const goToConversation = () => {
+    const href = conversationId
+      ? `/messages?conversationId=${conversationId}`
+      : "/messages";
+    onOpenChange(false);
+    resetForm();
+    router.push(href);
   };
 
   const quickMessages = [
@@ -117,9 +137,14 @@ export function ContactDialog({
           <div className="flex flex-col items-center justify-center py-8">
             <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
             <h3 className="text-lg font-semibold mb-2">Message envoyé!</h3>
-            <p className="text-muted-foreground text-center text-sm">
-              Votre message a été envoyé. Le prestataire vous répondra dans les plus brefs délais.
+            <p className="text-muted-foreground text-center text-sm mb-4">
+              Votre message a été envoyé. Ouvrez la conversation pour suivre la
+              réponse du prestataire.
             </p>
+            <Button onClick={goToConversation} className="bg-primary hover:bg-primary/90">
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Ouvrir la conversation
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

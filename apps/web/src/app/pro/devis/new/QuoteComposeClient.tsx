@@ -296,6 +296,43 @@ export function QuoteComposeClient() {
     );
   }
 
+  if (!requestId) {
+    return (
+      <div
+        style={{
+          maxWidth: 520,
+          margin: "48px auto",
+          padding: 32,
+          background: "var(--k-surface)",
+          border: "1px solid var(--k-border)",
+          borderRadius: "var(--k-r-lg)",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="k-display-m"
+          style={{ marginBottom: 10, color: "var(--k-text-primary)" }}
+        >
+          Sélectionnez une demande
+        </div>
+        <div
+          className="k-body"
+          style={{ color: "var(--k-text-muted)", marginBottom: 20 }}
+        >
+          Les devis doivent être rattachés à une demande cliente. Ouvrez l'inbox
+          pour envoyer un devis sur une demande qui vous est adressée.
+        </div>
+        <button
+          type="button"
+          className="k-btn k-btn-primary"
+          onClick={() => router.push("/pro/requests")}
+        >
+          Voir mes demandes <I.arrowRight size={14} />
+        </button>
+      </div>
+    );
+  }
+
   if (sent) {
     return (
       <QuoteSent
