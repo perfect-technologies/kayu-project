@@ -254,9 +254,9 @@ export function ServicesPageContent() {
     return (
       <div
         style={{ background: "var(--k-bg)" }}
-        className="mx-auto max-w-[1400px] px-5 py-6 md:px-8"
+        className="mx-auto max-w-[1120px] px-5 py-6 md:px-8"
       >
-        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[260px_1fr_440px]">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[260px_1fr]">
           <div
             className="hidden rounded-[var(--k-r-lg)] lg:block"
             style={{
@@ -270,7 +270,6 @@ export function ServicesPageContent() {
               <WideProviderCardSkeleton key={i} />
             ))}
           </div>
-          <div className="hidden lg:block" />
         </div>
       </div>
     );
@@ -285,7 +284,7 @@ export function ServicesPageContent() {
           borderBottom: "1px solid var(--k-border)",
         }}
       >
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 md:px-8">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-3 px-5 py-4 md:px-8">
           <label
             className="flex flex-[1.2] items-center gap-2.5 rounded-[var(--k-r-md)] px-3.5 py-2.5"
             style={{ border: "1px solid var(--k-border)" }}
@@ -355,7 +354,7 @@ export function ServicesPageContent() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1400px] gap-6 px-5 py-6 md:px-8 lg:grid-cols-[260px_1fr_440px]">
+      <div className="mx-auto grid max-w-[1120px] gap-6 px-5 py-6 md:px-8 lg:grid-cols-[260px_1fr]">
         {/* FILTERS */}
         <aside
           className="sticky top-[104px] hidden self-start lg:block"
@@ -422,7 +421,7 @@ export function ServicesPageContent() {
                 <b className="k-num" style={{ color: "var(--k-text-primary)" }}>
                   {total}
                 </b>{" "}
-                pros · mis à jour il y a quelques instants
+                pros
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -456,7 +455,7 @@ export function ServicesPageContent() {
                 updateUrl({ available: v || null });
               }}
             >
-              <Check className="h-[13px] w-[13px]" /> Disponible maintenant
+              <Check className="h-[13px] w-[13px]" /> Accepte les demandes
             </FilterPill>
             <FilterPill
               active={verifiedOnly}
@@ -584,14 +583,6 @@ export function ServicesPageContent() {
             </>
           )}
         </div>
-
-        {/* MAP PLACEHOLDER — launch copy, no synthetic pins */}
-        <aside
-          className="sticky top-[104px] hidden self-start lg:block"
-          style={{ height: "calc(100vh - 140px)" }}
-        >
-          <MapLaunchPlaceholder />
-        </aside>
       </div>
 
       {filterSheetOpen && (
@@ -815,27 +806,54 @@ function FilterPanel({
         ) : null}
 
       <FilterSection title="Prix horaire">
-        <div className="k-caption k-num mb-2 flex justify-between">
-          <span>{priceRange[0].toLocaleString("fr-FR")} FC</span>
-          <span>
-            {priceRange[1] >= 100000
-              ? "100 000+"
-              : priceRange[1].toLocaleString("fr-FR")}{" "}
-            FC
-          </span>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1">
+            <span className="k-caption">Minimum FC</span>
+            <input
+              type="number"
+              min={0}
+              step={5000}
+              value={priceRange[0] || ""}
+              onChange={(e) =>
+                onPriceRange([
+                  Math.max(0, Number(e.target.value || 0)),
+                  priceRange[1],
+                ])
+              }
+              onBlur={() => onPriceCommit(priceRange)}
+              className="rounded-[var(--k-r-sm)] px-2.5 py-2 text-[13px] outline-none"
+              style={{
+                border: "1px solid var(--k-border)",
+                background: "var(--k-surface)",
+                color: "var(--k-text-primary)",
+              }}
+              placeholder="0"
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="k-caption">Maximum FC</span>
+            <input
+              type="number"
+              min={0}
+              step={5000}
+              value={priceRange[1] >= 100000 ? "" : priceRange[1]}
+              onChange={(e) =>
+                onPriceRange([
+                  priceRange[0],
+                  Math.max(0, Number(e.target.value || 100000)),
+                ])
+              }
+              onBlur={() => onPriceCommit(priceRange)}
+              className="rounded-[var(--k-r-sm)] px-2.5 py-2 text-[13px] outline-none"
+              style={{
+                border: "1px solid var(--k-border)",
+                background: "var(--k-surface)",
+                color: "var(--k-text-primary)",
+              }}
+              placeholder="Aucun max"
+            />
+          </label>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={100000}
-          step={5000}
-          value={priceRange[1]}
-          onChange={(e) => onPriceRange([priceRange[0], Number(e.target.value)])}
-          onMouseUp={() => onPriceCommit(priceRange)}
-          onTouchEnd={() => onPriceCommit(priceRange)}
-          className="w-full"
-          style={{ accentColor: "var(--k-primary)" }}
-        />
       </FilterSection>
 
       <FilterSection title="Note minimum">
@@ -866,7 +884,7 @@ function FilterPanel({
 
       <FilterSection title="Disponibilité">
         <Toggle
-          label="Disponible maintenant"
+          label="Accepte les demandes"
           value={availableOnly}
           onChange={onAvailable}
         />
@@ -980,47 +998,5 @@ function CategoryMini({ slug }: { slug: string }) {
         background: tint.bg,
       }}
     />
-  );
-}
-
-function MapLaunchPlaceholder() {
-  return (
-    <div
-      className="flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-[var(--k-r-md)] p-8 text-center"
-      style={{
-        border: "1px dashed var(--k-border-strong)",
-        background: "var(--k-surface)",
-      }}
-    >
-      <div
-        className="flex h-12 w-12 items-center justify-center rounded-full"
-        style={{
-          background: "var(--k-surface-primary)",
-          color: "var(--k-primary)",
-        }}
-      >
-        <MapPin className="h-5 w-5" />
-      </div>
-      <div
-        className="k-heading"
-        style={{ margin: 0, fontSize: 16, color: "var(--k-text-primary)" }}
-      >
-        Vue carte bientôt disponible
-      </div>
-      <div
-        className="k-body"
-        style={{
-          margin: 0,
-          fontSize: 13,
-          color: "var(--k-text-muted)",
-          maxWidth: 260,
-          lineHeight: 1.5,
-        }}
-      >
-        Au lancement, on affiche les pros sous forme de liste classée par ville et
-        note. Les positions géographiques exactes arrivent une fois que les pros
-        ajoutent des adresses vérifiées.
-      </div>
-    </div>
   );
 }

@@ -34,8 +34,6 @@ import {
   LogIn,
   EyeOff,
   ShieldCheck,
-  Calendar,
-  Clock,
   MapPin,
   Phone,
 } from "lucide-react";
@@ -73,6 +71,8 @@ interface ProviderProfileClientProps {
     rating: number;
     totalReviews: number;
     totalJobs: number;
+    responseTime?: number | null;
+    verificationStatus?: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED";
     createdAt: string;
     user: {
       id: string;
@@ -95,6 +95,13 @@ interface ProviderProfileClientProps {
       slug: string;
       icon?: string | null;
       color?: string | null;
+    }>;
+    trades: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      isPrimary: boolean;
+      experience?: number | null;
     }>;
     skills: Array<{ id: string; name: string; level: number }>;
     portfolio: Array<{
@@ -557,18 +564,8 @@ export function ProviderProfileClient({
                 }}
               >
                 <MiniRow
-                  icon={<Calendar className="h-4 w-4" />}
-                  label="Date"
-                  value="Sélectionner"
-                />
-                <MiniRow
-                  icon={<Clock className="h-4 w-4" />}
-                  label="Durée"
-                  value="~2 heures"
-                />
-                <MiniRow
                   icon={<MapPin className="h-4 w-4" />}
-                  label="Adresse"
+                  label="Zone"
                   value={visibleProvider.user.city ?? "Kinshasa"}
                 />
               </div>

@@ -105,7 +105,7 @@ export function ProviderProfileScreen() {
       ? `${responseMinutes} min`
       : responseMinutes >= 60
         ? `${Math.round(responseMinutes / 60)}h`
-        : '—';
+        : 'À confirmer';
   const isFastResponse = responseLabel.includes('min');
   const hourly = profile.hourlyRate ?? 0;
   const trustLevel: TrustLevel = profile.trustScore?.trustLevel ?? 'NEWCOMER';
@@ -211,9 +211,9 @@ export function ProviderProfileScreen() {
                 isFastResponse && { color: theme.colors.success },
               ]}
             >
-              ~{responseLabel}
+              {responseMinutes > 0 ? `~${responseLabel}` : responseLabel}
             </Text>
-            <Text style={styles.statLabel}>réponse</Text>
+            <Text style={styles.statLabel}>délai moyen</Text>
           </View>
         </View>
 
@@ -235,7 +235,7 @@ export function ProviderProfileScreen() {
               variant="neutral"
               leadingIcon={<I.shieldCheck size={12} color={theme.colors.textBody} />}
             >
-              Assurance RC Pro
+              Certification vérifiée
             </Chip>
           ) : null}
         </View>
@@ -446,7 +446,7 @@ export function ProviderProfileScreen() {
             })
           }
         >
-          <Text style={styles.reserveText}>Demander</Text>
+          <Text style={styles.reserveText}>Réserver</Text>
         </Pressable>
       </StickyBottomBar>
     </View>

@@ -113,6 +113,70 @@ test("provider search city filter matches both service-zone city and commune", a
   });
 });
 
+test("provider search applies category and subcategory filters by id or slug", async () => {
+  const calls: Record<string, unknown> = {};
+  const prisma = {
+    provider: {
+      count: async (args: unknown) => {
+        calls.count = args;
+        return 0;
+      },
+    },
+    review: {
+      groupBy: async () => [],
+    },
+    certification: {
+      groupBy: async () => [],
+    },
+  };
+
+  const service = new ProvidersService(prisma as never, {} as never, {} as never);
+  await service.search({
+    page: 1,
+    limit: 20,
+    category: "plomberie",
+    subcategory: "robinetterie",
+  } as never);
+
+  const where = (calls.count as { where: { AND: Array<Record<string, unknown>> } }).where;
+
+  assert.ok(
+    where.AND.some(
+      (condition) =>
+        JSON.stringify(condition) ===
+        JSON.stringify({
+          categories: {
+            some: {
+              category: {
+                isActive: true,
+                OR: [{ id: "plomberie" }, { slug: "plomberie" }],
+              },
+            },
+          },
+        }),
+    ),
+  );
+  assert.ok(
+    where.AND.some(
+      (condition) =>
+        JSON.stringify(condition) ===
+        JSON.stringify({
+          trades: {
+            some: {
+              trade: {
+                isActive: true,
+                subcategory: {
+                  isActive: true,
+                  OR: [{ id: "robinetterie" }, { slug: "robinetterie" }],
+                },
+              },
+            },
+          },
+        }),
+    ),
+  );
+});
+
 test("provider search applies min rating before database pagination and sorts by requested field", async () => {
   const calls: {
     providerFindMany: unknown[];

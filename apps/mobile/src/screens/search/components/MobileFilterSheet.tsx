@@ -240,7 +240,7 @@ export function MobileFilterSheet({
 
           <FilterSection title="Disponibilité">
             <ToggleRow
-              label="Disponible maintenant"
+              label="Accepte les demandes"
               value={local.available}
               onChange={(v) => setLocal((f) => ({ ...f, available: v }))}
             />

@@ -230,7 +230,7 @@ export function SearchScreen() {
                 setFilters((f) => ({ ...f, available: !f.available }))
               }
             >
-              Disponible
+              Accepte les demandes
             </FilterPill>
             <FilterPill
               active={filters.verified}
@@ -261,20 +261,13 @@ export function SearchScreen() {
         {/* Result summary row */}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryTitle}>
-            {totalResults} pros disponibles
+            {totalResults} pros
           </Text>
           <Pressable hitSlop={6} style={styles.sortBtn} onPress={() => setSheetOpen(true)}>
             <Text style={styles.sortText}>{MOBILE_SORT_LABELS[filters.sort]}</Text>
             <I.chevronDown size={13} color={theme.colors.textPrimary} />
           </Pressable>
         </View>
-        <View style={styles.mapNotice}>
-          <I.mapPin size={14} color={theme.colors.textMuted} />
-          <Text style={styles.mapNoticeText}>
-            Vue carte indisponible dans cette version de lancement.
-          </Text>
-        </View>
-
         {/* Results body */}
         {error ? (
           <View style={styles.emptyWrap}>
@@ -431,18 +424,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-  },
-  mapNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-  },
-  mapNoticeText: {
-    fontFamily: theme.fonts.body,
-    fontSize: 12,
-    color: theme.colors.textMuted,
   },
   summaryTitle: {
     fontFamily: theme.fonts.display,

@@ -10,6 +10,11 @@ interface ProviderAboutProps {
     description?: string | null;
     experience?: number | null;
     profession: string;
+    trades?: Array<{
+      id: string;
+      name: string;
+      isPrimary?: boolean;
+    }>;
   };
 }
 
@@ -32,6 +37,12 @@ export function ProviderAbout({ provider }: ProviderAboutProps) {
             <Briefcase className="h-3.5 w-3.5 text-primary" />
             {provider.profession}
           </Badge>
+          {provider.trades?.slice(0, 3).map((trade) => (
+            <Badge key={trade.id} variant="secondary" className="py-1.5 px-3">
+              {trade.name}
+              {trade.isPrimary ? " · principal" : ""}
+            </Badge>
+          ))}
         </div>
 
         <Separator />

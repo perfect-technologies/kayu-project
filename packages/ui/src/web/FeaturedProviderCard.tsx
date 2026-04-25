@@ -265,6 +265,22 @@ const CardMetaRow1: React.FC<{
 );
 
 const ResponseLine: React.FC<{ response: string }> = ({ response }) => {
+  if (response === "À confirmer") {
+    return (
+      <div
+        style={{
+          fontFamily: tokens.font.body,
+          fontSize: 12,
+          fontWeight: 500,
+          color: tokens.color.textMuted,
+          marginTop: 4,
+        }}
+      >
+        Délai de réponse à confirmer
+      </div>
+    );
+  }
+
   const isFast = response.includes("min");
   return (
     <div

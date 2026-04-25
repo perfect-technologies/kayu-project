@@ -24,7 +24,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 02 - Backend Final Offer And Booking Lifecycle | Done | Codex | First-class final-offer API creates/confirms cash bookings without job requests |
 | 03 - Web Direct Flow | Done | Codex | Web direct discovery/chat/booking/final-offer launch flow completed |
 | 04 - Mobile Direct Flow | Done | Codex | Mobile direct discovery/chat/booking/final-offer launch flow completed |
-| 05 - Discovery Filters And Provider Profile | Not started | Unassigned | Fix filters and provider profile truthfulness |
+| 05 - Discovery Filters And Provider Profile | Done | Codex | Discovery filters/profile surfaces are launch-truthful; fake map/distance/availability claims removed |
 | 06 - Cash Payment And Copy Cleanup | Not started | Unassigned | Align all launch-facing copy with cash MVP |
 | 07 - Provider Operations And Dashboards | Not started | Unassigned | Provider actions and direct booking operations |
 | 08 - Launch QA And Smoke Tests | Not started | Unassigned | Final smoke scenarios and release evidence |
@@ -279,6 +279,71 @@ Routes intentionally deferred:
 
 - Client job request creation/listing remains present in the repo but hidden behind `EXPO_PUBLIC_ENABLE_JOB_REQUESTS`.
 - Provider job-request inbox and quote composer remain present in the repo but hidden behind `EXPO_PUBLIC_ENABLE_JOB_REQUESTS` / `EXPO_PUBLIC_ENABLE_QUOTE_MARKETPLACE`.
+
+## Workstream 05 Evidence
+
+Completed: 2026-04-25
+
+Changed files:
+
+- `apps/backend/src/modules/categories/categories.service.ts`
+- `apps/backend/src/modules/providers/providers.service.ts`
+- `apps/backend/src/modules/providers/providers.service.spec.ts`
+- `apps/web/src/app/services/ServicesPageContent.tsx`
+- `apps/web/src/app/providers/[id]/page.tsx`
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`
+- `apps/web/src/components/provider-profile/ProviderAbout.tsx`
+- `apps/web/src/components/provider-profile/ProviderHeader.tsx`
+- `apps/web/src/lib/provider-card.ts`
+- `apps/mobile/src/lib/providerAdapter.ts`
+- `apps/mobile/src/screens/home/HomeScreen.tsx`
+- `apps/mobile/src/screens/search/SearchScreen.tsx`
+- `apps/mobile/src/screens/search/CategoryDetailScreen.tsx`
+- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx`
+- `apps/mobile/src/screens/search/components/MobileFilterSheet.tsx`
+- `packages/schemas/src/dto.ts`
+- `packages/schemas/src/models.ts`
+- `packages/ui/src/web/FeaturedProviderCard.tsx`
+- `packages/ui/src/mobile/FeaturedProviderCard.tsx`
+
+Behavior implemented:
+
+- Backend provider search now returns provider trades in summary results so cards/profile surfaces can show real trade/category context.
+- Backend category hierarchy and subcategory responses now expose launch-ready provider counts using the same discoverability requirements as provider search.
+- Provider search regression coverage verifies `category=plomberie` and `subcategory=robinetterie` produce category and subcategory Prisma filters.
+- Web `/services` keeps category/subcategory URL filters, exposes real search/city/rating/min-price/max-price/availability/verified filters, and removes the fake map column.
+- Web `/services` availability copy now says `Accepte les demandes` instead of implying immediate availability.
+- Web provider cards only show a verified badge for real provider/user verification, not unrelated certifications.
+- Web provider profile removes synthetic response-rate and static date/duration claims; it shows real response time when present, otherwise `À confirmer`.
+- Web provider profile shows real trades in the about section, category/service-zone cards, hourly guidance, ratings/reviews, and launch CTAs: message, optional call, direct booking.
+- Mobile search removes the map unavailable surface, uses `Accepte les demandes`, and keeps filters mapped to backend search params.
+- Mobile home renamed the fake nearby `Carte` affordance to `Tout voir` until a real map exists.
+- Mobile category detail now keeps the selected category and applies selected subcategory through the backend `subcategory` filter instead of replacing the category with the subcategory id.
+- Mobile provider profile no longer labels generic certification as insurance and no longer shows `~—` for missing response time.
+- Mobile provider cards now accept the actual provider summary shape instead of requiring the full provider-detail schema.
+- Web provider cards/profile verification indicators now match the backend `verified=true` filter by using provider `verificationStatus === VERIFIED`.
+- Shared web/mobile provider cards display `Délai de réponse à confirmer` when the backend has no response-time value instead of invented response estimates.
+
+Example URLs/filters verified:
+
+- `/services?category=plomberie`
+- `/services?category=plomberie&subcategory=robinetterie`
+- `/services?q=plombier&city=Kinshasa&minRating=4&minPrice=10000&maxPrice=50000&available=true&verified=true`
+- Mobile category detail now calls provider search with `{ category: params.categoryId, subcategory: selectedSubcategory }`.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend exec node --test -r ts-node/register src/modules/providers/providers.service.spec.ts` - passed, 4 tests.
+- `pnpm --filter @kayu/backend test:launch` - passed, 59 tests.
+- `pnpm --filter @kayu/schemas build` - passed.
+- `pnpm --filter @kayu/schemas type-check` - passed.
+- `pnpm --filter @kayu/api type-check` - passed.
+- `pnpm --filter @kayu/backend type-check` - passed.
+- `pnpm --filter @kayu/web type-check` - passed.
+- `pnpm --filter @kayu/mobile type-check` - passed.
+- `pnpm --filter @kayu/web build` - passed.
+- `git diff --check` - passed.
+- `rg -n "Disponible maintenant|Vue carte|mis à jour il y a quelques instants|Taux de réponse|Réponse \{fast|~15 min|Assurance RC Pro|DistanceBadge|Voir distance" apps/web/src/app/services apps/web/src/app/providers apps/web/src/components/provider-profile apps/mobile/src/screens/search apps/mobile/src/lib/providerAdapter.ts -g '!*.map'` - no launch-facing matches in scoped files.
 
 ## How To Update This File
 

@@ -788,7 +788,8 @@ export const CategoriesResponseSchema = z.object({
     CategorySchema.extend({
       subcategories: z.array(SubcategorySchema).optional(),
     }),
-  ),
+  ).optional().default([]),
+  subcategories: z.array(SubcategorySchema).optional(),
 });
 
 export const CategoryHierarchyResponseSchema = z.array(CategoryHierarchySchema);

@@ -43,6 +43,14 @@ export class CategoriesService {
     const providerCountByCategoryId = await this.countVisibleProvidersByCategory(
       categories.map((category) => category.id),
     );
+    const providerCountBySubcategoryId = query.withSubcategories
+      ? await this.countVisibleProvidersBySubcategory(
+          (categories as Array<{ subcategories?: Array<{ id: string }> }>).flatMap(
+            (category) =>
+              category.subcategories?.map((subcategory) => subcategory.id) ?? [],
+          ),
+        )
+      : new Map<string, number>();
 
     if (query.withSubcategories) {
       const categoriesWithSubcategories = categories as Array<
@@ -78,6 +86,8 @@ export class CategoriesService {
             order: subcategory.order,
             isActive: subcategory.isActive,
             createdAt: subcategory.createdAt,
+            providerCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
+            providersCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
           })),
         })),
       };
@@ -123,6 +133,11 @@ export class CategoriesService {
     const providerCountByCategoryId = await this.countVisibleProvidersByCategory(
       categories.map((category) => category.id),
     );
+    const providerCountBySubcategoryId = await this.countVisibleProvidersBySubcategory(
+      categories.flatMap((category) =>
+        category.subcategories.map((subcategory) => subcategory.id),
+      ),
+    );
 
     return {
       success: true as const,
@@ -149,6 +164,8 @@ export class CategoriesService {
           order: subcategory.order,
           isActive: subcategory.isActive,
           createdAt: subcategory.createdAt,
+          providerCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
+          providersCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
           trades: subcategory.trades.map((trade) => ({
             id: trade.id,
             subcategoryId: trade.subcategoryId,
@@ -218,14 +235,82 @@ export class CategoriesService {
     );
   }
 
+  private async countVisibleProvidersBySubcategory(subcategoryIds: string[]) {
+    if (subcategoryIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const providerTrades = await this.prisma.providerTrade.findMany({
+      where: {
+        trade: {
+          subcategoryId: { in: subcategoryIds },
+          isActive: true,
+          subcategory: {
+            isActive: true,
+          },
+        },
+        provider: this.searchableProviderWhere(),
+      },
+      select: {
+        providerId: true,
+        trade: {
+          select: {
+            subcategoryId: true,
+          },
+        },
+      },
+    });
+
+    const providersBySubcategoryId = new Map<string, Set<string>>();
+    for (const providerTrade of providerTrades) {
+      const set =
+        providersBySubcategoryId.get(providerTrade.trade.subcategoryId) ??
+        new Set<string>();
+      set.add(providerTrade.providerId);
+      providersBySubcategoryId.set(providerTrade.trade.subcategoryId, set);
+    }
+
+    return new Map(
+      [...providersBySubcategoryId.entries()].map(([subcategoryId, providers]) => [
+        subcategoryId,
+        providers.size,
+      ]),
+    );
+  }
+
   private searchableProviderWhere(): Prisma.ProviderWhereInput {
     return {
       user: {
         isActive: true,
       },
-      OR: [
-        { user: { visibilitySettings: null } },
-        { user: { visibilitySettings: { appearInSearch: true } } },
+      onboardingCompleteAt: {
+        not: null,
+      },
+      profession: {
+        not: "",
+      },
+      hourlyRate: {
+        gt: 0,
+      },
+      serviceZones: {
+        some: {},
+      },
+      trustScore: {
+        isNot: null,
+      },
+      AND: [
+        {
+          OR: [
+            { user: { visibilitySettings: null } },
+            { user: { visibilitySettings: { appearInSearch: true } } },
+          ],
+        },
+        {
+          OR: [
+            { user: { visibilitySettings: null } },
+            { user: { visibilitySettings: { appearInCategory: true } } },
+          ],
+        },
       ],
     };
   }

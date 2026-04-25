@@ -92,6 +92,8 @@ export const SubcategorySchema = z.object({
   icon: z.string().nullable().optional(),
   order: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  providerCount: z.number().int().min(0).optional(),
+  providersCount: z.number().int().min(0).optional(),
   createdAt: DateTimeSchema.optional(),
 });
 
@@ -279,6 +281,7 @@ export const ProviderSchema = z.object({
     isVerified: true,
   }),
   categories: z.array(CategorySummarySchema).default([]),
+  trades: z.array(ProviderTradeSchema).default([]),
   serviceZones: z.array(ServiceZoneSchema).default([]),
   createdAt: DateTimeSchema.optional(),
   updatedAt: DateTimeSchema.optional(),

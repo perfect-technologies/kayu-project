@@ -75,6 +75,11 @@ type ProviderSummaryRecord = Prisma.ProviderGetPayload<{
       };
     };
     serviceZones: true;
+    trades: {
+      include: {
+        trade: true;
+      };
+    };
   };
 }>;
 
@@ -232,6 +237,11 @@ export class ProvidersService {
                 },
               },
               serviceZones: true,
+              trades: {
+                include: {
+                  trade: true,
+                },
+              },
             },
             orderBy,
             skip,
@@ -955,6 +965,33 @@ export class ProvidersService {
         icon: item.category.icon,
         color: item.category.color,
       })),
+      trades: provider.trades
+        .map((item) => ({
+          id: item.trade.id,
+          subcategoryId: item.trade.subcategoryId,
+          name: item.trade.name,
+          slug: item.trade.slug,
+          description: item.trade.description,
+          icon: item.trade.icon,
+          basePrice: item.trade.basePrice,
+          duration: item.trade.duration,
+          isActive: item.trade.isActive,
+          order: item.trade.order,
+          createdAt: item.trade.createdAt,
+          isPrimary: item.isPrimary,
+          experience: item.experience,
+        }))
+        .sort((left, right) => {
+          if (left.isPrimary !== right.isPrimary) {
+            return Number(right.isPrimary) - Number(left.isPrimary);
+          }
+
+          if ((left.order ?? 0) !== (right.order ?? 0)) {
+            return (left.order ?? 0) - (right.order ?? 0);
+          }
+
+          return left.name.localeCompare(right.name);
+        }),
       serviceZones: provider.serviceZones,
       createdAt: provider.createdAt,
       updatedAt: provider.updatedAt,

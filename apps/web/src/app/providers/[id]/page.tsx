@@ -210,6 +210,8 @@ export default async function ProviderProfilePage({
     rating: provider.rating ?? 0,
     totalReviews: provider.totalReviews ?? 0,
     totalJobs: provider.totalJobs ?? 0,
+    responseTime: provider.responseTime ?? null,
+    verificationStatus: provider.verificationStatus,
     createdAt: provider.createdAt ? String(provider.createdAt) : new Date().toISOString(),
     user: {
       id: provider.user?.id ?? "",
@@ -232,6 +234,13 @@ export default async function ProviderProfilePage({
       slug: cat.slug ?? "",
       icon: cat.icon ?? null,
       color: cat.color ?? null,
+    })),
+    trades: (provider.trades ?? []).map((trade) => ({
+      id: trade.id ?? "",
+      name: trade.name,
+      slug: trade.slug ?? "",
+      isPrimary: trade.isPrimary ?? false,
+      experience: trade.experience ?? null,
     })),
     skills: (provider.skills ?? []).map((skill) => ({
       id: skill.id ?? "",

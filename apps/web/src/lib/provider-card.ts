@@ -9,9 +9,11 @@ type AnyProvider = {
   hourlyRate?: number | null;
   rating?: number | null;
   totalReviews?: number | null;
+  responseTime?: number | null;
   isCertified?: boolean | null;
   isPremium?: boolean | null;
   isAvailable?: boolean | null;
+  verificationStatus?: string | null;
   experience?: number | null;
   user?: {
     firstName?: string | null;
@@ -49,13 +51,11 @@ export function resolveCategorySlug(raw: string | null | undefined): CategorySlu
   return SLUG_ALIASES[normalized] ?? "plomberie";
 }
 
-// Best-effort response time string — the backend doesn't return one yet, so we
-// derive a friendly fallback that keeps the UI feeling alive. When the backend
-// ships response-time data this helper is the single place to update.
 function responseFor(provider: AnyProvider): string {
-  if (provider.isAvailable) return "15 min";
-  if ((provider.rating ?? 0) >= 4.7) return "30 min";
-  return "2 h";
+  const minutes = provider.responseTime ?? 0;
+  if (minutes <= 0) return "À confirmer";
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.round(minutes / 60)} h`;
 }
 
 export function toProviderCardData(raw: AnyProvider): ProviderCardData {
@@ -84,7 +84,7 @@ export function toProviderCardData(raw: AnyProvider): ProviderCardData {
     reviews: raw.totalReviews ?? 0,
     response: responseFor(raw),
     hourly: raw.hourlyRate ?? 0,
-    verified: !!raw.user?.isVerified || !!raw.isCertified,
+    verified: raw.verificationStatus === "VERIFIED",
     topRated: !!raw.isPremium || (raw.rating ?? 0) >= 4.8,
     online: !!raw.isAvailable,
     avatarUrl: raw.user?.avatar ?? undefined,

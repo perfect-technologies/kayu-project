@@ -23,9 +23,11 @@ interface ProviderHeaderProps {
     rating: number;
     totalReviews: number;
     totalJobs: number;
+    responseTime?: number | null;
     isCertified: boolean;
     isPremium: boolean;
     isAvailable: boolean;
+    verificationStatus?: "PENDING" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED";
     experience?: number | null;
     user: {
       id: string;
@@ -61,8 +63,11 @@ export function ProviderHeader({
   }`;
   const city = provider.user.city ?? "";
   const topRated =
-    provider.isPremium || provider.totalReviews >= 50 || provider.rating >= 4.8;
-  const fastResponse = provider.isAvailable;
+    provider.isPremium ||
+    provider.totalReviews >= 50 ||
+    (provider.totalReviews >= 5 && provider.rating >= 4.8);
+  const identityVerified = provider.verificationStatus === "VERIFIED";
+  const responseLabel = formatResponseTime(provider.responseTime);
 
   const handleFavorite = async () => {
     if (!onFavorite || favLoading) return;
@@ -88,11 +93,6 @@ export function ProviderHeader({
       await navigator.clipboard.writeText(window.location.href);
     }
   };
-
-  const responseRate = Math.max(
-    60,
-    Math.min(99, 88 + Math.round(provider.rating * 2)),
-  );
 
   return (
     <div className="mx-auto max-w-[1200px] px-5 pt-6 md:px-10">
@@ -147,7 +147,7 @@ export function ProviderHeader({
               <h1 className="k-display-l" style={{ margin: 0 }}>
                 {fullName}
               </h1>
-              {provider.user.isVerified && (
+              {identityVerified && (
                 <BadgeCheck
                   className="h-6 w-6"
                   style={{ color: "var(--k-success)" }}
@@ -171,13 +171,20 @@ export function ProviderHeader({
                   {city}
                 </span>
               )}
-              <span
-                className="inline-flex items-center gap-1.5"
-                style={{ color: fastResponse ? "var(--k-success)" : undefined }}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                Réponse {fastResponse ? "~15 min" : "rapide"}
-              </span>
+              {responseLabel ? (
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  style={{
+                    color:
+                      provider.responseTime && provider.responseTime < 60
+                        ? "var(--k-success)"
+                        : undefined,
+                  }}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Répond en moyenne en {responseLabel}
+                </span>
+              ) : null}
               {provider.experience ? (
                 <span className="inline-flex items-center gap-1.5">
                   <Award className="h-3.5 w-3.5" />
@@ -197,9 +204,16 @@ export function ProviderHeader({
                   <BadgeCheck className="h-3 w-3" /> Certifié KAYOU
                 </span>
               )}
-              <span className="k-chip k-chip-sm k-chip-success">
-                <ShieldCheck className="h-3 w-3" /> Identité vérifiée
-              </span>
+              {identityVerified && (
+                <span className="k-chip k-chip-sm k-chip-success">
+                  <ShieldCheck className="h-3 w-3" /> Identité vérifiée
+                </span>
+              )}
+              {provider.isAvailable && (
+                <span className="k-chip k-chip-sm k-chip-primary">
+                  Accepte les demandes
+                </span>
+              )}
             </div>
           </div>
 
@@ -271,10 +285,16 @@ export function ProviderHeader({
             value={<BigStatValue>{provider.totalJobs}</BigStatValue>}
           />
           <BigStat
-            label="Taux de réponse"
+            label="Délai moyen"
             value={
-              <BigStatValue color="var(--k-success)">
-                {responseRate}%
+              <BigStatValue
+                color={
+                  provider.responseTime && provider.responseTime < 60
+                    ? "var(--k-success)"
+                    : undefined
+                }
+              >
+                {responseLabel ?? "À confirmer"}
               </BigStatValue>
             }
           />
@@ -282,6 +302,12 @@ export function ProviderHeader({
       </div>
     </div>
   );
+}
+
+function formatResponseTime(minutes?: number | null) {
+  if (!minutes || minutes <= 0) return null;
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.round(minutes / 60)} h`;
 }
 
 function BigStat({ label, value }: { label: string; value: React.ReactNode }) {

@@ -174,7 +174,7 @@ export function HomeScreen() {
           <View style={[styles.sectionHead, styles.nearbyHead]}>
             <Text style={styles.sectionTitle}>Près de toi</Text>
             <Pressable hitSlop={6} onPress={() => goToSearch()}>
-              <Text style={styles.linkText}>Carte</Text>
+              <Text style={styles.linkText}>Tout voir</Text>
             </Pressable>
           </View>
           {providersLoading && nearby.length === 0 ? (

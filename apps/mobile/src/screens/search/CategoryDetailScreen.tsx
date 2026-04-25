@@ -23,10 +23,16 @@ import type { SearchStackParamList } from '@/navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<SearchStackParamList, 'CategoryDetail'>;
 type Route = RouteProp<SearchStackParamList, 'CategoryDetail'>;
+type CategorySubcategory = {
+  id: string;
+  name: string;
+  slug: string;
+};
 
 export function CategoryDetailScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
 
   // Fetch subcategories for this category
   const { data: catData } = useQuery({
@@ -45,8 +51,15 @@ export function CategoryDetailScreen() {
     error,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.providers.search({ category: params.categoryId }),
-    queryFn: () => api.providers.search({ category: params.categoryId }),
+    queryKey: queryKeys.providers.search({
+      category: params.categoryId,
+      subcategory: selectedSubcategory ?? undefined,
+    }),
+    queryFn: () =>
+      api.providers.search({
+        category: params.categoryId,
+        subcategory: selectedSubcategory ?? undefined,
+      }),
   });
 
   const [refreshing, setRefreshing] = useState(false);
@@ -57,8 +70,10 @@ export function CategoryDetailScreen() {
   };
 
   const providers = providersData?.providers ?? [];
-  const category = catData?.categories?.[0];
-  const subcategories = category?.subcategories ?? [];
+  const subcategories =
+    ((catData as { subcategories?: CategorySubcategory[] } | undefined)?.subcategories ??
+      catData?.categories?.[0]?.subcategories ??
+      []) as CategorySubcategory[];
 
   if (isLoading) return <LoadingScreen />;
   if (error) return <ErrorState onRetry={() => refetch()} />;
@@ -81,22 +96,51 @@ export function CategoryDetailScreen() {
           <View style={styles.subcategoriesSection}>
             <Text style={styles.sectionTitle}>Sous-catégories</Text>
             <View style={styles.subcategoryGrid}>
+              <TouchableOpacity
+                style={[
+                  styles.subcategoryCard,
+                  selectedSubcategory === null && styles.subcategoryCardActive,
+                  shadowStyles.sm,
+                ]}
+                activeOpacity={0.7}
+                onPress={() => setSelectedSubcategory(null)}
+              >
+                <Ionicons
+                  name="apps-outline"
+                  size={20}
+                  color={
+                    selectedSubcategory === null
+                      ? colors.primary.DEFAULT
+                      : colors.text.secondary
+                  }
+                />
+                <Text style={styles.subcategoryName} numberOfLines={2}>
+                  Tous
+                </Text>
+              </TouchableOpacity>
               {subcategories.map((sub) => (
                 <TouchableOpacity
                   key={sub.id}
-                  style={[styles.subcategoryCard, shadowStyles.sm]}
+                  style={[
+                    styles.subcategoryCard,
+                    selectedSubcategory === sub.slug && styles.subcategoryCardActive,
+                    shadowStyles.sm,
+                  ]}
                   activeOpacity={0.7}
                   onPress={() =>
-                    navigation.setParams({
-                      categoryId: sub.id,
-                      categoryName: sub.name,
-                    })
+                    setSelectedSubcategory((current) =>
+                      current === sub.slug ? null : sub.slug,
+                    )
                   }
                 >
                   <Ionicons
                     name="grid-outline"
                     size={20}
-                    color={colors.primary.DEFAULT}
+                    color={
+                      selectedSubcategory === sub.slug
+                        ? colors.primary.DEFAULT
+                        : colors.text.secondary
+                    }
                   />
                   <Text style={styles.subcategoryName} numberOfLines={2}>
                     {sub.name}
@@ -161,6 +205,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minWidth: '45%',
     flexGrow: 1,
+  },
+  subcategoryCardActive: {
+    borderWidth: 1,
+    borderColor: colors.primary.DEFAULT,
+    backgroundColor: colors.primary.light,
   },
   subcategoryName: {
     fontSize: fontSizes.sm,
