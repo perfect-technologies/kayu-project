@@ -9,7 +9,7 @@ The prototype is a visual and interaction reference. It is not the business-flow
 ## References
 
 - Design system: `/Users/alainmk/Downloads/KAYOU Design System _standalone_.html`
-- Prototype: `/Users/alainmk/Downloads/KAYOU Prototype _standalone_.html`
+- Prototype: `/Users/alainmk/Downloads/KAYOU Prototype _standalone_2.html`
 - Current product reset: `docs/kinshasa-mvp-implementation/00-product-reset.md`
 - Current progress tracker: `docs/kinshasa-mvp-implementation/PROGRESS.md`
 
