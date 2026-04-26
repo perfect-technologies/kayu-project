@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,13 +15,16 @@ import {
   ChevronRight,
 } from "lucide-react";
 import {
-  WideProviderCard,
-  WideProviderCardSkeleton,
+  I,
+  ProviderShowcaseCard,
+  ProviderShowcaseCardSkeleton,
 } from "@kayu/ui/web";
-import type { ProviderCardData } from "@kayu/ui";
+import type { CategorySlug, ProviderCardData } from "@kayu/ui";
 import { apiClient } from "@/lib/api";
 import { categoriesApi, providersApi, queryKeys } from "@kayu/api";
 import { toProviderCardData, resolveCategorySlug } from "@/lib/provider-card";
+
+const PRICE_MAX = 100000;
 
 interface Subcategory {
   id: string;
@@ -265,9 +268,9 @@ export function ServicesPageContent() {
               border: "1px solid var(--k-border)",
             }}
           />
-          <div className="space-y-3.5">
+          <div className="flex flex-col gap-4">
             {[...Array(4)].map((_, i) => (
-              <WideProviderCardSkeleton key={i} />
+              <ProviderShowcaseCardSkeleton key={i} />
             ))}
           </div>
         </div>
@@ -481,9 +484,9 @@ export function ServicesPageContent() {
           </div>
 
           {loading && (
-            <div className="grid gap-3.5">
-              {[...Array(3)].map((_, i) => (
-                <WideProviderCardSkeleton key={i} />
+            <div className="flex flex-col gap-4">
+              {[...Array(4)].map((_, i) => (
+                <ProviderShowcaseCardSkeleton key={i} />
               ))}
             </div>
           )}
@@ -538,14 +541,13 @@ export function ServicesPageContent() {
 
           {!loading && !isError && providers.length > 0 && (
             <>
-              <div className="grid gap-3.5">
+              <div className="flex flex-col gap-4">
                 {providers.map((p) => (
-                  <div key={p.id}>
-                    <WideProviderCard
-                      provider={p}
-                      onClick={() => router.push(`/providers/${p.id}`)}
-                    />
-                  </div>
+                  <ProviderShowcaseCard
+                    key={p.id}
+                    provider={p}
+                    onClick={() => router.push(`/providers/${p.id}`)}
+                  />
                 ))}
               </div>
 
@@ -735,169 +737,385 @@ function FilterPanel({
   onVerified,
   onClear,
 }: FilterPanelProps) {
+  // Visual-only filters not yet wired to the API. Local state keeps the
+  // toggles interactive so the panel matches the prototype exactly.
+  const [distance, setDistance] = useState(20);
+  const [fastResponse, setFastResponse] = useState(false);
+  const [weekend, setWeekend] = useState(false);
+  const [topRated, setTopRated] = useState(false);
+  const [expert, setExpert] = useState(false);
+
+  const subSlugs = categories
+    .find((c) => c.slug === selectedCategory)
+    ?.subcategories;
+
   return (
     <div
-      className="rounded-[var(--k-r-lg)] p-5"
       style={{
         background: "var(--k-surface)",
         border: "1px solid var(--k-border)",
+        borderRadius: "var(--k-r-md)",
+        padding: 20,
       }}
     >
-      <div className="mb-5 flex items-baseline justify-between">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 20,
+        }}
+      >
         <h3 className="k-heading" style={{ margin: 0 }}>
           Filtres
         </h3>
         <button
           onClick={onClear}
           className="k-btn k-btn-ghost k-btn-sm"
-          style={{ padding: 0, height: "auto" }}
+          style={{ padding: 0 }}
         >
           Effacer
         </button>
       </div>
 
       <FilterSection title="Catégorie">
-        <div className="grid gap-1.5">
-          {categories.slice(0, 8).map((c) => (
-            <label
+        <div style={{ display: "grid", gap: 6 }}>
+          {categories.slice(0, 6).map((c) => (
+            <CategoryRow
               key={c.id}
-              className="flex cursor-pointer items-center gap-2.5 text-[14px]"
-            >
-              <input
-                type="checkbox"
-                checked={selectedCategory === c.slug}
-                onChange={() =>
-                  onCategory(selectedCategory === c.slug ? "" : c.slug)
-                }
-                className="h-4 w-4 cursor-pointer accent-[var(--k-primary)]"
-              />
-              <CategoryMini slug={c.slug} />
-              <span style={{ color: "var(--k-text-body)" }}>{c.name}</span>
-            </label>
+              slug={c.slug}
+              label={c.name}
+              checked={selectedCategory === c.slug}
+              onToggle={() =>
+                onCategory(selectedCategory === c.slug ? "" : c.slug)
+              }
+            />
           ))}
         </div>
       </FilterSection>
 
-      {selectedCategory &&
-        categories.find((c) => c.slug === selectedCategory)?.subcategories?.length ? (
-          <FilterSection title="Spécialité">
-            <div className="grid gap-1.5">
-              {categories
-                .find((c) => c.slug === selectedCategory)
-                ?.subcategories?.slice(0, 8)
-                .map((sub) => (
-                  <label
-                    key={sub.id}
-                    className="flex cursor-pointer items-center gap-2.5 text-[14px]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedSubcategory === sub.slug}
-                      onChange={() =>
-                        onSubcategory(selectedSubcategory === sub.slug ? "" : sub.slug)
-                      }
-                      className="h-4 w-4 cursor-pointer accent-[var(--k-primary)]"
-                    />
-                    <span style={{ color: "var(--k-text-body)" }}>{sub.name}</span>
-                  </label>
-                ))}
-            </div>
-          </FilterSection>
-        ) : null}
+      {selectedCategory && subSlugs && subSlugs.length > 0 ? (
+        <FilterSection title="Spécialité">
+          <div style={{ display: "grid", gap: 6 }}>
+            {subSlugs.slice(0, 8).map((sub) => (
+              <label
+                key={sub.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSubcategory === sub.slug}
+                  onChange={() =>
+                    onSubcategory(
+                      selectedSubcategory === sub.slug ? "" : sub.slug,
+                    )
+                  }
+                  style={{ accentColor: "var(--k-primary)" }}
+                />
+                <span style={{ color: "var(--k-text-body)" }}>{sub.name}</span>
+              </label>
+            ))}
+          </div>
+        </FilterSection>
+      ) : null}
 
       <FilterSection title="Prix horaire">
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1">
-            <span className="k-caption">Minimum FC</span>
-            <input
-              type="number"
-              min={0}
-              step={5000}
-              value={priceRange[0] || ""}
-              onChange={(e) =>
-                onPriceRange([
-                  Math.max(0, Number(e.target.value || 0)),
-                  priceRange[1],
-                ])
-              }
-              onBlur={() => onPriceCommit(priceRange)}
-              className="rounded-[var(--k-r-sm)] px-2.5 py-2 text-[13px] outline-none"
-              style={{
-                border: "1px solid var(--k-border)",
-                background: "var(--k-surface)",
-                color: "var(--k-text-primary)",
-              }}
-              placeholder="0"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="k-caption">Maximum FC</span>
-            <input
-              type="number"
-              min={0}
-              step={5000}
-              value={priceRange[1] >= 100000 ? "" : priceRange[1]}
-              onChange={(e) =>
-                onPriceRange([
-                  priceRange[0],
-                  Math.max(0, Number(e.target.value || 100000)),
-                ])
-              }
-              onBlur={() => onPriceCommit(priceRange)}
-              className="rounded-[var(--k-r-sm)] px-2.5 py-2 text-[13px] outline-none"
-              style={{
-                border: "1px solid var(--k-border)",
-                background: "var(--k-surface)",
-                color: "var(--k-text-primary)",
-              }}
-              placeholder="Aucun max"
-            />
-          </label>
-        </div>
+        <PriceSlider
+          value={priceRange}
+          onChange={onPriceRange}
+          onCommit={onPriceCommit}
+        />
       </FilterSection>
 
       <FilterSection title="Note minimum">
-        <div className="flex gap-1.5">
-          {[5, 4, 3].map((n) => (
-            <button
-              key={n}
-              onClick={() => onMinRating(minRating === n ? 0 : n)}
-              className="inline-flex items-center gap-1"
-              style={{
-                padding: "6px 10px",
-                borderRadius: 9999,
-                border: `1px solid ${minRating === n ? "var(--k-primary)" : "var(--k-border)"}`,
-                background:
-                  minRating === n ? "var(--k-primary-subtle)" : "var(--k-surface)",
-                color:
-                  minRating === n ? "var(--k-primary-hover)" : "var(--k-text-body)",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              <Star className="h-3 w-3" style={{ color: "var(--k-warning)" }} />
-              {n}+
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[5, 4, 3].map((n) => {
+            const active = minRating === n;
+            return (
+              <button
+                key={n}
+                onClick={() => onMinRating(active ? 0 : n)}
+                style={{
+                  border: `1px solid ${active ? "var(--k-primary)" : "var(--k-border)"}`,
+                  borderRadius: 999,
+                  background: active
+                    ? "var(--k-primary-subtle)"
+                    : "var(--k-surface)",
+                  color: active
+                    ? "var(--k-primary-hover)"
+                    : "var(--k-text-body)",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                <Star
+                  className="h-3 w-3"
+                  fill="var(--k-warning)"
+                  stroke="none"
+                />{" "}
+                {n}+
+              </button>
+            );
+          })}
         </div>
+      </FilterSection>
+
+      <FilterSection title="Distance">
+        <div
+          className="k-caption k-num"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 8,
+          }}
+        >
+          <span>0 km</span>
+          <span>&lt; {distance} km</span>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={50}
+          value={distance}
+          onChange={(e) => setDistance(Number(e.target.value))}
+          style={{
+            width: "100%",
+            accentColor: "var(--k-primary)",
+          }}
+        />
       </FilterSection>
 
       <FilterSection title="Disponibilité">
         <Toggle
-          label="Accepte les demandes"
+          label="Disponible maintenant"
           value={availableOnly}
           onChange={onAvailable}
+        />
+        <Toggle
+          label="Répond en < 30 min"
+          value={fastResponse}
+          onChange={setFastResponse}
+        />
+        <Toggle
+          label="Accepte le week-end"
+          value={weekend}
+          onChange={setWeekend}
         />
       </FilterSection>
 
       <FilterSection title="Confiance" last>
-        <Toggle
-          label="Vérifié"
-          value={verifiedOnly}
-          onChange={onVerified}
-        />
+        <Toggle label="Vérifié" value={verifiedOnly} onChange={onVerified} />
+        <Toggle label="Top rated" value={topRated} onChange={setTopRated} />
+        <Toggle label="Expert" value={expert} onChange={setExpert} />
       </FilterSection>
     </div>
+  );
+}
+
+function CategoryRow({
+  slug,
+  label,
+  checked,
+  onToggle,
+}: {
+  slug: string;
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const resolved = resolveCategorySlug(slug) as CategorySlug;
+  const tintMap: Record<CategorySlug, { bg: string; fg: string }> = {
+    plomberie: { bg: "#CCFBF1", fg: "#0D9488" },
+    electricite: { bg: "#FEF3C7", fg: "#D97706" },
+    menage: { bg: "#FFE4E6", fg: "#E11D48" },
+    coiffure: { bg: "#FCE7F3", fg: "#BE185D" },
+    informatique: { bg: "#EDE9FE", fg: "#7C3AED" },
+    jardinage: { bg: "#D1FAE5", fg: "#059669" },
+    peinture: { bg: "#DBEAFE", fg: "#2563EB" },
+    transport: { bg: "#E2E8F0", fg: "#475569" },
+    menuiserie: { bg: "#FEF3C7", fg: "#B45309" },
+  };
+  const tint = tintMap[resolved] ?? tintMap.plomberie;
+  const portfolioIconMap: Record<CategorySlug, keyof typeof I> = {
+    plomberie: "wrench",
+    electricite: "zap",
+    menage: "sparkles",
+    coiffure: "scissors",
+    informatique: "laptop",
+    jardinage: "leaf",
+    peinture: "paintbrush",
+    transport: "car",
+    menuiserie: "hammer",
+  };
+  const Icon = I[portfolioIconMap[resolved]] as React.FC<{ size?: number }>;
+  return (
+    <label
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        fontSize: 14,
+        cursor: "pointer",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        style={{ accentColor: "var(--k-primary)" }}
+      />
+      <span
+        aria-hidden
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 6,
+          background: tint.bg,
+          color: tint.fg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {Icon ? <Icon size={14} /> : null}
+      </span>
+      <span style={{ flex: 1, color: "var(--k-text-body)" }}>{label}</span>
+    </label>
+  );
+}
+
+function PriceSlider({
+  value,
+  onChange,
+  onCommit,
+}: {
+  value: [number, number];
+  onChange: (v: [number, number]) => void;
+  onCommit: (v: [number, number]) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef<"min" | "max" | null>(null);
+  const [min, max] = value;
+  const minPct = Math.max(0, Math.min(100, (min / PRICE_MAX) * 100));
+  const maxPct = Math.max(0, Math.min(100, (max / PRICE_MAX) * 100));
+
+  const valueAt = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round((ratio * PRICE_MAX) / 1000) * 1000;
+  };
+
+  const startDrag =
+    (handle: "min" | "max") => (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      draggingRef.current = handle;
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    const v = valueAt(e.clientX);
+    if (draggingRef.current === "min") {
+      onChange([Math.min(v, max - 1000), max]);
+    } else {
+      onChange([min, Math.max(v, min + 1000)]);
+    }
+  };
+
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = null;
+    onCommit([min, max]);
+  };
+
+  const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FC`;
+
+  return (
+    <>
+      <div
+        className="k-caption k-num"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span>{fmt(min)}</span>
+        <span>{fmt(max)}</span>
+      </div>
+      <div
+        ref={trackRef}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={{
+          position: "relative",
+          height: 28,
+          padding: "10px 0",
+          touchAction: "none",
+        }}
+      >
+        <div
+          style={{
+            height: 4,
+            borderRadius: 2,
+            background: "var(--k-border)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: `${minPct}%`,
+            right: `${100 - maxPct}%`,
+            height: 4,
+            borderRadius: 2,
+            background: "var(--k-primary)",
+          }}
+        />
+        {(["min", "max"] as const).map((handle) => {
+          const pct = handle === "min" ? minPct : maxPct;
+          return (
+            <div
+              key={handle}
+              role="slider"
+              aria-label={handle === "min" ? "Prix minimum" : "Prix maximum"}
+              aria-valuemin={0}
+              aria-valuemax={PRICE_MAX}
+              aria-valuenow={handle === "min" ? min : max}
+              tabIndex={0}
+              onPointerDown={startDrag(handle)}
+              style={{
+                position: "absolute",
+                top: 5,
+                left: `calc(${pct}% - 7px)`,
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                background: "white",
+                border: "2px solid var(--k-primary)",
+                cursor: "grab",
+                touchAction: "none",
+              }}
+            />
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -936,7 +1154,16 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between py-1.5 text-[14px]">
+    <label
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "6px 0",
+        fontSize: 14,
+        cursor: "pointer",
+      }}
+    >
       <span style={{ color: "var(--k-text-body)" }}>{label}</span>
       <button
         type="button"
@@ -944,17 +1171,17 @@ function Toggle({
           e.preventDefault();
           onChange(!value);
         }}
+        aria-pressed={value}
         style={{
           width: 36,
           height: 20,
-          borderRadius: 9999,
+          borderRadius: 999,
           border: 0,
           background: value ? "var(--k-primary)" : "var(--k-border)",
           position: "relative",
           cursor: "pointer",
           transition: "background 160ms",
         }}
-        aria-pressed={value}
       >
         <span
           style={{
@@ -971,32 +1198,5 @@ function Toggle({
         />
       </button>
     </label>
-  );
-}
-
-function CategoryMini({ slug }: { slug: string }) {
-  const resolved = resolveCategorySlug(slug);
-  const tintMap: Record<string, { bg: string; fg: string }> = {
-    plomberie: { bg: "#CCFBF1", fg: "#0D9488" },
-    electricite: { bg: "#FEF3C7", fg: "#D97706" },
-    menage: { bg: "#FFE4E6", fg: "#E11D48" },
-    coiffure: { bg: "#FCE7F3", fg: "#BE185D" },
-    informatique: { bg: "#EDE9FE", fg: "#7C3AED" },
-    jardinage: { bg: "#D1FAE5", fg: "#059669" },
-    peinture: { bg: "#DBEAFE", fg: "#2563EB" },
-    transport: { bg: "#E2E8F0", fg: "#475569" },
-    menuiserie: { bg: "#FEF3C7", fg: "#B45309" },
-  };
-  const tint = tintMap[resolved] ?? tintMap.plomberie;
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: 5,
-        background: tint.bg,
-      }}
-    />
   );
 }

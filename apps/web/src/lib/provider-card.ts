@@ -88,5 +88,9 @@ export function toProviderCardData(raw: AnyProvider): ProviderCardData {
     topRated: !!raw.isPremium || (raw.rating ?? 0) >= 4.8,
     online: !!raw.isAvailable,
     avatarUrl: raw.user?.avatar ?? undefined,
+    experienceYears:
+      typeof raw.experience === "number" && raw.experience > 0
+        ? raw.experience
+        : undefined,
   };
 }

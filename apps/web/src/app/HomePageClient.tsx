@@ -11,7 +11,7 @@ import {
   Clock,
   ArrowRight,
 } from "lucide-react";
-import { CategoryTile, FeaturedProviderCard } from "@kayu/ui/web";
+import { CategoryTile, ProviderShowcaseCard } from "@kayu/ui/web";
 import type { ProviderCardData } from "@kayu/ui";
 import { Layout } from "@/components/layout";
 import { resolveCategorySlug } from "@/lib/provider-card";
@@ -223,7 +223,6 @@ function CategoryGrid({
             <CategoryTile
               key={c.id}
               slug={resolveCategorySlug(c.slug)}
-              label={c.name}
               count={c.providersCount}
               size="lg"
               onClick={() => onSelect(c.slug)}
@@ -265,11 +264,11 @@ function FeaturedProviders({
         <EmptyFeatured />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {top.map((p) => (
-            <FeaturedProviderCard
+          {top.map((p, i) => (
+            <ProviderShowcaseCard
               key={p.id}
               provider={p}
-              width="100%"
+              highlight={i === 0}
               onClick={() => onOpen(p.id)}
             />
           ))}

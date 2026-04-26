@@ -24,7 +24,7 @@ Current launch truth:
 | 00 - Product Flow Contract | Ready | Planning | MVP flow guardrails documented |
 | 01 - Canonical Design System | Complete | Codex | Standalone tokens, globals, docs, and `/design-system` route aligned |
 | 02 - Shared UI Primitives | Complete | Codex | Shared primitives and local shadcn wrappers aligned to KAYOU |
-| 03 - Home, Services, Categories | Ready | Unassigned | Discovery visual pass |
+| 03 - Home, Services, Categories | Complete | Codex | New `ProviderShowcaseCard`, polished home + category surfaces |
 | 04 - Provider Profile | Ready | Unassigned | Profile visual pass |
 | 05 - Messages And Final Offer | Ready | Unassigned | Chat/final-offer clarity pass |
 | 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
@@ -208,3 +208,46 @@ Notes / decisions:
 - Product flow was not changed.
 - Existing Radix/shadcn wrappers remain in place; only their default visual mapping changed.
 - Initial validation caught a mobile icon prop mismatch in the new inline alert and stale web declarations before the UI rebuild; both were fixed before the final passing runs above.
+
+## Workstream 03 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `packages/ui/src/web/ProviderShowcaseCard.tsx` (new)
+- `packages/ui/src/web/index.ts`
+- `apps/web/src/app/HomePageClient.tsx`
+- `apps/web/src/app/categories/[slug]/CategoryPageClient.tsx`
+- `apps/web/src/components/providers/index.ts`
+- `apps/web/src/components/providers/ProviderCard.tsx` (deleted)
+- `apps/web/src/app/design/page.tsx`
+
+Behavior implemented:
+
+- Added shared web `ProviderShowcaseCard` matching the standalone prototype: square pastel category icon tile (64px) on the left, name + verified + star rating header on the right, profession · city/commune line, `Réponse en ~Xmin` line, trust chips strip (`Expert`/`De confiance`, `N ans`, distance), optional italic testimonial in French quotes, and a footer row with `À partir de 15 000 FC/h` and a dark filled `Voir le profil` CTA pill. Optional `highlight` prop renders a thin top accent line for the first/featured card.
+- Added `ProviderShowcaseCardSkeleton` mirroring the same anatomy for loading states.
+- Extended `ProviderCardData` with optional `experienceYears` and `testimonial` fields, and mapped backend `experience` through `toProviderCardData`.
+- Wired the home `Pros vérifiés à Kinshasa` grid to use `ProviderShowcaseCard` with the dark `Voir le profil` CTA, replacing `FeaturedProviderCard`. The first card sets `highlight` so it renders the thin blue top accent line from the prototype.
+- Rewrote `CategoryPageClient` to drop the blue/violet gradient header, gradient subcategory tiles, and the legacy local `ProviderCard`, replacing them with KAYOU token-based surfaces, breadcrumb, header card, subcategory tiles, and `ProviderShowcaseCard` for the featured grid.
+- Removed the unused legacy `apps/web/src/components/providers/ProviderCard.tsx` and pruned the providers barrel to keep `QueryProvider` only.
+- Added a `ProviderShowcaseCard` showcase section (with skeleton row) at the top of the `D03 · Photo-forward cards` section in `/design-system`.
+- Discovery routes preserved: `/`, `/services`, `/services?category=...`, `/categories/[slug]`, `/providers/[id]`. No quote/request/protected-payment behavior introduced; price renders via shared `formatHourly` so `15 000 FC/h` and `À partir de 15 000 FC/h` are consistent.
+
+Commands run:
+
+- `pnpm --filter @kayu/ui type-check` - passed
+- `pnpm --filter @kayu/ui build` - passed
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed
+
+Manual checks:
+
+- Production route list still includes `/`, `/services`, `/categories/[slug]`, `/design-system`.
+- Browser visual QA at 320–390 px not run in this pass.
+
+Notes / decisions:
+
+- Kept `FeaturedProviderCard` (4:5) and `WideProviderCard` (search list) as-is; `ProviderShowcaseCard` is the new featured-grid card for home and category pages.
+- `ServicesPageContent` already used the canonical `WideProviderCard` and design tokens, so no change was needed there for this pass.
+- Kept the existing `/providers/[id]` route and product flow; only visual surfaces were touched.

@@ -15,6 +15,8 @@ import {
   NearbyCard,
   NearbyCardSkeleton,
   PhotoTile,
+  ProviderShowcaseCard,
+  ProviderShowcaseCardSkeleton,
   Shimmer,
   StarRating,
   TopRatedRibbon,
@@ -84,6 +86,9 @@ const SAMPLE_PROVIDERS: ProviderCardData[] = [
     verified: true,
     topRated: true,
     online: true,
+    experienceYears: 8,
+    testimonial:
+      "Très professionnel, travail propre et rapide. Je recommande sans hésiter.",
   },
   {
     id: "p2",
@@ -101,6 +106,8 @@ const SAMPLE_PROVIDERS: ProviderCardData[] = [
     distance: 4.1,
     verified: true,
     online: true,
+    experienceYears: 5,
+    testimonial: "Interventions rapides, toujours de bon conseil. Prix correct.",
   },
   {
     id: "p3",
@@ -118,6 +125,8 @@ const SAMPLE_PROVIDERS: ProviderCardData[] = [
     distance: 1.2,
     verified: true,
     topRated: true,
+    experienceYears: 12,
+    testimonial: "Résultat impeccable, elle a pris soin de mes cheveux.",
   },
   {
     id: "p4",
@@ -669,6 +678,37 @@ export default function DesignProbePage() {
                 showAmbient={false}
               />
             </div>
+          </div>
+
+          <h3 style={h3Style}>ProviderShowcaseCard — home/category featured</h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 16,
+              marginBottom: 12,
+            }}
+          >
+            {SAMPLE_PROVIDERS.slice(0, 3).map((p, i) => (
+              <ProviderShowcaseCard
+                key={p.id}
+                provider={p}
+                highlight={i === 0}
+                onClick={(id) => console.log("open", id)}
+              />
+            ))}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 16,
+              marginBottom: 28,
+            }}
+          >
+            <ProviderShowcaseCardSkeleton />
+            <ProviderShowcaseCardSkeleton />
+            <ProviderShowcaseCardSkeleton />
           </div>
 
           <h3 style={h3Style}>FeaturedProviderCard (4:5)</h3>

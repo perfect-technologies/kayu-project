@@ -1,1 +1,1 @@
-export { ProviderCard, ProviderCardSkeleton } from './ProviderCard';
+export { QueryProvider } from "./QueryProvider";

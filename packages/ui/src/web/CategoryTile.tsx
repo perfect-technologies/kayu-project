@@ -48,7 +48,7 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
       style={{
         background: tokens.color.surface,
         border: `1px solid ${tokens.color.border}`,
-        borderRadius: tokens.radius.lg,
+        borderRadius: tokens.radius.md,
         padding: isLg ? 20 : 16,
         display: "flex",
         flexDirection: "column",
@@ -57,6 +57,7 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
         cursor: onClick ? "pointer" : "default",
         textAlign: "left",
         width: "100%",
+        minWidth: 0,
         boxShadow: hovered ? tokens.shadow.e2 : tokens.shadow.e1,
         transform: hovered && onClick ? "translateY(-2px)" : undefined,
         transition: `transform 160ms ${tokens.ease.standard}, box-shadow 160ms ${tokens.ease.standard}`,
@@ -75,18 +76,20 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          flexShrink: 0,
         }}
       >
         {Icon ? <Icon size={isLg ? 24 : 20} /> : null}
       </div>
-      <div>
+      <div style={{ width: "100%", minWidth: 0 }}>
         <div
           style={{
             fontFamily: tokens.font.display,
             fontWeight: 600,
             fontSize: isLg ? 17 : 15,
+            lineHeight: 1.25,
             color: tokens.color.textPrimary,
-            whiteSpace: "nowrap",
+            overflowWrap: "anywhere",
           }}
         >
           {label ?? portfolio.label}
@@ -94,7 +97,7 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
         {count != null ? (
           <div
             style={{
-              fontFamily: tokens.font.body,
+              fontFamily: tokens.font.mono,
               fontSize: 12,
               fontWeight: 500,
               color: tokens.color.textMuted,

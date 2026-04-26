@@ -44,6 +44,15 @@ export type { FeaturedProviderCardProps } from "./FeaturedProviderCard.js";
 export { WideProviderCard } from "./WideProviderCard.js";
 export type { WideProviderCardProps } from "./WideProviderCard.js";
 
+export {
+  ProviderShowcaseCard,
+  ProviderShowcaseCardSkeleton,
+} from "./ProviderShowcaseCard.js";
+export type {
+  ProviderShowcaseCardProps,
+  ProviderShowcaseCardSkeletonProps,
+} from "./ProviderShowcaseCard.js";
+
 export { NearbyCard, NearbyRow } from "./NearbyCard.js";
 export type { NearbyCardProps, NearbyRowProps } from "./NearbyCard.js";
 

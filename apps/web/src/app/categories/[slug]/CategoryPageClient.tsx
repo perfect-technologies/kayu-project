@@ -1,11 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight,
   Users,
@@ -14,35 +10,33 @@ import {
   Home,
   type LucideIcon,
 } from "lucide-react";
-import { ProviderCard } from "@/components/providers";
-import { cn } from "@/lib/utils";
+import { ProviderShowcaseCard } from "@kayu/ui/web";
+import { toProviderCardData } from "@/lib/provider-card";
 
-// Icon mapping with vibrant colors
-const iconMap: Record<string, { icon: LucideIcon; color: string; gradient: string }> = {
-  Sparkles: { icon: Briefcase, color: "#10B981", gradient: "from-emerald-500 to-teal-600" },
-  Droplets: { icon: Briefcase, color: "#3B82F6", gradient: "from-blue-500 to-blue-700" },
-  Zap: { icon: Briefcase, color: "#F59E0B", gradient: "from-amber-500 to-orange-600" },
-  Scissors: { icon: Briefcase, color: "#EC4899", gradient: "from-pink-500 to-rose-600" },
-  GraduationCap: { icon: Briefcase, color: "#06B6D4", gradient: "from-cyan-500 to-teal-600" },
-  HardHat: { icon: Briefcase, color: "#F97316", gradient: "from-orange-500 to-red-600" },
-  TreeDeciduous: { icon: Briefcase, color: "#22C55E", gradient: "from-green-500 to-emerald-600" },
-  Car: { icon: Briefcase, color: "#8B5CF6", gradient: "from-violet-500 to-purple-600" },
-  Truck: { icon: Briefcase, color: "#6366F1", gradient: "from-indigo-500 to-blue-600" },
-  Laptop: { icon: Briefcase, color: "#0EA5E9", gradient: "from-sky-500 to-cyan-600" },
-  Heart: { icon: Briefcase, color: "#EF4444", gradient: "from-red-500 to-rose-600" },
-  Palette: { icon: Briefcase, color: "#D946EF", gradient: "from-fuchsia-500 to-pink-600" },
-  ChefHat: { icon: Briefcase, color: "#84CC16", gradient: "from-lime-500 to-green-600" },
-  Shirt: { icon: Briefcase, color: "#F472B6", gradient: "from-pink-400 to-rose-500" },
-  Snowflake: { icon: Briefcase, color: "#38BDF8", gradient: "from-sky-400 to-blue-500" },
-  Key: { icon: Briefcase, color: "#FBBF24", gradient: "from-amber-400 to-yellow-500" },
-  Baby: { icon: Briefcase, color: "#F9A8D4", gradient: "from-pink-300 to-rose-400" },
-  PartyPopper: { icon: Briefcase, color: "#A855F7", gradient: "from-purple-500 to-violet-600" },
-  Wheat: { icon: Briefcase, color: "#A3E635", gradient: "from-lime-400 to-green-500" },
-  Music: { icon: Briefcase, color: "#C084FC", gradient: "from-purple-400 to-fuchsia-500" },
-  Wrench: { icon: Briefcase, color: "#78716C", gradient: "from-stone-500 to-neutral-600" },
+const iconMap: Record<string, LucideIcon> = {
+  Sparkles: Briefcase,
+  Droplets: Briefcase,
+  Zap: Briefcase,
+  Scissors: Briefcase,
+  GraduationCap: Briefcase,
+  HardHat: Briefcase,
+  TreeDeciduous: Briefcase,
+  Car: Briefcase,
+  Truck: Briefcase,
+  Laptop: Briefcase,
+  Heart: Briefcase,
+  Palette: Briefcase,
+  ChefHat: Briefcase,
+  Shirt: Briefcase,
+  Snowflake: Briefcase,
+  Key: Briefcase,
+  Baby: Briefcase,
+  PartyPopper: Briefcase,
+  Wheat: Briefcase,
+  Music: Briefcase,
+  Wrench: Briefcase,
 };
 
-// Types
 interface Subcategory {
   id: string;
   name: string;
@@ -102,19 +96,18 @@ interface CategoryPageClientProps {
   category: Category;
 }
 
-// Get icon component
-const getCategoryIcon = (iconName: string | null): { icon: LucideIcon; color: string; gradient: string } => {
-  if (iconName && iconMap[iconName]) return iconMap[iconName];
-  return { icon: Briefcase, color: "#64748B", gradient: "from-slate-500 to-gray-600" };
-};
+const getCategoryIcon = (iconName: string | null): LucideIcon =>
+  iconName && iconMap[iconName] ? iconMap[iconName] : Briefcase;
 
-// Breadcrumb component
-function Breadcrumb({ category }: { category: { name: string; slug: string } }) {
+function Breadcrumb({ category }: { category: { name: string } }) {
   return (
-    <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6 overflow-x-auto whitespace-nowrap">
+    <nav
+      className="mb-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap"
+      style={{ color: "var(--k-text-muted)", fontSize: 13 }}
+    >
       <Link
         href="/"
-        className="flex items-center gap-1 hover:text-foreground transition-colors"
+        className="flex items-center gap-1 transition-colors hover:text-[var(--k-text-primary)]"
       >
         <Home className="h-4 w-4" />
         <span className="hidden sm:inline">Accueil</span>
@@ -122,74 +115,97 @@ function Breadcrumb({ category }: { category: { name: string; slug: string } }) 
       <ChevronRight className="h-4 w-4 shrink-0" />
       <Link
         href="/services"
-        className="hover:text-foreground transition-colors"
+        className="transition-colors hover:text-[var(--k-text-primary)]"
       >
         Services
       </Link>
       <ChevronRight className="h-4 w-4 shrink-0" />
-      <span className="text-foreground font-medium truncate">{category.name}</span>
+      <span
+        className="truncate font-medium"
+        style={{ color: "var(--k-text-primary)" }}
+      >
+        {category.name}
+      </span>
     </nav>
   );
 }
 
-// Category Header
 function CategoryHeader({ category }: { category: Category }) {
-  const { icon: IconComponent } = getCategoryIcon(category.icon ?? null);
+  const IconComponent = getCategoryIcon(category.icon ?? null);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-6 md:p-8 lg:p-12 mb-8">
-      {/* Background decorations */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-10 left-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-60 h-60 bg-white/5 rounded-full blur-3xl" />
+    <section
+      className="mb-8 flex flex-col gap-5 rounded-[var(--k-r-lg)] p-6 md:flex-row md:items-center md:p-8"
+      style={{
+        background: "var(--k-surface)",
+        border: "1px solid var(--k-border)",
+        boxShadow: "var(--k-e1)",
+      }}
+    >
+      <div
+        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--k-r-md)] md:h-16 md:w-16"
+        style={{
+          background: "var(--k-primary-subtle)",
+          color: "var(--k-primary-hover)",
+        }}
+      >
+        <IconComponent className="h-7 w-7 md:h-8 md:w-8" />
       </div>
 
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-        {/* Icon */}
-        <div className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-2xl md:rounded-3xl flex items-center justify-center bg-white/20 backdrop-blur-sm shrink-0">
-          <IconComponent className="h-8 w-8 md:h-10 md:w-10 lg:h-12 lg:w-12 text-white" />
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 text-white">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">
-            {category.name}
-          </h1>
-          {category.description && (
-            <p className="text-white/80 text-sm md:text-base lg:text-lg mb-4 max-w-2xl">
-              {category.description}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-3 md:gap-4">
-            <Badge className="bg-white/20 text-white border-0 gap-1.5 px-3 py-1.5">
-              <Users className="h-4 w-4" />
-              {category.providerCount} prestataire{category.providerCount > 1 ? "s" : ""}
-            </Badge>
-            {category.subcategories.length > 0 && (
-              <Badge className="bg-white/20 text-white border-0 gap-1.5 px-3 py-1.5">
-                <Briefcase className="h-4 w-4" />
-                {category.subcategories.length} sous-catégorie{category.subcategories.length > 1 ? "s" : ""}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* View all button */}
-        <Link href={`/services?category=${category.slug}`} className="shrink-0">
-          <Button
-            size="lg"
-            className="bg-white text-blue-600 hover:bg-white/90 h-12 px-6 rounded-xl shadow-xl"
+      <div className="flex-1">
+        <h1 className="k-display-l" style={{ margin: "0 0 6px" }}>
+          {category.name}
+        </h1>
+        {category.description && (
+          <p
+            className="k-body"
+            style={{
+              color: "var(--k-text-muted)",
+              margin: "0 0 14px",
+              maxWidth: 640,
+            }}
           >
-            Voir tous les prestataires
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
-        </Link>
+            {category.description}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium"
+            style={{
+              background: "var(--k-primary-subtle)",
+              color: "var(--k-primary-hover)",
+            }}
+          >
+            <Users className="h-4 w-4" />
+            {category.providerCount} pro{category.providerCount > 1 ? "s" : ""}
+          </span>
+          {category.subcategories.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium"
+              style={{
+                background: "var(--k-surface-muted)",
+                color: "var(--k-text-body)",
+              }}
+            >
+              <Briefcase className="h-4 w-4" />
+              {category.subcategories.length} spécialité
+              {category.subcategories.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
-    </div>
+
+      <Link
+        href={`/services?category=${category.slug}`}
+        className="k-btn k-btn-primary k-btn-lg shrink-0"
+      >
+        Voir tous les pros
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+    </section>
   );
 }
 
-// Subcategories Grid
 function SubcategoriesGrid({
   subcategories,
   categorySlug,
@@ -203,42 +219,53 @@ function SubcategoriesGrid({
 
   return (
     <section className="mb-10">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-            Sous-catégories
-          </h2>
-          <p className="text-gray-500 text-sm mt-1">
-            Explorez les spécialités dans {categoryName}
-          </p>
-        </div>
+      <div className="mb-5">
+        <h2 className="k-display-m" style={{ margin: 0 }}>
+          Spécialités
+        </h2>
+        <p
+          className="k-body-m mt-1"
+          style={{ color: "var(--k-text-muted)" }}
+        >
+          Explore les spécialités dans {categoryName}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {subcategories.map((subcategory) => {
-          const { icon: IconComponent, gradient } = getCategoryIcon(subcategory.icon ?? null);
+          const IconComponent = getCategoryIcon(subcategory.icon ?? null);
           return (
             <Link
               key={subcategory.id}
               href={`/services?category=${categorySlug}&subcategory=${subcategory.slug}`}
-              className="group"
+              className="group flex flex-col items-center justify-center rounded-[var(--k-r-md)] p-4 text-center transition-all"
+              style={{
+                background: "var(--k-surface)",
+                border: "1px solid var(--k-border)",
+                boxShadow: "var(--k-e1)",
+              }}
             >
-              <Card className="h-full border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white rounded-xl overflow-hidden">
-                <CardContent className="p-4 md:p-5 text-center">
-                  <div className={cn(
-                    "w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center mx-auto mb-3 transition-transform group-hover:scale-110 bg-gradient-to-br",
-                    gradient
-                  )}>
-                    <IconComponent className="h-6 w-6 md:h-7 md:w-7 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-sm md:text-base text-gray-900 line-clamp-2 mb-1">
-                    {subcategory.name}
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    {subcategory.providerCount}+ prest.
-                  </p>
-                </CardContent>
-              </Card>
+              <div
+                className="mb-2 flex h-11 w-11 items-center justify-center rounded-[10px] transition-transform group-hover:scale-105"
+                style={{
+                  background: "var(--k-primary-subtle)",
+                  color: "var(--k-primary-hover)",
+                }}
+              >
+                <IconComponent className="h-5 w-5" />
+              </div>
+              <h3
+                className="line-clamp-2 text-[14px] font-semibold"
+                style={{ color: "var(--k-text-primary)" }}
+              >
+                {subcategory.name}
+              </h3>
+              <p
+                className="k-caption mt-1"
+                style={{ color: "var(--k-text-muted)" }}
+              >
+                {subcategory.providerCount}+ pros
+              </p>
             </Link>
           );
         })}
@@ -247,121 +274,141 @@ function SubcategoriesGrid({
   );
 }
 
-// Featured Providers Section
 function FeaturedProviders({
   providers,
   categoryName,
   categorySlug,
+  onOpen,
 }: {
   providers: Category["featuredProviders"];
   categoryName: string;
   categorySlug: string;
+  onOpen: (id: string) => void;
 }) {
   if (providers.length === 0) {
     return (
       <section className="mb-10">
-        <Card className="border-0 shadow-lg rounded-xl">
-          <CardContent className="p-8 md:p-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <Users className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Aucun prestataire disponible
-            </h3>
-            <p className="text-gray-500 mb-4">
-              Il n&apos;y a pas encore de prestataires dans cette catégorie.
-            </p>
-            <Link href="/services">
-              <Button variant="outline">
-                Voir tous les services
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div
+          className="rounded-[var(--k-r-lg)] p-10 text-center"
+          style={{
+            background: "var(--k-surface)",
+            border: "1px solid var(--k-border)",
+          }}
+        >
+          <div
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ background: "var(--k-surface-muted)" }}
+          >
+            <Users
+              className="h-7 w-7"
+              style={{ color: "var(--k-text-muted)" }}
+            />
+          </div>
+          <h3 className="k-heading mb-2">Aucun pro disponible</h3>
+          <p
+            className="k-body mb-4"
+            style={{ color: "var(--k-text-muted)" }}
+          >
+            Pas encore de pros dans cette catégorie.
+          </p>
+          <Link href="/services" className="k-btn k-btn-secondary">
+            Voir tous les services
+          </Link>
+        </div>
       </section>
     );
   }
 
   return (
     <section className="mb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Badge className="mb-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-            Top prestataires
-          </Badge>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-            Meilleurs prestataires en {categoryName}
+          <div
+            className="k-overline"
+            style={{ color: "var(--k-accent)", marginBottom: 6 }}
+          >
+            Top pros
+          </div>
+          <h2 className="k-display-m" style={{ margin: 0 }}>
+            Meilleurs pros en {categoryName}
           </h2>
         </div>
-        <Link href={`/services?category=${categorySlug}`}>
-          <Button variant="outline" className="gap-2 rounded-xl">
-            Voir tous
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+        <Link
+          href={`/services?category=${categorySlug}`}
+          className="k-btn k-btn-ghost"
+        >
+          Voir tous <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {providers.map((provider) => (
-          <ProviderCard key={provider.id} provider={provider} />
+          <ProviderShowcaseCard
+            key={provider.id}
+            provider={toProviderCardData(provider)}
+            ctaLabel="Voir le profil"
+            onClick={() => onOpen(provider.id)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-// Main Client Component
 export function CategoryPageClient({ category }: CategoryPageClientProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubcategoryClick = (subcategorySlug: string) => {
-    setIsLoading(true);
-    router.push(`/services?category=${category.slug}&subcategory=${subcategorySlug}`);
-  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="container mx-auto px-4 py-6 md:py-8">
-        {/* Breadcrumb */}
+    <div style={{ background: "var(--k-bg)", minHeight: "100vh" }}>
+      <div className="mx-auto max-w-[1240px] px-5 py-6 md:px-10 md:py-8">
         <Breadcrumb category={category} />
 
-        {/* Category Header */}
         <CategoryHeader category={category} />
 
-        {/* Subcategories Grid */}
         <SubcategoriesGrid
           subcategories={category.subcategories}
           categorySlug={category.slug}
           categoryName={category.name}
         />
 
-        {/* Featured Providers */}
         <FeaturedProviders
           providers={category.featuredProviders}
           categoryName={category.name}
           categorySlug={category.slug}
+          onOpen={(id) => router.push(`/providers/${id}`)}
         />
 
-        {/* View All Providers CTA */}
         {category.providerCount > 6 && (
-          <div className="text-center py-8">
-            <Card className="inline-block border-0 shadow-lg rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50">
-              <CardContent className="p-6 md:p-8">
-                <p className="text-gray-600 mb-4">
-                  Découvrez les <strong>{category.providerCount}</strong> prestataires en {category.name}
-                </p>
-                <Link href={`/services?category=${category.slug}`}>
-                  <Button
-                    size="lg"
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg"
-                  >
-                    Voir tous les prestataires en {category.name}
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+          <div className="py-6 text-center">
+            <div
+              className="inline-flex flex-col items-center rounded-[var(--k-r-lg)] p-6 md:p-8"
+              style={{
+                background: "var(--k-surface)",
+                border: "1px solid var(--k-border)",
+                boxShadow: "var(--k-e1)",
+              }}
+            >
+              <p
+                className="k-body mb-4"
+                style={{ color: "var(--k-text-body)" }}
+              >
+                Découvre les{" "}
+                <b
+                  className="k-num"
+                  style={{ color: "var(--k-text-primary)" }}
+                >
+                  {category.providerCount}
+                </b>{" "}
+                pros en {category.name}
+              </p>
+              <Link
+                href={`/services?category=${category.slug}`}
+                className="k-btn k-btn-primary k-btn-lg"
+              >
+                Voir tous les pros en {category.name}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         )}
       </div>

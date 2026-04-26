@@ -27,6 +27,10 @@ export type ProviderCardData = {
   verified?: boolean;
   topRated?: boolean;
   online?: boolean;
+  /** Years of experience, used as a trust chip on the showcase card. */
+  experienceYears?: number;
+  /** Short verbatim review used as a quote on the showcase card. */
+  testimonial?: string;
 };
 
 // Resolve the portfolio category for a provider, defaulting to plomberie when
