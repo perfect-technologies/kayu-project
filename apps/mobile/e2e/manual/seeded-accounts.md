@@ -7,11 +7,11 @@ These accounts come from `apps/backend/prisma/seed-demo.ts` and are the stable m
 - Client: `Paul Kabasele`
   - Email: `paul.kabasele@email.cd`
   - Password: `Password123!`
-  - Use for direct booking, first-message bootstrap, quote acceptance, and completed-booking review.
+  - Use for direct booking, first-message bootstrap, final-offer acceptance/decline, cash completion checks, and completed-booking review.
 - Provider: `Jean-Pierre Mukendi`
   - Email: `jeanpierre.mukendi@kayou.cd`
   - Password: `Password123!`
-  - Use for booking confirmation/start/completion and quote creation.
+  - Use for booking confirmation/completion, cash receipt confirmation, final-offer creation, and provider conversation checks.
 - Admin: `Admin KAYOU`
   - Email: `admin@kayou.cd`
   - Password: `Password123!`
@@ -28,4 +28,4 @@ These accounts come from `apps/backend/prisma/seed-demo.ts` and are the stable m
 
 - Auth role-selection coverage is manual because seeded demo accounts are already role-locked.
 - The direct-booking, messaging, and review flows are designed to create their own fresh booking state during the smoke pass, so they do not depend on a specific seeded booking id.
-- Quote acceptance should only be run if the request/quote flow remains visible in launch scope.
+- Job request and quote-comparison flows are hidden for the Kinshasa launch and should only be run with launch flags explicitly enabled for internal regression testing.

@@ -27,7 +27,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 05 - Discovery Filters And Provider Profile | Done | Codex | Discovery filters/profile surfaces are launch-truthful; fake map/distance/availability claims removed |
 | 06 - Cash Payment And Copy Cleanup | Done | Codex | Launch-facing payment/lifecycle copy aligned to cash-first MVP; payout/mobile-money/en-route/arrived claims removed |
 | 07 - Provider Operations And Dashboards | Done | Codex | Provider dashboards now handle direct bookings, messages, completion, and cash history |
-| 08 - Launch QA And Smoke Tests | Not started | Unassigned | Final smoke scenarios and release evidence |
+| 08 - Launch QA And Smoke Tests | In review | Codex | Automated launch smoke complete; manual mobile checklist still needs device/simulator execution |
 
 ## Decisions Log
 
@@ -473,6 +473,63 @@ Commands run:
 - `pnpm --filter @kayu/backend test:launch` - passed, 59 tests.
 - `git diff --check` - passed.
 - `rg -n "(/pro/requests|/pro/devis|Envoyer un devis|Nouveau devis|Virement|Mobile Money|retrait|payout|PAYOUT|demande qualifiée|paiement sécurisé|En route|Arrivé)" apps/web/src/app/pro apps/web/src/components/bookings apps/mobile/src/screens/pro apps/mobile/src/screens/bookings apps/backend/src/modules/earnings -g '!*.map'` - remaining request/quote matches are hidden flag-gated routes/components; remaining payout/mobile-money matches are backend/API code identifiers and hidden payout endpoints, not launch-facing provider UI.
+
+## Workstream 08 Evidence
+
+Status: In review as of 2026-04-26.
+
+Automated QA is complete, but the Workstream 08 acceptance criteria are not fully met until the manual mobile smoke checklist is executed on a simulator or physical device and pass/fail results are recorded.
+
+Changed files:
+
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts`
+- `apps/mobile/e2e/manual/launch-critical-smoke.md`
+- `apps/mobile/e2e/manual/seeded-accounts.md`
+- `docs/kinshasa-mvp-implementation/PROGRESS.md`
+
+Behavior implemented:
+
+- Added a full backend launch smoke scenario through the real Nest controllers and guards.
+- The smoke creates a fresh client identity through `/me`, selects the client role, completes profile, searches providers by category/city, opens a provider profile, starts chat, verifies provider inbox/reply, creates a direct booking, confirms/completes it, confirms cash payment as provider, creates a client review, accepts one final offer, declines another final offer, and continues discussion.
+- Extended the launch harness in-memory Prisma double to support provider search/profile, conversation/message reads, booking/final-offer listing, review persistence, deterministic message ordering, and cash earning evidence.
+- Refreshed the mobile manual runbook so the launch pass covers signup/discovery, direct contact, direct booking, cash completion, completed-booking review, final offer accept/decline, and launch-scope guards.
+- Updated seeded manual-smoke account notes for final-offer/cash launch flows and removed quote-acceptance as a launch scenario.
+
+Automated smoke pass/fail:
+
+- Client signup and discovery: Pass in backend launch smoke (`new-client-token`, category `plomberie`, city `Kinshasa`, provider `provider_1`).
+- Direct contact/chat: Pass in backend launch smoke (`client-token` sends first message, `provider-token` sees inbox and replies).
+- Direct booking: Pass in backend launch smoke (`PENDING` direct booking created and visible to provider).
+- Booking completion and cash: Pass in backend launch smoke (`CONFIRMED` -> hidden backend `IN_PROGRESS` -> `COMPLETED`; provider confirms `cash` payment).
+- Review: Pass in backend launch smoke (client review accepted only after completed booking).
+- Final offer: Pass in backend launch smoke (provider sends cash final offer; client accepts into `CONFIRMED` booking; second offer declined; chat remains usable).
+- Launch scope guard: Pass by static source inspection and flag verification; one remaining `Envoyer un devis` string is inside `launchFlags.enableJobRequests` gated mobile request-card code and is not visible with default launch flags.
+
+Accounts/seed data used:
+
+- Automated harness tokens: `new-client-token`, `client-token`, `provider-token`.
+- Automated harness users: smoke client `+243810000123`, seeded-like client `client_user_1`, provider user `provider_user_1`, provider `provider_1` (`Plombier`, `Kinshasa`, category `plomberie`).
+- Manual runbook accounts: `Paul Kabasele` (`paul.kabasele@email.cd`) and `Jean-Pierre Mukendi` (`jeanpierre.mukendi@kayou.cd`) from `apps/mobile/e2e/manual/seeded-accounts.md`.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend test:launch` - passed, 60 tests.
+- `pnpm test:launch` - passed; schemas type-check/build, API type-check/build, backend launch tests, backend type-check, and mobile type-check all passed.
+- `pnpm --filter @kayu/web type-check` - passed.
+- `rg -n "Devis|devis|paiement sécurisé|Paiement sécurisé|secure payment|paiement en ligne|Paiement en ligne|mobile money|Mobile money|facture|Facture|En route|en route|Arrivé|arrivé|arrived|Démarrer|demandes qualifiées|comparer|comparaison" apps/web/src/app/page.tsx apps/web/src/app/HomePageClient.tsx apps/web/src/app/services apps/web/src/app/categories apps/web/src/app/providers apps/web/src/app/book apps/web/src/app/bookings apps/web/src/app/messages apps/web/src/components/provider-profile apps/web/src/components/bookings apps/web/src/components/providers apps/web/src/lib/booking-v2.ts apps/mobile/src/screens/home apps/mobile/src/screens/search apps/mobile/src/screens/booking apps/mobile/src/screens/bookings apps/mobile/src/screens/messages apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx apps/mobile/src/components/bookings apps/mobile/src/navigation/AppNavigator.tsx -g '!*.map'` - only `apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx:924` matched `Envoyer un devis`; source inspection confirmed it is inside the disabled `launchFlags.enableJobRequests` block.
+- `sed -n '1,120p' apps/web/src/lib/launch-flags.ts && sed -n '1,120p' apps/mobile/src/lib/launchFlags.ts` - default launch flags remain opt-in via env vars.
+- `rg -n "enableJobRequests|enableQuoteMarketplace" apps/web/src/lib/launch-flags.ts apps/mobile/src/lib/launchFlags.ts apps/mobile/src/navigation/AppNavigator.tsx apps/web/src/components/layout/AppShell.tsx apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx apps/web/src/app/pro/ProviderDashboardClient.tsx` - request/quote navigation and dashboard surfaces are flag-gated.
+
+Manual QA record:
+
+- Mobile manual checklist updated in `apps/mobile/e2e/manual/launch-critical-smoke.md`.
+- Manual seeded account preconditions updated in `apps/mobile/e2e/manual/seeded-accounts.md`.
+- Not completed: no simulator or physical-device walkthrough was executed in this terminal session, so the manual checklist is pending.
+
+Remaining risks:
+
+- P0: None found.
+- P1: Run the refreshed mobile manual smoke checklist on a simulator or physical device against seeded local/staging data before a release candidate.
 
 ## How To Update This File
 
