@@ -34,9 +34,11 @@ import {
   ChevronDown,
   Crown,
   Shield,
-  Users,
+  ShieldCheck,
   Inbox,
-  FileText,
+  Layers,
+  Coins,
+  Flag,
   BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -69,12 +71,12 @@ const providerNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
-  { name: 'Tableau de bord', href: '/dashboard/admin?tab=overview', icon: LayoutDashboard },
-  { name: 'Utilisateurs', href: '/dashboard/admin?tab=users', icon: Users },
-  { name: 'Prestataires', href: '/dashboard/admin?tab=providers', icon: Briefcase },
-  { name: 'Catégories', href: '/dashboard/admin?tab=categories', icon: FileText },
-  { name: 'Avis', href: '/dashboard/admin?tab=reviews', icon: MessageSquare },
-  { name: 'Support', href: '/dashboard/admin?tab=support', icon: HelpCircle },
+  { name: "Vue d'ensemble", href: '/dashboard/admin?tab=overview', icon: LayoutDashboard },
+  { name: 'Vérifications', href: '/dashboard/admin?tab=verification', icon: BadgeCheck },
+  { name: 'Litiges', href: '/dashboard/admin?tab=disputes', icon: Flag },
+  { name: 'Modération', href: '/dashboard/admin?tab=moderation', icon: ShieldCheck },
+  { name: 'Catégories', href: '/dashboard/admin?tab=categories', icon: Layers },
+  { name: 'Payouts', href: '/dashboard/admin?tab=payouts', icon: Coins },
 ];
 
 function SidebarContent({

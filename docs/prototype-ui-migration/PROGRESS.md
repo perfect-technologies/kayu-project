@@ -29,7 +29,7 @@ Current launch truth:
 | 05 - Messages And Final Offer | Complete | Codex | Chat/final-offer clarity pass for web and mobile |
 | 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
 | 07 - Bookings And Provider Dashboard | Ready | Unassigned | Accepted-offer/job surfaces |
-| 08 - Ops Admin, Settings, Error States | Ready | Unassigned | Full prototype Ops Admin and role-aware Settings replacement |
+| 08 - Ops Admin, Settings, Error States | Complete | Codex | Prototype Ops Admin and role-aware Settings shipped at `/dashboard/admin` and `/dashboard/settings` |
 | 09 - Mobile Responsive QA | Ready | Unassigned | Viewport and launch UI QA |
 
 ## Decisions Log
@@ -344,3 +344,75 @@ Notes / decisions:
 
 - Product flow remains chat-first: final offers are created and acted on inside the conversation.
 - Cash wording remains visible wherever the final offer mentions payment.
+
+## Workstream 08 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `apps/web/src/app/dashboard/admin/page.tsx`
+- `apps/web/src/app/dashboard/settings/page.tsx`
+
+Behavior implemented:
+
+- Replaced the previous shadcn-style admin dashboard with the prototype Ops Admin information architecture: dark sticky sub-header with KAYOU Ops branding, INTERNE badge, six section tabs (`Vue d'ensemble`, `Vérifications`, `Litiges`, `Modération`, `Catégories`, `Payouts`), system health indicator, and admin avatar pill. Section tabs persist via the `?tab=` query param so deep links and the AppShell sidebar items still resolve.
+- `Vue d'ensemble` renders prototype-style KPI cards (`Réservations aujourd'hui`, `Recette mensuelle`, `Pros vérifiés`, `Réservations confirmées`) wired to `dashboardApi.getAdminDashboard()`, plus a token-driven queue summary, a top-cities bar list, and a recent-activity feed with status badges. Money formats use `FC` everywhere; no raw `CDF`.
+- `Vérifications` queues `adminApi.getVerificationSubmissions()` with status filters (`Tous` / `En revue` / `Vérifiés` / `Rejetés`) and a search input, expands inline doc rows with approve/reject actions wired to `adminApi.reviewVerificationDoc()`, and surfaces SLA-style stats from the API response.
+- `Litiges` lists `adminApi.getDisputes()` as severity-bordered cards with a sticky right-rail decision panel: status chips, client/pro statements, free-text resolution note + optional refund pct, and three operational actions wired to `adminApi.updateDispute()` (mark investigating, escalate, close with required note).
+- `Modération` consolidates the existing `Utilisateurs`, `Pros`, `Avis` queues (still admin-only) with KAYOU chips and search, wired to existing `adminApi.getUsers/getProviders/getReviews/updateUser/updateProvider/moderateReview` endpoints.
+- `Catégories` reads `adminApi.getCategories({ includeInactive: true })` and renders KAYOU category cards; create/edit moved to a follow-up note rather than left as a fake form.
+- `Payouts` is intentionally an honest empty state explaining that the Kinshasa MVP is cash-only, with a `Bientôt disponible` chip — no fake batch UI.
+- Replaced the old three-tab Settings page with a role-aware sidebar layout that follows the prototype `SettingsAccount` IA. Client variant exposes Profil / Langue / Paiement / Notifications / Confidentialité / Sécurité / Aide / Zone dangereuse. Provider variant adds Services & tarifs / Disponibilités / Zones d'intervention. The sidebar uses grouped headers (`perso`, `préférences`, `compte`, plus `métier` for pros) with KAYOU surface tokens, an avatar/footer card, and a logout shortcut. No client/provider merge — each role only sees its own sections.
+- `Profil` is the only fully wired settings surface — it reads from `useAuth()`, edits prénom/nom/téléphone/ville and saves through `identityApi.completeProfile()`. E-mail is read-only with an honest note. After save it calls `refreshUser()` so the AppShell avatar updates.
+- `Confidentialité` for providers reuses the existing `VisibilitySettings` component (so visibility persistence is not regressed). Client variant uses prototype-style toggle rows with disabled state and `Bientôt disponible` markers — no silent fake persistence.
+- `Paiement`, `Notifications`, `Sécurité` (sessions), `Services & tarifs`, `Disponibilités`, `Zones d'intervention`, and the danger-zone destructive actions are honestly disabled with `Bientôt disponible` chips or marked “À demander au support” because the backend does not support them yet. The cash-first launch wording is reaffirmed in `Paiement` (no Mobile Money promise, no commission).
+- `Zone dangereuse` ships only one live action — `Se déconnecter de cet appareil` — and explicitly marks pause/delete as support-only. No fake mutations, no unguarded destructive button.
+- Mobile UX mirrors the prototype `SettingsMobile`: list-first navigation with a sticky back header on the detail view; on desktop the sidebar + content panes remain visible side-by-side.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed (Next 16.2.3 / Turbopack); `/dashboard/admin` and `/dashboard/settings` present in the static route list.
+- `curl -I --max-time 6 http://localhost:3000/dashboard/admin` - passed (200 from running dev server)
+- `curl -I --max-time 6 http://localhost:3000/dashboard/settings` - passed (200 from running dev server)
+
+Manual checks:
+
+- Section navigation in `/dashboard/admin?tab=…` switches between overview / verification / disputes / moderation / categories / payouts without horizontal layout breakage at desktop width.
+- Admin-only operational copy (vérifications, modération, payouts, litiges) only renders inside `/dashboard/admin/*` — neither `/dashboard/settings` nor any client/provider route mentions Mobile Money receipt, payouts, refunds, or commission.
+- `/dashboard/settings` renders the right variant per role: signed-in clients see the client IA, providers see the provider IA with the métier group; provider-only sections do not appear for clients.
+- Empty admin queues (no submissions, no disputes, no categories) render the shared `EmptyOpsState` calmly instead of a broken table.
+- Money everywhere on admin uses `FC`, not `CDF`; per-mille formatting via `Intl.NumberFormat('fr-FR')`.
+- All settings rows that lack backend persistence are visibly disabled or carry the `Bientôt disponible` chip; only the wired actions (profile save, logout) are interactive.
+
+Notes / decisions:
+
+- AppShell stays in place for admin (the dashboard layout already wraps it). The prototype's dark top navbar is rendered as a sticky sub-header inside the page content rather than replacing AppShell, so global shortcuts (notifications, account menu, sidebar nav) remain available; the sub-header still gets the `KAYOU Ops` branding, `INTERNE` mono pill, section tabs and system-health indicator from the prototype.
+- The prototype's mobile message for admin (`Interface réservée aux équipes — utilisez un ordinateur`) was relaxed in favour of letting AppShell handle the responsive shell. Admin remains desktop-first but stays usable on tablet/mobile because the dark sub-header scrolls horizontally and section bodies use 1-column grids below the lg breakpoint.
+- Used existing real backend data (`dashboardApi.getAdminDashboard`, `adminApi.getVerificationSubmissions`, `adminApi.getDisputes`, `adminApi.getUsers/getProviders/getReviews/getCategories`) rather than the prototype's hard-coded `ADMIN_KPIS` / `VERIFICATION_QUEUE` / `DISPUTES` / `PAYOUT_QUEUE` mocks. Mock-only sections (geo split with hard-coded GMV, sparkline of fake bookings, country flag chips) were dropped or replaced by API-derived equivalents (top-cities bars, queue counts) so the dashboard stays honest.
+- Settings deliberately avoids inventing M-Pesa / Airtel Money / MTN MoMo onboarding flows from the prototype since the backend does not store mobile-money operator settings yet; cash-first wording is repeated in the Paiement section to prevent regressions on launch wording.
+- `VisibilitySettings` was preserved because it is the one settings persistence surface that already works end-to-end. Plumbing it under `Confidentialité` for providers means we do not regress the only working settings persistence.
+
+Prototype extraction evidence:
+
+- Prototype file inspected: `/Users/alainmk/Downloads/KAYOU Prototype _standalone_.html` (self-extracting bundler — assets unpacked locally to read JSX source).
+- Prototype components extracted from the bundle: `AdminOps` (`6121ff06-…`), `SettingsAccount` (`b9fd7de9-…`), and cross-referenced against `NotificationsCenter` (`37496d47-…`), `ErrorStatesGallery` (`d85a1a9d-…`), `ProVerification` (`ae05a8ac-…`), `ProviderDashboard` (`94bf3d55-…`).
+- Prototype screens/components used: `AdminOps` overview KPIs / verification queue / disputes detail / activity feed; `SettingsAccount` two-pane sidebar IA, grouped section headers, sectioned card pattern with `CardTitle/FieldRow/Toggle/TextField`, mobile detail-with-back-arrow navigation, and the `DangerSection` row pattern.
+- Prototype behavior intentionally adapted or rejected: prototype "country flag" chips for CD/CG were dropped (out of scope for Kinshasa launch); the `BookingsBars` 14-day sparkline was replaced by API-driven Top Cities since `dashboardApi.getAdminDashboard()` doesn't return per-day bookings; the prototype's hard-coded "Mobile Money" payout batch UI was replaced by an honest empty state per the contract; the prototype's `VerificationDetailDrawer` was simplified to an inline expandable doc list to keep the existing `/dashboard/admin` shell and avoid a fixed-position drawer competing with AppShell; the prototype's mobile "ops dashboard reserved for office" splash was dropped in favour of standard responsive layout; SettingsAccount's "Côté client / Côté pro" toggle was removed (we render the variant from `useAuth()` role instead, per the contract — no merging, no role spoofing UI).
+
+### Workstream 08 follow-up (2026-04-26)
+
+Review feedback applied before sign-off:
+
+- Fixed `apps/web/src/components/layout/AppShell.tsx` admin nav: replaced the stale `?tab=users|providers|reviews|categories|support` links with the new section IDs (`overview`, `verification`, `disputes`, `moderation`, `categories`, `payouts`) and matching icons (BadgeCheck, Flag, ShieldCheck, Layers, Coins). Side nav and admin page tabs now reference the same set, so deep links no longer silently fall back to overview.
+- Fixed `apps/web/src/app/dashboard/settings/page.tsx` desktop layout: the sidebar/main panes are no longer gated on `mobileOpen`. Sidebar uses `${mobileOpen ? 'hidden' : 'block'} lg:block` and main uses `${mobileOpen ? 'block' : 'hidden lg:block'}`, so on `lg+` both panes stay visible after a section click; mobile keeps the prototype list-then-detail flow with the sticky back header.
+- Added `ConfirmAction` (built on the existing shadcn `AlertDialog`) and wrapped every destructive admin action in `apps/web/src/app/dashboard/admin/page.tsx`: doc reject / doc approve, user désactiver/réactiver, pro suspendre/réactiver, avis masquer/republier. Each dialog spells out the consequence (search visibility, login, public profile) and reuses the destructive button color when the action removes access. Approving a doc also passes through the dialog so the audit trail is consistent. Pending mutations disable the trigger and show wait cursor.
+
+Re-run validation:
+
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed (`/dashboard/admin`, `/dashboard/settings` still in the static route list)
+- `curl -I "http://localhost:3000/dashboard/admin?tab=verification"` - 200
+- `curl -I "http://localhost:3000/dashboard/admin?tab=moderation"` - 200
+- `curl -I "http://localhost:3000/dashboard/settings"` - 200
