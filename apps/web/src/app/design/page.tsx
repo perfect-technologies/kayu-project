@@ -16,7 +16,6 @@ import {
   NearbyCardSkeleton,
   PhotoTile,
   Shimmer,
-  ShimmerStyles,
   StarRating,
   TopRatedRibbon,
   TrustChip,
@@ -185,7 +184,7 @@ export default function DesignProbePage() {
               marginBottom: 8,
             }}
           >
-            KAYOU Design v2 · D01 probe
+            KAYOU Design System
           </div>
           <h1
             style={{
@@ -193,7 +192,7 @@ export default function DesignProbePage() {
               fontSize: tokens.size.displayL.fontSize,
               lineHeight: `${tokens.size.displayL.lineHeight}px`,
               fontWeight: tokens.size.displayL.weight,
-              letterSpacing: "-0.028em",
+              letterSpacing: 0,
               margin: 0,
             }}
           >
@@ -381,8 +380,6 @@ export default function DesignProbePage() {
         </Section>
 
         <Section title="Primitives">
-          <ShimmerStyles />
-
           <h3 style={h3Style}>Button · variants × sizes</h3>
           <div
             style={{
@@ -586,7 +583,7 @@ export default function DesignProbePage() {
               height: 140,
               background: tokens.color.surface,
               border: `1px solid ${tokens.color.border}`,
-              borderRadius: tokens.radius.xl,
+              borderRadius: tokens.radius.lg,
               boxShadow: tokens.shadow.e3,
               marginBottom: 28,
               display: "flex",
@@ -634,7 +631,7 @@ export default function DesignProbePage() {
           >
             <div
               style={{
-                borderRadius: tokens.radius.xl,
+                borderRadius: tokens.radius.lg,
                 overflow: "hidden",
                 boxShadow: tokens.shadow.e3,
               }}
@@ -647,7 +644,7 @@ export default function DesignProbePage() {
             </div>
             <div
               style={{
-                borderRadius: tokens.radius.xl,
+                borderRadius: tokens.radius.lg,
                 overflow: "hidden",
                 boxShadow: tokens.shadow.e3,
               }}
@@ -857,7 +854,7 @@ function Section({
           fontSize: tokens.size.displayM.fontSize,
           lineHeight: `${tokens.size.displayM.lineHeight}px`,
           fontWeight: tokens.size.displayM.weight,
-          letterSpacing: "-0.02em",
+          letterSpacing: 0,
           margin: "0 0 16px",
         }}
       >

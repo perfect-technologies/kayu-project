@@ -24,6 +24,7 @@
   --color-k-surface-expert: #EEF2FF;
 
   /* Text */
+  --color-k-text-primary: #0F172A;
   --color-k-ink: #0F172A;
   --color-k-text-body: #334155;
   --color-k-text-muted: #64748B;
@@ -53,8 +54,9 @@
   /* Radius */
   --radius-k-sm: 8px;
   --radius-k-md: 12px;
-  --radius-k-lg: 16px;
-  --radius-k-xl: 20px;
+  --radius-k-lg: 20px;
+  --radius-k-xl: 28px;
+  /* Backward-compatible alias for old consumers. New code should use xl. */
   --radius-k-xxl: 28px;
   --radius-k-pill: 9999px;
 
@@ -111,8 +113,9 @@
 
   --k-r-sm: 8px;
   --k-r-md: 12px;
-  --k-r-lg: 16px;
-  --k-r-xl: 20px;
+  --k-r-lg: 20px;
+  --k-r-xl: 28px;
+  /* Backward-compatible alias for old consumers. New code should use xl. */
   --k-r-xxl: 28px;
 
   --k-e1: 0 2px 8px -3px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.04);
@@ -178,8 +181,8 @@
 
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
   --radius-2xl: 28px;
   --radius-3xl: 28px;
 }
@@ -279,22 +282,23 @@
    ======================================== */
 
 @layer components {
-  .k-display-xl { font-family: var(--k-font-display); font-weight: 700; font-size: 36px; line-height: 1.05; letter-spacing: -0.02em; }
-  .k-display-l  { font-family: var(--k-font-display); font-weight: 700; font-size: 28px; line-height: 1.1;  letter-spacing: -0.02em; }
-  .k-display-m  { font-family: var(--k-font-display); font-weight: 600; font-size: 24px; line-height: 1.15; letter-spacing: -0.01em; }
+  .k-display-xl { font-family: var(--k-font-display); font-weight: 700; font-size: 36px; line-height: 38px; letter-spacing: 0; }
+  .k-display-l  { font-family: var(--k-font-display); font-weight: 700; font-size: 28px; line-height: 32px; letter-spacing: 0; }
+  .k-display-m  { font-family: var(--k-font-display); font-weight: 600; font-size: 24px; line-height: 28px; letter-spacing: 0; }
   .k-heading    { font-family: var(--k-font-display); font-weight: 600; font-size: 20px; line-height: 1.25; }
-  .k-body-l     { font-family: var(--k-font-body); font-weight: 400; font-size: 17px; line-height: 1.5; }
-  .k-body       { font-family: var(--k-font-body); font-weight: 400; font-size: 15px; line-height: 1.5; }
-  .k-body-m     { font-family: var(--k-font-body); font-weight: 500; font-size: 14px; line-height: 1.45; }
-  .k-caption    { font-family: var(--k-font-body); font-weight: 500; font-size: 12px; line-height: 1.35; color: var(--k-text-muted); }
+  .k-body-l     { font-family: var(--k-font-body); font-weight: 400; font-size: 17px; line-height: 26px; }
+  .k-body       { font-family: var(--k-font-body); font-weight: 400; font-size: 15px; line-height: 23px; }
+  .k-body-m     { font-family: var(--k-font-body); font-weight: 500; font-size: 14px; line-height: 20px; }
+  .k-caption    { font-family: var(--k-font-body); font-weight: 500; font-size: 12px; line-height: 16px; color: var(--k-text-muted); }
   .k-overline   { font-family: var(--k-font-body); font-weight: 600; font-size: 11px; line-height: 1.2; text-transform: uppercase; letter-spacing: 0.08em; color: var(--k-text-muted); }
-  .k-price      { font-family: var(--k-font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .k-price      { font-family: var(--k-font-mono); font-weight: 600; font-size: 17px; line-height: 17px; font-variant-numeric: tabular-nums; }
   .k-num        { font-variant-numeric: tabular-nums; }
 
   @media (min-width: 768px) {
-    .k-display-xl { font-size: 56px; }
-    .k-display-l  { font-size: 40px; }
-    .k-display-m  { font-size: 28px; }
+    .k-display-xl { font-size: 56px; line-height: 59px; }
+    .k-display-l  { font-size: 40px; line-height: 44px; }
+    .k-display-m  { font-size: 28px; line-height: 32px; }
+    .k-price      { font-size: 20px; line-height: 20px; }
   }
 
   .k-card {
@@ -389,9 +393,9 @@
    KEYFRAMES — shimmer + a couple of fades
    ======================================== */
 
-@keyframes kShimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+@keyframes kayu-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
 
 @keyframes kFadeIn {
@@ -420,9 +424,9 @@
 
 @layer utilities {
   .animate-k-shimmer {
-    background: linear-gradient(90deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.10) 50%, rgba(15,23,42,0.04) 100%);
-    background-size: 200% 100%;
-    animation: kShimmer 1.6s linear infinite;
+    background: linear-gradient(90deg, var(--k-surface-muted) 0%, var(--k-border) 50%, var(--k-surface-muted) 100%);
+    background-size: 800px 100%;
+    animation: kayu-shimmer 1600ms linear infinite;
   }
   .animate-k-fade-in { animation: kFadeIn 240ms var(--k-ease-std) both; }
 

@@ -56,7 +56,7 @@ export const FeaturedProviderCard: React.FC<FeaturedProviderCardProps> = ({
           width: (width ?? "78%") as ViewStyle["width"],
           maxWidth: typeof width === "number" ? undefined : 320,
           backgroundColor: tokens.color.surface,
-          borderRadius: tokens.radius.xl,
+          borderRadius: tokens.radius.lg,
           overflow: "hidden",
           transform: [{ scale: pressed ? 0.98 : 1 }],
           // Two-layer shadow approximation — RN can only set one shadow object.

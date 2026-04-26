@@ -24,7 +24,7 @@ export const FeaturedProviderCardSkeleton: React.FC<
       maxWidth: typeof width === "number" ? undefined : 320,
       flexShrink: 0,
       background: tokens.color.surface,
-      borderRadius: tokens.radius.xl,
+      borderRadius: tokens.radius.lg,
       overflow: "hidden",
       boxShadow: tokens.shadow.e3,
       ...style,
@@ -50,7 +50,7 @@ export const WideProviderCardSkeleton: React.FC<
     className={className}
     style={{
       background: tokens.color.surface,
-      borderRadius: tokens.radius.xl,
+      borderRadius: tokens.radius.lg,
       overflow: "hidden",
       boxShadow: tokens.shadow.e3,
       ...style,
@@ -97,7 +97,7 @@ export const NearbyCardSkeleton: React.FC<{ rows?: number; style?: React.CSSProp
     aria-hidden
     style={{
       background: tokens.color.surface,
-      borderRadius: tokens.radius.xl,
+      borderRadius: tokens.radius.lg,
       boxShadow: tokens.shadow.e3,
       padding: "4px 16px",
       ...style,

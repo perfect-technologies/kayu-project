@@ -126,6 +126,7 @@ export const color = {
   surfaceEmerald:  '#ECFDF5',
   surfaceCoral:    '#FFF1F2',
   surfaceAmber:    '#FFFBEB',
+  surfaceRose:     '#FEF2F2',
   surfaceExpert:   '#EEF2FF',  // Indigo-50 (Expert tier only)
 
   // Text
@@ -240,14 +241,14 @@ Defaults:
 |---|---|---|
 | `radius.sm` | 8 | Inputs, small buttons, badges |
 | `radius.md` | 12 | Buttons, form containers, settings rows, inline chips |
-| `radius.lg` | 16 | **Default card radius** — photo cards, nearby grouped cards, setting cards, option cards in forms |
-| `radius.xl` | 20 | Featured photo cards, large sheets, mobile profile hero |
-| `radius.xxl` | 28 | Modals, bottom sheets, full-screen sheet corners |
+| `radius.lg` | 20 | Default card radius, featured cards, large sheets, mobile profile hero |
+| `radius.xl` | 28 | Modals, bottom sheets, full-screen sheet corners |
+| `radius.xxl` | 28 | Backward-compatible alias for `radius.xl`; do not use in new code |
 | `radius.pill` | 9999 | Filter pills, avatar, role chips, bottom tab bar |
 
-> **Rule:** avatars and tab bars are `pill`. Buttons are `md` (12). **Photo-forward content cards are `lg` (16)**. Featured carousel cards go `xl` (20). Mobile booking step cards are `lg` (16). Don't exceed `xl` in content UI — oversized radius reads as a kids' app.
+> **Rule:** avatars and tab bars are `pill`. Buttons are `md` (12). Content cards and featured carousel cards are `lg` (20). Full-screen sheets and modals use `xl` (28). `xxl` exists only so older code keeps compiling.
 
-> **Change from v1:** the default card radius moved up from 12 → 16 to match the Airbnb language. 12 is still correct for buttons and tight form inputs. This is the single biggest visual shift from the first design system.
+> **Change from v1:** the default card radius moved up to 20 to match the standalone design system. 12 is still correct for buttons and tight form inputs.
 
 ### 5.3 Elevation — soft lifted shadows (the Airbnb move)
 
@@ -412,7 +413,7 @@ KAYOU has two canonical provider card layouts: a **featured** variant (carousels
 #### Card shell
 
 - Background: `Paper` (#FFFFFF)
-- Radius: `radius.xl` (20) for featured, `radius.lg` (16) for wide and nearby-list cards
+- Radius: `radius.lg` (20) for featured, wide, and nearby-list cards
 - Shadow: `elev.3` (photo-forward default)
 - **No border.** The shadow is the containment.
 - Hover (web): subtle `translateY(-2px)` + shadow bumps one level
@@ -480,7 +481,7 @@ Instead of rendering N shadowed cards in a vertical list, group them in **one** 
 └─────────────────────────────────────────┘
 ```
 
-- Outer card: Paper, `radius.xl` (20), `elev.3`, padding `4px 16px`
+- Outer card: Paper, `radius.lg` (20), `elev.3`, padding `4px 16px`
 - Each row: 12px vertical padding, gap 12px, 1px bottom border except last
 - Left adornment: 84×84 rounded work tile (radius 14) with small category icon (top-left) and small avatar (bottom-right, 28px)
 - Right adornment: price `14k FC` in Price font + "/heure" Caption below
@@ -582,7 +583,7 @@ For the legacy half-sheet filter pattern (slide up from bottom): keep as an **al
 
 When showing a list of fields (booking summary, account settings, profile sections):
 
-- One outer Paper card with `radius.lg` (16) and `elev.2`
+- One outer Paper card with `radius.lg` (20) and `elev.2`
 - Each row: 14–16px vertical padding, 12px gap
 - Left: a 36×36 rounded-square (radius 10) Slate-100 bg with a 16px icon in Slate-700
 - Middle: Caption label + Body-M value (semibold)
@@ -633,7 +634,7 @@ Every list view has an empty state.
    - Headline's second line uses gradient text (Sky 500 → Coral 500) — this is the **only** place gradient text is permitted in the product
    - Hero background: Sand + two tiny radial gradients (Sky 9%, Coral 6%), no photo
 3. **Category grid** — 6 `CategoryTile`s in a 6-column grid, `size=lg`. Each tile: Paper card, `radius.lg`, `elev.1` on hover, icon-in-tinted-square, category name + count.
-4. **Featured providers** — 3-column grid of photo-forward `ProviderCard`s (featured variant, 4:5 photo, `radius.xl`, `elev.3`). Section overline "Top rated cette semaine" in Coral.
+4. **Featured providers** — 3-column grid of photo-forward `ProviderCard`s (featured variant, 4:5 photo, `radius.lg`, `elev.3`). Section overline "Top rated cette semaine" in Coral.
 5. **How it works** — 3 numbered steps (`01/02/03` in Price font), each with a category-tinted icon square, heading, body.
 6. **Provider CTA banner** — large Coral-gradient panel (Coral-50 → Coral-100 → Amber-50) with "Tu es un pro ? Rejoins KAYOU." Display-L, a mock earnings card on the right showing a weekly bar chart.
 7. **Footer** — 4-column grid (brand + 3 link columns), bottom bar with copyright + "Fait à Kinshasa, avec soin."
@@ -671,7 +672,7 @@ Every list view has an empty state.
 - **Category strip** (same as home)
 - **Filter pills row** (horizontal scroll): Disponible · Vérifié · < 20 km · Top rated · Expert
 - **Result summary**: "N pros disponibles" (19px Display, bold) + Trier link with chevron
-- **Results list**: full-width `WideProviderCard`s (16:11 photo, `radius.xl`, `elev.3`), 16px vertical gap
+- **Results list**: full-width `WideProviderCard`s (16:11 photo, `radius.lg`, `elev.3`), 16px vertical gap
 - **Floating Liste/Carte toggle** at bottom center (above tab bar): ink-900 pill, white text, icon + label
 - **Full-screen filter sheet** when sliders tapped (see §8.10)
 
@@ -910,13 +911,15 @@ export const tokens = {
     8: 32, 10: 40, 12: 48, 16: 64, 20: 80, 24: 96,
   },
   radius: {
-    sm: 8, md: 12, lg: 20, xl: 28, pill: 9999,
+    sm: 8, md: 12, lg: 20, xl: 28, xxl: 28, pill: 9999,
   },
   shadow: {
     none: 'none',
-    e1: '0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(14,165,233,0.06)',
-    e2: '0 4px 8px rgba(15,23,42,0.04), 0 8px 24px rgba(14,165,233,0.08)',
-    e3: '0 8px 16px rgba(15,23,42,0.05), 0 20px 48px rgba(14,165,233,0.12)',
+    e1: '0 2px 8px -3px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.04)',
+    e2: '0 4px 14px -6px rgba(15,23,42,0.10), 0 1px 3px -1px rgba(15,23,42,0.05)',
+    e3: '0 8px 28px -10px rgba(15,23,42,0.16), 0 2px 6px -2px rgba(15,23,42,0.06)',
+    e4: '0 10px 32px -10px rgba(15,23,42,0.28), 0 2px 6px -2px rgba(15,23,42,0.08)',
+    brand: '0 4px 14px -4px rgba(14,165,233,0.30)',
   },
   font: {
     display: "'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
@@ -949,22 +952,7 @@ export const tokens = {
 
 ### Tailwind mapping (web)
 
-The `apps/web` Tailwind config consumes `tokens` and maps to `colors`, `spacing`, `borderRadius`, `boxShadow`, `fontFamily`, `fontSize`. Example:
-
-```ts
-// apps/web/tailwind.config.ts (excerpt)
-colors: {
-  bg: tokens.color.bg,
-  surface: tokens.color.surface,
-  ink: tokens.color.textPrimary,
-  // ...
-  primary: {
-    DEFAULT: tokens.color.primary,
-    hover: tokens.color.primaryHover,
-    subtle: tokens.color.primarySubtle,
-  },
-}
-```
+`apps/web/src/app/globals.css` mirrors `tokens` through Tailwind v4 `@theme inline` variables and `:root` custom properties. Use `--k-*` for hand-authored CSS and `k-*` Tailwind utilities where available.
 
 ### React Native theme (mobile)
 

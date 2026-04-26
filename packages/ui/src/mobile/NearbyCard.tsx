@@ -194,7 +194,7 @@ export const NearbyCard: React.FC<NearbyCardProps> = ({
     style={[
       {
         backgroundColor: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         paddingHorizontal: 16,
         paddingVertical: 4,
         shadowColor: "#0F172A",

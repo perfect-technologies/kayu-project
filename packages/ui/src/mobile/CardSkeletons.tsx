@@ -19,7 +19,7 @@ export const FeaturedProviderCardSkeleton: React.FC<
         maxWidth: typeof width === "number" ? undefined : 320,
         flexShrink: 0,
         backgroundColor: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         overflow: "hidden",
         shadowColor: "#0F172A",
         shadowOffset: { width: 0, height: 8 },
@@ -48,7 +48,7 @@ export const WideProviderCardSkeleton: React.FC<{ style?: ViewStyle }> = ({
     style={[
       {
         backgroundColor: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         overflow: "hidden",
         shadowColor: "#0F172A",
         shadowOffset: { width: 0, height: 8 },
@@ -105,7 +105,7 @@ export const NearbyCardSkeleton: React.FC<{ rows?: number; style?: ViewStyle }> 
     style={[
       {
         backgroundColor: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         paddingHorizontal: 16,
         paddingVertical: 4,
         shadowColor: "#0F172A",

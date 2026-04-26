@@ -45,7 +45,7 @@ export const WideProviderCard: React.FC<WideProviderCardProps> = ({
         flexDirection: "column",
         cursor: handleClick ? "pointer" : "default",
         background: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         overflow: "hidden",
         boxShadow: tokens.shadow.e3,
         transform: hovered && handleClick ? "translateY(-2px)" : undefined,

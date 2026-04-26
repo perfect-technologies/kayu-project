@@ -40,7 +40,7 @@ export const WideProviderCard: React.FC<WideProviderCardProps> = ({
       style={({ pressed }) => [
         {
           backgroundColor: tokens.color.surface,
-          borderRadius: tokens.radius.xl,
+          borderRadius: tokens.radius.lg,
           overflow: "hidden",
           transform: [{ scale: pressed ? 0.98 : 1 }],
           shadowColor: "#0F172A",

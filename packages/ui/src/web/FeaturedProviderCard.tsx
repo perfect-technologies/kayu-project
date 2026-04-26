@@ -53,7 +53,7 @@ export const FeaturedProviderCard: React.FC<FeaturedProviderCardProps> = ({
         width: width ?? "78%",
         maxWidth: typeof width === "number" ? undefined : 320,
         background: tokens.color.surface,
-        borderRadius: tokens.radius.xl,
+        borderRadius: tokens.radius.lg,
         overflow: "hidden",
         boxShadow: tokens.shadow.e3,
         transform: hovered && handleClick ? "translateY(-2px)" : undefined,

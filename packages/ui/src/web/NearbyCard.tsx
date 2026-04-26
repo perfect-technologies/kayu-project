@@ -211,7 +211,7 @@ export const NearbyCard: React.FC<NearbyCardProps> = ({
     className={className}
     style={{
       background: tokens.color.surface,
-      borderRadius: tokens.radius.xl,
+      borderRadius: tokens.radius.lg,
       boxShadow: tokens.shadow.e3,
       padding: "4px 16px",
       ...style,

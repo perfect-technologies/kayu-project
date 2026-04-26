@@ -62,8 +62,9 @@ export const tokens = {
   radius: {
     sm: 8,
     md: 12,
-    lg: 16,
-    xl: 20,
+    lg: 20,
+    xl: 28,
+    // Backward-compatible alias for old consumers. New code should use xl.
     xxl: 28,
     pill: 9999,
   },
