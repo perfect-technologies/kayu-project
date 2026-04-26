@@ -27,7 +27,7 @@ Current launch truth:
 | 03 - Home, Services, Categories | Complete | Codex | New `ProviderShowcaseCard`, polished home + category surfaces |
 | 04 - Provider Profile | Complete | Codex | Profile body sections aligned to KAYOU section/chip system |
 | 05 - Messages And Final Offer | Complete | Codex | Chat/final-offer clarity pass for web and mobile |
-| 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
+| 06 - Auth And Provider Onboarding | Complete | Codex | Standalone onboarding page, draft persistence fix, auth/onboarding visual polish |
 | 07 - Bookings And Provider Dashboard | Ready | Unassigned | Accepted-offer/job surfaces |
 | 08 - Ops Admin, Settings, Error States | Complete | Codex | Prototype Ops Admin and role-aware Settings shipped at `/dashboard/admin` and `/dashboard/settings` |
 | 09 - Mobile Responsive QA | Ready | Unassigned | Viewport and launch UI QA |
@@ -416,3 +416,93 @@ Re-run validation:
 - `curl -I "http://localhost:3000/dashboard/admin?tab=verification"` - 200
 - `curl -I "http://localhost:3000/dashboard/admin?tab=moderation"` - 200
 - `curl -I "http://localhost:3000/dashboard/settings"` - 200
+
+## Workstream 06 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `apps/web/src/app/auth/AuthFlow.tsx`
+- `apps/web/src/app/pro/layout.tsx`
+- `apps/web/src/app/pro/onboarding/ProviderOnboardingClient.tsx`
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `docs/prototype-ui-migration/PROGRESS.md`
+
+Behavior implemented:
+
+- Kept the existing phone OTP auth flow and role routing intact, while polishing the auth entry with the real KAYOU logo mark and normalized display letter spacing.
+- Made `/pro/onboarding` render as its own standalone page by opting it out of the `/pro` AppShell. The pro dashboard sidebar remains on `/pro`, `/pro/earnings`, `/pro/requests`, etc., but no longer appears during onboarding.
+- Fixed provider onboarding draft persistence: the métier title now maps to backend `profession`, bio maps to backend `description`, and backend draft hydration restores both correctly.
+- Added explicit draft flushes before step navigation, draft exit, and publish, so the latest form edits are not lost if the user clicks immediately after typing.
+- Preserved local draft recovery but no longer lets an empty backend draft wipe optimistic local values during hydration.
+- Added visible draft save state (`Brouillon local`, `Sauvegarde…`, `Brouillon sauvegardé`, error state) without changing backend contracts.
+- Removed required ID upload from step validation. ID documents remain optional and can be completed after publication, matching the backend publish requirements and avoiding heavy KYC at launch.
+- Kept pricing as simple hourly guidance plus discussion/final-price copy. No required Mobile Money setup, protected payment, commission, payout, or quote marketplace setup was introduced.
+- Improved mobile responsiveness for onboarding grids and the step indicator; 390px view uses compact step circles.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed (Next 16.2.3 / Turbopack); `/auth` and `/pro/onboarding` present in the route list.
+- `pnpm --filter @kayu/mobile type-check` - passed
+- `pnpm dlx playwright@1.51.1 screenshot --channel=chrome --viewport-size=1440,1000 --wait-for-timeout=1500 http://localhost:3000/auth /tmp/kayou-auth-desktop.png` - passed
+- `pnpm dlx playwright@1.51.1 screenshot --channel=chrome --viewport-size=390,844 --wait-for-timeout=1500 http://localhost:3000/auth /tmp/kayou-auth-mobile.png` - passed
+- `pnpm dlx playwright@1.51.1 screenshot --channel=chrome --viewport-size=390,844 --wait-for-timeout=1500 http://localhost:3000/pro/onboarding /tmp/kayou-onboarding-redirect-mobile.png` - passed
+- `curl -I --max-time 5 http://localhost:3000/auth` - passed
+- `curl -s --max-time 5 http://localhost:3000/pro/onboarding | rg -n "Tableau de bord|Mes réservations|Devenir pro|Chargement|__next|Prêt à publier" | head -20` - confirmed onboarding route loads the onboarding page chunk and does not server-render the pro sidebar labels.
+
+Manual checks:
+
+- `/auth` desktop 1440px screenshot checked: country selector, phone input, trust note, dev shortcuts, and brand-side panel render without overlap.
+- `/auth` mobile 390px screenshot checked: controls fit within the viewport, country tabs and phone input do not overflow, and dev shortcuts stack cleanly.
+- `/pro/onboarding` mobile route check: unauthenticated local session correctly redirects to auth after showing the protected loading state; server-rendered route content includes the onboarding page client and no AppShell sidebar labels.
+- Code-level check that `/pro/onboarding` is the only `/pro/*` route opted out of `AppShell`.
+- Search check confirmed touched auth/onboarding surfaces do not add `Mobile Money`, `Paiement sécurisé`, `Remboursement`, `Commission KAYOU`, payout, or public quote-marketplace wording.
+
+Notes / decisions:
+
+- The current backend publish path requires name, phone, profession, primary category, service zones, and hourly rate; it does not require identity documents. The UI now matches that launch-safe contract.
+- Onboarding remains API-backed through `onboardingApi.getDraft`, `patchDraft`, and `publish`. No new backend endpoints or auth contracts were added.
+- Browser plugin in-app Node REPL control was not exposed in this session, so local screenshot QA used Playwright CLI with the installed Chrome channel.
+- Authenticated `/pro/onboarding` visual QA was limited by the local browser session not being signed in; the protected route and standalone-shell behavior were verified via route HTML, build route list, and unauthenticated redirect behavior.
+
+### Workstream 06 follow-up (2026-04-26)
+
+Category selection update:
+
+- Provider onboarding now allows up to three service categories on web and mobile instead of a single primary category.
+- Web/mobile category selection now uses backend category IDs from the categories API instead of hardcoded design-token slugs, fixing the case where the UI showed three selected categories but the payload only sent one.
+- The draft API accepts `categoryIds` with a max of 3 while keeping `primaryCategoryId` for backward compatibility and first-category semantics.
+- Backend onboarding saves all selected categories to `ProviderCategory` on draft patch and publish.
+- Web/mobile onboarding now carries real `subcategoryIds` in form state, shows selected-category subcategory chips, and sends them through the draft API. Subcategory/trade resolution no longer truncates to 3; selected subcategories can materialize as many provider trades as the backend resolves.
+- Provider languages now persist to a real `Provider.languages` Prisma column instead of living only in temporary onboarding JSON. Draft patch and publish both hydrate that column, and provider API responses include `languages`.
+- Skill/specialty suggestions now merge across all selected categories, and the copy says providers can add as many specialties as needed.
+
+Changed files:
+
+- `packages/schemas/src/dto.ts`
+- `packages/schemas/src/models.ts`
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/src/modules/onboarding/onboarding.service.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`
+- `apps/backend/src/modules/providers/providers.service.ts`
+- `apps/web/src/app/pro/onboarding/types.ts`
+- `apps/web/src/app/pro/onboarding/ProviderOnboardingClient.tsx`
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `apps/mobile/src/screens/pro/onboardingData.ts`
+- `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx`
+
+Re-run validation:
+
+- `pnpm --filter @kayu/schemas type-check` - passed
+- `pnpm --filter @kayu/schemas build` - passed
+- `pnpm --filter @kayu/backend type-check` - passed
+- `pnpm --filter @kayu/backend test:onboarding` - passed
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed
+- `pnpm --filter @kayu/mobile type-check` - passed
+- `pnpm --filter @kayu/mobile lint && pnpm --filter @kayu/web lint` - passed; both scripts currently report `no linter configured`
+- `pnpm --filter @kayu/backend prisma:generate` - passed
+- `pnpm db:push` - passed; local PostgreSQL schema is in sync and includes `Provider.languages`
+- `curl -s 'http://localhost:3000/api/categories?withSubcategories=true' | node -e ...` - passed; old UI tokens `plomberie`, `electricite`, `transport` resolve to three backend category IDs

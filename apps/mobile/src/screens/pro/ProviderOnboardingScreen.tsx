@@ -24,7 +24,6 @@ import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 import type { ProviderStackParamList } from '@/navigation/AppNavigator';
 import {
-  CATEGORY_LIST,
   CITIES,
   HOURLY_PRESETS,
   LANGUAGES,
@@ -69,6 +68,7 @@ const EMPTY_DATA: OnboardingData = {
   phone: '',
   id: {},
   categories: [],
+  subcategoryIds: [],
   title: '',
   years: '',
   skills: [],
@@ -106,24 +106,100 @@ function numberToYearsLabel(value: number | undefined): string {
   return '';
 }
 
-type CategoryIndex = { id: string; slug: string }[];
+type CategoryIndex = {
+  id: string;
+  slug: string;
+  name: string;
+  subcategories?: Array<{ id: string; name: string; slug?: string; categoryId?: string }>;
+}[];
 
-function findSlug(categories: CategoryIndex, id: string | undefined): CategorySlug | null {
-  if (!id) return null;
-  const match = categories.find((c) => c.id === id);
-  return (match?.slug ?? null) as CategorySlug | null;
+const CATEGORY_SLUGS: CategorySlug[] = [
+  'plomberie',
+  'electricite',
+  'menage',
+  'coiffure',
+  'informatique',
+  'jardinage',
+  'peinture',
+  'transport',
+  'menuiserie',
+];
+
+const CATEGORY_KEYWORDS: Array<[CategorySlug, string[]]> = [
+  ['plomberie', ['plomb', 'sanitaire', 'chauffe', 'canalisation', 'eau']],
+  ['electricite', ['elect', 'energie', 'snel', 'tableau']],
+  ['menage', ['menage', 'nettoyage', 'entretien']],
+  ['coiffure', ['coiff', 'beaute', 'barbier']],
+  ['informatique', ['inform', 'ordinateur', 'reseau', 'tech', 'it']],
+  ['jardinage', ['jardin', 'vert']],
+  ['peinture', ['peint']],
+  ['transport', ['transport', 'livraison', 'demenagement', 'course']],
+  ['menuiserie', ['menuis', 'bois', 'charp']],
+];
+
+function normalizeCategoryText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
-function findId(categories: CategoryIndex, slug: string | undefined): string | null {
-  if (!slug) return null;
-  return categories.find((c) => c.slug === slug)?.id ?? null;
+function isCategorySlug(value: string): value is CategorySlug {
+  return CATEGORY_SLUGS.includes(value as CategorySlug);
+}
+
+function categoryToTokenSlug(category: CategoryIndex[number]): CategorySlug {
+  if (isCategorySlug(category.slug)) return category.slug;
+  const normalized = normalizeCategoryText(
+    `${category.slug} ${category.name} ${(category.subcategories ?? [])
+      .map((subcategory) => `${subcategory.id} ${subcategory.name}`)
+      .join(' ')}`,
+  );
+  return (
+    CATEGORY_KEYWORDS.find(([, keywords]) =>
+      keywords.some((keyword) => normalized.includes(keyword)),
+    )?.[0] ?? 'informatique'
+  );
+}
+
+function categoryVisual(category: CategoryIndex[number]) {
+  return theme.portfolio[categoryToTokenSlug(category)];
+}
+
+function resolveCategoryIds(values: Array<string | undefined>, categories: CategoryIndex) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const match =
+      categories.find((category) => category.id === value) ??
+      categories.find((category) => category.slug === value) ??
+      categories.find((category) =>
+        (category.subcategories ?? []).some(
+          (subcategory) =>
+            subcategory.id === value ||
+            subcategory.slug === value ||
+            subcategory.name.toLowerCase() === value.toLowerCase(),
+        ),
+      ) ??
+      categories.find((category) => categoryToTokenSlug(category) === value);
+    if (match && !seen.has(match.id)) {
+      ids.push(match.id);
+      seen.add(match.id);
+    }
+  }
+  return ids.slice(0, 3);
 }
 
 function backendToData(
   draft: ProviderDraftDto,
   categories: CategoryIndex,
 ): Partial<OnboardingData> {
-  const primarySlug = findSlug(categories, draft.primaryCategoryId);
+  const draftCategoryIds =
+    draft.categoryIds && draft.categoryIds.length > 0
+      ? draft.categoryIds
+      : [draft.primaryCategoryId];
+  const selectedCategoryIds = resolveCategoryIds(draftCategoryIds, categories);
   return {
     firstName: draft.firstName ?? '',
     lastName: draft.lastName ?? '',
@@ -132,7 +208,8 @@ function backendToData(
       front: draft.idFrontUploaded ?? undefined,
       back: draft.idBackUploaded ?? undefined,
     },
-    categories: primarySlug ? [primarySlug] : [],
+    categories: selectedCategoryIds,
+    subcategoryIds: draft.subcategoryIds ?? [],
     title: draft.profession ?? '',
     years: numberToYearsLabel(draft.yearsOfExperience),
     skills: (draft.skills ?? []).map((skill) => skill.name),
@@ -148,7 +225,8 @@ function backendToData(
 }
 
 function dataToBackend(data: OnboardingData, categories: CategoryIndex): ProviderDraftDto {
-  const primaryId = findId(categories, data.categories[0]);
+  const categoryIds = resolveCategoryIds(data.categories, categories);
+  const primaryId = categoryIds[0];
   const zones = data.zones
     .map((key) => {
       const [city, commune] = key.split('|');
@@ -164,6 +242,9 @@ function dataToBackend(data: OnboardingData, categories: CategoryIndex): Provide
     idFrontUploaded: Boolean(data.id.front),
     idBackUploaded: Boolean(data.id.back),
     primaryCategoryId: primaryId ?? undefined,
+    categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+    subcategoryIds:
+      data.subcategoryIds.length > 0 ? data.subcategoryIds : undefined,
     profession: data.title || undefined,
     skills: data.skills.map((name) => ({ name, level: 3 })),
     yearsOfExperience: data.years ? YEARS_TO_NUMBER[data.years] : undefined,
@@ -188,7 +269,7 @@ export function ProviderOnboardingScreen() {
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories.all,
-    queryFn: () => api.categories.getAll(),
+    queryFn: () => api.categories.getAll({ withSubcategories: true }),
   });
 
   const draftQuery = useQuery({
@@ -342,11 +423,23 @@ export function ProviderOnboardingScreen() {
           <Text style={styles.subtitle}>{SUBS[step]}</Text>
 
           {step === 1 && <StepIdentity data={data} setData={updateData} />}
-          {step === 2 && <StepCraft data={data} setData={updateData} />}
+          {step === 2 && (
+            <StepCraft
+              data={data}
+              setData={updateData}
+              categoryOptions={categoriesQuery.data?.categories ?? []}
+            />
+          )}
           {step === 3 && <StepZones data={data} setData={updateData} />}
           {step === 4 && <StepPricing data={data} setData={updateData} />}
           {step === 5 && <StepProfile data={data} setData={updateData} />}
-          {step === 6 && <StepPublish data={data} setData={updateData} />}
+          {step === 6 && (
+            <StepPublish
+              data={data}
+              setData={updateData}
+              categoryOptions={categoriesQuery.data?.categories ?? []}
+            />
+          )}
         </ScrollView>
 
         {/* Sticky CTA */}
@@ -375,6 +468,7 @@ export function ProviderOnboardingScreen() {
 type StepProps = {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
+  categoryOptions?: CategoryIndex;
 };
 
 function FieldLabel({
@@ -496,27 +590,67 @@ function StepIdentity({ data, setData }: StepProps) {
   );
 }
 
-function StepCraft({ data, setData }: StepProps) {
-  const primary = data.categories[0];
-  const suggestions = primary ? SKILL_SUGGESTIONS[primary] ?? [] : [];
+function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
+  const selectedCategoryIds = resolveCategoryIds(data.categories, categoryOptions);
+  const selectedCategorySet = new Set(selectedCategoryIds);
+  const suggestions = Array.from(
+    new Set(
+      selectedCategoryIds.flatMap((categoryId) => {
+        const category = categoryOptions.find((option) => option.id === categoryId);
+        if (!category) return [];
+        return SKILL_SUGGESTIONS[categoryToTokenSlug(category)] ?? [];
+      }),
+    ),
+  );
+  const categoryLimitReached = selectedCategoryIds.length >= 3;
+  const selectedSubcategories = categoryOptions
+    .filter((category) => selectedCategorySet.has(category.id))
+    .flatMap((category) => category.subcategories ?? []);
+  const toggleSubcategory = (id: string) => {
+    setData({
+      subcategoryIds: data.subcategoryIds.includes(id)
+        ? data.subcategoryIds.filter((x) => x !== id)
+        : [...data.subcategoryIds, id],
+    });
+  };
   return (
     <View style={{ gap: 18 }}>
       <View>
-        <FieldLabel label="Catégorie principale" hint="Tu pourras en ajouter plus tard." />
+        <FieldLabel
+          label="Catégories de service"
+          hint={`${selectedCategoryIds.length}/3 sélectionnée${selectedCategoryIds.length > 1 ? 's' : ''}. Choisis jusqu'à trois catégories.`}
+        />
         <View style={styles.categoryGrid}>
-          {CATEGORY_LIST.map((slug) => {
-            const p = theme.portfolio[slug];
+          {categoryOptions.map((category) => {
+            const p = categoryVisual(category);
             const IconC = (I as Record<string, React.FC<{ size?: number; color?: string }>>)[
               p.iconName
             ] ?? I.wrench;
-            const isSel = data.categories.includes(slug);
+            const isSel = selectedCategorySet.has(category.id);
             return (
               <Pressable
-                key={slug}
-                onPress={() => setData({ categories: isSel ? [] : [slug] })}
+                key={category.id}
+                onPress={() => {
+                  if (isSel) {
+                    const removedSubcategoryIds = new Set(
+                      category.subcategories?.map((subcategory) => subcategory.id) ??
+                        [],
+                    );
+                    setData({
+                      categories: selectedCategoryIds.filter((id) => id !== category.id),
+                      subcategoryIds: data.subcategoryIds.filter(
+                        (id) => !removedSubcategoryIds.has(id),
+                      ),
+                    });
+                    return;
+                  }
+                  if (categoryLimitReached) return;
+                  setData({ categories: [...selectedCategoryIds, category.id] });
+                }}
                 style={[
                   styles.categoryTile,
                   isSel && { borderColor: p.accent, backgroundColor: p.bg },
+                  !isSel && categoryLimitReached && { opacity: 0.55 },
                 ]}
               >
                 <View
@@ -527,13 +661,45 @@ function StepCraft({ data, setData }: StepProps) {
                 >
                   <IconC size={18} color={p.accent} />
                 </View>
-                <Text style={styles.categoryLabel}>{p.label}</Text>
+                <Text style={styles.categoryLabel}>{category.name}</Text>
                 {isSel ? <I.check size={15} color={p.accent} /> : null}
+                {!isSel && categoryLimitReached ? (
+                  <I.lock size={14} color={theme.colors.textSubtle} />
+                ) : null}
               </Pressable>
             );
           })}
         </View>
       </View>
+
+      {selectedSubcategories.length > 0 && (
+        <View>
+          <FieldLabel
+            label="Sous-catégories"
+            optional
+            hint="Sélectionne toutes les spécialités pertinentes. Pas de limite."
+          />
+          <View style={styles.chipRow}>
+            {selectedSubcategories.map((subcategory) => {
+              const isSel = data.subcategoryIds.includes(subcategory.id);
+              return (
+                <Pressable
+                  key={subcategory.id}
+                  onPress={() => toggleSubcategory(subcategory.id)}
+                  style={[styles.chip, isSel && styles.chipPrimary]}
+                >
+                  <Text
+                    style={[styles.chipText, isSel && styles.chipTextPrimary]}
+                  >
+                    {isSel ? '✓ ' : ''}
+                    {subcategory.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <View>
         <FieldLabel
@@ -576,7 +742,7 @@ function StepCraft({ data, setData }: StepProps) {
           <FieldLabel
             label="Compétences"
             optional
-            hint="Ajoute 3 à 8 spécialités."
+            hint="Ajoute autant de spécialités que nécessaire."
           />
           <View style={styles.chipRow}>
             {suggestions.map((s) => {
@@ -904,9 +1070,10 @@ function StepProfile({ data, setData }: StepProps) {
   );
 }
 
-function StepPublish({ data, setData }: StepProps) {
-  const primary = data.categories[0];
-  const cat = primary ? theme.portfolio[primary] : theme.portfolio.plomberie;
+function StepPublish({ data, setData, categoryOptions = [] }: StepProps) {
+  const primaryId = resolveCategoryIds(data.categories, categoryOptions)[0];
+  const primaryCategory = categoryOptions.find((category) => category.id === primaryId);
+  const cat = primaryCategory ? categoryVisual(primaryCategory) : theme.portfolio.plomberie;
   const hourly = data.hourly || 15000;
   return (
     <View style={{ gap: 18 }}>

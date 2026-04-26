@@ -35,6 +35,7 @@ type UpdateProviderBody = {
   description?: string | null;
   experience?: number | null;
   hourlyRate?: number | null;
+  languages?: string[];
   isAvailable?: boolean;
   categoryIds?: string[];
   skills?: Array<{
@@ -371,6 +372,7 @@ export class ProvidersService {
           description: body.description,
           experience: body.experience,
           hourlyRate: body.hourlyRate,
+          languages: body.languages ? this.unique(body.languages) : undefined,
           isAvailable: body.isAvailable,
         },
       });
@@ -948,6 +950,7 @@ export class ProvidersService {
       experience: provider.experience,
       hourlyRate: provider.hourlyRate,
       videoUrl: provider.videoUrl,
+      languages: provider.languages,
       rating,
       totalReviews: provider.totalReviews,
       totalJobs: provider.totalJobs,
@@ -1012,6 +1015,7 @@ export class ProvidersService {
       experience: provider.experience,
       hourlyRate: provider.hourlyRate,
       videoUrl: provider.videoUrl,
+      languages: provider.languages,
       rating,
       totalReviews: provider.totalReviews,
       totalJobs: provider.totalJobs,

@@ -13,9 +13,17 @@ import {
 type StepProps = {
   data: OnboardingData;
   setData: (next: Partial<OnboardingData>) => void;
+  categoryOptions?: CategoryOption[];
 };
 
-const CATEGORY_LIST: CategorySlug[] = [
+type CategoryOption = {
+  id: string;
+  slug: string;
+  name: string;
+  subcategories?: Array<{ id: string; name: string; slug?: string; categoryId?: string }>;
+};
+
+const CATEGORY_SLUGS: CategorySlug[] = [
   "plomberie",
   "electricite",
   "menage",
@@ -26,6 +34,71 @@ const CATEGORY_LIST: CategorySlug[] = [
   "transport",
   "menuiserie",
 ];
+
+const CATEGORY_KEYWORDS: Array<[CategorySlug, string[]]> = [
+  ["plomberie", ["plomb", "sanitaire", "chauffe", "canalisation", "eau"]],
+  ["electricite", ["elect", "energie", "snel", "tableau"]],
+  ["menage", ["menage", "nettoyage", "entretien"]],
+  ["coiffure", ["coiff", "beaute", "barbier"]],
+  ["informatique", ["inform", "ordinateur", "reseau", "tech", "it"]],
+  ["jardinage", ["jardin", "vert"]],
+  ["peinture", ["peint"]],
+  ["transport", ["transport", "livraison", "demenagement", "course"]],
+  ["menuiserie", ["menuis", "bois", "charp"]],
+];
+
+function normalizeCategoryText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function isCategorySlug(value: string): value is CategorySlug {
+  return CATEGORY_SLUGS.includes(value as CategorySlug);
+}
+
+function categoryToTokenSlug(category: CategoryOption): CategorySlug {
+  if (isCategorySlug(category.slug)) return category.slug;
+  const normalized = normalizeCategoryText(
+    `${category.slug} ${category.name} ${(category.subcategories ?? [])
+      .map((subcategory) => `${subcategory.id} ${subcategory.name}`)
+      .join(" ")}`,
+  );
+  return (
+    CATEGORY_KEYWORDS.find(([, keywords]) =>
+      keywords.some((keyword) => normalized.includes(keyword)),
+    )?.[0] ?? "informatique"
+  );
+}
+
+function categoryVisual(category: CategoryOption) {
+  return tokens.portfolio[categoryToTokenSlug(category)];
+}
+
+function resolveCategoryIds(values: string[], categories: CategoryOption[]) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const value of values) {
+    const match =
+      categories.find((category) => category.id === value) ??
+      categories.find((category) => category.slug === value) ??
+      categories.find((category) =>
+        (category.subcategories ?? []).some(
+          (subcategory) =>
+            subcategory.id === value ||
+            subcategory.slug === value ||
+            subcategory.name.toLowerCase() === value.toLowerCase(),
+        ),
+      ) ??
+      categories.find((category) => categoryToTokenSlug(category) === value);
+    if (match && !seen.has(match.id)) {
+      ids.push(match.id);
+      seen.add(match.id);
+    }
+  }
+  return ids.slice(0, 3);
+}
 
 export function FieldLabel({
   label,
@@ -100,7 +173,7 @@ export function StepIdentity({ data, setData }: StepProps) {
               fontSize: 14,
             }}
           >
-            Pourquoi on vérifie
+            Vérification progressive
           </div>
           <div
             style={{
@@ -110,8 +183,8 @@ export function StepIdentity({ data, setData }: StepProps) {
               lineHeight: 1.5,
             }}
           >
-            Les clients KAYOU choisissent en confiance. Ton identité vérifiée
-            débloque le badge « Vérifié » sur ton profil.
+            Le lancement ne bloque pas sur un dossier complet. Ajoute tes
+            documents maintenant si tu les as, ou termine ton profil d'abord.
           </div>
         </div>
       </div>
@@ -169,10 +242,15 @@ export function StepIdentity({ data, setData }: StepProps) {
       <div>
         <FieldLabel
           label="Pièce d'identité"
-          hint="Carte d'électeur, passeport ou permis. Stockée de façon sécurisée."
+          optional
+          hint="Carte d'électeur, passeport ou permis. Tu peux compléter cette vérification après publication."
         />
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 10,
+          }}
         >
           {(
             [
@@ -205,7 +283,7 @@ export function StepIdentity({ data, setData }: StepProps) {
               >
                 {done ? <I.check size={22} /> : <I.plus size={22} />}
                 <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-                  {s.label}
+                  {done ? `${s.label} ajouté` : `Ajouter ${s.label.toLowerCase()}`}
                 </div>
               </button>
             );
@@ -218,37 +296,71 @@ export function StepIdentity({ data, setData }: StepProps) {
 
 // ─── Step 2 — Métier ──────────────────────────────────────────────────────
 
-export function StepCraft({ data, setData }: StepProps) {
-  const primary = data.categories[0];
-  const suggestions = primary ? (SKILL_SUGGESTIONS[primary] ?? []) : [];
+export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
+  const selectedCategoryIds = resolveCategoryIds(data.categories, categoryOptions);
+  const selectedCategorySet = new Set(selectedCategoryIds);
+  const suggestions = Array.from(
+    new Set(
+      selectedCategoryIds.flatMap((categoryId) => {
+        const category = categoryOptions.find((option) => option.id === categoryId);
+        if (!category) return [];
+        return SKILL_SUGGESTIONS[categoryToTokenSlug(category)] ?? [];
+      }),
+    ),
+  );
+  const categoryLimitReached = selectedCategoryIds.length >= 3;
+  const selectedSubcategories = categoryOptions
+    .filter((category) => selectedCategorySet.has(category.id))
+    .flatMap((category) => category.subcategories ?? []);
+  const toggleSubcategory = (id: string) => {
+    setData({
+      subcategoryIds: data.subcategoryIds.includes(id)
+        ? data.subcategoryIds.filter((x) => x !== id)
+        : [...data.subcategoryIds, id],
+    });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div>
         <FieldLabel
-          label="Catégorie principale"
-          hint="Tu pourras en ajouter plus tard."
+          label="Catégories de service"
+          hint={`${selectedCategoryIds.length}/3 sélectionnée${selectedCategoryIds.length > 1 ? "s" : ""}. Choisis jusqu'à trois catégories.`}
         />
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: 10,
           }}
         >
-          {CATEGORY_LIST.map((slug) => {
-            const p = tokens.portfolio[slug];
+          {categoryOptions.map((category) => {
+            const p = categoryVisual(category);
             const IconC =
               (I as Record<string, React.FC<{ size?: number }>>)[p.iconName] ??
               I.wrench;
-            const isSel = data.categories.includes(slug);
+            const isSel = selectedCategorySet.has(category.id);
             return (
               <button
-                key={slug}
+                key={category.id}
                 type="button"
-                onClick={() =>
-                  setData({ categories: isSel ? [] : [slug] })
-                }
+                onClick={() => {
+                  if (isSel) {
+                    const removedSubcategoryIds = new Set(
+                      category.subcategories?.map((subcategory) => subcategory.id) ??
+                        [],
+                    );
+                    setData({
+                      categories: selectedCategoryIds.filter((id) => id !== category.id),
+                      subcategoryIds: data.subcategoryIds.filter(
+                        (id) => !removedSubcategoryIds.has(id),
+                      ),
+                    });
+                    return;
+                  }
+                  if (categoryLimitReached) return;
+                  setData({ categories: [...selectedCategoryIds, category.id] });
+                }}
                 style={{
                   padding: 14,
                   borderRadius: tokens.radius.md,
@@ -256,11 +368,12 @@ export function StepCraft({ data, setData }: StepProps) {
                     ? `2px solid ${p.accent}`
                     : `2px solid ${tokens.color.border}`,
                   background: isSel ? p.bg : tokens.color.surface,
-                  cursor: "pointer",
+                  cursor: !isSel && categoryLimitReached ? "not-allowed" : "pointer",
                   textAlign: "left",
                   display: "flex",
                   gap: 10,
                   alignItems: "center",
+                  opacity: !isSel && categoryLimitReached ? 0.55 : 1,
                   transition: "all 140ms cubic-bezier(0.2, 0, 0, 1)",
                 }}
               >
@@ -285,7 +398,7 @@ export function StepCraft({ data, setData }: StepProps) {
                     color: tokens.color.textPrimary,
                   }}
                 >
-                  {p.label}
+                  {category.name}
                 </span>
                 {isSel && (
                   <I.check
@@ -294,11 +407,62 @@ export function StepCraft({ data, setData }: StepProps) {
                     style={{ marginLeft: "auto" }}
                   />
                 )}
+                {!isSel && categoryLimitReached && (
+                  <I.lock
+                    size={14}
+                    strokeColor={tokens.color.textSubtle}
+                    style={{ marginLeft: "auto" }}
+                  />
+                )}
               </button>
             );
           })}
         </div>
       </div>
+
+      {selectedSubcategories.length > 0 && (
+        <div>
+          <FieldLabel
+            label="Sous-catégories"
+            optional
+            hint="Sélectionne toutes les spécialités pertinentes. Pas de limite."
+          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {selectedSubcategories.map((subcategory) => {
+              const isSel = data.subcategoryIds.includes(subcategory.id);
+              return (
+                <button
+                  key={subcategory.id}
+                  type="button"
+                  onClick={() => toggleSubcategory(subcategory.id)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 999,
+                    border: isSel
+                      ? `1px solid ${tokens.color.primary}`
+                      : `1px solid ${tokens.color.border}`,
+                    background: isSel
+                      ? tokens.color.primarySubtle
+                      : tokens.color.surface,
+                    color: isSel
+                      ? tokens.color.primaryHover
+                      : tokens.color.textBody,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {isSel && <I.check size={12} />}
+                  {subcategory.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div>
         <FieldLabel
@@ -352,8 +516,8 @@ export function StepCraft({ data, setData }: StepProps) {
           label="Compétences"
           optional
           hint={
-            primary
-              ? "Ajoute 3 à 8 spécialités. Les clients filtrent par compétence."
+            selectedCategoryIds.length > 0
+              ? "Ajoute autant de spécialités que nécessaire. Les clients filtrent par compétence."
               : "Choisis d'abord une catégorie pour voir les suggestions."
           }
         />
@@ -632,7 +796,7 @@ export function StepPricing({ data, setData }: StepProps) {
       <div>
         <FieldLabel
           label="Tarif horaire"
-          hint="Prix que tu affiches. Les clients voient toujours un total estimé avant de réserver."
+          hint="Prix indicatif affiché sur ton profil. Le prix final se confirme dans la conversation."
         />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           {HOURLY_PRESETS.map((p) => {
@@ -700,10 +864,14 @@ export function StepPricing({ data, setData }: StepProps) {
       <div>
         <FieldLabel
           label="Déplacement"
-          hint="Frais fixes pour te rendre chez le client."
+          hint="Simple indication pour la discussion avec le client."
         />
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 10,
+          }}
         >
           {(
             [
@@ -896,7 +1064,7 @@ export function StepProfile({ data, setData }: StepProps) {
         <FieldLabel
           label="Portfolio"
           optional
-          hint="Photos de tes chantiers terminés. 3 à 8 photos recommandé."
+          hint="La galerie arrive avec l'upload photo. Tu peux préparer tes exemples et les ajouter plus tard."
         />
         <div
           style={{
@@ -944,9 +1112,10 @@ export function StepProfile({ data, setData }: StepProps) {
 
 // ─── Step 6 — Publish ─────────────────────────────────────────────────────
 
-export function StepPublish({ data, setData }: StepProps) {
-  const primary = data.categories[0];
-  const cat = primary ? tokens.portfolio[primary] : tokens.portfolio.plomberie;
+export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) {
+  const primaryId = resolveCategoryIds(data.categories, categoryOptions)[0];
+  const primaryCategory = categoryOptions.find((category) => category.id === primaryId);
+  const cat = primaryCategory ? categoryVisual(primaryCategory) : tokens.portfolio.plomberie;
   const hourly = data.hourly || 15000;
 
   return (
@@ -963,7 +1132,7 @@ export function StepPublish({ data, setData }: StepProps) {
           style={{
             fontSize: 11,
             fontWeight: 700,
-            letterSpacing: "0.08em",
+            letterSpacing: 0,
             textTransform: "uppercase",
             color: tokens.color.primaryHover,
           }}

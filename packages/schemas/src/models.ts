@@ -261,6 +261,7 @@ export const ProviderSchema = z.object({
   experience: z.number().int().nullable().optional(),
   hourlyRate: z.number().nullable().optional(),
   videoUrl: z.string().nullable().optional(),
+  languages: z.array(z.string()).default([]),
   rating: z.number().default(0),
   totalReviews: z.number().int().min(0).default(0),
   totalJobs: z.number().int().min(0).default(0),

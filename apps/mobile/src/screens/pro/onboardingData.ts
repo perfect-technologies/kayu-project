@@ -9,7 +9,9 @@ export type OnboardingData = {
   lastName: string;
   phone: string;
   id: IdUploads;
-  categories: CategorySlug[];
+  // Backend category IDs. Labels and visuals are resolved from the categories API.
+  categories: string[];
+  subcategoryIds: string[];
   title: string;
   years: string;
   skills: string[];
@@ -57,18 +59,6 @@ export const SKILL_SUGGESTIONS: Partial<Record<CategorySlug, string[]>> = {
 export const YEARS_OPTIONS = ['< 1 an', '1–3 ans', '4–7 ans', '8+ ans'] as const;
 
 export const LANGUAGES = ['Français', 'Lingala', 'Swahili', 'Kikongo', 'Tshiluba', 'Anglais'];
-
-export const CATEGORY_LIST: CategorySlug[] = [
-  'plomberie',
-  'electricite',
-  'menage',
-  'coiffure',
-  'informatique',
-  'jardinage',
-  'peinture',
-  'transport',
-  'menuiserie',
-];
 
 export const HOURLY_PRESETS = [5000, 8000, 12000, 15000];
 

@@ -106,8 +106,8 @@ test("provider publish materializes launch fields, trust score, and trade mappin
       deleteMany: async (args: unknown) => {
         calls.providerCategoryDeleteMany = args;
       },
-      create: async (args: unknown) => {
-        calls.providerCategoryCreate = args;
+      createMany: async (args: unknown) => {
+        calls.providerCategoryCreateMany = args;
       },
     },
     skill: {
@@ -189,6 +189,7 @@ test("provider publish materializes launch fields, trust score, and trade mappin
     description: "Disponible pour les urgences et installations sanitaires.",
     experience: 5,
     hourlyRate: 15000,
+    languages: [],
     verificationStatus: "PENDING",
     onboardingCompleteAt: (calls.providerUpdate as { data: { onboardingCompleteAt: Date } }).data.onboardingCompleteAt,
   });
@@ -196,8 +197,9 @@ test("provider publish materializes launch fields, trust score, and trade mappin
     (calls.providerUpdate as { data: { onboardingCompleteAt: unknown } }).data
       .onboardingCompleteAt instanceof Date,
   );
-  assert.deepEqual(calls.providerCategoryCreate, {
-    data: { providerId: provider.id, categoryId: "cat_1" },
+  assert.deepEqual(calls.providerCategoryCreateMany, {
+    data: [{ providerId: provider.id, categoryId: "cat_1" }],
+    skipDuplicates: true,
   });
   assert.deepEqual(calls.serviceZoneCreateMany, {
     data: [{ providerId: provider.id, city: "Kinshasa", commune: "Gombe" }],

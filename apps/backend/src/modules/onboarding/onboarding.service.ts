@@ -24,6 +24,7 @@ export type ProviderDraftInput = {
   idBackUploaded?: boolean;
 
   primaryCategoryId?: string;
+  categoryIds?: string[];
   subcategoryIds?: string[];
   profession?: string;
   skills?: ProviderDraftSkillInput[];
@@ -45,6 +46,7 @@ type OverflowDraft = {
   idFrontUploaded?: boolean;
   idBackUploaded?: boolean;
   primaryCategoryId?: string;
+  categoryIds?: string[];
   subcategoryIds?: string[];
   zoneRadiusKm?: number;
   visitFee?: number;
@@ -56,6 +58,7 @@ const OVERFLOW_KEYS: (keyof OverflowDraft)[] = [
   "idFrontUploaded",
   "idBackUploaded",
   "primaryCategoryId",
+  "categoryIds",
   "subcategoryIds",
   "zoneRadiusKm",
   "visitFee",
@@ -117,13 +120,15 @@ export class OnboardingService {
 
     const needsProviderTouch =
       body.primaryCategoryId !== undefined ||
+      body.categoryIds !== undefined ||
       body.subcategoryIds !== undefined ||
       body.profession !== undefined ||
       body.skills !== undefined ||
       body.yearsOfExperience !== undefined ||
       body.description !== undefined ||
       body.serviceZones !== undefined ||
-      body.hourlyRate !== undefined;
+      body.hourlyRate !== undefined ||
+      body.languages !== undefined;
 
     await this.prisma.$transaction(async (tx) => {
       if (Object.keys(userData).length > 0) {
@@ -155,6 +160,9 @@ export class OnboardingService {
       if (body.hourlyRate !== undefined) {
         providerData.hourlyRate = body.hourlyRate;
       }
+      if (body.languages !== undefined) {
+        providerData.languages = this.uniqueStrings(body.languages);
+      }
       if (Object.keys(providerData).length > 0) {
         await tx.provider.update({
           where: { id: provider.id },
@@ -162,16 +170,18 @@ export class OnboardingService {
         });
       }
 
-      if (body.primaryCategoryId !== undefined) {
+      if (body.primaryCategoryId !== undefined || body.categoryIds !== undefined) {
+        const categoryIds = this.normalizedCategoryIds(body);
         await tx.providerCategory.deleteMany({
           where: { providerId: provider.id },
         });
-        if (body.primaryCategoryId) {
-          await tx.providerCategory.create({
-            data: {
+        if (categoryIds.length > 0) {
+          await tx.providerCategory.createMany({
+            data: categoryIds.map((categoryId) => ({
               providerId: provider.id,
-              categoryId: body.primaryCategoryId,
-            },
+              categoryId,
+            })),
+            skipDuplicates: true,
           });
         }
       }
@@ -229,7 +239,9 @@ export class OnboardingService {
     }
 
     const overflow = this.extractOverflow(state.user.onboardingDraft);
-    const primaryCategoryId = draft.primaryCategoryId ?? overflow.primaryCategoryId;
+    const categoryIds = this.normalizedCategoryIds(draft);
+    const primaryCategoryId =
+      categoryIds[0] ?? draft.primaryCategoryId ?? overflow.primaryCategoryId;
     const primaryCategory = primaryCategoryId
       ? await this.prisma.category.findFirst({
           where: { id: primaryCategoryId, isActive: true },
@@ -263,6 +275,7 @@ export class OnboardingService {
               description: draft.description || null,
               experience: draft.yearsOfExperience,
               hourlyRate: draft.hourlyRate,
+              languages: this.uniqueStrings(draft.languages ?? []),
               verificationStatus: state.provider.verificationStatus ?? "PENDING",
               onboardingCompleteAt: publishedAt,
             },
@@ -275,6 +288,7 @@ export class OnboardingService {
               description: draft.description,
               experience: draft.yearsOfExperience,
               hourlyRate: draft.hourlyRate,
+              languages: this.uniqueStrings(draft.languages ?? []),
               verificationStatus: "PENDING",
               onboardingCompleteAt: publishedAt,
             },
@@ -282,7 +296,8 @@ export class OnboardingService {
           });
 
       await this.syncProviderLaunchFields(tx, provider.id, draft, {
-        categoryId: primaryCategory.id,
+        categoryIds:
+          categoryIds.length > 0 ? categoryIds : [primaryCategory.id],
       });
 
       await tx.user.update({
@@ -358,6 +373,7 @@ export class OnboardingService {
       idFrontUploaded: overflow.idFrontUploaded,
       idBackUploaded: overflow.idBackUploaded,
       primaryCategoryId: overflow.primaryCategoryId,
+      categoryIds: overflow.categoryIds,
       subcategoryIds: overflow.subcategoryIds,
       zoneRadiusKm: overflow.zoneRadiusKm,
       visitFee: overflow.visitFee,
@@ -370,6 +386,9 @@ export class OnboardingService {
       draft.description = state.provider.description ?? undefined;
       draft.yearsOfExperience = state.provider.experience ?? undefined;
       draft.hourlyRate = state.provider.hourlyRate ?? undefined;
+      const providerLanguages = state.provider.languages ?? [];
+      draft.languages =
+        providerLanguages.length > 0 ? providerLanguages : draft.languages;
       draft.skills = state.provider.skills.map((skill) => ({
         name: skill.name,
         level: skill.level,
@@ -380,6 +399,9 @@ export class OnboardingService {
       }));
       if (!draft.primaryCategoryId && state.provider.categories.length > 0) {
         draft.primaryCategoryId = state.provider.categories[0]?.categoryId;
+      }
+      if (!draft.categoryIds && state.provider.categories.length > 0) {
+        draft.categoryIds = state.provider.categories.map((item) => item.categoryId);
       }
       if (!draft.subcategoryIds && state.provider.trades.length > 0) {
         draft.subcategoryIds = [
@@ -408,7 +430,7 @@ export class OnboardingService {
     if (!draft.lastName || draft.lastName.trim().length < 2) missing.push("lastName");
     if (!this.normalizePhone(draft.phone)) missing.push("phone");
     if (!draft.profession || draft.profession.trim().length < 2) missing.push("profession");
-    if (!draft.primaryCategoryId) missing.push("primaryCategoryId");
+    if (this.normalizedCategoryIds(draft).length === 0) missing.push("primaryCategoryId");
     if (!draft.serviceZones || draft.serviceZones.length === 0) missing.push("serviceZones");
     if (!draft.hourlyRate || draft.hourlyRate <= 0) missing.push("hourlyRate");
     return missing;
@@ -493,6 +515,11 @@ export class OnboardingService {
     return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   }
 
+  private uniqueStrings(values: string[] | undefined): string[] {
+    if (!values) return [];
+    return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  }
+
   private normalizePhone(value: string | null | undefined): string | null {
     if (!value) return null;
 
@@ -519,14 +546,16 @@ export class OnboardingService {
     tx: Prisma.TransactionClient,
     providerId: string,
     draft: ProviderDraftInput,
-    options: { categoryId: string },
+    options: { categoryIds: string[] },
   ) {
+    const categoryIds = this.uniqueIds(options.categoryIds).slice(0, 3);
     await tx.providerCategory.deleteMany({ where: { providerId } });
-    await tx.providerCategory.create({
-      data: {
+    await tx.providerCategory.createMany({
+      data: categoryIds.map((categoryId) => ({
         providerId,
-        categoryId: options.categoryId,
-      },
+        categoryId,
+      })),
+      skipDuplicates: true,
     });
 
     const skills = this.uniqueSkills(draft.skills ?? []);
@@ -606,8 +635,14 @@ export class OnboardingService {
         return (left.order ?? 0) - (right.order ?? 0);
       })
       .map((trade) => trade.id)
-      .filter((id, index, all) => all.indexOf(id) === index)
-      .slice(0, 3);
+      .filter((id, index, all) => all.indexOf(id) === index);
+  }
+
+  private normalizedCategoryIds(input: ProviderDraftInput): string[] {
+    return this.uniqueIds([
+      ...(input.categoryIds ?? []),
+      ...(input.primaryCategoryId ? [input.primaryCategoryId] : []),
+    ]).slice(0, 3);
   }
 
   private async replaceProviderTrades(

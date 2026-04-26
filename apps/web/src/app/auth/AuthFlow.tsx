@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { I } from "@kayu/ui/web";
 import { useAuth } from "@/contexts/AuthContext";
@@ -540,7 +541,7 @@ function AuthFlowInner() {
             fontFamily: "var(--k-font-mono)",
             fontWeight: 500,
             fontSize: 17,
-            letterSpacing: "0.02em",
+            letterSpacing: 0,
             color: "var(--k-text-primary)",
             background: "transparent",
           }}
@@ -902,7 +903,7 @@ const headingStyle: React.CSSProperties = {
   fontFamily: "var(--k-font-display)",
   fontSize: 30,
   fontWeight: 700,
-  letterSpacing: "-0.025em",
+  letterSpacing: 0,
   margin: "0 0 8px",
   lineHeight: 1.1,
   color: "var(--k-text-primary)",
@@ -955,19 +956,16 @@ function LogoBadge() {
         width: 44,
         height: 44,
         borderRadius: 12,
-        background: "var(--k-primary)",
-        color: "white",
+        background: "var(--k-surface)",
+        color: "var(--k-primary)",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "var(--k-font-display)",
-        fontWeight: 800,
-        fontSize: 20,
-        letterSpacing: "0.02em",
-        boxShadow: "var(--k-e-brand)",
+        boxShadow: "var(--k-e1)",
+        border: "1px solid var(--k-border)",
       }}
     >
-      K
+      <Image src="/kayou-logo.png" alt="" width={30} height={30} />
     </div>
   );
 }
@@ -1352,7 +1350,7 @@ function BrandSide() {
             fontSize: 44,
             fontWeight: 700,
             lineHeight: 1.05,
-            letterSpacing: "-0.03em",
+            letterSpacing: 0,
             marginBottom: 20,
             maxWidth: 440,
           }}

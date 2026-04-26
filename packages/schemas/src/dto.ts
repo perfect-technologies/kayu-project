@@ -115,6 +115,7 @@ export const UpdateProviderDto = z.object({
   experience: z.number().int().min(0).max(50).nullable().optional(),
   hourlyRate: z.number().min(0).nullable().optional(),
   isAvailable: z.boolean().optional(),
+  languages: z.array(z.string()).optional(),
   categoryIds: z.array(IdSchema).optional(),
   skills: z.array(SkillInputSchema).optional(),
   serviceZones: z.array(ServiceZoneInputSchema).optional(),
@@ -993,6 +994,7 @@ export const ProviderDraftDto = z.object({
 
   // Step 2 — Métier
   primaryCategoryId: IdSchema.optional(),
+  categoryIds: z.array(IdSchema).max(3).optional(),
   subcategoryIds: z.array(IdSchema).optional(),
   profession: z.string().min(2).optional(),
   skills: z.array(ProviderDraftSkillSchema).optional(),

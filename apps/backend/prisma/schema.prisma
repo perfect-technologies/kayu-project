@@ -46,7 +46,7 @@ model User {
 
   // Provider onboarding progress (null when not started or complete; 0-5 mapping to steps 1-6)
   onboardingStep  Int?
-  // Overflow draft payload for fields not yet on Provider/User (languages, bio,
+  // Overflow draft payload for fields not yet on Provider/User (bio,
   // idFront/idBack upload flags, visitFee, zoneRadiusKm, subcategoryIds, primaryCategoryId).
   onboardingDraft Json?
 
@@ -105,6 +105,7 @@ model Provider {
   experience  Int? // Années d'expérience
   hourlyRate  Float? // Tarif horaire en CDF
   videoUrl    String? // Vidéo de présentation
+  languages   String[] @default([])
 
   // Statistiques
   totalReviews Int @default(0)

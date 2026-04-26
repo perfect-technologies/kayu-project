@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { I, StepIndicator, type StepIndicatorStep } from "@kayu/ui/web";
-import { tokens, type CategorySlug } from "@kayu/ui";
+import { tokens } from "@kayu/ui";
 import { categoriesApi, onboardingApi, queryKeys } from "@kayu/api";
 import type { ProviderDraftDto } from "@kayu/schemas";
 import { apiClient } from "@/lib/api";
@@ -58,6 +58,7 @@ const EMPTY_DATA: OnboardingData = {
   phone: "",
   id: {},
   categories: [],
+  subcategoryIds: [],
   title: "",
   years: "",
   skills: [],
@@ -101,9 +102,7 @@ function validateStep(step: number, d: OnboardingData): boolean {
       return (
         d.firstName.trim().length > 0 &&
         d.lastName.trim().length > 0 &&
-        d.phone.length === 9 &&
-        Boolean(d.id.front) &&
-        Boolean(d.id.back)
+        d.phone.length === 9
       );
     case 2:
       return (
@@ -133,10 +132,13 @@ export function ProviderOnboardingClient() {
   const [data, setData] = useState<OnboardingData>(EMPTY_DATA);
   const [hydrated, setHydrated] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [compactSteps, setCompactSteps] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories.all,
-    queryFn: () => categoriesApi(apiClient).getAll(),
+    queryFn: () => categoriesApi(apiClient).getAll({ withSubcategories: true }),
     enabled: isAuthenticated,
   });
 
@@ -149,6 +151,13 @@ export function ProviderOnboardingClient() {
   const patchMut = useMutation({
     mutationFn: (patch: ProviderDraftDto) =>
       onboardingApi(apiClient).patchDraft(patch),
+    onSuccess: () => {
+      setSaveError(false);
+      setLastSavedAt(new Date());
+    },
+    onError: () => {
+      setSaveError(true);
+    },
   });
 
   const publishMut = useMutation({
@@ -177,6 +186,15 @@ export function ProviderOnboardingClient() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace("/auth");
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    const sync = () => setCompactSteps(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   // Hydrate from localStorage (fast optimistic path)
   useEffect(() => {
@@ -207,12 +225,7 @@ export function ProviderOnboardingClient() {
       draftQuery.data.draft,
       categoriesQuery.data.categories,
     );
-    setData((prev) => ({
-      ...prev,
-      ...mapped,
-      // Merge optimistic localStorage values we already applied for keys the
-      // server hasn't populated yet (UI-only fields stay local).
-    }));
+    setData((prev) => mergeBackendDraft(prev, mapped));
     const serverStep = draftQuery.data.step;
     if (serverStep !== null && serverStep !== undefined) {
       setStep(Math.min(6, Math.max(1, serverStep + 1)));
@@ -269,8 +282,8 @@ export function ProviderOnboardingClient() {
 
   const canContinue = useMemo(() => validateStep(step, data), [step, data]);
 
-  const flushStep = useCallback(
-    (nextStep: number) => {
+  const saveDraftAtStep = useCallback(
+    async (targetStep: number) => {
       if (!categoriesQuery.data) return;
       if (debounceRef.current !== null) {
         window.clearTimeout(debounceRef.current);
@@ -278,40 +291,58 @@ export function ProviderOnboardingClient() {
       }
       const payload = {
         ...dataToBackend(data, categoriesQuery.data.categories),
-        onboardingStep: Math.max(0, Math.min(5, nextStep - 1)),
+        onboardingStep: Math.max(0, Math.min(5, targetStep - 1)),
       };
       lastPayloadRef.current = JSON.stringify(payload);
-      patchMut.mutate(payload);
+      await patchMut.mutateAsync(payload);
     },
     [categoriesQuery.data, data, patchMut],
   );
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!canContinue) return;
     if (step < 6) {
       const next = step + 1;
-      flushStep(next);
       setStep(next);
       window.scrollTo({ top: 0, behavior: "smooth" });
+      try {
+        await saveDraftAtStep(next);
+      } catch {
+        toast.error("Le brouillon n'a pas pu être sauvegardé.");
+      }
       return;
     }
-    publishMut.mutate();
+    try {
+      await saveDraftAtStep(step);
+      publishMut.mutate();
+    } catch {
+      toast.error("Sauvegarde impossible avant publication. Réessaie.");
+    }
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
     if (step > 1) {
       const next = step - 1;
-      flushStep(next);
       setStep(next);
       window.scrollTo({ top: 0, behavior: "smooth" });
+      try {
+        await saveDraftAtStep(next);
+      } catch {
+        toast.error("Le brouillon n'a pas pu être sauvegardé.");
+      }
     } else {
       setConfirmExit(true);
     }
   };
 
-  const saveDraftAndExit = () => {
-    toast.success("Brouillon sauvegardé. Tu peux reprendre plus tard.");
-    router.push("/pro");
+  const saveDraftAndExit = async () => {
+    try {
+      await saveDraftAtStep(step);
+      toast.success("Brouillon sauvegardé. Tu peux reprendre plus tard.");
+      router.push("/pro");
+    } catch {
+      toast.error("Impossible de sauvegarder le brouillon. Réessaie.");
+    }
   };
 
   if (authLoading || !isAuthenticated || draftQuery.isLoading || categoriesQuery.isLoading) {
@@ -329,13 +360,27 @@ export function ProviderOnboardingClient() {
   }
 
   const submitting = publishMut.isPending;
+  const saving = patchMut.isPending;
+  const saveLabel = saveError
+    ? "Sauvegarde à reprendre"
+    : saving
+      ? "Sauvegarde…"
+      : lastSavedAt
+        ? "Brouillon sauvegardé"
+        : "Brouillon local";
 
   const body = (() => {
     switch (step) {
       case 1:
         return <StepIdentity data={data} setData={updateData} />;
       case 2:
-        return <StepCraft data={data} setData={updateData} />;
+        return (
+          <StepCraft
+            data={data}
+            setData={updateData}
+            categoryOptions={categoriesQuery.data?.categories ?? []}
+          />
+        );
       case 3:
         return <StepZones data={data} setData={updateData} />;
       case 4:
@@ -343,7 +388,13 @@ export function ProviderOnboardingClient() {
       case 5:
         return <StepProfile data={data} setData={updateData} />;
       case 6:
-        return <StepPublish data={data} setData={updateData} />;
+        return (
+          <StepPublish
+            data={data}
+            setData={updateData}
+            categoryOptions={categoriesQuery.data?.categories ?? []}
+          />
+        );
       default:
         return null;
     }
@@ -353,7 +404,8 @@ export function ProviderOnboardingClient() {
     <div
       style={{
         minHeight: "100vh",
-        background: tokens.color.bg,
+        background:
+          "linear-gradient(180deg, var(--k-surface-primary) 0%, var(--k-bg) 34%, var(--k-bg) 100%)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -366,7 +418,7 @@ export function ProviderOnboardingClient() {
       >
         <div
           style={{
-            maxWidth: 960,
+            maxWidth: 1120,
             margin: "0 auto",
             padding: "14px 32px",
             display: "flex",
@@ -388,7 +440,7 @@ export function ProviderOnboardingClient() {
               style={{
                 fontFamily: tokens.font.display,
                 fontWeight: 700,
-                letterSpacing: "-0.01em",
+                letterSpacing: 0,
                 fontSize: 17,
                 color: tokens.color.textPrimary,
               }}
@@ -415,41 +467,65 @@ export function ProviderOnboardingClient() {
 
       <div
         style={{
-          maxWidth: 960,
+          maxWidth: 1040,
           margin: "0 auto",
-          padding: "28px 32px 140px",
+          padding: "32px 32px 148px",
           width: "100%",
           boxSizing: "border-box",
           flex: 1,
         }}
       >
         <div style={{ marginBottom: 32 }}>
-          <StepIndicator steps={STEPS} step={step} />
+          <StepIndicator steps={STEPS} step={step} compact={compactSteps} />
         </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <h1
+        <div
+          style={{
+            marginBottom: 24,
+            display: "flex",
+            alignItems: "flex-end",
+            flexWrap: "wrap",
+            gap: 16,
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                fontFamily: tokens.font.display,
+                fontWeight: 700,
+                fontSize: "clamp(28px, 4vw, 42px)",
+                letterSpacing: 0,
+                color: tokens.color.textPrimary,
+                margin: "0 0 6px",
+                lineHeight: 1.08,
+              }}
+            >
+              {TITLES[step]}
+            </h1>
+            <p
+              style={{
+                fontSize: 16,
+                color: tokens.color.textMuted,
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              {SUBS[step]}
+            </p>
+          </div>
+          <div
+            className="k-chip k-chip-sm"
             style={{
-              fontFamily: tokens.font.display,
-              fontWeight: 700,
-              fontSize: 32,
-              letterSpacing: "-0.02em",
-              color: tokens.color.textPrimary,
-              margin: "0 0 6px",
+              whiteSpace: "nowrap",
+              color: saveError ? tokens.color.danger : tokens.color.textMuted,
+              background: saveError
+                ? tokens.color.dangerSubtle
+                : tokens.color.surfaceMuted,
             }}
           >
-            {TITLES[step]}
-          </h1>
-          <p
-            style={{
-              fontSize: 16,
-              color: tokens.color.textMuted,
-              margin: 0,
-              lineHeight: 1.5,
-            }}
-          >
-            {SUBS[step]}
-          </p>
+            {saveLabel}
+          </div>
         </div>
 
         <div
@@ -457,8 +533,8 @@ export function ProviderOnboardingClient() {
             background: tokens.color.surface,
             border: `1px solid ${tokens.color.border}`,
             borderRadius: tokens.radius.lg,
-            padding: 32,
-            boxShadow: tokens.shadow.e1,
+            padding: "clamp(20px, 4vw, 32px)",
+            boxShadow: tokens.shadow.e2,
           }}
         >
           {body}
@@ -483,6 +559,7 @@ export function ProviderOnboardingClient() {
               margin: "0 auto",
               display: "flex",
               alignItems: "center",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
@@ -508,7 +585,7 @@ export function ProviderOnboardingClient() {
               type="button"
               className="k-btn k-btn-primary k-btn-lg"
               onClick={handleContinue}
-              disabled={!canContinue}
+              disabled={!canContinue || saving}
             >
               Continuer <I.arrowRight size={16} />
             </button>
@@ -534,6 +611,7 @@ export function ProviderOnboardingClient() {
               margin: "0 auto",
               display: "flex",
               alignItems: "center",
+              flexWrap: "wrap",
               gap: 12,
             }}
           >
@@ -541,7 +619,7 @@ export function ProviderOnboardingClient() {
               type="button"
               className="k-btn k-btn-secondary"
               onClick={saveDraftAndExit}
-              disabled={submitting}
+              disabled={submitting || saving}
             >
               Enregistrer comme brouillon
             </button>
@@ -550,7 +628,7 @@ export function ProviderOnboardingClient() {
               type="button"
               className="k-btn k-btn-primary k-btn-lg"
               onClick={handleContinue}
-              disabled={!canContinue || submitting}
+              disabled={!canContinue || submitting || saving}
               style={{ minWidth: 220 }}
             >
               {submitting ? (
@@ -637,6 +715,7 @@ export function ProviderOnboardingClient() {
                 type="button"
                 className="k-btn k-btn-primary"
                 onClick={saveDraftAndExit}
+                disabled={saving}
               >
                 Quitter
               </button>
@@ -667,24 +746,81 @@ function normalizePhone(raw?: string | null) {
   return digits.slice(0, 9);
 }
 
-type CategoryIndex = { id: string; slug: string }[];
+type CategoryIndex = {
+  id: string;
+  slug: string;
+  name: string;
+  subcategories?: Array<{ id: string; name: string; slug?: string; categoryId?: string }>;
+}[];
 
-function findSlug(categories: CategoryIndex, id: string | undefined): CategorySlug | null {
-  if (!id) return null;
-  const match = categories.find((c) => c.id === id);
-  return (match?.slug ?? null) as CategorySlug | null;
+const CATEGORY_TOKEN_KEYWORDS: Array<[string, string[]]> = [
+  ["plomberie", ["plomb", "sanitaire", "chauffe", "canalisation", "eau"]],
+  ["electricite", ["elect", "energie", "snel", "tableau"]],
+  ["menage", ["menage", "nettoyage", "entretien"]],
+  ["coiffure", ["coiff", "beaute", "barbier"]],
+  ["informatique", ["inform", "ordinateur", "reseau", "tech", "it"]],
+  ["jardinage", ["jardin", "vert"]],
+  ["peinture", ["peint"]],
+  ["transport", ["transport", "livraison", "demenagement", "course"]],
+  ["menuiserie", ["menuis", "bois", "charp"]],
+];
+
+function normalizeCategoryText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-function findId(categories: CategoryIndex, slug: string | undefined): string | null {
-  if (!slug) return null;
-  return categories.find((c) => c.slug === slug)?.id ?? null;
+function categoryToken(category: CategoryIndex[number]): string | null {
+  const normalized = normalizeCategoryText(
+    `${category.slug} ${category.name} ${(category.subcategories ?? [])
+      .map((subcategory) => subcategory.name)
+      .join(" ")}`,
+  );
+  return (
+    CATEGORY_TOKEN_KEYWORDS.find(([, keywords]) =>
+      keywords.some((keyword) => normalized.includes(keyword)),
+    )?.[0] ?? null
+  );
+}
+
+function resolveCategoryIds(values: Array<string | undefined>, categories: CategoryIndex) {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const match =
+      categories.find((category) => category.id === value) ??
+      categories.find((category) => category.slug === value) ??
+      categories.find((category) => category.slug.startsWith(`${value}-`)) ??
+      categories.find((category) =>
+        (category.subcategories ?? []).some(
+          (subcategory) =>
+            subcategory.id === value ||
+            subcategory.slug === value ||
+            subcategory.name === value ||
+            subcategory.name.toLowerCase() === value.toLowerCase(),
+        ),
+      ) ??
+      categories.find((category) => categoryToken(category) === value);
+    if (match && !seen.has(match.id)) {
+      ids.push(match.id);
+      seen.add(match.id);
+    }
+  }
+  return ids.slice(0, 3);
 }
 
 function backendToData(
   draft: ProviderDraftDto,
   categories: CategoryIndex,
 ): Partial<OnboardingData> {
-  const primarySlug = findSlug(categories, draft.primaryCategoryId);
+  const draftCategoryIds =
+    draft.categoryIds && draft.categoryIds.length > 0
+      ? draft.categoryIds
+      : [draft.primaryCategoryId];
+  const selectedCategoryIds = resolveCategoryIds(draftCategoryIds, categories);
   return {
     firstName: draft.firstName ?? "",
     lastName: draft.lastName ?? "",
@@ -693,7 +829,9 @@ function backendToData(
       front: draft.idFrontUploaded ?? undefined,
       back: draft.idBackUploaded ?? undefined,
     },
-    categories: primarySlug ? [primarySlug] : [],
+    categories: selectedCategoryIds,
+    subcategoryIds: draft.subcategoryIds ?? [],
+    title: draft.profession ?? "",
     years: numberToYearsLabel(draft.yearsOfExperience),
     skills: (draft.skills ?? []).map((skill) => skill.name),
     zones: (draft.serviceZones ?? []).map(
@@ -701,9 +839,47 @@ function backendToData(
     ),
     radius: draft.zoneRadiusKm ?? 10,
     hourly: draft.hourlyRate ?? 0,
-    bio: draft.bio ?? "",
+    bio: draft.description ?? draft.bio ?? "",
     photo: Boolean(draft.avatar),
     languages: draft.languages ?? [],
+  };
+}
+
+function mergeBackendDraft(
+  prev: OnboardingData,
+  mapped: Partial<OnboardingData>,
+): OnboardingData {
+  return {
+    ...prev,
+    ...mapped,
+    firstName: mapped.firstName || prev.firstName,
+    lastName: mapped.lastName || prev.lastName,
+    phone: mapped.phone || prev.phone,
+    id:
+      mapped.id && (mapped.id.front || mapped.id.back)
+        ? mapped.id
+        : prev.id,
+    categories:
+      mapped.categories && mapped.categories.length > 0
+        ? mapped.categories
+        : prev.categories,
+    title: mapped.title || prev.title,
+    years: mapped.years || prev.years,
+    skills:
+      mapped.skills && mapped.skills.length > 0 ? mapped.skills : prev.skills,
+    subcategoryIds:
+      mapped.subcategoryIds && mapped.subcategoryIds.length > 0
+        ? mapped.subcategoryIds
+        : prev.subcategoryIds,
+    zones: mapped.zones && mapped.zones.length > 0 ? mapped.zones : prev.zones,
+    radius: mapped.radius && mapped.radius > 0 ? mapped.radius : prev.radius,
+    hourly: mapped.hourly && mapped.hourly > 0 ? mapped.hourly : prev.hourly,
+    bio: mapped.bio || prev.bio,
+    languages:
+      mapped.languages && mapped.languages.length > 0
+        ? mapped.languages
+        : prev.languages,
+    acceptedTerms: prev.acceptedTerms,
   };
 }
 
@@ -711,7 +887,8 @@ function dataToBackend(
   data: OnboardingData,
   categories: CategoryIndex,
 ): ProviderDraftDto {
-  const primaryId = findId(categories, data.categories[0]);
+  const categoryIds = resolveCategoryIds(data.categories, categories);
+  const primaryId = categoryIds[0];
   const zones = data.zones
     .map((key) => {
       const [city, commune] = key.split("|");
@@ -727,9 +904,13 @@ function dataToBackend(
     idFrontUploaded: Boolean(data.id.front),
     idBackUploaded: Boolean(data.id.back),
     primaryCategoryId: primaryId ?? undefined,
+    categoryIds: categoryIds.length > 0 ? categoryIds : undefined,
+    subcategoryIds:
+      data.subcategoryIds.length > 0 ? data.subcategoryIds : undefined,
+    profession: data.title || undefined,
     skills: data.skills.map((name) => ({ name, level: 3 })),
     yearsOfExperience: data.years ? YEARS_TO_NUMBER[data.years] : undefined,
-    description: data.title || undefined,
+    description: data.bio || undefined,
     serviceZones: zones,
     zoneRadiusKm: data.radius,
     hourlyRate: data.hourly > 0 ? data.hourly : undefined,
