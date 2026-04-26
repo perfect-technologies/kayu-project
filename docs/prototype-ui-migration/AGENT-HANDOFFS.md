@@ -32,9 +32,8 @@ Read `00-product-flow-contract.md`, `07-bookings-provider-dashboard.md`, and `PR
 
 ## Workstream 08 - Admin, Settings, Error States
 
-Read `00-product-flow-contract.md`, `08-admin-settings-errors.md`, and `PROGRESS.md`. Visually align admin/settings/error states with KAYOU while keeping launch scope small. Do not add payout/dispute/refund tooling. Run web checks and update `PROGRESS.md`.
+Read `00-product-flow-contract.md`, `08-admin-settings-errors.md`, and `PROGRESS.md`. Before editing code, inspect `/Users/alainmk/Downloads/KAYOU Prototype _standalone_.html` directly, plus `/Users/alainmk/Downloads/KAYOU Prototype _standalone_2.html` if present, and extract the relevant `AdminOps` and `SettingsAccount` UI from the prototype. Replace the current admin dashboard with the prototype Ops Admin dashboard, and replace `/dashboard/settings` with the prototype Settings UI for both client and provider variants. Keep admin operational sections admin-only. Settings controls that are not wired must be disabled, coming-later, or honestly represented. Do not merge client/provider settings into one generic page. Run web checks and update `PROGRESS.md` with the prototype screens/components inspected.
 
 ## Workstream 09 - Mobile Responsive QA
 
 Read `00-product-flow-contract.md`, `09-mobile-responsive-qa.md`, and `PROGRESS.md`. Test migrated screens at required viewports. Fix small responsive issues only if scoped and safe. Record routes/viewports/evidence in `PROGRESS.md`.
-

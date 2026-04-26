@@ -29,7 +29,7 @@ Current launch truth:
 | 05 - Messages And Final Offer | Complete | Codex | Chat/final-offer clarity pass for web and mobile |
 | 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
 | 07 - Bookings And Provider Dashboard | Ready | Unassigned | Accepted-offer/job surfaces |
-| 08 - Admin, Settings, Error States | Ready | Unassigned | Secondary surfaces |
+| 08 - Ops Admin, Settings, Error States | Ready | Unassigned | Full prototype Ops Admin and role-aware Settings replacement |
 | 09 - Mobile Responsive QA | Ready | Unassigned | Viewport and launch UI QA |
 
 ## Decisions Log
@@ -40,6 +40,10 @@ Current launch truth:
 | 2026-04-26 | Preserve chat final-offer flow as product truth | Matches current backend/web/mobile implementation and market simplicity |
 | 2026-04-26 | Defer quote marketplace visuals as product flow | Useful UI pieces can be adapted into final offer composer later |
 | 2026-04-26 | Keep cash-first payment language | Launch does not include online/mobile money payment |
+| 2026-04-26 | Use prototype Ops Admin as replacement target | Admin is internal and should expose the operational dashboard from the new prototype |
+| 2026-04-26 | Use prototype Settings as replacement target | Settings should follow the new prototype UI/IA even when some controls need disabled or coming-later states |
+| 2026-04-26 | Keep client and provider Settings variants | Prototype has separate client/provider settings experiences and the app should render the right one per role |
+| 2026-04-26 | Agents must inspect prototype HTML directly | Admin/settings implementation must be extracted from `/Users/alainmk/Downloads/KAYOU Prototype _standalone_.html`, not inferred from planning notes |
 
 ## Audit Inputs
 
@@ -68,8 +72,9 @@ MVP classification:
 
 - Keep: home, search, provider cards/profile, chat shell, auth, basic onboarding, review display.
 - Adapt: quote composer to final-offer composer, booking detail to accepted-final-offer job detail, provider dashboard to chats/offers/jobs.
-- Discard for launch: quote marketplace, request marketplace, competing providers, booking checkout, protected payment, payouts, disputes.
-- Later: admin verification queue, payout support, rich notifications, advanced availability.
+- Discard for public launch: quote marketplace, request marketplace, competing providers, booking checkout, protected payment, public payouts, public disputes.
+- Keep for internal admin: prototype Ops Admin, verification queue, moderation queues, support/issues, payment/refund/payout/dispute review sections.
+- Later: rich notifications, advanced availability, public online/mobile payment.
 
 ## How Agents Should Update This File
 
@@ -100,6 +105,12 @@ Manual checks:
 Notes / decisions:
 
 - ...
+
+Prototype extraction evidence, when applicable:
+
+- Prototype file inspected: `/Users/alainmk/Downloads/KAYOU Prototype _standalone_.html`
+- Prototype screens/components used: `...`
+- Prototype behavior intentionally adapted or rejected: `...`
 ```
 
 ## Workstream 01 Evidence

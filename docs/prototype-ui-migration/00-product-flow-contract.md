@@ -8,7 +8,9 @@ Ready for all agents.
 
 Freeze the business flow before visual migration work starts.
 
-The new prototype contains useful UI, but it also contains old product assumptions: provider request inboxes, quote competition, protected payments, payouts, disputes, and ops-heavy admin. Those are not launch truth for Kinshasa MVP.
+The new prototype contains useful UI, but it also contains old product assumptions for the public client/provider app: provider request inboxes, quote competition, protected payments, payouts, and disputes. Those are not launch truth for the Kinshasa MVP client/provider flow.
+
+Exception: the prototype Ops Admin is now the target internal admin dashboard. Admin can expose operational queues and controls needed by the team, as long as those controls do not leak unsupported payment, quote-marketplace, or arrival-code promises into client/provider-facing routes.
 
 ## Launch Truth
 
@@ -57,11 +59,16 @@ Avoid for launch:
 - `En route`
 - `Arrivé`
 
+Admin-only exception:
+
+- Internal admin labels may mention operational concepts such as verification, moderation, disputes, refunds, payouts, or payment review if the admin workstream implements the corresponding dashboard section from the prototype.
+- Those labels must remain inside admin routes and must not imply that client/provider launch flows support online payment, protected payment, route tracking, or quote competition.
+
 ## Acceptance Criteria
 
 - No launch-facing UI asks clients to compare provider quotes.
 - No launch-facing UI suggests online payment is available.
 - Final offer is created from chat, not from a request marketplace route.
 - Cash wording is visible wherever payment is mentioned.
-- Deferred routes remain behind launch flags or out of navigation.
-
+- Deferred public routes remain behind launch flags or out of client/provider navigation.
+- `/dashboard/admin` is allowed to become the prototype-style Ops Admin dashboard.
