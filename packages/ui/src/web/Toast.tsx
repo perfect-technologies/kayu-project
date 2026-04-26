@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { tokens } from "../tokens.js";
+import { I, type IconProps } from "./Icon.js";
 
 export type ToastVariant = "success" | "info" | "error";
 
@@ -79,10 +79,10 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children, topOffse
 
 // ─── Viewport ───────────────────────────────────────────────────────────────
 
-const VARIANT_ICON: Record<ToastVariant, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
-  success: CheckCircle2,
-  info: Info,
-  error: AlertCircle,
+const VARIANT_ICON: Record<ToastVariant, React.ComponentType<IconProps>> = {
+  success: I.checkCircle,
+  info: I.info,
+  error: I.alertCircle,
 };
 
 const VARIANT_COLOR: Record<ToastVariant, string> = {
@@ -133,7 +133,7 @@ const ToastViewport: React.FC<ViewportProps> = ({ toast, onDismiss, topOffset })
             animation: "kayu-toast-in 200ms cubic-bezier(0.3, 0, 0, 1) both",
           }}
         >
-          <Icon size={18} color={tint} strokeWidth={2} />
+          <Icon size={18} strokeColor={tint} stroke={2} />
           <span
             style={{
               flex: 1,
@@ -161,7 +161,7 @@ const ToastViewport: React.FC<ViewportProps> = ({ toast, onDismiss, topOffset })
                 display: "inline-flex",
               }}
             >
-              <X size={16} strokeWidth={1.75} />
+              <I.x size={16} stroke={1.75} />
             </button>
           ) : null}
         </div>

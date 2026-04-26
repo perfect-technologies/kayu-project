@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle } from "lucide-react";
 import { tokens } from "../tokens.js";
 import { Button } from "./Button.js";
+import { I } from "./Icon.js";
 
 export type ErrorStateCTA = {
   label: string;
@@ -52,7 +52,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         marginBottom: 16,
       }}
     >
-      <AlertCircle size={44} strokeWidth={1.75} color={tokens.color.danger} />
+      <I.alertCircle size={44} stroke={1.75} strokeColor={tokens.color.danger} />
     </div>
     <h3
       style={{
@@ -60,7 +60,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         fontWeight: 600,
         fontSize: 24,
         lineHeight: 1.15,
-        letterSpacing: "-0.01em",
+        letterSpacing: 0,
         color: tokens.color.textPrimary,
         margin: 0,
       }}
@@ -160,7 +160,7 @@ export const FormErrorBanner: React.FC<FormErrorBannerProps> = ({
       ...style,
     }}
   >
-    <AlertCircle size={18} color={tokens.color.danger} strokeWidth={1.75} />
+    <I.alertCircle size={18} strokeColor={tokens.color.danger} stroke={1.75} />
     <span
       style={{
         flex: 1,

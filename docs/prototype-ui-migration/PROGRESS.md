@@ -23,7 +23,7 @@ Current launch truth:
 | --- | --- | --- | --- |
 | 00 - Product Flow Contract | Ready | Planning | MVP flow guardrails documented |
 | 01 - Canonical Design System | Complete | Codex | Standalone tokens, globals, docs, and `/design-system` route aligned |
-| 02 - Shared UI Primitives | Ready | Unassigned | Align shared UI and shadcn wrappers |
+| 02 - Shared UI Primitives | Complete | Codex | Shared primitives and local shadcn wrappers aligned to KAYOU |
 | 03 - Home, Services, Categories | Ready | Unassigned | Discovery visual pass |
 | 04 - Provider Profile | Ready | Unassigned | Profile visual pass |
 | 05 - Messages And Final Offer | Ready | Unassigned | Chat/final-offer clarity pass |
@@ -147,3 +147,64 @@ Notes / decisions:
 
 - Product flow was not changed.
 - `radius.xxl` remains exported for existing mobile/web consumers, but new code should use `radius.xl` for 28px sheet/modal corners.
+
+## Workstream 02 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `packages/ui/src/cards.ts`
+- `packages/ui/src/index.ts`
+- `packages/ui/src/web/Avatar.tsx`
+- `packages/ui/src/web/EmptyState.tsx`
+- `packages/ui/src/web/ErrorState.tsx`
+- `packages/ui/src/web/FeaturedProviderCard.tsx`
+- `packages/ui/src/web/Input.tsx`
+- `packages/ui/src/web/InlineAlert.tsx`
+- `packages/ui/src/web/KayouMoment.tsx`
+- `packages/ui/src/web/StatCard.tsx`
+- `packages/ui/src/web/Toast.tsx`
+- `packages/ui/src/web/index.ts`
+- `packages/ui/src/mobile/Avatar.tsx`
+- `packages/ui/src/mobile/EmptyState.tsx`
+- `packages/ui/src/mobile/ErrorState.tsx`
+- `packages/ui/src/mobile/FeaturedProviderCard.tsx`
+- `packages/ui/src/mobile/InlineAlert.tsx`
+- `packages/ui/src/mobile/KayouMoment.tsx`
+- `packages/ui/src/mobile/StatCard.tsx`
+- `packages/ui/src/mobile/index.ts`
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/components/ui/alert.tsx`
+- `apps/web/src/components/ui/badge.tsx`
+- `apps/web/src/components/ui/button.tsx`
+- `apps/web/src/components/ui/card.tsx`
+- `apps/web/src/components/ui/input.tsx`
+- `apps/web/src/components/ui/skeleton.tsx`
+- `apps/web/src/components/ui/textarea.tsx`
+
+Behavior implemented:
+
+- Added shared `formatMoneyFc` and switched shared provider-card price rendering plus chat final-offer price rendering to the shared FC formatter.
+- Added exported `InlineAlert` primitives for web and mobile with KAYOU tinted surfaces, calm copy, icons, and optional action.
+- Moved web empty/error/input/toast internals to the shared `I` icon layer where touched.
+- Remapped local shadcn `Button`, `Card`, `Input`, `Badge`, `Skeleton`, `Alert`, and `Textarea` styles to KAYOU sizing, 12px control radius, 20px card radius, focus rings, token colors, and shimmer animation.
+- Removed negative letter-spacing from shared web/mobile primitives touched in this pass.
+
+Commands run:
+
+- `pnpm --filter @kayu/ui type-check` - passed
+- `pnpm --filter @kayu/ui build` - passed
+- `pnpm --filter @kayu/web type-check` - passed
+
+Manual checks:
+
+- Code-level check that shared buttons retain icon slots and local shadcn buttons still size to 32/40/48px.
+- Code-level check that shadcn skeleton now uses the global `animate-k-shimmer` helper.
+- Browser visual QA not run in this pass.
+
+Notes / decisions:
+
+- Product flow was not changed.
+- Existing Radix/shadcn wrappers remain in place; only their default visual mapping changed.
+- Initial validation caught a mobile icon prop mismatch in the new inline alert and stale web declarations before the UI rebuild; both were fixed before the final passing runs above.

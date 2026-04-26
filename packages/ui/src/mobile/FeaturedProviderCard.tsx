@@ -7,7 +7,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import {
-  formatHourly,
+  formatMoneyFc,
   portfolioSlug,
   type ProviderCardData,
 } from "../cards.js";
@@ -320,7 +320,7 @@ const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
         fontVariant: ["tabular-nums"],
       }}
     >
-      {formatHourly(hourly)} FC
+      {formatMoneyFc(hourly)}
     </Text>
     <Text
       style={{

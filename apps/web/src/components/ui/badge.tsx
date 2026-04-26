@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden",
+  "inline-flex h-7 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border px-3 py-0 font-sans text-[13px] font-medium transition-[color,background,border-color,box-shadow] [&>svg]:size-3 [&>svg]:pointer-events-none focus-visible:border-[var(--k-primary)] focus-visible:ring-[3px] focus-visible:ring-[rgba(14,165,233,0.15)] aria-invalid:border-[var(--k-danger)] aria-invalid:ring-[rgba(225,29,72,0.16)]",
   {
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+          "border-transparent bg-[var(--k-primary-subtle)] text-[var(--k-primary-hover)] [a&]:hover:bg-[#E0F2FE]",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "border-transparent bg-[var(--k-surface-muted)] text-[var(--k-text-body)] [a&]:hover:bg-[var(--k-border)]",
         destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "border-transparent bg-[var(--k-danger-subtle)] text-[var(--k-danger)] [a&]:hover:bg-[#FFE4E6]",
         outline:
-          "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+          "border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-body)] [a&]:hover:bg-[var(--k-surface-muted)]",
       },
     },
     defaultVariants: {

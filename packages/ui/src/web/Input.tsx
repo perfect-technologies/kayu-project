@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle } from "lucide-react";
 import { tokens } from "../tokens.js";
+import { I } from "./Icon.js";
 
 export type InputProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -126,7 +126,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               color: hasError ? tokens.color.danger : tokens.color.textMuted,
             }}
           >
-            {hasError ? <AlertCircle size={14} strokeWidth={2} /> : null}
+            {hasError ? <I.alertCircle size={14} stroke={2} /> : null}
             {error ?? helperText}
           </div>
         ) : (

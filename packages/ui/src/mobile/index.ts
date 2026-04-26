@@ -90,5 +90,12 @@ export {
 } from "./ErrorState.js";
 export type { ErrorStateProps, ErrorStateCTA, FormErrorBannerProps } from "./ErrorState.js";
 
+export { InlineAlert } from "./InlineAlert.js";
+export type {
+  InlineAlertAction,
+  InlineAlertProps,
+  InlineAlertVariant,
+} from "./InlineAlert.js";
+
 export { ToastProvider, useToast } from "./Toast.js";
 export type { Toast, ToastVariant, ToastProviderProps } from "./Toast.js";

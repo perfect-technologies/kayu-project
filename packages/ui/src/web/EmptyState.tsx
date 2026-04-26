@@ -1,18 +1,11 @@
 "use client";
 
 import * as React from "react";
-import {
-  Calendar as CalendarIcon,
-  Heart as HeartIcon,
-  Inbox as InboxIcon,
-  Search as SearchIcon,
-  Star as StarIcon,
-  type LucideProps,
-} from "lucide-react";
 import { tokens } from "../tokens.js";
 import { Button } from "./Button.js";
+import { I, type IconProps } from "./Icon.js";
 
-type LucideIcon = React.ComponentType<LucideProps>;
+type KayouIcon = React.ComponentType<IconProps>;
 
 export type EmptyStateCTA = {
   label: string;
@@ -20,7 +13,7 @@ export type EmptyStateCTA = {
 };
 
 export type EmptyStateProps = {
-  icon?: LucideIcon;
+  icon?: KayouIcon;
   title: string;
   subtitle?: string;
   cta?: EmptyStateCTA;
@@ -65,7 +58,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           marginBottom: 16,
         }}
       >
-        <Icon size={44} strokeWidth={1.5} color={tokens.color.textSubtle} />
+        <Icon size={44} stroke={1.5} strokeColor={tokens.color.textSubtle} />
       </div>
     ) : null}
     <h3
@@ -74,7 +67,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         fontWeight: 600,
         fontSize: 24,
         lineHeight: 1.15,
-        letterSpacing: "-0.01em",
+        letterSpacing: 0,
         color: tokens.color.textPrimary,
         margin: 0,
       }}
@@ -113,7 +106,7 @@ type VariantProps = {
 
 export const NoBookingsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
   <EmptyState
-    icon={CalendarIcon}
+    icon={I.calendar}
     title="Pas encore de réservations."
     subtitle="Trouve un pro et réserve un service en quelques clics."
     cta={onCtaClick ? { label: "Trouver un pro", onClick: onCtaClick } : undefined}
@@ -123,7 +116,7 @@ export const NoBookingsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest })
 
 export const NoFavoritesEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
   <EmptyState
-    icon={HeartIcon}
+    icon={I.heart}
     title="Aucun favori pour l'instant."
     subtitle="Enregistre les pros qui t'intéressent pour les retrouver ici."
     cta={onCtaClick ? { label: "Explorer", onClick: onCtaClick } : undefined}
@@ -133,7 +126,7 @@ export const NoFavoritesEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }
 
 export const NoMessagesEmpty: React.FC<VariantProps> = (props) => (
   <EmptyState
-    icon={InboxIcon}
+    icon={I.inbox}
     title="Aucun message."
     subtitle="Tes échanges avec les pros apparaîtront ici."
     {...props}
@@ -142,7 +135,7 @@ export const NoMessagesEmpty: React.FC<VariantProps> = (props) => (
 
 export const NoSearchResultsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
   <EmptyState
-    icon={SearchIcon}
+    icon={I.search}
     title="Aucun pro trouvé."
     subtitle="Ajuste tes filtres ou élargis ta zone de recherche."
     cta={onCtaClick ? { label: "Effacer les filtres", onClick: onCtaClick } : undefined}
@@ -152,7 +145,7 @@ export const NoSearchResultsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...re
 
 export const NoReviewsYetEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
   <EmptyState
-    icon={StarIcon}
+    icon={I.star}
     title="Pas encore d'avis."
     subtitle="Sois le premier à évaluer ce pro."
     cta={onCtaClick ? { label: "Laisser un avis", onClick: onCtaClick } : undefined}

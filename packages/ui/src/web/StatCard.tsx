@@ -63,7 +63,7 @@ export const StatCard: React.FC<StatCardProps> = ({
               fontWeight: 700,
               fontSize: compact ? 22 : 26,
               color: tokens.color.textPrimary,
-              letterSpacing: "-0.02em",
+              letterSpacing: 0,
               fontVariantNumeric: "tabular-nums",
               lineHeight: 1.1,
             }}

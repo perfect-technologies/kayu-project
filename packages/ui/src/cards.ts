@@ -35,7 +35,12 @@ export const portfolioSlug = (
   categories: readonly CategorySlug[] | undefined,
 ): CategorySlug => categories?.[0] ?? "plomberie";
 
-// Format an hourly rate for the wide/featured card meta — "15 000 FC" with
+// Format a price in Congolese francs — "15 000 FC" with French thousand
+// separators (NBSP), separator handled by Intl.
+export const formatMoneyFc = (amount: number): string =>
+  `${amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} FC`;
+
+// Format an hourly rate for the wide/featured card meta — "15 000" with
 // French thousand separators (NBSP), separator handled by Intl.
 export const formatHourly = (hourly: number): string =>
   hourly.toLocaleString("fr-FR");

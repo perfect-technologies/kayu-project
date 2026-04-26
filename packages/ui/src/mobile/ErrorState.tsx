@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 22,
     lineHeight: 28,
-    letterSpacing: -0.3,
+    letterSpacing: 0,
     color: tokens.color.textPrimary,
     textAlign: "center",
   },

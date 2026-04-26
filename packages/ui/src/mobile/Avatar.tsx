@@ -102,7 +102,7 @@ export const Avatar: React.FC<AvatarProps> = ({
               fontFamily: "PlusJakartaSans-SemiBold",
               fontSize: Math.round(size * 0.38),
               lineHeight: Math.round(size * 0.38) * 1.05,
-              letterSpacing: -0.5,
+              letterSpacing: 0,
             }}
           >
             {label}

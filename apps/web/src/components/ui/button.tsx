@@ -5,27 +5,27 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[12px] font-sans text-[14px] font-semibold transition-[background,color,border-color,box-shadow,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-[var(--k-primary)] focus-visible:ring-[3px] focus-visible:ring-[rgba(14,165,233,0.15)] aria-invalid:border-[var(--k-danger)] aria-invalid:ring-[rgba(225,29,72,0.16)]",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+          "border border-transparent bg-[var(--k-primary)] text-[var(--k-text-inverse)] shadow-[var(--k-e-brand)] hover:bg-[var(--k-primary-hover)]",
         destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+          "border border-transparent bg-[var(--k-danger)] text-white shadow-[var(--k-e1)] hover:bg-[#BE123C] focus-visible:ring-[rgba(225,29,72,0.16)]",
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+          "border border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-primary)] shadow-none hover:bg-[var(--k-surface-muted)]",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+          "border border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-primary)] shadow-none hover:bg-[var(--k-surface-muted)]",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
+          "border border-transparent bg-transparent text-[var(--k-primary-hover)] shadow-none hover:bg-[var(--k-primary-subtle)]",
+        link: "h-auto border border-transparent bg-transparent px-0 text-[var(--k-primary-hover)] underline-offset-4 shadow-none hover:underline active:scale-100",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
+        default: "h-10 px-[18px] py-0 has-[>svg]:px-4",
+        sm: "h-8 gap-1.5 px-3 py-0 text-[13px] has-[>svg]:px-2.5",
+        lg: "h-12 px-[22px] py-0 text-[15px] has-[>svg]:px-5",
+        icon: "size-10 p-0",
       },
     },
     defaultVariants: {

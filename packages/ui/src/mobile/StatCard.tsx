@@ -66,7 +66,7 @@ export const StatCard: React.FC<StatCardProps> = ({
               fontWeight: "700",
               fontSize: compact ? 22 : 26,
               color: tokens.color.textPrimary,
-              letterSpacing: -0.5,
+              letterSpacing: 0,
               lineHeight: (compact ? 22 : 26) * 1.1,
             }}
           >

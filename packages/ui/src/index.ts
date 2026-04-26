@@ -11,6 +11,7 @@ export type { Tokens, CategorySlug } from "./tokens.js";
 
 export {
   portfolioSlug,
+  formatMoneyFc,
   formatHourly,
   formatHourlyCompact,
 } from "./cards.js";

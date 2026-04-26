@@ -149,7 +149,7 @@ export const KayouMoment: React.FC<KayouMomentProps> = ({
           fontWeight: 700,
           fontSize: 36,
           lineHeight: 1.05,
-          letterSpacing: "-0.02em",
+          letterSpacing: 0,
           color: tokens.color.textPrimary,
           margin: "0 0 10px",
           animation: animate ? "kmRise 500ms 200ms both" : undefined,

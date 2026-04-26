@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 28,
     lineHeight: 32,
-    letterSpacing: -0.56,
+    letterSpacing: 0,
     color: tokens.color.textPrimary,
     marginBottom: 10,
     textAlign: "center",

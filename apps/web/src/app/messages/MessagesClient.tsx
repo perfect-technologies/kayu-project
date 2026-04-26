@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardApi, finalOffersApi, messagesApi, queryKeys } from "@kayu/api";
 import type { Conversation, FinalOffer, Message, UserSummary } from "@kayu/schemas";
+import { formatMoneyFc } from "@kayu/ui";
 import { Avatar, EmptyState, ErrorState, I } from "@kayu/ui/web";
-import { Inbox as InboxIcon } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -72,10 +72,6 @@ function formatBubbleTime(iso?: string | Date | null) {
     d.getDate() === now.getDate();
   if (sameDay) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   return `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
-}
-
-function formatMoney(amount: number) {
-  return `${amount.toLocaleString("fr-FR")} FC`;
 }
 
 function defaultOfferDate() {
@@ -434,7 +430,7 @@ function MessagesClientInner() {
             </div>
           ) : visibleConversations.length === 0 ? (
             <EmptyState
-              icon={InboxIcon}
+              icon={I.inbox}
               title="Aucun message"
               subtitle="Tes échanges avec les pros apparaîtront ici."
             />
@@ -1061,7 +1057,7 @@ function FinalOfferCard({
         </p>
       )}
       <div style={{ display: "grid", gap: 8, marginTop: 12, fontSize: 13 }}>
-        <OfferMeta icon="coins" label="Prix convenu" value={formatMoney(offer.price)} />
+        <OfferMeta icon="coins" label="Prix convenu" value={formatMoneyFc(offer.price)} />
         <OfferMeta icon="calendar" label="Date" value={dateLabel} />
         <OfferMeta
           icon="clock"

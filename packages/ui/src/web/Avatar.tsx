@@ -70,7 +70,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         fontFamily: tokens.font.display,
         fontWeight: 600,
         fontSize: Math.round(size * 0.38),
-        letterSpacing: "-0.02em",
+        letterSpacing: 0,
         boxShadow: ring
           ? `0 0 0 2px ${tokens.color.surface}, 0 0 0 4px ${tokens.color.primary}`
           : `0 0 0 2px ${tokens.color.surface}`,

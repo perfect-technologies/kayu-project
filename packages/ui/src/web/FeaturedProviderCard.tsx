@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import {
-  formatHourly,
+  formatMoneyFc,
   portfolioSlug,
   type ProviderCardData,
 } from "../cards.js";
@@ -313,7 +313,7 @@ const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      {formatHourly(hourly)} FC
+      {formatMoneyFc(hourly)}
     </span>
     <span
       style={{
