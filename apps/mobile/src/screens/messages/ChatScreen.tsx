@@ -439,6 +439,30 @@ export function ChatScreen() {
         ))}
       </ScrollView>
 
+      {user?.role === 'PROVIDER' ? (
+        <View style={styles.offerCtaWrap}>
+          <Pressable
+            style={[styles.offerCta, offerOpen && styles.offerCtaActive]}
+            accessibilityRole="button"
+            accessibilityLabel="Envoyer une offre finale"
+            onPress={() => setOfferOpen((open) => !open)}
+          >
+            <I.coins
+              size={16}
+              color={offerOpen ? theme.colors.textInverse : theme.colors.primaryHover}
+            />
+            <Text
+              style={[
+                styles.offerCtaText,
+                offerOpen && styles.offerCtaTextActive,
+              ]}
+            >
+              Envoyer une offre finale
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* Composer */}
       <View
         style={[
@@ -446,18 +470,11 @@ export function ChatScreen() {
           { paddingBottom: Math.max(insets.bottom, 14) },
         ]}
       >
-        <Pressable
-          style={styles.attachButton}
-          accessibilityLabel={user?.role === 'PROVIDER' ? 'Créer une offre finale' : 'Joindre'}
-          onPress={() => {
-            if (user?.role === 'PROVIDER') setOfferOpen((open) => !open);
-          }}
-        >
-          <I.plus
-            size={18}
-            color={user?.role === 'PROVIDER' ? theme.colors.primaryHover : theme.colors.textMuted}
-          />
-        </Pressable>
+        {user?.role !== 'PROVIDER' ? (
+          <Pressable style={styles.attachButton} accessibilityLabel="Joindre">
+            <I.plus size={18} color={theme.colors.textMuted} />
+          </Pressable>
+        ) : null}
         <TextInput
           value={draft}
           onChangeText={setDraft}
@@ -985,6 +1002,34 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  offerCtaWrap: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    backgroundColor: theme.colors.bg,
+  },
+  offerCta: {
+    height: 42,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primarySubtle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  offerCtaActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  offerCtaText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primaryHover,
+  },
+  offerCtaTextActive: {
+    color: theme.colors.textInverse,
   },
   input: {
     flex: 1,

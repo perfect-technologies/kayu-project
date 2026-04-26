@@ -90,10 +90,11 @@ const wrap = (
     ...rest
   }) => (
     <Cmp
+      {...(rest as LucideProps)}
       size={size}
       strokeWidth={stroke}
-      stroke={strokeColor}
-      {...(rest as LucideProps)}
+      color={strokeColor ?? "currentColor"}
+      stroke={strokeColor ?? "currentColor"}
     />
   );
   C.displayName = Cmp.displayName || "Icon";
@@ -234,9 +235,10 @@ export const Icon: React.FC<IconProps & { as: React.ComponentType<LucideProps> }
   ...rest
 }) => (
   <As
+    {...(rest as LucideProps)}
     size={size}
     strokeWidth={stroke}
-    stroke={strokeColor}
-    {...(rest as LucideProps)}
+    color={strokeColor ?? "currentColor"}
+    stroke={strokeColor ?? "currentColor"}
   />
 );

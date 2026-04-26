@@ -348,8 +348,11 @@ function MessagesClientInner() {
       style={{
         display: "grid",
         gridTemplateColumns: "360px 1fr",
-        height: "calc(100vh - 4rem)",
+        height: "calc(100dvh - 4rem)",
+        maxHeight: "calc(100dvh - 4rem)",
         background: "var(--k-bg)",
+        overflow: "hidden",
+        minHeight: 0,
       }}
     >
       {/* List */}
@@ -360,6 +363,8 @@ function MessagesClientInner() {
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
+          minHeight: 0,
+          overflow: "hidden",
         }}
       >
         <div
@@ -416,7 +421,7 @@ function MessagesClientInner() {
             })}
           </div>
         </div>
-        <div className="k-scroll" style={{ flex: 1, overflowY: "auto" }}>
+        <div className="k-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
           {convLoading ? (
             <ConversationListSkeleton />
           ) : convError ? (
@@ -464,6 +469,8 @@ function MessagesClientInner() {
           flexDirection: "column",
           height: "100%",
           minWidth: 0,
+          minHeight: 0,
+          overflow: "hidden",
         }}
       >
         {active ? (
@@ -733,6 +740,8 @@ function ThreadView({
         height: "100%",
         background: "var(--k-bg)",
         minWidth: 0,
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       {/* Header */}
@@ -773,28 +782,23 @@ function ThreadView({
             </div>
           </div>
         </div>
-        <button
-          title="Envoyer une offre finale"
-          aria-label="Envoyer une offre finale"
-          onClick={() => setOfferOpen(true)}
-          disabled={!canSendOffer}
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: "50%",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            cursor: canSendOffer ? "pointer" : "not-allowed",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--k-primary-hover)",
-            flexShrink: 0,
-            opacity: canSendOffer ? 1 : 0.4,
-          }}
-        >
-          <I.coins size={18} />
-        </button>
+        {myRole === "PROVIDER" && (
+          <button
+            title="Envoyer une offre finale"
+            aria-label="Envoyer une offre finale"
+            onClick={() => setOfferOpen(true)}
+            disabled={!canSendOffer}
+            className="k-btn k-btn-primary k-btn-sm"
+            style={{
+              flexShrink: 0,
+              opacity: canSendOffer ? 1 : 0.55,
+              cursor: canSendOffer ? "pointer" : "not-allowed",
+            }}
+          >
+            <I.coins size={15} />
+            Envoyer une offre finale
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -803,6 +807,7 @@ function ThreadView({
         className="k-scroll"
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           padding: "20px 24px",
           background: "var(--k-bg)",
