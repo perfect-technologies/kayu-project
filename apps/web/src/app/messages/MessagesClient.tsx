@@ -114,8 +114,17 @@ function MessagesClientInner() {
   const [activeId, setActiveId] = useState<string | null>(
     requestedConversationId,
   );
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const {
     data: convData,
@@ -178,10 +187,10 @@ function MessagesClientInner() {
   }, [requestedRecipientConversation, requestedRecipientId]);
 
   useEffect(() => {
-    if (!activeId && visibleConversations.length > 0) {
+    if (!activeId && visibleConversations.length > 0 && !isMobileViewport) {
       setActiveId(visibleConversations[0]!.id);
     }
-  }, [visibleConversations, activeId]);
+  }, [visibleConversations, activeId, isMobileViewport]);
 
   // Strip the conversationId query param once we've selected it so reloads
   // don't fight client-side state.
@@ -340,7 +349,7 @@ function MessagesClientInner() {
 
   return (
     <div
-      className="-mx-4 -my-4 sm:-mx-6 sm:-my-6"
+      className={`k-messages-shell -mx-4 -my-4 sm:-mx-6 sm:-my-6 ${active ? "k-messages-has-thread" : ""}`}
       style={{
         display: "grid",
         gridTemplateColumns: "360px 1fr",
@@ -353,6 +362,7 @@ function MessagesClientInner() {
     >
       {/* List */}
       <div
+        className="k-messages-list"
         style={{
           borderRight: "1px solid var(--k-border)",
           background: "var(--k-surface)",
@@ -460,6 +470,7 @@ function MessagesClientInner() {
 
       {/* Thread */}
       <div
+        className="k-messages-thread"
         style={{
           display: "flex",
           flexDirection: "column",
@@ -484,6 +495,7 @@ function MessagesClientInner() {
             onCreateOffer={(offer) => createOffer.mutateAsync(offer)}
             onAcceptOffer={(id) => acceptOffer.mutate(id)}
             onDeclineOffer={(id) => declineOffer.mutate(id)}
+            onBack={() => setActiveId(null)}
             sending={sendMut.isPending}
             offerBusy={
               createOffer.isPending || acceptOffer.isPending || declineOffer.isPending
@@ -682,6 +694,7 @@ function ThreadView({
   onCreateOffer,
   onAcceptOffer,
   onDeclineOffer,
+  onBack,
   sending,
   offerBusy,
 }: {
@@ -700,6 +713,7 @@ function ThreadView({
   ) => Promise<unknown>;
   onAcceptOffer: (id: string) => void;
   onDeclineOffer: (id: string) => void;
+  onBack: () => void;
   sending: boolean;
   offerBusy: boolean;
 }) {
@@ -710,7 +724,7 @@ function ThreadView({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [conversation.id, messages.length]);
+  }, [conversation.id, messages.length, finalOffers.length]);
 
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && !sending;
@@ -719,7 +733,8 @@ function ThreadView({
     myRole === "PROVIDER" &&
     conversation.otherUser?.role === "CLIENT" &&
     !!providerId &&
-    !!conversation.otherUser?.id;
+    !!conversation.otherUser?.id &&
+    !conversation.id.startsWith("pending:");
 
   const submit = (text: string) => {
     const t = text.trim();
@@ -752,6 +767,25 @@ function ThreadView({
           flexShrink: 0,
         }}
       >
+        <button
+          className="k-messages-back"
+          aria-label="Retour aux conversations"
+          onClick={onBack}
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            border: "1px solid var(--k-border)",
+            background: "var(--k-surface)",
+            color: "var(--k-text-body)",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            cursor: "pointer",
+          }}
+        >
+          <I.arrowLeft size={18} />
+        </button>
         <div
           style={{
             display: "flex",
@@ -792,7 +826,8 @@ function ThreadView({
             }}
           >
             <I.coins size={15} />
-            Envoyer une offre finale
+            <span className="k-messages-offer-label">Envoyer une offre finale</span>
+            <span className="k-messages-offer-label-mobile">Offre finale</span>
           </button>
         )}
       </div>
@@ -1024,14 +1059,14 @@ function FinalOfferCard({
     <div
       style={{
         border: "1px solid var(--k-border)",
-        borderRadius: 14,
+        borderRadius: "var(--k-r-lg)",
         background: "var(--k-surface)",
-        padding: 16,
+        padding: 18,
         boxShadow: "var(--k-e1)",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ minWidth: 0 }}>
           <div className="k-overline" style={{ color: "var(--k-primary)" }}>
             Offre finale
           </div>
@@ -1051,14 +1086,24 @@ function FinalOfferCard({
           {statusLabel[offer.status]}
         </span>
       </div>
+      <div
+        className="k-price"
+        style={{
+          marginTop: 12,
+          color: "var(--k-text-primary)",
+          fontSize: 28,
+          lineHeight: "30px",
+        }}
+      >
+        {formatMoneyFc(offer.price)}
+      </div>
       {offer.description && (
         <p className="k-body-m" style={{ margin: "8px 0 0", color: "var(--k-text-body)" }}>
           {offer.description}
         </p>
       )}
-      <div style={{ display: "grid", gap: 8, marginTop: 12, fontSize: 13 }}>
-        <OfferMeta icon="coins" label="Prix convenu" value={formatMoneyFc(offer.price)} />
-        <OfferMeta icon="calendar" label="Date" value={dateLabel} />
+      <div style={{ display: "grid", gap: 8, marginTop: 14, fontSize: 13 }}>
+        <OfferMeta icon="calendar" label="Date et heure" value={dateLabel} />
         <OfferMeta
           icon="clock"
           label="Durée"
@@ -1122,9 +1167,9 @@ function OfferMeta({
 }) {
   const Icon = I[icon] ?? I.check;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="k-offer-meta">
       <Icon size={14} strokeColor="var(--k-text-muted)" />
-      <span style={{ color: "var(--k-text-muted)", minWidth: 86 }}>{label}</span>
+      <span style={{ color: "var(--k-text-muted)" }}>{label}</span>
       <span style={{ color: "var(--k-text-primary)", fontWeight: 600 }}>{value}</span>
     </div>
   );
@@ -1223,6 +1268,7 @@ function FinalOfferDialog({
       onClick={() => onOpenChange(false)}
     >
       <div
+        className="k-final-offer-dialog"
         style={{
           width: "min(520px, 100%)",
           borderRadius: 16,
@@ -1230,6 +1276,8 @@ function FinalOfferDialog({
           border: "1px solid var(--k-border)",
           boxShadow: "var(--k-e3)",
           padding: 20,
+          maxHeight: "min(720px, calc(100dvh - 32px))",
+          overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1239,7 +1287,7 @@ function FinalOfferDialog({
               Envoyer une offre finale
             </h2>
             <p className="k-body-m" style={{ color: "var(--k-text-muted)", margin: "4px 0 0" }}>
-              À utiliser après discussion avec le client.
+              Résumez simplement l'accord discuté dans ce fil.
             </p>
           </div>
           <button
@@ -1273,13 +1321,13 @@ function FinalOfferDialog({
               resize: "vertical",
             }}
           />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="k-final-offer-form-row">
             <input
               className="k-input"
               inputMode="numeric"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="Prix en FC"
+              placeholder="Prix convenu en FC"
             />
             <input
               className="k-input"
@@ -1298,7 +1346,7 @@ function FinalOfferDialog({
             value={scheduledDate}
             onChange={(e) => setScheduledDate(e.target.value)}
           />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 10 }}>
+          <div className="k-final-offer-address-row">
             <input
               className="k-input"
               value={address}
@@ -1316,7 +1364,7 @@ function FinalOfferDialog({
             className="k-input"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes internes ou précision"
+            placeholder="Précision utile pour le client"
           />
         </div>
         {formError && (
@@ -1360,7 +1408,7 @@ function FinalOfferDialog({
             disabled={busy || !title.trim() || !price.trim()}
             onClick={submit}
           >
-            Envoyer l'offre
+            Envoyer l'offre finale
           </button>
         </div>
       </div>

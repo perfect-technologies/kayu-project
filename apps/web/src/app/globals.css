@@ -387,6 +387,92 @@
   .k-chip-warning { background: var(--k-warning-subtle); color: var(--k-warning); }
   .k-chip-accent  { background: var(--k-accent-subtle);  color: var(--k-accent); }
   .k-chip-expert  { background: var(--k-expert-subtle);  color: var(--k-expert); }
+
+  .k-messages-back {
+    display: none;
+  }
+
+  .k-messages-offer-label-mobile {
+    display: none;
+  }
+
+  .k-offer-meta {
+    display: grid;
+    grid-template-columns: 16px minmax(88px, max-content) minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .k-final-offer-form-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .k-final-offer-address-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 10px;
+  }
+
+  @media (max-width: 767px) {
+    .k-messages-shell {
+      display: block !important;
+      height: calc(100dvh - 3.5rem) !important;
+      max-height: calc(100dvh - 3.5rem) !important;
+      min-height: 0;
+    }
+
+    .k-messages-list,
+    .k-messages-thread {
+      height: 100%;
+      min-height: 0;
+    }
+
+    .k-messages-thread {
+      display: none !important;
+    }
+
+    .k-messages-has-thread .k-messages-list {
+      display: none !important;
+    }
+
+    .k-messages-has-thread .k-messages-thread {
+      display: flex !important;
+    }
+
+    .k-messages-back {
+      display: inline-flex;
+    }
+
+    .k-messages-offer-label {
+      display: none;
+    }
+
+    .k-messages-offer-label-mobile {
+      display: inline;
+    }
+
+    .k-offer-meta {
+      grid-template-columns: 16px minmax(0, 1fr);
+      gap: 6px 8px;
+    }
+
+    .k-offer-meta span:last-child {
+      grid-column: 2;
+    }
+
+    .k-final-offer-dialog {
+      border-radius: var(--k-r-lg) var(--k-r-lg) 0 0 !important;
+      align-self: flex-end;
+      max-height: calc(100dvh - 24px) !important;
+    }
+
+    .k-final-offer-form-row,
+    .k-final-offer-address-row {
+      grid-template-columns: 1fr;
+    }
+  }
 }
 
 /* ========================================

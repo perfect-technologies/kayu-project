@@ -141,7 +141,6 @@ export function ChatScreen() {
     () => finalOffersQuery.data?.finalOffers ?? [],
     [finalOffersQuery.data],
   );
-  const pendingOffer = finalOffers.find((offer) => offer.status === 'PENDING') ?? null;
 
   useEffect(() => {
     const id = setTimeout(
@@ -149,7 +148,7 @@ export function ChatScreen() {
       30,
     );
     return () => clearTimeout(id);
-  }, [messages.length]);
+  }, [messages.length, finalOffers.length]);
 
   const sendMut = useMutation({
     mutationFn: (text: string) =>
@@ -375,7 +374,7 @@ export function ChatScreen() {
           contentContainerStyle={styles.messagesContent}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && finalOffers.length === 0 ? (
             <Text style={styles.emptyChat}>
               Envoyez le premier message pour démarrer la conversation.
             </Text>
@@ -384,16 +383,17 @@ export function ChatScreen() {
               <MessageBubble key={m.id} m={m} myId={user?.id ?? null} />
             ))
           )}
-          {pendingOffer ? (
+          {finalOffers.map((offer) => (
             <FinalOfferCard
-              offer={pendingOffer}
+              key={offer.id}
+              offer={offer}
               isClient={user?.role !== 'PROVIDER'}
               busy={acceptOfferMutation.isPending || declineOfferMutation.isPending}
-              onAccept={() => acceptOfferMutation.mutate(pendingOffer.id)}
-              onDecline={() => declineOfferMutation.mutate(pendingOffer.id)}
+              onAccept={() => acceptOfferMutation.mutate(offer.id)}
+              onDecline={() => declineOfferMutation.mutate(offer.id)}
               onDiscuss={() => setDraft('Discutons encore de cette offre finale.')}
             />
-          ) : null}
+          ))}
           {user?.role === 'PROVIDER' && offerOpen ? (
             <FinalOfferForm
               title={offerTitle}
@@ -513,30 +513,55 @@ function FinalOfferCard({
   onDecline: () => void;
   onDiscuss: () => void;
 }) {
+  const statusLabel: Record<FinalOffer['status'], string> = {
+    PENDING: 'En attente',
+    ACCEPTED: 'Acceptée',
+    DECLINED: 'Refusée',
+    CANCELLED: 'Annulée',
+    EXPIRED: 'Expirée',
+  };
+  const canAct = isClient && offer.status === 'PENDING';
+
   return (
     <View style={styles.offerCard}>
       <View style={styles.offerHeader}>
         <View style={styles.offerIcon}>
-          <I.fileText size={16} color={theme.colors.primaryHover} />
+          <I.coins size={16} color={theme.colors.primaryHover} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.offerOverline}>Offre finale</Text>
           <Text style={styles.offerTitle}>{offer.title}</Text>
         </View>
-        <Text style={styles.offerPrice}>
-          {offer.price.toLocaleString('fr-FR')} FC
-        </Text>
+        <View style={styles.offerStatusChip}>
+          <Text style={styles.offerStatusText}>{statusLabel[offer.status]}</Text>
+        </View>
       </View>
+      <Text style={styles.offerPrice}>
+        {offer.price.toLocaleString('fr-FR')} FC
+      </Text>
       {offer.description ? (
         <Text style={styles.offerBody}>{offer.description}</Text>
       ) : null}
       <View style={styles.offerMetaGrid}>
-        <Text style={styles.offerMeta}>{formatOfferDate(offer.scheduledDate)}</Text>
-        <Text style={styles.offerMeta}>{formatDuration(offer.duration)}</Text>
-        <Text style={styles.offerMeta}>{offer.address || 'Adresse à confirmer'}</Text>
-        <Text style={styles.offerMeta}>Paiement en espèces à la fin de la mission</Text>
+        <OfferMetaRow
+          icon="calendar"
+          label="Date et heure"
+          value={formatOfferDate(offer.scheduledDate)}
+        />
+        <OfferMetaRow icon="clock" label="Durée" value={formatDuration(offer.duration)} />
+        <OfferMetaRow
+          icon="mapPin"
+          label="Adresse"
+          value={offer.address || 'Adresse à confirmer'}
+        />
       </View>
-      {isClient ? (
+      <View style={styles.offerCashNote}>
+        <I.coins size={15} color={theme.colors.primaryHover} />
+        <Text style={styles.offerCashNoteText}>
+          Paiement en espèces à la fin de la mission.
+        </Text>
+      </View>
+      {canAct ? (
         <View style={styles.offerActions}>
           <Pressable
             style={[styles.offerSecondaryButton, { flex: 1 }]}
@@ -561,8 +586,31 @@ function FinalOfferCard({
           </Pressable>
         </View>
       ) : (
-        <Text style={styles.offerWaiting}>En attente de réponse client.</Text>
+        <Text style={styles.offerWaiting}>
+          {offer.status === 'PENDING'
+            ? 'En attente de réponse client.'
+            : 'La conversation reste ouverte dans ce fil.'}
+        </Text>
       )}
+    </View>
+  );
+}
+
+function OfferMetaRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: 'calendar' | 'clock' | 'mapPin';
+  label: string;
+  value: string;
+}) {
+  const Icon = I[icon];
+  return (
+    <View style={styles.offerMetaRow}>
+      <Icon size={15} color={theme.colors.textMuted} />
+      <Text style={styles.offerMetaLabel}>{label}</Text>
+      <Text style={styles.offerMetaValue}>{value}</Text>
     </View>
   );
 }
@@ -608,7 +656,7 @@ function FinalOfferForm({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.offerOverline}>Offre finale</Text>
-          <Text style={styles.offerTitle}>Confirmer l'accord discuté</Text>
+          <Text style={styles.offerTitle}>Accord à envoyer</Text>
         </View>
       </View>
       <TextInput
@@ -630,7 +678,7 @@ function FinalOfferForm({
         <TextInput
           value={price}
           onChangeText={onChangePrice}
-          placeholder="Prix FC"
+          placeholder="Prix convenu FC"
           placeholderTextColor={theme.colors.textMuted}
           keyboardType="numeric"
           style={[styles.offerInput, { flex: 1 }]}
@@ -677,7 +725,7 @@ function FinalOfferForm({
           onPress={onSubmit}
         >
           <Text style={styles.offerPrimaryText}>
-            {busy ? 'Envoi...' : 'Envoyer'}
+            {busy ? 'Envoi...' : "Envoyer l'offre finale"}
           </Text>
         </Pressable>
       </View>
@@ -859,9 +907,24 @@ const styles = StyleSheet.create({
   },
   offerPrice: {
     fontFamily: theme.fonts.mono,
-    fontSize: 15,
+    fontSize: 22,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+    marginTop: 2,
+  },
+  offerStatusChip: {
+    minHeight: 24,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  offerStatusText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.primaryHover,
   },
   offerBody: {
     fontFamily: theme.fonts.body,
@@ -870,12 +933,41 @@ const styles = StyleSheet.create({
     color: theme.colors.textBody,
   },
   offerMetaGrid: {
-    gap: 4,
+    gap: 8,
   },
-  offerMeta: {
+  offerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  offerMetaLabel: {
     fontFamily: theme.fonts.body,
     fontSize: 12.5,
     color: theme.colors.textMuted,
+    minWidth: 86,
+  },
+  offerMetaValue: {
+    flex: 1,
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  offerCashNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  offerCashNoteText: {
+    flex: 1,
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: theme.colors.textBody,
   },
   offerWaiting: {
     fontFamily: theme.fonts.bodySemi,
@@ -959,9 +1051,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textBody,
   },
   offerCashCopy: {
-    fontFamily: theme.fonts.body,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    backgroundColor: theme.colors.primarySubtle,
+    fontFamily: theme.fonts.bodySemi,
     fontSize: 12.5,
-    color: theme.colors.textMuted,
+    fontWeight: '600',
+    color: theme.colors.textBody,
   },
   suggestedScroll: {
     flexGrow: 0,

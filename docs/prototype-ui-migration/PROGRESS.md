@@ -26,7 +26,7 @@ Current launch truth:
 | 02 - Shared UI Primitives | Complete | Codex | Shared primitives and local shadcn wrappers aligned to KAYOU |
 | 03 - Home, Services, Categories | Complete | Codex | New `ProviderShowcaseCard`, polished home + category surfaces |
 | 04 - Provider Profile | Complete | Codex | Profile body sections aligned to KAYOU section/chip system |
-| 05 - Messages And Final Offer | Ready | Unassigned | Chat/final-offer clarity pass |
+| 05 - Messages And Final Offer | Complete | Codex | Chat/final-offer clarity pass for web and mobile |
 | 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
 | 07 - Bookings And Provider Dashboard | Ready | Unassigned | Accepted-offer/job surfaces |
 | 08 - Admin, Settings, Error States | Ready | Unassigned | Secondary surfaces |
@@ -296,3 +296,40 @@ Notes / decisions:
 - Did not touch `ProviderHeader`, `BookingForm`, or `ContactDialog`; the contract calls those out as already-aligned or owned by the launch booking/contact flow.
 - Did not copy any prototype data, identifiers, or "/pros/jean-mubake" content per the contract — only the visual hierarchy.
 
+## Workstream 05 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/app/globals.css`
+- `apps/mobile/src/screens/messages/ChatScreen.tsx`
+- `docs/prototype-ui-migration/PROGRESS.md`
+
+Behavior implemented:
+
+- Web messages now use a responsive shell: desktop keeps the split inbox/thread layout, while mobile shows the inbox first and opens a single thread with a visible back control.
+- Provider final-offer CTAs stay visible in the conversation header on web and above the composer on mobile; new conversations still require an actual conversation before an offer can be created.
+- Final-offer cards now foreground `Offre finale`, status, `Prix convenu`, date/time, duration, address, and `Paiement en espèces à la fin de la mission.`
+- Mobile now renders pending, accepted, and declined final offers in the thread instead of only the pending offer.
+- Final-offer composer copy was simplified around the agreement discussed in chat, with no line-item quote builder, commission, payout, or online payment UI added.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/mobile type-check` - passed
+- `pnpm --filter @kayu/web build` - passed
+- `curl -I --max-time 8 http://localhost:3000/messages` - passed, existing Next dev server returned 200
+
+Manual checks:
+
+- Code-level check for client conversation with no final offer, provider final-offer CTA, pending final offer, accepted final offer, and declined final offer states in web/mobile message surfaces.
+- Responsive code-level check that `/messages` uses desktop split layout above 768px and list-first/thread-after-selection behavior at 390px mobile web.
+- Local route check confirmed `/messages` responds on the existing web dev server at `http://localhost:3000/messages`.
+- Search check confirmed touched message surfaces do not contain `devis`, protected-payment, mobile-money, commission, payout, or refund wording.
+
+Notes / decisions:
+
+- Product flow remains chat-first: final offers are created and acted on inside the conversation.
+- Cash wording remains visible wherever the final offer mentions payment.
