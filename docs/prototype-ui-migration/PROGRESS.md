@@ -25,7 +25,7 @@ Current launch truth:
 | 01 - Canonical Design System | Complete | Codex | Standalone tokens, globals, docs, and `/design-system` route aligned |
 | 02 - Shared UI Primitives | Complete | Codex | Shared primitives and local shadcn wrappers aligned to KAYOU |
 | 03 - Home, Services, Categories | Complete | Codex | New `ProviderShowcaseCard`, polished home + category surfaces |
-| 04 - Provider Profile | Ready | Unassigned | Profile visual pass |
+| 04 - Provider Profile | Complete | Codex | Profile body sections aligned to KAYOU section/chip system |
 | 05 - Messages And Final Offer | Ready | Unassigned | Chat/final-offer clarity pass |
 | 06 - Auth And Provider Onboarding | Ready | Unassigned | Auth/onboarding polish |
 | 07 - Bookings And Provider Dashboard | Ready | Unassigned | Accepted-offer/job surfaces |
@@ -251,3 +251,48 @@ Notes / decisions:
 - Kept `FeaturedProviderCard` (4:5) and `WideProviderCard` (search list) as-is; `ProviderShowcaseCard` is the new featured-grid card for home and category pages.
 - `ServicesPageContent` already used the canonical `WideProviderCard` and design tokens, so no change was needed there for this pass.
 - Kept the existing `/providers/[id]` route and product flow; only visual surfaces were touched.
+
+## Workstream 04 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `apps/web/src/components/provider-profile/ProviderSection.tsx` (new)
+- `apps/web/src/components/provider-profile/ProviderAbout.tsx`
+- `apps/web/src/components/provider-profile/ProviderSkills.tsx`
+- `apps/web/src/components/provider-profile/ProviderCategories.tsx`
+- `apps/web/src/components/provider-profile/ProviderCertifications.tsx`
+- `apps/web/src/components/provider-profile/ProviderDiplomas.tsx`
+- `apps/web/src/components/provider-profile/ProviderReviews.tsx`
+- `apps/web/src/components/provider-profile/ProviderPortfolio.tsx`
+- `apps/web/src/components/provider-profile/index.ts`
+
+Behavior implemented:
+
+- Added shared `ProviderSection` wrapper using KAYOU surface tokens (`--k-surface`, `--k-border`, `--k-r-lg`, `--k-e1`) with a `clamp(20px, 4vw, 28px)` padding and a `k-display-m` heading sized at 22px to mirror the standalone prototype's section anatomy. Optional caption subtitle and a trailing slot for inline controls.
+- Refit `ProviderAbout` to lead with the bio in `k-body-l`, then surface profession, experience, and trades as `k-chip` / `k-chip-primary` tags inside the new section wrapper. Removed the shadcn `Card` shell and the embedded `Separator`.
+- Refit `ProviderSkills` to render a flat strip of `k-chip` skills with a small per-chip level annotation. Expert/advanced skills upgrade to `k-chip-success` / `k-chip-primary` so the level data stays visible without the prior multi-row meter component.
+- Refit `ProviderCategories` to drop dual shadcn `Card` shells: categories render as link chips and service zones group by city with `k-chip-primary` commune chips inside two stacked `ProviderSection` blocks.
+- Refit `ProviderCertifications` and `ProviderDiplomas` to use the prototype's `CertRow` style — verified entries render against `--k-success-subtle` with a green icon and a green-tinted border, and status chips use `k-chip-success/warning/primary`. Document preview dialogs and rejection messaging are preserved; expired badges use `--k-danger-subtle` inline.
+- Refit `ProviderReviews` to use the section wrapper, then a clean two-column overview (large average + 5/4/3/2/1 distribution bars), a color-coded dimension list (success / warning / danger by score) with horizontal progress bars matching the prototype `RatingsTab`, and lighter avatar+stars review cards. Sort select, pagination, and provider reply blocks are preserved.
+- Refit `ProviderPortfolio` to use the section wrapper with the projects/gallery tab toggle moved into the section's trailing slot. Replaced raw Tailwind color utilities (amber/blue/green/purple/indigo) on image-type chips with KAYOU `k-chip` variants (`success`/`warning`/`primary`/`expert`/`accent`) and re-tokenised the project card surfaces. Lightbox and Avant/Après dialogs preserved.
+- Preserved the launch flow: visibility gates (`showHourlyRate`, `showPastWork`, `showCertifications`, `showReviews`, `showAvailability`, `showEmail`, `showPhone`, `showExactLocation`, `allowMessages`) and the `hasAccess` access wall in `ProviderProfileClient` are untouched. Booking still routes to `/book/[id]`, `ContactDialog` is the messaging path, and the mobile sticky bar copy "Discussion puis offre finale" stays for unset rates so chat-first / final-offer remains the conversational frame. No "Devis", "Paiement sécurisé", "Remboursement", or "Mobile Money" copy added; "Paiement en espèces à la fin de la mission" is still surfaced on the desktop rail.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed
+- `pnpm --filter @kayu/web build` - passed (Next 16.2.3 / Turbopack), `/providers/[id]` present in dynamic route list
+
+Manual checks:
+
+- Code-level confirmation that `ProviderProfileClient` still injects `visibleProvider` (gated data) into every refit section component, and that the loading skeletons (`ProviderAboutSkeleton`, etc.) still resolve from the index barrel.
+- Browser visual QA at 390px viewport not run in this pass.
+
+Notes / decisions:
+
+- Did not introduce a `k-chip-danger` class; expired/danger pill uses inline `--k-danger-subtle` / `--k-danger` until that variant is added to the design system.
+- Replaced shadcn `Progress` and `CardHeader/CardTitle` usage in this surface with token-driven primitives so the body matches the prototype's flat-section hierarchy. Section heading copy stays in French and matches existing UX vocabulary.
+- Did not touch `ProviderHeader`, `BookingForm`, or `ContactDialog`; the contract calls those out as already-aligned or owned by the launch booking/contact flow.
+- Did not copy any prototype data, identifiers, or "/pros/jean-mubake" content per the contract — only the visual hierarchy.
+

@@ -1,4 +1,5 @@
 export { ProviderHeader, ProviderHeaderSkeleton } from "./ProviderHeader";
+export { ProviderSection, ProviderSectionSkeleton } from "./ProviderSection";
 export { ProviderAbout, ProviderAboutSkeleton } from "./ProviderAbout";
 export { ProviderSkills, ProviderSkillsSkeleton } from "./ProviderSkills";
 export { ProviderPortfolio, ProviderPortfolioSkeleton } from "./ProviderPortfolio";

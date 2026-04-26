@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -17,10 +13,15 @@ import {
   Star,
   MessageSquare,
   Loader2,
+  Clock,
+  Wrench,
+  MessageCircle,
+  Coins,
 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { reviewsApi, queryKeys } from "@kayu/api";
 import { useQuery } from "@tanstack/react-query";
+import { ProviderSection } from "./ProviderSection";
 
 interface Review {
   id: string;
@@ -48,13 +49,7 @@ interface ProviderReviewsProps {
   initialReviews: Review[];
   stats: {
     totalReviews: number;
-    ratingBreakdown: {
-      5: number;
-      4: number;
-      3: number;
-      2: number;
-      1: number;
-    };
+    ratingBreakdown: { 5: number; 4: number; 3: number; 2: number; 1: number };
     ratingAverages: {
       overall: number;
       punctuality: number;
@@ -65,351 +60,429 @@ interface ProviderReviewsProps {
   };
 }
 
+const DIMENSIONS: Array<{
+  key: keyof ProviderReviewsProps["stats"]["ratingAverages"];
+  label: string;
+  icon: React.ElementType;
+}> = [
+  { key: "punctuality", label: "Ponctualité", icon: Clock },
+  { key: "quality", label: "Qualité", icon: Wrench },
+  { key: "communication", label: "Communication", icon: MessageCircle },
+  { key: "value", label: "Rapport qualité/prix", icon: Coins },
+];
+
+function scoreColor(score: number) {
+  if (score >= 4) return "var(--k-success)";
+  if (score >= 3) return "var(--k-warning)";
+  if (score > 0) return "var(--k-danger)";
+  return "var(--k-text-muted)";
+}
+
+function StarRow({ value }: { value: number }) {
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const filled = star <= Math.round(value);
+        return (
+          <Star
+            key={star}
+            className="h-3.5 w-3.5"
+            style={{
+              color: filled ? "var(--k-warning)" : "var(--k-border)",
+              fill: filled ? "var(--k-warning)" : "transparent",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function formatDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString("fr-FR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export function ProviderReviews({
   providerId,
   initialReviews,
   stats,
 }: ProviderReviewsProps) {
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState("recent");
+  const [sortBy, setSortBy] = useState<"recent" | "highest" | "lowest">("recent");
 
-  const sortByTyped = sortBy as "recent" | "highest" | "lowest";
-
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: queryKeys.reviews.byProvider(providerId, { page, sortBy: sortByTyped, limit: 5 }),
+  const { data, isFetching } = useQuery({
+    queryKey: queryKeys.reviews.byProvider(providerId, { page, sortBy, limit: 5 }),
     queryFn: () =>
       reviewsApi(apiClient).getByProvider(providerId, {
         page,
         limit: 5,
-        sortBy: sortByTyped,
+        sortBy,
       }),
     placeholderData: (previousData) => previousData,
   });
 
-  // Use fetched reviews if available, otherwise fall back to initial
   const reviews: Review[] = (data?.reviews as Review[] | undefined) ?? initialReviews;
   const pagination = data?.pagination;
   const hasMore = pagination ? pagination.page < pagination.totalPages : false;
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("fr-FR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
   const totalReviews = stats.totalReviews || 0;
   const breakdown = stats.ratingBreakdown;
+  const overall = stats.ratingAverages.overall;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-primary" />
-          Avis
-          <Badge variant="outline" className="ml-auto">
-            {totalReviews} avis
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Rating Overview */}
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Overall Rating */}
-          <div className="flex items-center gap-4">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-foreground">
-                {stats.ratingAverages.overall > 0
-                  ? stats.ratingAverages.overall.toFixed(1)
-                  : "-"}
-              </div>
-              <div className="flex items-center gap-0.5 mt-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className={`h-4 w-4 ${
-                      star <= Math.round(stats.ratingAverages.overall)
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted"
-                    }`}
-                  />
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {totalReviews} avis
-              </p>
-            </div>
-          </div>
-
-          {/* Rating Breakdown */}
-          <div className="flex-1 space-y-2">
-            {[5, 4, 3, 2, 1].map((rating) => {
-              const count = breakdown[rating as keyof typeof breakdown] || 0;
-              const percentage = totalReviews > 0 ? (count / totalReviews) * 100 : 0;
-
-              return (
-                <div key={rating} className="flex items-center gap-2">
-                  <span className="text-sm w-3">{rating}</span>
-                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                  <Progress
-                    value={percentage}
-                    className="h-2 flex-1"
-                  />
-                  <span className="text-xs text-muted-foreground w-8 text-right">
-                    {count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Detailed Ratings */}
-        {stats.ratingAverages.quality > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-            {stats.ratingAverages.quality > 0 && (
-              <div className="text-center">
-                <div className="text-lg font-semibold">
-                  {stats.ratingAverages.quality.toFixed(1)}
-                </div>
-                <div className="flex items-center justify-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-3 w-3 ${
-                        star <= Math.round(stats.ratingAverages.quality)
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Qualité</p>
-              </div>
-            )}
-            {stats.ratingAverages.punctuality > 0 && (
-              <div className="text-center">
-                <div className="text-lg font-semibold">
-                  {stats.ratingAverages.punctuality.toFixed(1)}
-                </div>
-                <div className="flex items-center justify-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-3 w-3 ${
-                        star <= Math.round(stats.ratingAverages.punctuality)
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Ponctualité</p>
-              </div>
-            )}
-            {stats.ratingAverages.communication > 0 && (
-              <div className="text-center">
-                <div className="text-lg font-semibold">
-                  {stats.ratingAverages.communication.toFixed(1)}
-                </div>
-                <div className="flex items-center justify-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-3 w-3 ${
-                        star <= Math.round(stats.ratingAverages.communication)
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Communication</p>
-              </div>
-            )}
-            {stats.ratingAverages.value > 0 && (
-              <div className="text-center">
-                <div className="text-lg font-semibold">
-                  {stats.ratingAverages.value.toFixed(1)}
-                </div>
-                <div className="flex items-center justify-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-3 w-3 ${
-                        star <= Math.round(stats.ratingAverages.value)
-                          ? "fill-yellow-400 text-yellow-400"
-                          : "text-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Rapport qualité/prix</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Sort and Reviews List */}
-        {totalReviews > 0 && (
-          <>
-            <div className="flex items-center justify-between pt-4 border-t">
-              <p className="text-sm font-medium">Tous les avis</p>
-              <Select
-                value={sortBy}
-                onValueChange={(value) => {
-                  setSortBy(value);
-                  setPage(1);
+    <ProviderSection
+      title="Avis"
+      subtitle={
+        totalReviews > 0
+          ? `${totalReviews} avis · note moyenne ${overall.toFixed(1)}/5`
+          : "Aucun avis pour le moment"
+      }
+    >
+      {totalReviews > 0 && (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gap: 24,
+              gridTemplateColumns: "minmax(140px, 200px) 1fr",
+              alignItems: "center",
+              paddingBottom: 20,
+              borderBottom: "1px solid var(--k-border-subtle)",
+            }}
+            className="k-reviews-overview"
+          >
+            <div style={{ textAlign: "center" }}>
+              <div
+                className="k-num"
+                style={{
+                  fontFamily: "var(--k-font-display)",
+                  fontWeight: 700,
+                  fontSize: 44,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1,
+                  color: "var(--k-text-primary)",
                 }}
               >
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recent">Plus récents</SelectItem>
-                  <SelectItem value="highest">Meilleures notes</SelectItem>
-                  <SelectItem value="lowest">Notes les plus basses</SelectItem>
-                </SelectContent>
-              </Select>
+                {overall > 0 ? overall.toFixed(1) : "—"}
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <StarRow value={overall} />
+              </div>
+              <div className="k-caption" style={{ marginTop: 4 }}>
+                {totalReviews} avis
+              </div>
             </div>
 
-            {/* Reviews List */}
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <div key={review.id} className="pb-4 border-b last:border-0 last:pb-0">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={review.client.avatar || undefined} />
-                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                        {review.client.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div>
-                          <span className="font-medium text-sm">
-                            {review.client.firstName} {review.client.lastName}
-                          </span>
-                          <span className="text-muted-foreground text-xs ml-2">
-                            {formatDate(review.createdAt)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-0.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star
-                              key={star}
-                              className={`h-3.5 w-3.5 ${
-                                star <= review.rating
-                                  ? "fill-yellow-400 text-yellow-400"
-                                  : "text-muted"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {[5, 4, 3, 2, 1].map((rating) => {
+                const count = breakdown[rating as keyof typeof breakdown] || 0;
+                const percentage =
+                  totalReviews > 0 ? (count / totalReviews) * 100 : 0;
+                return (
+                  <div
+                    key={rating}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "16px 12px 1fr 28px",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      className="k-caption"
+                      style={{ color: "var(--k-text-body)", fontWeight: 600 }}
+                    >
+                      {rating}
+                    </span>
+                    <Star
+                      className="h-3 w-3"
+                      style={{
+                        color: "var(--k-warning)",
+                        fill: "var(--k-warning)",
+                      }}
+                    />
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: "var(--k-border-subtle)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${percentage}%`,
+                          height: "100%",
+                          background: "var(--k-warning)",
+                          borderRadius: 3,
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="k-caption"
+                      style={{ textAlign: "right", color: "var(--k-text-muted)" }}
+                    >
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-                      {review.service && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Service: {review.service}
-                        </p>
-                      )}
-
-                      {review.comment && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {review.comment}
-                        </p>
-                      )}
-
-                      {/* Provider Reply */}
-                      {review.reply && (
-                        <div className="mt-3 pl-3 border-l-2 border-primary/20">
-                          <p className="text-xs text-muted-foreground mb-1">
-                            Réponse du prestataire •{" "}
-                            {review.repliedAt && formatDate(review.repliedAt)}
-                          </p>
-                          <p className="text-sm">{review.reply}</p>
-                        </div>
-                      )}
+          {DIMENSIONS.some((d) => stats.ratingAverages[d.key] > 0) && (
+            <div
+              style={{
+                display: "grid",
+                gap: 14,
+                paddingTop: 20,
+                paddingBottom: 20,
+                borderBottom: "1px solid var(--k-border-subtle)",
+              }}
+            >
+              <div
+                className="k-overline"
+                style={{ color: "var(--k-text-muted)" }}
+              >
+                Évaluations détaillées
+              </div>
+              {DIMENSIONS.map((dim) => {
+                const value = stats.ratingAverages[dim.key];
+                if (value <= 0) return null;
+                const color = scoreColor(value);
+                const Icon = dim.icon;
+                return (
+                  <div
+                    key={dim.key}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "20px 1fr auto 110px",
+                      gap: 12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ color }}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span
+                      className="k-body-m"
+                      style={{ fontWeight: 500, color: "var(--k-text-body)" }}
+                    >
+                      {dim.label}
+                    </span>
+                    <span
+                      className="k-num"
+                      style={{
+                        fontFamily: "var(--k-font-display)",
+                        fontWeight: 600,
+                        fontSize: 15,
+                        color,
+                      }}
+                    >
+                      {value.toFixed(1)}
+                    </span>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 3,
+                        background: "var(--k-border-subtle)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(value / 5) * 100}%`,
+                          height: "100%",
+                          background: color,
+                          borderRadius: 3,
+                        }}
+                      />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          )}
 
-            {/* Load More */}
-            {hasMore && (
-              <div className="text-center pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setPage((prev) => prev + 1)}
-                  disabled={isFetching}
-                >
-                  {isFetching ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  Voir plus d&apos;avis
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* No Reviews */}
-        {totalReviews === 0 && (
-          <div className="text-center py-8">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">
-              Ce prestataire n&apos;a pas encore reçu d&apos;avis
-            </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingTop: 18,
+              flexWrap: "wrap",
+            }}
+          >
+            <div
+              className="k-body-m"
+              style={{ fontWeight: 600, color: "var(--k-text-primary)" }}
+            >
+              Tous les avis
+            </div>
+            <Select
+              value={sortBy}
+              onValueChange={(v) => {
+                setSortBy(v as typeof sortBy);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Plus récents</SelectItem>
+                <SelectItem value="highest">Meilleures notes</SelectItem>
+                <SelectItem value="lowest">Notes les plus basses</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div style={{ display: "grid", gap: 20, marginTop: 16 }}>
+            {reviews.map((review) => (
+              <article
+                key={review.id}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  paddingBottom: 18,
+                  borderBottom: "1px solid var(--k-border-subtle)",
+                }}
+              >
+                <Avatar className="h-11 w-11 flex-shrink-0">
+                  <AvatarImage src={review.client.avatar || undefined} />
+                  <AvatarFallback
+                    style={{
+                      background: "var(--k-primary-subtle)",
+                      color: "var(--k-primary-hover)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {review.client.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>
+                        {review.client.firstName} {review.client.lastName}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          marginTop: 4,
+                        }}
+                      >
+                        <StarRow value={review.rating} />
+                        <span className="k-caption">
+                          {formatDate(review.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {review.service && (
+                    <div className="k-caption" style={{ marginTop: 4 }}>
+                      Service : {review.service}
+                    </div>
+                  )}
+
+                  {review.comment && (
+                    <p
+                      className="k-body"
+                      style={{
+                        color: "var(--k-text-body)",
+                        margin: "8px 0 0",
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      {review.comment}
+                    </p>
+                  )}
+
+                  {review.reply && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: "var(--k-r-sm)",
+                        background: "var(--k-surface-muted)",
+                        borderLeft: "3px solid var(--k-primary)",
+                      }}
+                    >
+                      <div
+                        className="k-caption"
+                        style={{ color: "var(--k-text-muted)", marginBottom: 4 }}
+                      >
+                        Réponse du prestataire
+                        {review.repliedAt && ` · ${formatDate(review.repliedAt)}`}
+                      </div>
+                      <p
+                        className="k-body"
+                        style={{ margin: 0, color: "var(--k-text-body)" }}
+                      >
+                        {review.reply}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {hasMore && (
+            <div style={{ textAlign: "center", marginTop: 18 }}>
+              <button
+                type="button"
+                className="k-btn k-btn-secondary"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={isFetching}
+              >
+                {isFetching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                Voir plus d&apos;avis
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {totalReviews === 0 && (
+        <div style={{ textAlign: "center", padding: "32px 8px" }}>
+          <MessageSquare
+            className="h-10 w-10 mx-auto mb-3"
+            style={{ color: "var(--k-text-muted)" }}
+          />
+          <p className="k-body" style={{ color: "var(--k-text-muted)" }}>
+            Ce prestataire n&apos;a pas encore reçu d&apos;avis
+          </p>
+        </div>
+      )}
+    </ProviderSection>
   );
 }
 
-// Skeleton version
 export function ProviderReviewsSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="h-6 w-24 bg-muted rounded animate-pulse" />
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex gap-6">
-          <div className="text-center">
-            <div className="h-10 w-16 bg-muted rounded animate-pulse mx-auto" />
-            <div className="flex gap-0.5 mt-2 justify-center">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-4 w-4 bg-muted rounded animate-pulse" />
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 space-y-2">
-            {[5, 4, 3, 2, 1].map((rating) => (
-              <div key={rating} className="flex items-center gap-2">
-                <div className="h-3 w-3 bg-muted rounded animate-pulse" />
-                <div className="h-4 w-4 bg-muted rounded animate-pulse" />
-                <div className="h-2 flex-1 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-8 bg-muted rounded animate-pulse" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-4 pt-4 border-t">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex gap-3">
-              <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-full bg-muted rounded animate-pulse" />
-                <div className="h-3 w-3/4 bg-muted rounded animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className="animate-k-shimmer"
+      style={{ height: 320, borderRadius: "var(--k-r-lg)" }}
+    />
   );
 }

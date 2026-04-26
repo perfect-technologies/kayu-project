@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,8 +20,8 @@ import {
   Award,
 } from "lucide-react";
 import Image from "next/image";
+import { ProviderSection } from "./ProviderSection";
 
-// Types based on schema
 type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED" | "UNDER_REVIEW";
 
 interface DiplomaDocument {
@@ -49,44 +47,52 @@ interface ProviderDiplomasProps {
   diplomas: Diploma[];
 }
 
-const statusConfig: Record<VerificationStatus, { label: string; color: string; icon: React.ElementType; bgColor: string }> = {
-  VERIFIED: {
-    label: "Vérifié",
-    color: "text-green-600",
-    bgColor: "bg-green-100 dark:bg-green-900/30",
-    icon: CheckCircle2,
-  },
-  PENDING: {
-    label: "En attente",
-    color: "text-amber-600",
-    bgColor: "bg-amber-100 dark:bg-amber-900/30",
-    icon: Clock,
-  },
-  UNDER_REVIEW: {
-    label: "En cours",
-    color: "text-blue-600",
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    icon: Clock,
-  },
-  REJECTED: {
-    label: "Rejeté",
-    color: "text-red-600",
-    bgColor: "bg-red-100 dark:bg-red-900/30",
-    icon: XCircle,
-  },
+const STATUS_CHIP: Record<VerificationStatus, string> = {
+  VERIFIED: "k-chip k-chip-sm k-chip-success",
+  PENDING: "k-chip k-chip-sm k-chip-warning",
+  UNDER_REVIEW: "k-chip k-chip-sm k-chip-primary",
+  REJECTED: "k-chip k-chip-sm",
 };
 
-const diplomaTypes: Record<string, string> = {
-  "BTS": "Brevet de Technicien Supérieur",
-  "DUT": "Diplôme Universitaire de Technologie",
-  "Licence": "Licence (Bac+3)",
-  "Master": "Master (Bac+5)",
-  "Doctorat": "Doctorat (Bac+8)",
-  "CAP": "Certificat d'Aptitude Professionnelle",
-  "BEP": "Brevet d'Études Professionnelles",
-  "Bac Pro": "Baccalauréat Professionnel",
-  "Bac": "Baccalauréat",
+const STATUS_LABEL: Record<VerificationStatus, string> = {
+  VERIFIED: "Vérifié",
+  PENDING: "En attente",
+  UNDER_REVIEW: "En cours",
+  REJECTED: "Rejeté",
 };
+
+const STATUS_ICON: Record<VerificationStatus, React.ElementType> = {
+  VERIFIED: CheckCircle2,
+  PENDING: Clock,
+  UNDER_REVIEW: Clock,
+  REJECTED: XCircle,
+};
+
+const DIPLOMA_TYPES: Record<string, string> = {
+  BTS: "Brevet de Technicien Supérieur",
+  DUT: "Diplôme Universitaire de Technologie",
+  Licence: "Licence (Bac+3)",
+  Master: "Master (Bac+5)",
+  Doctorat: "Doctorat (Bac+8)",
+  CAP: "Certificat d'Aptitude Professionnelle",
+  BEP: "Brevet d'Études Professionnelles",
+  "Bac Pro": "Baccalauréat Professionnel",
+  Bac: "Baccalauréat",
+};
+
+function getYear(dateStr: string | null | undefined) {
+  if (!dateStr) return null;
+  return new Date(dateStr).getFullYear();
+}
+
+function getDiplomaType(title: string) {
+  for (const [key, value] of Object.entries(DIPLOMA_TYPES)) {
+    if (title.toLowerCase().includes(key.toLowerCase())) {
+      return value;
+    }
+  }
+  return null;
+}
 
 export function ProviderDiplomas({ diplomas }: ProviderDiplomasProps) {
   const [selectedDoc, setSelectedDoc] = useState<DiplomaDocument | null>(null);
@@ -101,136 +107,146 @@ export function ProviderDiplomas({ diplomas }: ProviderDiplomasProps) {
     setPreviewOpen(true);
   };
 
-  const getYear = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).getFullYear();
-  };
-
-  const getDiplomaType = (title: string) => {
-    for (const [key, value] of Object.entries(diplomaTypes)) {
-      if (title.toLowerCase().includes(key.toLowerCase())) {
-        return value;
-      }
-    }
-    return null;
-  };
-
   const verifiedCount = diplomas.filter((d) => d.status === "VERIFIED").length;
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-primary" />
-            Diplômes & Formations
-            <Badge variant="outline" className="ml-auto">
-              {diplomas.length} diplôme{diplomas.length > 1 ? "s" : ""}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {diplomas.map((diploma) => {
-              const config = statusConfig[diploma.status];
-              const StatusIcon = config.icon;
-              const year = getYear(diploma.issueDate);
-              const diplomaType = getDiplomaType(diploma.title);
+      <ProviderSection
+        title="Diplômes & formations"
+        subtitle={
+          verifiedCount > 0
+            ? `${verifiedCount} vérifié${verifiedCount > 1 ? "s" : ""} par KAYOU`
+            : undefined
+        }
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          {diplomas.map((diploma) => {
+            const StatusIcon = STATUS_ICON[diploma.status];
+            const year = getYear(diploma.issueDate);
+            const diplomaType = getDiplomaType(diploma.title);
+            const isVerified = diploma.status === "VERIFIED";
 
-              return (
-                <div
-                  key={diploma.id}
-                  className={`p-4 rounded-lg border ${
-                    diploma.status === "VERIFIED"
-                      ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10"
-                      : "border-border"
-                  }`}
+            return (
+              <div
+                key={diploma.id}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "flex-start",
+                  padding: 14,
+                  background: isVerified
+                    ? "var(--k-success-subtle)"
+                    : "var(--k-surface-muted)",
+                  borderRadius: "var(--k-r-md)",
+                  border: isVerified
+                    ? "1px solid color-mix(in srgb, var(--k-success) 18%, transparent)"
+                    : "1px solid var(--k-border-subtle)",
+                }}
+              >
+                <span
+                  style={{
+                    color: isVerified
+                      ? "var(--k-success)"
+                      : "var(--k-text-muted)",
+                    marginTop: 2,
+                    flexShrink: 0,
+                  }}
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Diploma Icon */}
-                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <GraduationCap className="h-6 w-6 text-primary" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      {/* Title and Status */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold">{diploma.title}</h4>
-                        <Badge
-                          variant="outline"
-                          className={`${config.bgColor} ${config.color} border-0 text-xs`}
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {config.label}
-                        </Badge>
-                      </div>
-
-                      {/* Diploma Type Badge */}
-                      {diplomaType && (
-                        <Badge variant="secondary" className="mt-1.5 text-xs">
-                          {diplomaType}
-                        </Badge>
-                      )}
-
-                      {/* Institution */}
-                      <div className="flex items-center gap-1.5 mt-2 text-muted-foreground text-sm">
-                        <Building2 className="h-3.5 w-3.5" />
-                        <span>{diploma.issuingOrg}</span>
-                      </div>
-
-                      {/* Year Obtained */}
-                      {year && (
-                        <div className="flex items-center gap-1.5 mt-1 text-muted-foreground text-sm">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>Obtenu en {year}</span>
-                        </div>
-                      )}
-
-                      {/* Certificate Number */}
-                      {diploma.certificateNum && (
-                        <div className="flex items-center gap-1.5 mt-1 text-muted-foreground text-sm">
-                          <Award className="h-3.5 w-3.5" />
-                          <span>N° {diploma.certificateNum}</span>
-                        </div>
-                      )}
-
-                      {/* Document Preview Button */}
-                      {diploma.documents.length > 0 && (
-                        <div className="mt-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => handlePreview(diploma.documents[0])}
-                          >
-                            <FileText className="h-3.5 w-3.5 mr-1.5" />
-                            Voir le diplôme
-                            <ExternalLink className="h-3 w-3 ml-1.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Summary */}
-          {verifiedCount > 0 && (
-            <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>
-                  {verifiedCount} diplôme{verifiedCount > 1 ? "s" : ""} vérifié{verifiedCount > 1 ? "s" : ""}
+                  <GraduationCap className="h-[18px] w-[18px]" />
                 </span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>
+                      {diploma.title}
+                    </span>
+                    <span className={STATUS_CHIP[diploma.status]}>
+                      <StatusIcon className="h-3 w-3" />
+                      {STATUS_LABEL[diploma.status]}
+                    </span>
+                  </div>
 
-      {/* Document Preview Dialog */}
+                  {diplomaType && (
+                    <span
+                      className="k-chip k-chip-sm"
+                      style={{ marginTop: 6 }}
+                    >
+                      {diplomaType}
+                    </span>
+                  )}
+
+                  <div
+                    className="k-caption"
+                    style={{
+                      marginTop: 6,
+                      color: "var(--k-text-body)",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Building2 className="h-3 w-3" />
+                      {diploma.issuingOrg}
+                    </span>
+                    {year && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Calendar className="h-3 w-3" />
+                        Obtenu en {year}
+                      </span>
+                    )}
+                    {diploma.certificateNum && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Award className="h-3 w-3" />N° {diploma.certificateNum}
+                      </span>
+                    )}
+                  </div>
+
+                  {diploma.documents.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className="k-btn k-btn-secondary k-btn-sm"
+                        onClick={() => handlePreview(diploma.documents[0])}
+                      >
+                        <FileText className="h-3 w-3" />
+                        Voir le diplôme
+                        <ExternalLink className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ProviderSection>
+
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl w-full p-0">
           <DialogHeader className="p-4 border-b">
@@ -260,7 +276,9 @@ export function ProviderDiplomas({ diplomas }: ProviderDiplomasProps) {
               ) : (
                 <div className="flex flex-col items-center justify-center h-[60vh] text-muted-foreground">
                   <FileText className="h-16 w-16 mb-4" />
-                  <p className="text-sm">Impossible de prévisualiser ce document</p>
+                  <p className="text-sm">
+                    Impossible de prévisualiser ce document
+                  </p>
                   <Button
                     variant="outline"
                     className="mt-4"
@@ -279,27 +297,11 @@ export function ProviderDiplomas({ diplomas }: ProviderDiplomasProps) {
   );
 }
 
-// Skeleton version
 export function ProviderDiplomasSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="h-6 w-40 bg-muted rounded animate-pulse" />
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {[1, 2].map((i) => (
-            <div key={i} className="p-4 rounded-lg border border-border flex items-start gap-3">
-              <div className="w-12 h-12 rounded-full bg-muted animate-pulse" />
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-24 bg-muted rounded animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className="animate-k-shimmer"
+      style={{ height: 220, borderRadius: "var(--k-r-lg)" }}
+    />
   );
 }

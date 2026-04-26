@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Award,
+  ShieldCheck,
   CheckCircle2,
   Clock,
   XCircle,
@@ -22,11 +20,18 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Image from "next/image";
+import { ProviderSection } from "./ProviderSection";
 
-// Types based on schema
 type VerificationStatus = "PENDING" | "VERIFIED" | "REJECTED" | "UNDER_REVIEW";
 
-type DocType = "DIPLOMA" | "CERTIFICATE" | "LICENSE" | "INSURANCE" | "ID_DOCUMENT" | "WORK_PERMIT" | "OTHER";
+type DocType =
+  | "DIPLOMA"
+  | "CERTIFICATE"
+  | "LICENSE"
+  | "INSURANCE"
+  | "ID_DOCUMENT"
+  | "WORK_PERMIT"
+  | "OTHER";
 
 interface CertificationDoc {
   id: string;
@@ -47,44 +52,35 @@ interface Certification {
   isLifetime: boolean;
   rejectionReason?: string | null;
   documents: CertificationDoc[];
-  category?: {
-    id: string;
-    name: string;
-  } | null;
+  category?: { id: string; name: string } | null;
 }
 
 interface ProviderCertificationsProps {
   certifications: Certification[];
 }
 
-const statusConfig: Record<VerificationStatus, { label: string; color: string; icon: React.ElementType; bgColor: string }> = {
-  VERIFIED: {
-    label: "Vérifié",
-    color: "text-green-600",
-    bgColor: "bg-green-100 dark:bg-green-900/30",
-    icon: CheckCircle2,
-  },
-  PENDING: {
-    label: "En attente",
-    color: "text-amber-600",
-    bgColor: "bg-amber-100 dark:bg-amber-900/30",
-    icon: Clock,
-  },
-  UNDER_REVIEW: {
-    label: "En cours",
-    color: "text-blue-600",
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    icon: Clock,
-  },
-  REJECTED: {
-    label: "Rejeté",
-    color: "text-red-600",
-    bgColor: "bg-red-100 dark:bg-red-900/30",
-    icon: XCircle,
-  },
+const STATUS_CHIP: Record<VerificationStatus, string> = {
+  VERIFIED: "k-chip k-chip-sm k-chip-success",
+  PENDING: "k-chip k-chip-sm k-chip-warning",
+  UNDER_REVIEW: "k-chip k-chip-sm k-chip-primary",
+  REJECTED: "k-chip k-chip-sm",
 };
 
-const docTypeLabels: Record<DocType, string> = {
+const STATUS_LABEL: Record<VerificationStatus, string> = {
+  VERIFIED: "Vérifié",
+  PENDING: "En attente",
+  UNDER_REVIEW: "En cours",
+  REJECTED: "Rejeté",
+};
+
+const STATUS_ICON: Record<VerificationStatus, React.ElementType> = {
+  VERIFIED: CheckCircle2,
+  PENDING: Clock,
+  UNDER_REVIEW: Clock,
+  REJECTED: XCircle,
+};
+
+const DOC_TYPE_LABELS: Record<DocType, string> = {
   DIPLOMA: "Diplôme",
   CERTIFICATE: "Certificat",
   LICENSE: "Licence",
@@ -94,7 +90,23 @@ const docTypeLabels: Record<DocType, string> = {
   OTHER: "Autre",
 };
 
-export function ProviderCertifications({ certifications }: ProviderCertificationsProps) {
+function formatDate(dateStr: string | null | undefined) {
+  if (!dateStr) return null;
+  return new Date(dateStr).toLocaleDateString("fr-FR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function isExpired(expiryDate: string | null | undefined) {
+  if (!expiryDate) return false;
+  return new Date(expiryDate) < new Date();
+}
+
+export function ProviderCertifications({
+  certifications,
+}: ProviderCertificationsProps) {
   const [selectedDoc, setSelectedDoc] = useState<CertificationDoc | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -107,159 +119,206 @@ export function ProviderCertifications({ certifications }: ProviderCertification
     setPreviewOpen(true);
   };
 
-  const formatDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString("fr-FR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const isExpired = (expiryDate: string | null | undefined) => {
-    if (!expiryDate) return false;
-    return new Date(expiryDate) < new Date();
-  };
-
-  // Separate verified from others
-  const verifiedCerts = certifications.filter((c) => c.status === "VERIFIED");
+  const verifiedCount = certifications.filter((c) => c.status === "VERIFIED").length;
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Award className="h-5 w-5 text-primary" />
-            Certifications
-            <Badge variant="outline" className="ml-auto">
-              {verifiedCerts.length} vérifié{verifiedCerts.length > 1 ? "s" : ""}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {certifications.map((cert) => {
-              const config = statusConfig[cert.status];
-              const StatusIcon = config.icon;
-              const expired = !cert.isLifetime && isExpired(cert.expiryDate);
+      <ProviderSection
+        title="Certifications"
+        subtitle={
+          verifiedCount > 0
+            ? `${verifiedCount} vérifiée${verifiedCount > 1 ? "s" : ""} par KAYOU`
+            : undefined
+        }
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          {certifications.map((cert) => {
+            const StatusIcon = STATUS_ICON[cert.status];
+            const expired = !cert.isLifetime && isExpired(cert.expiryDate);
+            const isVerified = cert.status === "VERIFIED" && !expired;
 
-              return (
-                <div
-                  key={cert.id}
-                  className={`p-4 rounded-lg border ${
-                    cert.status === "VERIFIED" && !expired
-                      ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10"
-                      : "border-border"
-                  }`}
+            return (
+              <div
+                key={cert.id}
+                style={{
+                  display: "flex",
+                  gap: 14,
+                  alignItems: "flex-start",
+                  padding: 14,
+                  background: isVerified
+                    ? "var(--k-success-subtle)"
+                    : "var(--k-surface-muted)",
+                  borderRadius: "var(--k-r-md)",
+                  border: isVerified
+                    ? "1px solid color-mix(in srgb, var(--k-success) 18%, transparent)"
+                    : "1px solid var(--k-border-subtle)",
+                }}
+              >
+                <span
+                  style={{
+                    color: isVerified
+                      ? "var(--k-success)"
+                      : "var(--k-text-muted)",
+                    marginTop: 2,
+                    flexShrink: 0,
+                  }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      {/* Title and Status */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold text-sm truncate">{cert.title}</h4>
-                        <Badge
-                          variant="outline"
-                          className={`${config.bgColor} ${config.color} border-0 text-xs`}
-                        >
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {config.label}
-                        </Badge>
-                        {expired && (
-                          <Badge
-                            variant="outline"
-                            className="bg-red-100 text-red-600 border-0 text-xs"
-                          >
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            Expiré
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Issuing Organization */}
-                      <div className="flex items-center gap-1.5 mt-2 text-muted-foreground text-sm">
-                        <Building2 className="h-3.5 w-3.5" />
-                        <span>{cert.issuingOrg}</span>
-                      </div>
-
-                      {/* Certificate Number */}
-                      {cert.certificateNum && (
-                        <div className="flex items-center gap-1.5 mt-1 text-muted-foreground text-sm">
-                          <FileText className="h-3.5 w-3.5" />
-                          <span>N° {cert.certificateNum}</span>
-                        </div>
-                      )}
-
-                      {/* Dates */}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                        {cert.issueDate && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>Délivré le {formatDate(cert.issueDate)}</span>
-                          </div>
-                        )}
-                        {!cert.isLifetime && cert.expiryDate && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span className={expired ? "text-red-500" : ""}>
-                              Expire le {formatDate(cert.expiryDate)}
-                            </span>
-                          </div>
-                        )}
-                        {cert.isLifetime && (
-                          <Badge variant="outline" className="text-xs">
-                            Validité permanente
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Category */}
-                      {cert.category && (
-                        <Badge variant="secondary" className="mt-2 text-xs">
-                          {cert.category.name}
-                        </Badge>
-                      )}
-
-                      {/* Rejection Reason */}
-                      {cert.status === "REJECTED" && cert.rejectionReason && (
-                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600 dark:text-red-400">
-                          <strong>Motif:</strong> {cert.rejectionReason}
-                        </div>
-                      )}
-
-                      {/* Documents */}
-                      {cert.documents.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {cert.documents.map((doc) => (
-                            <Button
-                              key={doc.id}
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => handlePreview(doc)}
-                            >
-                              <FileText className="h-3 w-3 mr-1" />
-                              {docTypeLabels[doc.type]}
-                              <ExternalLink className="h-3 w-3 ml-1" />
-                            </Button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <ShieldCheck className="h-[18px] w-[18px]" />
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>
+                      {cert.title}
+                    </span>
+                    <span className={STATUS_CHIP[cert.status]}>
+                      <StatusIcon className="h-3 w-3" />
+                      {STATUS_LABEL[cert.status]}
+                    </span>
+                    {expired && (
+                      <span
+                        className="k-chip k-chip-sm"
+                        style={{
+                          background: "var(--k-danger-subtle)",
+                          color: "var(--k-danger)",
+                        }}
+                      >
+                        <AlertCircle className="h-3 w-3" />
+                        Expiré
+                      </span>
+                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Document Preview Dialog */}
+                  <div
+                    className="k-caption"
+                    style={{
+                      marginTop: 4,
+                      color: "var(--k-text-body)",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Building2 className="h-3 w-3" />
+                      {cert.issuingOrg}
+                    </span>
+                    {cert.certificateNum && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <FileText className="h-3 w-3" />N° {cert.certificateNum}
+                      </span>
+                    )}
+                    {cert.issueDate && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <Calendar className="h-3 w-3" />
+                        Délivré {formatDate(cert.issueDate)}
+                      </span>
+                    )}
+                    {!cert.isLifetime && cert.expiryDate && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          color: expired ? "var(--k-danger)" : undefined,
+                        }}
+                      >
+                        <Calendar className="h-3 w-3" />
+                        Expire {formatDate(cert.expiryDate)}
+                      </span>
+                    )}
+                    {cert.isLifetime && (
+                      <span className="k-chip k-chip-sm">
+                        Validité permanente
+                      </span>
+                    )}
+                  </div>
+
+                  {cert.category && (
+                    <span
+                      className="k-chip k-chip-sm"
+                      style={{ marginTop: 8 }}
+                    >
+                      {cert.category.name}
+                    </span>
+                  )}
+
+                  {cert.status === "REJECTED" && cert.rejectionReason && (
+                    <div
+                      className="k-caption"
+                      style={{
+                        marginTop: 8,
+                        padding: "8px 10px",
+                        borderRadius: "var(--k-r-sm)",
+                        background: "var(--k-danger-subtle)",
+                        color: "var(--k-danger)",
+                      }}
+                    >
+                      <strong>Motif :</strong> {cert.rejectionReason}
+                    </div>
+                  )}
+
+                  {cert.documents.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 6,
+                        marginTop: 10,
+                      }}
+                    >
+                      {cert.documents.map((doc) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          className="k-btn k-btn-secondary k-btn-sm"
+                          onClick={() => handlePreview(doc)}
+                        >
+                          <FileText className="h-3 w-3" />
+                          {DOC_TYPE_LABELS[doc.type]}
+                          <ExternalLink className="h-3 w-3" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </ProviderSection>
+
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-4xl w-full p-0">
           <DialogHeader className="p-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
-              {selectedDoc ? docTypeLabels[selectedDoc.type] : "Document"}
+              {selectedDoc ? DOC_TYPE_LABELS[selectedDoc.type] : "Document"}
             </DialogTitle>
           </DialogHeader>
           {selectedDoc && (
@@ -283,7 +342,9 @@ export function ProviderCertifications({ certifications }: ProviderCertification
               ) : (
                 <div className="flex flex-col items-center justify-center h-[60vh] text-muted-foreground">
                   <FileText className="h-16 w-16 mb-4" />
-                  <p className="text-sm">Impossible de prévisualiser ce document</p>
+                  <p className="text-sm">
+                    Impossible de prévisualiser ce document
+                  </p>
                   <Button
                     variant="outline"
                     className="mt-4"
@@ -302,31 +363,11 @@ export function ProviderCertifications({ certifications }: ProviderCertification
   );
 }
 
-// Skeleton version
 export function ProviderCertificationsSkeleton() {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="h-6 w-32 bg-muted rounded animate-pulse" />
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {[1, 2].map((i) => (
-            <div key={i} className="p-4 rounded-lg border border-border">
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-40 bg-muted rounded animate-pulse" />
-                <div className="h-5 w-16 bg-muted rounded animate-pulse" />
-              </div>
-              <div className="h-4 w-32 bg-muted rounded animate-pulse mt-3" />
-              <div className="h-3 w-48 bg-muted rounded animate-pulse mt-2" />
-              <div className="flex gap-2 mt-3">
-                <div className="h-7 w-20 bg-muted rounded animate-pulse" />
-                <div className="h-7 w-20 bg-muted rounded animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div
+      className="animate-k-shimmer"
+      style={{ height: 220, borderRadius: "var(--k-r-lg)" }}
+    />
   );
 }
