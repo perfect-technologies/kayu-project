@@ -10,23 +10,20 @@ import { ErrorState, I } from "@kayu/ui/web";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { MoneyChart } from "./MoneyChart";
-import { PayoutSheet } from "./PayoutSheet";
 import { TransactionRow } from "./TransactionRow";
-import { MM_OPERATORS } from "./fixtures";
 
 type Filter = "ALL" | TransactionType;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "ALL", label: "Tout" },
   { id: "EARNING", label: "Gains" },
-  { id: "PAYOUT", label: "Paiements" },
+  { id: "PAYOUT", label: "Ajustements" },
   { id: "BONUS", label: "Bonus" },
 ];
 
 export function EarningsClient() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("ALL");
 
   useEffect(() => {
@@ -83,10 +80,6 @@ export function EarningsClient() {
   const weeklyTotal = summary?.weekly.total ?? 0;
   const lastWeekTotal = summary?.weekly.lastWeekTotal ?? 0;
   const deltaPct = summary?.weekly.deltaPct ?? 0;
-  const isSummaryLoading = summaryQuery.isLoading;
-
-  const defaultPhone = user.phone ?? null;
-
   return (
     <div style={{ padding: "8px 0 40px", maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
@@ -117,18 +110,9 @@ export function EarningsClient() {
             className="k-body-m"
             style={{ color: "var(--k-text-muted)", marginTop: 4 }}
           >
-            Les gains deviennent disponibles apres confirmation du paiement hors
-            plateforme.
+            Suivi des missions payees en especes et des confirmations en attente.
           </div>
         </div>
-        <button
-          type="button"
-          className="k-btn k-btn-primary k-btn-lg"
-          onClick={() => setSheetOpen(true)}
-          disabled={isSummaryLoading || balance <= 0}
-        >
-          <I.arrowRight size={16} /> Demander un retrait manuel
-        </button>
       </div>
 
       <div
@@ -145,8 +129,8 @@ export function EarningsClient() {
           Politique de paiement MVP
         </div>
         <div className="k-caption" style={{ color: "var(--k-text-muted)" }}>
-          Le client regle directement le pro en especes. Les gains restent en
-          attente tant que ce paiement n’est pas confirme.
+          Le client regle directement le pro en especes a la fin de la mission.
+          Les gains restent en attente tant que ce paiement n’est pas confirme.
         </div>
       </div>
 
@@ -173,7 +157,7 @@ export function EarningsClient() {
               className="k-overline"
               style={{ color: "var(--k-text-muted)", marginBottom: 8 }}
             >
-              Solde disponible
+              Gains confirmés
             </div>
             <div
               style={{
@@ -366,10 +350,10 @@ export function EarningsClient() {
         {/* Sidebar */}
         <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <StatTile
-            label="Solde disponible"
+            label="Gains confirmés"
             value={`${balance.toLocaleString("fr-FR")} FC`}
             valueColor="var(--k-success)"
-            caption="Eligible au retrait manuel"
+            caption="Paiement en espèces confirmé"
           />
           <StatTile
             label="En attente"
@@ -383,7 +367,6 @@ export function EarningsClient() {
             muted
           />
 
-          {/* Next payout */}
           <div
             style={{
               background: "var(--k-surface-primary)",
@@ -396,7 +379,7 @@ export function EarningsClient() {
               className="k-overline"
               style={{ color: "var(--k-primary-hover)", marginBottom: 6 }}
             >
-              Retrait manuel
+              Suivi manuel
             </div>
             <div
               style={{
@@ -406,14 +389,14 @@ export function EarningsClient() {
                 color: "var(--k-text-primary)",
               }}
             >
-              Verification par l’equipe KAYOU
+              Contrôle des confirmations
             </div>
             <div
               className="k-caption"
               style={{ color: "var(--k-text-muted)", marginTop: 4 }}
             >
-              Les demandes sont enregistrees puis traitees manuellement vers{" "}
-              {MM_OPERATORS[0].name}.
+              En cas d'écart, l'équipe KAYOU vérifie la mission et la
+              confirmation du paiement en espèces.
             </div>
           </div>
 
@@ -465,13 +448,6 @@ export function EarningsClient() {
           </div>
         </aside>
       </div>
-
-      <PayoutSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        balance={balance}
-        defaultPhone={defaultPhone}
-      />
 
       <style jsx global>{`
         @media (max-width: 960px) {

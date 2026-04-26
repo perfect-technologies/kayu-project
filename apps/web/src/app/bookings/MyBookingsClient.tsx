@@ -10,23 +10,19 @@ import { I } from "@kayu/ui/web";
 import { BookingCard, type BookingCardData } from "@/components/bookings/BookingCard";
 import { toV2Status, type V2Status } from "@/lib/booking-v2";
 
-const TABS: { id: V2Status; label: string }[] = [
+type BookingTab = Exclude<V2Status, "active">;
+
+const TABS: { id: BookingTab; label: string }[] = [
   { id: "upcoming", label: "À venir" },
-  { id: "active", label: "En cours" },
   { id: "completed", label: "Terminées" },
   { id: "cancelled", label: "Annulées" },
 ];
 
-const EMPTY_COPY: Record<V2Status, { title: string; sub: string; cta: string | null }> = {
+const EMPTY_COPY: Record<BookingTab, { title: string; sub: string; cta: string | null }> = {
   upcoming: {
     title: "Aucune réservation à venir",
     sub: "Quand vous réservez un pro, il apparaîtra ici.",
     cta: "Trouver un pro",
-  },
-  active: {
-    title: "Rien en cours",
-    sub: "Les missions actives apparaissent ici, avec le suivi en temps réel.",
-    cta: "Parcourir les catégories",
   },
   completed: {
     title: "Pas encore de missions terminées",
@@ -43,7 +39,7 @@ const EMPTY_COPY: Record<V2Status, { title: string; sub: string; cta: string | n
 export function MyBookingsClient() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [tab, setTab] = useState<V2Status>("upcoming");
+  const [tab, setTab] = useState<BookingTab>("upcoming");
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.bookings.all(),
@@ -55,13 +51,15 @@ export function MyBookingsClient() {
   const perspective: "client" | "pro" = user?.role === "PROVIDER" ? "pro" : "client";
 
   const counts = useMemo(() => {
-    const c: Record<V2Status, number> = {
+    const c: Record<BookingTab, number> = {
       upcoming: 0,
-      active: 0,
       completed: 0,
       cancelled: 0,
     };
-    for (const b of bookings) c[toV2Status(b.status)]++;
+    for (const b of bookings) {
+      const status = toV2Status(b.status);
+      if (status !== "active") c[status]++;
+    }
     return c;
   }, [bookings]);
 
@@ -77,7 +75,7 @@ export function MyBookingsClient() {
           Connectez-vous pour voir vos réservations
         </h1>
         <p className="k-body" style={{ color: "var(--k-text-muted)", marginBottom: 24 }}>
-          Retrouvez toutes vos missions passées, en cours et à venir.
+          Retrouvez toutes vos missions passées et à venir.
         </p>
         <button className="k-btn k-btn-primary" onClick={() => router.push("/auth")}>
           Se connecter
@@ -93,7 +91,7 @@ export function MyBookingsClient() {
             Mes réservations
           </h1>
           <div className="k-body-m" style={{ color: "var(--k-text-muted)" }}>
-            Vos missions passées, en cours et à venir — avec suivi temps réel et reçus.
+            Vos missions passées et à venir, avec les détails de réservation.
           </div>
         </div>
 
@@ -169,7 +167,7 @@ export function MyBookingsClient() {
   );
 }
 
-function EmptyBookings({ tab, onBrowse }: { tab: V2Status; onBrowse: () => void }) {
+function EmptyBookings({ tab, onBrowse }: { tab: BookingTab; onBrowse: () => void }) {
   const copy = EMPTY_COPY[tab];
   return (
     <div style={{ padding: "48px 24px", textAlign: "center" }}>

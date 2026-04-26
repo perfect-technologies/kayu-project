@@ -685,7 +685,7 @@ function QuoteBreakdown({
               <Text
                 style={[styles.qbExtraLabel, { color: theme.colors.textBody, fontWeight: '600' }]}
               >
-                Payout estimé
+                Gain net estimé
               </Text>
               <Text style={[styles.qbExtraValue, styles.qbPayout]}>
                 {(total - commission).toLocaleString('fr-FR')} FC
@@ -737,7 +737,7 @@ function QuoteBreakdown({
             <Text
               style={[styles.qbExtraLabel, { color: theme.colors.textBody, fontWeight: '600' }]}
             >
-              Votre payout
+              Gain net
             </Text>
             <Text style={[styles.qbExtraValue, styles.qbPayout]}>
               {(total - commission).toLocaleString('fr-FR')} FC

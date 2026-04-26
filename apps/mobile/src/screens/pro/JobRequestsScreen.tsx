@@ -45,18 +45,8 @@ const STATUS_COPY: Record<
     color: theme.colors.primary,
     bg: theme.colors.primarySubtle,
   },
-  enroute: {
-    label: 'En route',
-    color: theme.colors.warning,
-    bg: theme.colors.warningSubtle,
-  },
-  arrived: {
-    label: 'Sur place',
-    color: theme.colors.success,
-    bg: theme.colors.successSubtle,
-  },
   in_progress: {
-    label: 'En cours',
+    label: 'Confirmé',
     color: theme.colors.success,
     bg: theme.colors.successSubtle,
     pulse: true,

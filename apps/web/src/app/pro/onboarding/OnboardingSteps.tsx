@@ -5,7 +5,6 @@ import { tokens, type CategorySlug } from "@kayu/ui";
 import {
   CITIES,
   LANGUAGES,
-  PAYMENT_OPTIONS,
   SKILL_SUGGESTIONS,
   YEARS_OPTIONS,
   type OnboardingData,
@@ -755,86 +754,6 @@ export function StepPricing({ data, setData }: StepProps) {
         </div>
       </div>
 
-      <div>
-        <FieldLabel
-          label="Paiement Mobile Money"
-          hint="Comment tu reçois tes paiements."
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {PAYMENT_OPTIONS.map((o) => {
-            const isSel = data.payment === o.k;
-            return (
-              <button
-                key={o.k}
-                type="button"
-                onClick={() => setData({ payment: o.k })}
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: tokens.radius.md,
-                  border: isSel
-                    ? `1px solid ${o.color}`
-                    : `1px solid ${tokens.color.border}`,
-                  background: isSel ? "#FAFAF9" : tokens.color.surface,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 8,
-                    background: o.color,
-                    color: tokens.color.textInverse,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 700,
-                    fontSize: 12,
-                    fontFamily: tokens.font.mono,
-                  }}
-                >
-                  {o.label[0]}
-                </div>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    flex: 1,
-                    textAlign: "left",
-                  }}
-                >
-                  {o.label}
-                </span>
-                <div
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: "50%",
-                    border: `2px solid ${isSel ? o.color : tokens.color.borderStrong}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {isSel && (
-                    <div
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        background: o.color,
-                      }}
-                    />
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

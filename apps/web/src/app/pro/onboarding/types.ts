@@ -147,14 +147,3 @@ export const LANGUAGES = [
   "Tshiluba",
   "Anglais",
 ];
-
-export const PAYMENT_OPTIONS: {
-  k: PaymentMethod;
-  label: string;
-  color: string;
-}[] = [
-  { k: "airtel", label: "Airtel Money", color: "#E11D48" },
-  { k: "mpesa", label: "M-Pesa", color: "#059669" },
-  { k: "orange", label: "Orange Money", color: "#F59E0B" },
-  { k: "mtn", label: "MTN MoMo", color: "#FBBF24" },
-];

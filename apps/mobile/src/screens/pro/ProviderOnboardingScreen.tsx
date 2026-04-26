@@ -28,7 +28,6 @@ import {
   CITIES,
   HOURLY_PRESETS,
   LANGUAGES,
-  PAYMENT_OPTIONS,
   SKILL_SUGGESTIONS,
   YEARS_OPTIONS,
   validateStep,
@@ -816,44 +815,6 @@ function StepPricing({ data, setData }: StepProps) {
             );
           })}
         </View>
-      </View>
-
-      <View>
-        <FieldLabel label="Paiement Mobile Money" hint="Comment tu reçois tes paiements." />
-        {PAYMENT_OPTIONS.map((o) => {
-          const isSel = data.payment === o.k;
-          return (
-            <Pressable
-              key={o.k}
-              onPress={() => setData({ payment: o.k })}
-              style={[
-                styles.paymentRow,
-                isSel && { borderColor: o.color, backgroundColor: '#FAFAF9' },
-              ]}
-            >
-              <View
-                style={[styles.paymentBadge, { backgroundColor: o.color }]}
-              >
-                <Text style={styles.paymentBadgeText}>{o.label[0]}</Text>
-              </View>
-              <Text style={styles.paymentLabel}>{o.label}</Text>
-              <View
-                style={[
-                  styles.radioDot,
-                  {
-                    borderColor: isSel ? o.color : tokens.color.borderStrong,
-                  },
-                ]}
-              >
-                {isSel ? (
-                  <View
-                    style={[styles.radioDotInner, { backgroundColor: o.color }]}
-                  />
-                ) : null}
-              </View>
-            </Pressable>
-          );
-        })}
       </View>
     </View>
   );

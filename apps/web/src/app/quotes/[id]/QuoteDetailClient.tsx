@@ -292,7 +292,7 @@ export function QuoteDetailClient({ id }: { id: string }) {
               borderTop: "1px solid var(--k-border-subtle)",
             }}
           >
-            <Row label="Total à payer" value={quote.total} big />
+            <Row label="Total" value={quote.total} big />
           </div>
         </div>
       </section>

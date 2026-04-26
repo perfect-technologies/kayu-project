@@ -1,12 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   type StyleProp,
@@ -14,13 +11,10 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
 import type {
-  CreatePayoutDto,
-  CreatePayoutResponse,
   EarningsWeekDay,
-  PayoutOperator,
   Transaction,
   TransactionType,
 } from '@kayu/schemas';
@@ -29,42 +23,22 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
 
-// DS08 — pro Earnings screen. Real data from the EarningsModule backend;
-// payout action records a Payout in PENDING status (PSP integration stub).
-
-type PayMethod = 'cash' | 'mpesa' | 'airtel' | 'orange' | 'mtn';
-
-type MMOperator = {
-  id: PayoutOperator;
-  slug: PayMethod;
-  name: string;
-  init: string;
-  color: string;
-};
-
-const MM_OPERATORS: MMOperator[] = [
-  { id: 'MPESA', slug: 'mpesa', name: 'M-Pesa', init: 'M', color: '#10B981' },
-  { id: 'AIRTEL', slug: 'airtel', name: 'Airtel Money', init: 'A', color: '#E11D48' },
-  { id: 'ORANGE', slug: 'orange', name: 'Orange Money', init: 'O', color: '#F97316' },
-  { id: 'MTN', slug: 'mtn', name: 'MTN MoMo', init: 'MTN', color: '#F59E0B' },
-];
+// DS08 — pro Earnings screen. Launch copy is cash-first: the client pays the
+// provider directly in cash after the mission.
 
 type Filter = 'ALL' | TransactionType;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'ALL', label: 'Tout' },
   { id: 'EARNING', label: 'Gains' },
-  { id: 'PAYOUT', label: 'Paiements' },
+  { id: 'PAYOUT', label: 'Ajustements' },
   { id: 'BONUS', label: 'Bonus' },
 ];
-
-const FEE_RATE = 0.01;
 
 export function EarningsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [filter, setFilter] = useState<Filter>('ALL');
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const enabled = !!user && user.role === 'PROVIDER';
 
@@ -106,8 +80,7 @@ export function EarningsScreen() {
           <Text style={styles.overlineAccent}>Espace pro</Text>
           <Text style={styles.h1}>Mes gains</Text>
           <Text style={styles.subtitle}>
-            Les gains deviennent disponibles apres confirmation du paiement hors
-            plateforme.
+            Suivi des missions payees en especes et des confirmations en attente.
           </Text>
         </View>
 
@@ -133,8 +106,9 @@ export function EarningsScreen() {
               <View style={styles.policyCard}>
                 <Text style={styles.policyTitle}>Politique de paiement MVP</Text>
                 <Text style={styles.policyBody}>
-                  Le client regle directement le pro en especes. Les gains
-                  restent en attente tant que ce paiement n'est pas confirme.
+                  Le client regle directement le pro en especes a la fin de la
+                  mission. Les gains restent en attente tant que ce paiement
+                  n'est pas confirme.
                 </Text>
               </View>
             </View>
@@ -142,7 +116,7 @@ export function EarningsScreen() {
             {/* Balance card */}
             <View style={styles.section}>
               <View style={styles.balanceCard}>
-                <Text style={styles.balanceOverline}>Solde disponible</Text>
+                <Text style={styles.balanceOverline}>Gains confirmés</Text>
                 <View style={styles.balanceAmountRow}>
                   <Text style={styles.balanceAmount}>
                     {summaryQuery.isLoading
@@ -175,18 +149,9 @@ export function EarningsScreen() {
                     </Text>
                   </View>
                 )}
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSheetOpen(true)}
-                  disabled={balance <= 0 || summaryQuery.isLoading}
-                  style={[
-                    styles.primaryCta,
-                    (balance <= 0 || summaryQuery.isLoading) && styles.primaryCtaDisabled,
-                  ]}
-                >
-                  <I.arrowRight size={16} color="#FFFFFF" />
-                  <Text style={styles.primaryCtaText}>Demander un retrait manuel</Text>
-                </TouchableOpacity>
+                <Text style={styles.balanceFootnote}>
+                  Paiement en espèces confirmé
+                </Text>
               </View>
             </View>
 
@@ -295,13 +260,6 @@ export function EarningsScreen() {
           </>
         )}
       </ScrollView>
-
-      <PayoutSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        balance={balance}
-        defaultPhone={user?.phone ?? ''}
-      />
     </View>
   );
 }
@@ -427,10 +385,10 @@ function MoneyBar({ day, max }: { day: EarningsWeekDay; max: number }) {
 
 const METHOD_CHIPS: Record<string, { label: string; bg: string; color: string }> = {
   cash: { label: 'Cash', bg: theme.colors.warningSubtle, color: '#B45309' },
-  mpesa: { label: 'M-Pesa', bg: '#ECFDF5', color: '#10B981' },
-  airtel: { label: 'Airtel', bg: '#FEF2F2', color: '#E11D48' },
-  orange: { label: 'Orange', bg: '#FFF7ED', color: '#F97316' },
-  mtn: { label: 'MTN', bg: '#FFFBEB', color: '#B45309' },
+  mpesa: { label: 'Autre', bg: theme.colors.surfaceMuted, color: theme.colors.textMuted },
+  airtel: { label: 'Autre', bg: theme.colors.surfaceMuted, color: theme.colors.textMuted },
+  orange: { label: 'Autre', bg: theme.colors.surfaceMuted, color: theme.colors.textMuted },
+  mtn: { label: 'Autre', bg: theme.colors.surfaceMuted, color: theme.colors.textMuted },
 };
 
 function formatRelative(input: string | Date): string {
@@ -576,273 +534,6 @@ function StatTile({
   );
 }
 
-// ── Payout bottom sheet ──────────────────────────────────────────────────
-
-function PayoutSheet({
-  open,
-  onClose,
-  balance,
-  defaultPhone,
-}: {
-  open: boolean;
-  onClose: () => void;
-  balance: number;
-  defaultPhone: string;
-}) {
-  const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
-  const [amount, setAmount] = useState<number>(balance);
-  const [selected, setSelected] = useState<MMOperator>(MM_OPERATORS[0]);
-  const [phone, setPhone] = useState(defaultPhone);
-  const [result, setResult] = useState<CreatePayoutResponse | null>(null);
-
-  const mutation = useMutation({
-    mutationFn: (data: CreatePayoutDto) => api.earnings.createPayout(data),
-    onSuccess: (data) => {
-      setResult(data);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.summary });
-      void queryClient.invalidateQueries({ queryKey: ['earnings', 'transactions'] });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.earnings.payouts });
-    },
-  });
-
-  useEffect(() => {
-    if (open) {
-      setAmount(balance);
-      setSelected(MM_OPERATORS[0]);
-      setPhone(defaultPhone);
-      setResult(null);
-      mutation.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, balance, defaultPhone]);
-
-  const fee = Math.round(amount * FEE_RATE);
-  const receiving = amount - fee;
-  const invalid =
-    amount <= 0 ||
-    amount > balance ||
-    phone.trim().length < 8 ||
-    mutation.isPending;
-
-  return (
-    <Modal
-      visible={open}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable
-          style={[styles.sheetCard, { paddingBottom: Math.max(24, insets.bottom + 14) }]}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.sheetTitle}>Demander un retrait manuel</Text>
-              <Text style={styles.sheetCaption}>
-                Votre solde : {balance.toLocaleString('fr-FR')} FC
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              accessibilityLabel="Fermer"
-              hitSlop={8}
-              style={styles.sheetClose}
-            >
-              <I.x size={22} color={theme.colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          {result ? (
-            <View style={styles.successWrap}>
-              <View style={styles.successCircle}>
-                <I.check size={32} color={theme.colors.success} strokeWidth={2.5} />
-              </View>
-              <Text style={styles.successTitle}>Demande enregistrée</Text>
-              <Text style={styles.successBody}>
-                {amount.toLocaleString('fr-FR')} FC seront verifies puis envoyes vers{' '}
-                {selected.name}.
-              </Text>
-              <Text style={styles.successRef}>
-                Réf : {result.payout.reference ?? 'PSP en attente'}
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={onClose}
-                style={[styles.primaryCta, { marginTop: 18 }]}
-              >
-                <Text style={styles.primaryCtaText}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <ScrollView
-              style={{ maxHeight: '80%' }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Amount */}
-              <Text style={styles.fieldOverline}>Montant</Text>
-              <View style={styles.amountField}>
-                <TextInput
-                  keyboardType="number-pad"
-                  value={amount === 0 ? '' : amount.toLocaleString('fr-FR')}
-                  onChangeText={(txt) =>
-                    setAmount(parseInt(txt.replace(/\D/g, '') || '0', 10))
-                  }
-                  placeholder="0"
-                  placeholderTextColor={theme.colors.textSubtle}
-                  style={styles.amountInput}
-                />
-                <Text style={styles.amountFc}>FC</Text>
-                <TouchableOpacity
-                  onPress={() => setAmount(balance)}
-                  style={styles.maxButton}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.maxButtonText}>Max</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Operators — 2x2 grid */}
-              <Text style={[styles.fieldOverline, { marginTop: 18 }]}>
-                Envoyer vers
-              </Text>
-              <View style={styles.opGrid}>
-                {MM_OPERATORS.map((op) => (
-                  <OperatorTile
-                    key={op.id}
-                    op={op}
-                    selected={selected.id === op.id}
-                    onPress={() => setSelected(op)}
-                  />
-                ))}
-              </View>
-
-              {/* Phone */}
-              <Text style={styles.fieldOverline}>Numéro</Text>
-              <View style={styles.phoneField}>
-                <TextInput
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
-                  placeholder="+243 810 123 742"
-                  placeholderTextColor={theme.colors.textSubtle}
-                  style={styles.phoneInput}
-                />
-              </View>
-
-              {/* Récapitulatif */}
-              <View style={styles.recap}>
-                <Text style={[styles.fieldOverline, { color: theme.colors.primaryHover }]}>
-                  Récapitulatif
-                </Text>
-                <RecapRow
-                  label="Montant"
-                  value={`${amount.toLocaleString('fr-FR')} FC`}
-                />
-                <RecapRow
-                  label={`Frais (${(FEE_RATE * 100).toFixed(0)} %)`}
-                  value={`− ${fee.toLocaleString('fr-FR')} FC`}
-                />
-                <View style={styles.recapDivider} />
-                <View style={styles.recapTotalRow}>
-                  <Text style={styles.recapTotalLabel}>Total à recevoir</Text>
-                  <Text style={styles.recapTotalValue}>
-                    {receiving.toLocaleString('fr-FR')} FC
-                  </Text>
-                </View>
-              </View>
-
-              {mutation.isError && (
-                <Text style={styles.errorInline}>
-                  {mutation.error instanceof Error
-                    ? mutation.error.message
-                    : "Impossible d'enregistrer la demande. Réessayez."}
-                </Text>
-              )}
-
-              <TouchableOpacity
-                activeOpacity={invalid ? 1 : 0.85}
-                disabled={invalid}
-                onPress={() =>
-                  mutation.mutate({
-                    operator: selected.id,
-                    amount,
-                    phone: phone.trim(),
-                  })
-                }
-                style={[styles.primaryCta, invalid && styles.primaryCtaDisabled]}
-              >
-                <Text style={styles.primaryCtaText}>
-                  {mutation.isPending ? 'Enregistrement…' : 'Valider la demande'}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.sheetFootnote}>
-                Traitement manuel KAYOU avant envoi Mobile Money
-              </Text>
-            </ScrollView>
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function OperatorTile({
-  op,
-  selected,
-  onPress,
-}: {
-  op: MMOperator;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.85}
-      style={[
-        styles.opTile,
-        {
-          borderColor: selected ? op.color : theme.colors.borderSubtle,
-          backgroundColor: selected ? `${op.color}0D` : theme.colors.surface,
-        },
-      ]}
-    >
-      <View style={[styles.opInit, { backgroundColor: op.color }]}>
-        <Text
-          style={[
-            styles.opInitText,
-            op.init.length > 1 && { fontSize: 11, letterSpacing: 0.4 },
-          ]}
-        >
-          {op.init}
-        </Text>
-      </View>
-      <Text style={styles.opName} numberOfLines={1}>
-        {op.name}
-      </Text>
-      {selected && (
-        <View style={[styles.opCheck, { backgroundColor: op.color }]}>
-          <I.check size={12} color="#FFFFFF" strokeWidth={2.5} />
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-function RecapRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.recapRow}>
-      <Text style={styles.recapLabel}>{label}</Text>
-      <Text style={styles.recapValue}>{value}</Text>
-    </View>
-  );
-}
-
 // ── Styles ───────────────────────────────────────────────────────────────
 
 const card: StyleProp<ViewStyle> = {
@@ -941,6 +632,13 @@ const styles = StyleSheet.create({
   },
   balanceOverline: {
     ...(overlineBase as object),
+  },
+  balanceFootnote: {
+    marginTop: 12,
+    fontFamily: theme.fonts.bodyMed,
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
   },
   balanceAmountRow: {
     flexDirection: 'row',

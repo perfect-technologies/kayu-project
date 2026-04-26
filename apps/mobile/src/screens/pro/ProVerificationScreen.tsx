@@ -736,7 +736,7 @@ const MIN_RESPONSE_LEN = 20;
 
 const DISPUTE_OPTIONS = [
   { id: 'revisit', label: 'Je peux revenir réparer gratuitement', desc: 'Solution préférée' },
-  { id: 'partial', label: 'Remboursement partiel', desc: 'À définir avec le client' },
+  { id: 'partial', label: 'Geste commercial', desc: 'À définir avec le client' },
   { id: 'contest', label: 'Je conteste — le travail était conforme', desc: 'KAYOU arbitrera' },
 ];
 
@@ -759,7 +759,7 @@ function DisputeView({ dispute, onBack, onResolved }: DisputeProps) {
       ...DISPUTE_OPTIONS.slice(0, 2),
       {
         id: 'full',
-        label: 'Remboursement intégral',
+        label: 'Geste commercial intégral',
         desc: `${amount.toLocaleString('fr-FR')} FC`,
       },
       ...DISPUTE_OPTIONS.slice(2),

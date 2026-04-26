@@ -58,13 +58,6 @@ export const YEARS_OPTIONS = ['< 1 an', '1–3 ans', '4–7 ans', '8+ ans'] as c
 
 export const LANGUAGES = ['Français', 'Lingala', 'Swahili', 'Kikongo', 'Tshiluba', 'Anglais'];
 
-export const PAYMENT_OPTIONS: { k: PaymentMethod; label: string; color: string }[] = [
-  { k: 'airtel', label: 'Airtel Money', color: '#E11D48' },
-  { k: 'mpesa', label: 'M-Pesa', color: '#059669' },
-  { k: 'orange', label: 'Orange Money', color: '#F59E0B' },
-  { k: 'mtn', label: 'MTN MoMo', color: '#FBBF24' },
-];
-
 export const CATEGORY_LIST: CategorySlug[] = [
   'plomberie',
   'electricite',

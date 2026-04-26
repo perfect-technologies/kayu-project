@@ -12,18 +12,8 @@ const STATUS_COPY: Record<
     color: "var(--k-primary)",
     bg: "var(--k-primary-subtle)",
   },
-  enroute: {
-    label: "En route",
-    color: "var(--k-warning)",
-    bg: "var(--k-warning-subtle)",
-  },
-  arrived: {
-    label: "Sur place",
-    color: "var(--k-success)",
-    bg: "var(--k-success-subtle)",
-  },
   in_progress: {
-    label: "En cours",
+    label: "Confirmé",
     color: "var(--k-success)",
     bg: "var(--k-success-subtle)",
     pulse: true,

@@ -28,7 +28,7 @@ type FilterKey = 'all' | 'unread' | 'active';
 const FILTERS: { k: FilterKey; label: string }[] = [
   { k: 'all', label: 'Tous' },
   { k: 'unread', label: 'Non lus' },
-  { k: 'active', label: 'En cours' },
+  { k: 'active', label: 'Actives' },
 ];
 
 function getOtherName(u?: UserSummary | null) {

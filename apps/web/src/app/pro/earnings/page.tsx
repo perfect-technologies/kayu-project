@@ -4,7 +4,7 @@ import { EarningsClient } from "./EarningsClient";
 export const metadata: Metadata = {
   title: "Mes gains · KAYOU",
   description:
-    "Suivi hebdomadaire de tes revenus, solde disponible et demandes de retrait manuel.",
+    "Suivi hebdomadaire des missions payees en especes et des confirmations en attente.",
 };
 
 export default function EarningsPage() {

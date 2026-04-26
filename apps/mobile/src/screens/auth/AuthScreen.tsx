@@ -712,7 +712,7 @@ function RolePickerStep({
         />
         <RoleCard
           title="Je suis un pro"
-          subtitle="Recevez des demandes, gérez vos missions, payez-vous en M-Pesa."
+          subtitle="Recevez des demandes, gérez vos missions et suivez vos gains en espèces."
           tone="accent"
           icon={<I.sparkles size={22} color={theme.colors.accent} />}
           onPress={() => onSelect('PROVIDER')}

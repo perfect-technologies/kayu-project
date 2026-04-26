@@ -55,7 +55,7 @@ interface BookingCardProps {
 const statusConfig: Record<BookingStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
   PENDING: { label: 'En attente', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: AlertCircle },
   CONFIRMED: { label: 'Confirmé', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: CheckCircle },
-  IN_PROGRESS: { label: 'En cours', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Clock },
+  IN_PROGRESS: { label: 'Confirmé', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: CheckCircle },
   COMPLETED: { label: 'Terminé', color: 'bg-green-100 text-green-800 border-green-200', icon: CheckCircle },
   CANCELLED: { label: 'Annulé', color: 'bg-red-100 text-red-800 border-red-200', icon: XCircle },
 };

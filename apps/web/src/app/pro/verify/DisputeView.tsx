@@ -19,7 +19,7 @@ const OPTION_DEFS = [
   },
   {
     id: "partial",
-    label: "Je propose un remboursement partiel",
+    label: "Je propose un geste commercial",
     desc: "Montant à définir avec le client",
   },
   {
@@ -47,7 +47,7 @@ export function DisputeView({ dispute, onBack, onResolved }: Props) {
       ...OPTION_DEFS.slice(0, 2),
       {
         id: "full",
-        label: "Remboursement intégral",
+        label: "Geste commercial intégral",
         desc: `${amount.toLocaleString("fr-FR")} FC · Vos gains seront ajustés`,
       },
       ...OPTION_DEFS.slice(2),

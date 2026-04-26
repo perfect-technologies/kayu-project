@@ -35,8 +35,6 @@ export type InboundRequest = {
 export type ActiveJobStatus =
   | 'pending'
   | 'scheduled'
-  | 'enroute'
-  | 'arrived'
   | 'in_progress';
 
 export type ActiveJob = {

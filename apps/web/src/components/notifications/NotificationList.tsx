@@ -238,8 +238,8 @@ export const sampleNotifications: Notification[] = [
   {
     id: '3',
     type: 'payment',
-    title: 'Paiement reçu',
-    message: 'Vous avez reçu 25,000 CDF pour votre dernière prestation.',
+    title: 'Paiement en espèces confirmé',
+    message: 'Le paiement en espèces de votre dernière prestation a été confirmé.',
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
     isRead: true,
   },

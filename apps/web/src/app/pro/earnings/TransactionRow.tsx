@@ -8,10 +8,10 @@ const METHOD_CHIPS: Record<
   { label: string; bg: string; color: string }
 > = {
   cash: { label: "Cash", bg: "var(--k-warning-subtle)", color: "#B45309" },
-  mpesa: { label: "M-Pesa", bg: "#ECFDF5", color: "#10B981" },
-  airtel: { label: "Airtel", bg: "#FEF2F2", color: "#E11D48" },
-  orange: { label: "Orange", bg: "#FFF7ED", color: "#F97316" },
-  mtn: { label: "MTN", bg: "#FFFBEB", color: "#B45309" },
+  mpesa: { label: "Autre", bg: "var(--k-surface-muted)", color: "var(--k-text-muted)" },
+  airtel: { label: "Autre", bg: "var(--k-surface-muted)", color: "var(--k-text-muted)" },
+  orange: { label: "Autre", bg: "var(--k-surface-muted)", color: "var(--k-text-muted)" },
+  mtn: { label: "Autre", bg: "var(--k-surface-muted)", color: "var(--k-text-muted)" },
 };
 
 function formatRelative(input: string | Date): string {

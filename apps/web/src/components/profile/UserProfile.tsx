@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 export function ProfileMenu() {
   const menuItems = [
     { icon: User, label: 'Mon Profil', href: '/dashboard/profile', color: 'text-primary' },
-    { icon: CreditCard, label: 'Mes Cartes', href: '/dashboard/cards', color: 'text-blue-600' },
+    { icon: CreditCard, label: 'Paiement', href: '/dashboard/cards', color: 'text-blue-600' },
     { icon: MapPin, label: 'Mes Adresses', href: '/dashboard/addresses', color: 'text-green-600' },
     { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', color: 'text-orange-600' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings', color: 'text-gray-600' },
@@ -186,11 +186,7 @@ export function CardsSection({
     <Card className="kayou-card">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold">Mes Cartes</CardTitle>
-          <Button variant="outline" size="sm" className="gap-1">
-            <Plus className="h-4 w-4" />
-            Ajouter
-          </Button>
+          <CardTitle className="text-lg font-semibold">Paiement</CardTitle>
         </div>
       </CardHeader>
 
@@ -200,13 +196,10 @@ export function CardsSection({
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <CreditCard className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="font-semibold text-foreground mb-1">Aucune carte</h3>
+            <h3 className="font-semibold text-foreground mb-1">Paiement en espèces</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Ajoutez une carte pour faciliter vos paiements
+              Le règlement se fait directement avec le prestataire à la fin de la mission.
             </p>
-            <Button className="bg-primary hover:bg-primary/90">
-              Ajouter une carte
-            </Button>
           </div>
         ) : (
           <div className="space-y-3">

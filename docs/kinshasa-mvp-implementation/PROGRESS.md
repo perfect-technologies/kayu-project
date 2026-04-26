@@ -25,7 +25,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 03 - Web Direct Flow | Done | Codex | Web direct discovery/chat/booking/final-offer launch flow completed |
 | 04 - Mobile Direct Flow | Done | Codex | Mobile direct discovery/chat/booking/final-offer launch flow completed |
 | 05 - Discovery Filters And Provider Profile | Done | Codex | Discovery filters/profile surfaces are launch-truthful; fake map/distance/availability claims removed |
-| 06 - Cash Payment And Copy Cleanup | Not started | Unassigned | Align all launch-facing copy with cash MVP |
+| 06 - Cash Payment And Copy Cleanup | Done | Codex | Launch-facing payment/lifecycle copy aligned to cash-first MVP; payout/mobile-money/en-route/arrived claims removed |
 | 07 - Provider Operations And Dashboards | Not started | Unassigned | Provider actions and direct booking operations |
 | 08 - Launch QA And Smoke Tests | Not started | Unassigned | Final smoke scenarios and release evidence |
 
@@ -344,6 +344,82 @@ Commands run:
 - `pnpm --filter @kayu/web build` - passed.
 - `git diff --check` - passed.
 - `rg -n "Disponible maintenant|Vue carte|mis à jour il y a quelques instants|Taux de réponse|Réponse \{fast|~15 min|Assurance RC Pro|DistanceBadge|Voir distance" apps/web/src/app/services apps/web/src/app/providers apps/web/src/components/provider-profile apps/mobile/src/screens/search apps/mobile/src/lib/providerAdapter.ts -g '!*.map'` - no launch-facing matches in scoped files.
+
+## Workstream 06 Evidence
+
+Completed: 2026-04-25
+
+Changed files:
+
+- `apps/web/src/lib/booking-v2.ts`
+- `apps/web/src/app/bookings/MyBookingsClient.tsx`
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/app/pro/earnings/EarningsClient.tsx`
+- `apps/web/src/app/pro/earnings/TransactionRow.tsx`
+- `apps/web/src/app/pro/earnings/page.tsx`
+- `apps/web/src/app/pro/earnings/PayoutSheet.tsx` - deleted
+- `apps/web/src/app/pro/earnings/fixtures.ts` - deleted
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `apps/web/src/app/pro/onboarding/types.ts`
+- `apps/web/src/app/pro/verify/DisputeView.tsx`
+- `apps/web/src/app/pro/devis/new/QuoteComposeClient.tsx`
+- `apps/web/src/app/pro/devis/new/page.tsx`
+- `apps/web/src/app/quotes/[id]/QuoteDetailClient.tsx`
+- `apps/web/src/app/review/[providerId]/WriteReviewClient.tsx`
+- `apps/web/src/components/booking/BookingCalendar.tsx`
+- `apps/web/src/components/bookings/BookingDetail.tsx`
+- `apps/web/src/components/bookings/BookingStatusChip.tsx`
+- `apps/web/src/components/dashboard/BookingCard.tsx`
+- `apps/web/src/components/notifications/NotificationList.tsx`
+- `apps/web/src/components/pro/ActiveJobsCard.tsx`
+- `apps/web/src/components/pro/types.ts`
+- `apps/web/src/components/profile/UserProfile.tsx`
+- `apps/mobile/src/components/bookings/BookingStatusChip.tsx`
+- `apps/mobile/src/screens/auth/AuthScreen.tsx`
+- `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx`
+- `apps/mobile/src/screens/messages/ConversationsScreen.tsx`
+- `apps/mobile/src/screens/pro/EarningsScreen.tsx`
+- `apps/mobile/src/screens/pro/JobRequestsScreen.tsx`
+- `apps/mobile/src/screens/pro/ProVerificationScreen.tsx`
+- `apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx`
+- `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx`
+- `apps/mobile/src/screens/pro/QuoteComposeScreen.tsx`
+- `apps/mobile/src/screens/pro/fixtures.ts`
+- `apps/mobile/src/screens/pro/onboardingData.ts`
+
+Behavior implemented:
+
+- Web and mobile earnings now describe confirmed cash earnings and pending cash confirmations instead of available balance, payout, withdrawal, PSP, or Mobile Money flows.
+- Deleted the launch-facing web payout sheet and its Mobile Money operator fixture.
+- Provider onboarding no longer asks for a Mobile Money payment method in the visible launch flow.
+- Booking cards/detail chips treat backend `IN_PROGRESS` as confirmed launch copy instead of exposing an in-progress/en-route-style lifecycle.
+- Removed en-route/arrived/sur-place copy from active-job request surfaces that remain deferred behind launch flags.
+- Replaced provider-facing `payout` labels with `Gain net` / `Gain net estimé`; code identifiers for existing transaction/request models remain unchanged.
+- Replaced refund wording on provider dispute response surfaces with `geste commercial`; admin-only dispute configuration still contains refund wording.
+- Removed online-card copy from the legacy profile card section; launch copy now states cash payment with the provider at mission end.
+- CDF amounts remain displayed as `FC`/`CDF` with French locale grouping. This matches the existing Kinshasa UI convention for Congolese francs; no currency rail or online payment claim is attached.
+- Review follow-up: removed the dead web `/bookings` `Confirmées` tab after `IN_PROGRESS`/`CONFIRMED` were intentionally folded into the launch `À venir` grouping.
+
+Search terms checked:
+
+- `M-Pesa|Mobile Money|Mes Cartes|Ajouter une carte|payez-vous|Demander un retrait|retrait manuel|Solde disponible|Solde retirable|En route|Sur place|arrived|Arrivé|arrivé|remboursement|Remboursement|refund|escrow|Votre payout|Payout estimé|paiement sécurisé|Paiement sécurisé|secure payment|online payment`
+- `payout|Payout|pay[ée]|Pay[ée]|Paiement|paiement|payer|paid|en route|arrived|arrivé|Arrivé|Sur place|Mobile Money|retrait|remboursement|Remboursement|secure|sécurisé|protégé|escrow|refund|online`
+- `Paiement en espèces à la fin de la mission|Paiement en especes|Gains confirmés|paiement en especes|cash`
+
+Intentional remaining matches:
+
+- `apps/web/src/app/dashboard/admin/page.tsx` still has `Remboursement ou geste (%)`; this is an admin/internal dispute-control surface, not launch-facing client/provider UI.
+- Existing `PAYOUT` enum/type identifiers and transaction/request model fields remain in code because backend accounting still uses them; launch-facing labels now say `Ajustements`, `Gains confirmés`, or `Gain net`.
+- Hidden job-request/quote routes still exist behind launch flags, but their visible payment/lifecycle labels were also cleaned where they were easy to align.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed.
+- `pnpm --filter @kayu/mobile type-check` - passed.
+- `pnpm --filter @kayu/web type-check` - passed after review follow-up.
+- `git diff --check` - passed.
+- `rg -n "M-Pesa|Mobile Money|Mes Cartes|Ajouter une carte|payez-vous|Demander un retrait|retrait manuel|Solde disponible|Solde retirable|En route|Sur place|arrived|Arrivé|arrivé|remboursement|Remboursement|refund|escrow|Votre payout|Payout estimé|paiement sécurisé|Paiement sécurisé|secure payment|online payment" apps/web/src apps/mobile/src -g '!*.map'` - only admin/internal refund copy remains.
+- `rg -n "Paiement en espèces à la fin de la mission|Paiement en especes|Gains confirmés|paiement en especes|cash" apps/web/src apps/mobile/src -g '!*.map'` - confirmed cash-first copy is present on booking, profile, messages, home, and earnings surfaces.
 
 ## How To Update This File
 

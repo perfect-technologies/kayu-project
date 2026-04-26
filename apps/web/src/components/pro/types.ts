@@ -2,7 +2,7 @@ import type { CategorySlug } from "@kayu/ui";
 
 export type JobStatus = "confirmed" | "completed";
 
-export type ActiveJobStatus = "scheduled" | "enroute" | "arrived" | "in_progress";
+export type ActiveJobStatus = "scheduled" | "in_progress";
 
 export type ClientSummary = {
   name: string;

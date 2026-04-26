@@ -6,7 +6,7 @@ import { QuoteComposeClient } from "./QuoteComposeClient";
 export const metadata: Metadata = {
   title: "Nouveau devis · KAYOU",
   description:
-    "Construisez un devis détaillé, voyez la commission KAYOU et votre payout en direct.",
+    "Construisez un devis détaillé et voyez la commission KAYOU en direct.",
 };
 
 export default function QuoteComposePage() {

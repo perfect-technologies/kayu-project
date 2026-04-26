@@ -482,7 +482,7 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
 function BdStatusChip({ status }: { status: V2Status }) {
   const map: Record<V2Status, { label: string; cls: string }> = {
     upcoming: { label: "À venir", cls: "k-chip-primary" },
-    active: { label: "En cours", cls: "k-chip-success" },
+    active: { label: "Confirmée", cls: "k-chip-success" },
     completed: { label: "Terminée", cls: "" },
     cancelled: { label: "Annulée", cls: "" },
   };
@@ -585,7 +585,7 @@ function Timeline({
                     fontSize: 12,
                   }}
                 >
-                  {progress || "En cours · maintenant"}
+                  {progress || "À confirmer avec le pro"}
                 </div>
               )}
             </div>

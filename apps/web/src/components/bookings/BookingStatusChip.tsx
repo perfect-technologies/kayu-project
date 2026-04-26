@@ -21,7 +21,7 @@ export function BookingStatusChip({ status }: { status: V2Status }) {
             animation: "kPulse 1.6s ease-in-out infinite",
           }}
         />
-        En cours
+        Confirmée
       </span>
     );
   }

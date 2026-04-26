@@ -248,7 +248,7 @@ export function BookingCard({
   const statusLabels = {
     pending: 'En attente',
     confirmed: 'Confirmé',
-    in_progress: 'En cours',
+    in_progress: 'Confirmé',
     completed: 'Terminé',
     cancelled: 'Annulé',
   };

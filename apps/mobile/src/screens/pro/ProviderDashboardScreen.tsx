@@ -610,7 +610,7 @@ export function ProviderDashboardScreen() {
                   ? '—'
                   : `${(earnings?.balance ?? 0).toLocaleString('fr-FR')} FC`}
               </Text>
-              <Text style={styles.miniStatSub}>Solde retirable</Text>
+              <Text style={styles.miniStatSub}>Paiement en espèces confirmé</Text>
             </View>
             <View style={styles.miniStatCard}>
               <Text style={styles.overline}>En attente</Text>

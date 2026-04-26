@@ -493,7 +493,7 @@ export function QuoteComposeScreen() {
                 muted
                 small
               />
-              <TotalRow label="Votre payout" value={payout} big accent />
+              <TotalRow label="Gain net estimé" value={payout} big accent />
             </View>
           </View>
         </View>

@@ -22,7 +22,7 @@ export function BookingStatusChip({
     return (
       <View style={[styles.chip, styles.success]}>
         <PulseDot />
-        <Text style={[styles.chipText, styles.successText]}>En cours</Text>
+        <Text style={[styles.chipText, styles.successText]}>Confirmée</Text>
       </View>
     );
   }
