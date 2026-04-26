@@ -14,8 +14,9 @@ import {
 } from "@kayu/ui/web";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
-import { dashboardApi, providersApi, queryKeys } from "@kayu/api";
+import { bookingsApi, dashboardApi, providersApi, queryKeys } from "@kayu/api";
 import type {
+  DashboardBooking,
   RequestPreview,
   TodayJob,
 } from "@kayu/schemas";
@@ -88,6 +89,68 @@ function toDashboardRequest(req: RequestPreview): DashboardRequest {
   };
 }
 
+type DashboardBookingRequest = {
+  id: string;
+  clientId?: string | null;
+  client: {
+    name: string;
+    initials: string;
+    bg: string;
+  };
+  kind: string;
+  when: string;
+  address: string;
+  fee: number;
+  requestedAt: string;
+};
+
+function formatRelativeTime(value: string | Date | null | undefined): string {
+  if (!value) return "date inconnue";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "date inconnue";
+  const diffMin = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const hours = Math.floor(diffMin / 60);
+  if (hours < 24) return `il y a ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `il y a ${days}j`;
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+function formatScheduledDate(value: string | Date | null | undefined): string {
+  if (!value) return "Date à confirmer";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date à confirmer";
+  return date.toLocaleString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function toDashboardBookingRequest(booking: DashboardBooking): DashboardBookingRequest {
+  const clientName = booking.client?.name ?? "Client";
+  const address = [booking.address, booking.city].filter(Boolean).join(", ");
+
+  return {
+    id: booking.id,
+    clientId: booking.clientId,
+    client: {
+      name: clientName,
+      initials: initialsFor(clientName),
+      bg: colorFor(booking.client?.id ?? booking.clientId ?? booking.id),
+    },
+    kind: booking.service?.name ?? booking.title,
+    when: formatScheduledDate(booking.scheduledDate),
+    address: address || "Adresse à confirmer",
+    fee: booking.price ?? 0,
+    requestedAt: formatRelativeTime(booking.createdAt),
+  };
+}
+
 export function ProviderDashboardClient() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
@@ -142,6 +205,10 @@ export function ProviderDashboardClient() {
     () => (data?.today.jobs ?? []).map(toDashboardJob),
     [data],
   );
+  const bookingRequests = useMemo(
+    () => (data?.bookingRequests ?? []).map(toDashboardBookingRequest),
+    [data],
+  );
   const newRequests: DashboardRequest[] = useMemo(
     () =>
       launchFlags.enableJobRequests
@@ -150,6 +217,32 @@ export function ProviderDashboardClient() {
     [data],
   );
   const todayTotal = data?.today.estimatedRecette ?? 0;
+
+  const bookingActionMutation = useMutation({
+    mutationFn: ({
+      id,
+      status,
+      cancelReason,
+    }: {
+      id: string;
+      status: "CONFIRMED" | "CANCELLED";
+      cancelReason?: string;
+    }) => bookingsApi(apiClient).update(id, { status, cancelReason }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.provider });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(variables.id),
+      });
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La réservation n'a pas pu être mise à jour.",
+      );
+    },
+  });
 
   if (authLoading || !user || user.role !== "PROVIDER") {
     return (
@@ -322,9 +415,6 @@ export function ProviderDashboardClient() {
             Zone : {zoneCity}, {zoneRadius} km
           </div>
         </div>
-        <button type="button" className="k-btn k-btn-secondary k-btn-sm">
-          Modifier zone
-        </button>
         <button
           type="button"
           role="switch"
@@ -406,6 +496,83 @@ export function ProviderDashboardClient() {
         }}
       >
         <section>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 14,
+            }}
+          >
+            <h2
+              className="k-heading"
+              style={{
+                margin: 0,
+                fontFamily: "var(--font-display)",
+                fontWeight: 600,
+                fontSize: 20,
+                color: "var(--k-text-primary)",
+              }}
+            >
+              Réservations à confirmer{" "}
+              <span
+                style={{
+                  fontSize: 14,
+                  color: "var(--k-accent)",
+                  fontWeight: 600,
+                }}
+              >
+                ({bookingRequests.length})
+              </span>
+            </h2>
+          </div>
+          {bookingRequests.length === 0 ? (
+            <EmptyLine icon="inbox" copy="Aucune demande directe à confirmer" />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                marginBottom: 24,
+              }}
+            >
+              {bookingRequests.map((booking) => (
+                <BookingRequestCard
+                  key={booking.id}
+                  booking={booking}
+                  busy={
+                    bookingActionMutation.isPending &&
+                    bookingActionMutation.variables?.id === booking.id
+                  }
+                  onOpen={() => router.push(`/bookings/${booking.id}`)}
+                  onMessage={() => {
+                    if (booking.clientId) {
+                      router.push(
+                        `/messages?recipientId=${encodeURIComponent(booking.clientId)}&recipientName=${encodeURIComponent(booking.client.name)}`,
+                      );
+                    } else {
+                      router.push("/messages");
+                    }
+                  }}
+                  onAccept={() =>
+                    bookingActionMutation.mutate({
+                      id: booking.id,
+                      status: "CONFIRMED",
+                    })
+                  }
+                  onDecline={() =>
+                    bookingActionMutation.mutate({
+                      id: booking.id,
+                      status: "CANCELLED",
+                      cancelReason: "Créneau indisponible",
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -744,6 +911,148 @@ function EmptyLine({ icon, copy }: { icon: "calendar" | "inbox"; copy: string })
     >
       <Icon size={20} />
       {copy}
+    </div>
+  );
+}
+
+function BookingRequestCard({
+  booking,
+  busy,
+  onOpen,
+  onMessage,
+  onAccept,
+  onDecline,
+}: {
+  booking: DashboardBookingRequest;
+  busy: boolean;
+  onOpen: () => void;
+  onMessage: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      style={{
+        background: "var(--k-surface)",
+        border: "1px solid #FED7AA",
+        borderRadius: "var(--k-r-md)",
+        padding: 18,
+        boxShadow: "var(--k-e1)",
+        cursor: "pointer",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <Avatar
+          name={booking.client.name}
+          bg={booking.client.bg}
+          size={40}
+          initials={booking.client.initials}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontWeight: 600,
+              color: "var(--k-text-primary)",
+              fontSize: 15,
+            }}
+          >
+            {booking.client.name}
+          </div>
+          <div className="k-caption" style={{ color: "var(--k-text-muted)", fontSize: 12 }}>
+            Demandé {booking.requestedAt}
+          </div>
+        </div>
+        <span className="k-chip k-chip-sm k-chip-warning">À confirmer</span>
+      </div>
+
+      <div style={{ fontFamily: "var(--font-display)", fontWeight: 600, marginBottom: 8 }}>
+        {booking.kind}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        <span className="k-chip k-chip-sm">
+          <I.calendar size={11} /> {booking.when}
+        </span>
+        <span className="k-chip k-chip-sm">
+          <I.mapPin size={11} /> {booking.address}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "flex-end",
+          marginBottom: 14,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "var(--k-text-muted)",
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            Montant estimé
+          </div>
+          <div
+            className="k-price"
+            style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}
+          >
+            {booking.fee > 0 ? `${booking.fee.toLocaleString("fr-FR")} FC` : "À confirmer"}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="k-btn k-btn-ghost k-btn-sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMessage();
+          }}
+        >
+          <I.messageCircle size={14} /> Message
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDecline();
+          }}
+        >
+          Refuser
+        </button>
+        <button
+          type="button"
+          className="k-btn k-btn-primary"
+          style={{ flex: 1.4 }}
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAccept();
+          }}
+        >
+          {busy ? "Mise à jour…" : "Accepter"} <I.check size={14} />
+        </button>
+      </div>
     </div>
   );
 }

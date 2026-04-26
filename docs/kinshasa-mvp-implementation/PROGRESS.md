@@ -26,7 +26,7 @@ Job requests and multi-provider quote competition are deferred for launch.
 | 04 - Mobile Direct Flow | Done | Codex | Mobile direct discovery/chat/booking/final-offer launch flow completed |
 | 05 - Discovery Filters And Provider Profile | Done | Codex | Discovery filters/profile surfaces are launch-truthful; fake map/distance/availability claims removed |
 | 06 - Cash Payment And Copy Cleanup | Done | Codex | Launch-facing payment/lifecycle copy aligned to cash-first MVP; payout/mobile-money/en-route/arrived claims removed |
-| 07 - Provider Operations And Dashboards | Not started | Unassigned | Provider actions and direct booking operations |
+| 07 - Provider Operations And Dashboards | Done | Codex | Provider dashboards now handle direct bookings, messages, completion, and cash history |
 | 08 - Launch QA And Smoke Tests | Not started | Unassigned | Final smoke scenarios and release evidence |
 
 ## Decisions Log
@@ -420,6 +420,59 @@ Commands run:
 - `git diff --check` - passed.
 - `rg -n "M-Pesa|Mobile Money|Mes Cartes|Ajouter une carte|payez-vous|Demander un retrait|retrait manuel|Solde disponible|Solde retirable|En route|Sur place|arrived|Arrivé|arrivé|remboursement|Remboursement|refund|escrow|Votre payout|Payout estimé|paiement sécurisé|Paiement sécurisé|secure payment|online payment" apps/web/src apps/mobile/src -g '!*.map'` - only admin/internal refund copy remains.
 - `rg -n "Paiement en espèces à la fin de la mission|Paiement en especes|Gains confirmés|paiement en especes|cash" apps/web/src apps/mobile/src -g '!*.map'` - confirmed cash-first copy is present on booking, profile, messages, home, and earnings surfaces.
+
+## Workstream 07 Evidence
+
+Completed: 2026-04-26
+
+Changed files:
+
+- `apps/backend/src/modules/earnings/earnings.service.ts`
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/app/pro/ProviderDashboardClient.tsx`
+- `apps/web/src/app/pro/earnings/EarningsClient.tsx`
+- `apps/web/src/components/bookings/BookingDetail.tsx`
+- `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx`
+- `apps/mobile/src/screens/pro/EarningsScreen.tsx`
+- `apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx`
+
+Behavior implemented:
+
+- Web provider dashboard now shows direct pending booking requests with open-detail, message-client, accept, and decline actions.
+- Web provider dashboard removed the dead `Modifier zone` button; primary dashboard actions now route or mutate real data.
+- Web booking detail opens `/messages` with the booking counterparty user id, so providers message the client rather than landing in a generic inbox.
+- Web messages now supports `recipientId` deep links and creates a pending one-to-one thread until the first message creates the backend conversation.
+- Mobile direct booking request cards now include a message-client action in addition to detail, accept, and decline.
+- Mobile booking detail removed the dead phone icon and wires the counterparty message icon to the correct client/provider chat target.
+- Earnings summaries no longer subtract payout rows from provider cash earnings; confirmed cash jobs are shown as the provider's confirmed earnings.
+- Earnings history defaults to cash earnings/bonus rows and hides payout/disbursement rows from launch-facing `Tout` history.
+- Web and mobile earnings filters no longer expose a payout/adjustment tab.
+- Existing provider request inbox and quote composer surfaces remain hidden behind launch flags; no launch-facing provider path requires job requests or quote competition.
+
+Provider account used for manual-smoke target:
+
+- Provider: `Jean-Pierre Mukendi` (`jeanpierre.mukendi@kayou.cd`) from `apps/mobile/e2e/manual/seeded-accounts.md`.
+- Client counterpart: `Paul Kabasele` (`paul.kabasele@email.cd`) from the same seeded account set.
+- Full browser/device manual smoke was not run in this pass; the seeded account is recorded for the Workstream 08 launch QA run.
+
+Booking statuses tested:
+
+- `PENDING` -> provider confirm to `CONFIRMED`.
+- `PENDING` -> provider decline/cancel to `CANCELLED`.
+- `CONFIRMED` -> provider hidden backend start transition to `IN_PROGRESS`.
+- `IN_PROGRESS` -> provider complete to `COMPLETED`.
+- `COMPLETED` -> provider cash payment confirmation updates earnings from pending to confirmed.
+- Final-offer accept path creates or confirms a `CONFIRMED` cash booking.
+
+Commands run:
+
+- `pnpm --filter @kayu/web type-check` - passed.
+- `pnpm --filter @kayu/mobile type-check` - passed after fixing the dashboard booking client-id fallback.
+- `pnpm --filter @kayu/backend type-check` - passed.
+- `pnpm --filter @kayu/backend test:bookings` - passed, 16 tests.
+- `pnpm --filter @kayu/backend test:launch` - passed, 59 tests.
+- `git diff --check` - passed.
+- `rg -n "(/pro/requests|/pro/devis|Envoyer un devis|Nouveau devis|Virement|Mobile Money|retrait|payout|PAYOUT|demande qualifiée|paiement sécurisé|En route|Arrivé)" apps/web/src/app/pro apps/web/src/components/bookings apps/mobile/src/screens/pro apps/mobile/src/screens/bookings apps/backend/src/modules/earnings -g '!*.map'` - remaining request/quote matches are hidden flag-gated routes/components; remaining payout/mobile-money matches are backend/API code identifiers and hidden payout endpoints, not launch-facing provider UI.
 
 ## How To Update This File
 

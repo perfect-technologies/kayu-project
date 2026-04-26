@@ -376,10 +376,18 @@ export function BookingDetailScreen() {
               </Text>
             </View>
             <View style={styles.counterpartyActions}>
-              <Pressable style={styles.smallIconBtn}>
-                <I.phone size={15} color={theme.colors.textBody} />
-              </Pressable>
-              <Pressable style={styles.smallIconBtn}>
+              <Pressable style={styles.smallIconBtn} onPress={() => {
+                const userId = isClient ? booking.provider?.userId : booking.client?.id;
+                if (!userId) return;
+                const parent = navigation.getParent();
+                (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
+                  'Messages',
+                  {
+                    screen: 'Chat',
+                    params: { recipientId: userId, recipientName: counterName },
+                  },
+                );
+              }}>
                 <I.messageCircle size={15} color={theme.colors.textBody} />
               </Pressable>
             </View>

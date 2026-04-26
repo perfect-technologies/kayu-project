@@ -113,6 +113,8 @@ function MessagesClientInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedConversationId = searchParams.get("conversationId");
+  const requestedRecipientId = searchParams.get("recipientId");
+  const requestedRecipientName = searchParams.get("recipientName");
   const [activeId, setActiveId] = useState<string | null>(
     requestedConversationId,
   );
@@ -131,37 +133,71 @@ function MessagesClientInner() {
   });
 
   const conversations = useMemo(() => convData?.conversations ?? [], [convData]);
+  const requestedRecipientConversation = useMemo(() => {
+    if (!requestedRecipientId) return null;
+    return conversations.find((c) => c.otherUser?.id === requestedRecipientId) ?? null;
+  }, [conversations, requestedRecipientId]);
+  const pendingRecipientConversation = useMemo<Conversation | null>(() => {
+    if (!requestedRecipientId || requestedRecipientConversation) return null;
+    const name = requestedRecipientName || "Client";
+    const [firstName, ...rest] = name.split(/\s+/).filter(Boolean);
+    const now = new Date().toISOString();
+    return {
+      id: `pending:${requestedRecipientId}`,
+      otherUser: {
+        id: requestedRecipientId,
+        firstName: firstName ?? name,
+        lastName: rest.join(" ") || null,
+      },
+      lastMessage: null,
+      lastMessageAt: now,
+      unreadCount: 0,
+      createdAt: now,
+    };
+  }, [requestedRecipientConversation, requestedRecipientId, requestedRecipientName]);
+  const visibleConversations = useMemo(
+    () =>
+      pendingRecipientConversation
+        ? [pendingRecipientConversation, ...conversations]
+        : conversations,
+    [conversations, pendingRecipientConversation],
+  );
 
   // If caller landed here with ?conversationId=... via ContactDialog or a deep
   // link, select that conversation as soon as it shows up in the inbox.
   useEffect(() => {
     if (!requestedConversationId) return;
-    if (conversations.some((c) => c.id === requestedConversationId)) {
+    if (visibleConversations.some((c) => c.id === requestedConversationId)) {
       setActiveId(requestedConversationId);
       return;
     }
     // Conversation may not have propagated to the list yet; keep the id pinned
     // so the thread query can still load its messages.
     setActiveId(requestedConversationId);
-  }, [requestedConversationId, conversations]);
+  }, [requestedConversationId, visibleConversations]);
 
   useEffect(() => {
-    if (!activeId && conversations.length > 0) {
-      setActiveId(conversations[0]!.id);
+    if (!requestedRecipientId) return;
+    setActiveId(requestedRecipientConversation?.id ?? `pending:${requestedRecipientId}`);
+  }, [requestedRecipientConversation, requestedRecipientId]);
+
+  useEffect(() => {
+    if (!activeId && visibleConversations.length > 0) {
+      setActiveId(visibleConversations[0]!.id);
     }
-  }, [conversations, activeId]);
+  }, [visibleConversations, activeId]);
 
   // Strip the conversationId query param once we've selected it so reloads
   // don't fight client-side state.
   useEffect(() => {
     if (!requestedConversationId) return;
-    if (activeId !== requestedConversationId) return;
+    if (requestedConversationId && activeId !== requestedConversationId) return;
     router.replace("/messages", { scroll: false });
   }, [activeId, requestedConversationId, router]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return conversations.filter((c) => {
+    return visibleConversations.filter((c) => {
       const name = getOtherName(c.otherUser).toLowerCase();
       if (filter === "unread" && (c.unreadCount ?? 0) === 0) return false;
       // "En cours" pill: without a backend status, fall back to unread-bearing threads
@@ -169,9 +205,10 @@ function MessagesClientInner() {
       if (q && !name.includes(q)) return false;
       return true;
     });
-  }, [conversations, filter, query]);
+  }, [visibleConversations, filter, query]);
 
-  const active = conversations.find((c) => c.id === activeId) ?? null;
+  const active = visibleConversations.find((c) => c.id === activeId) ?? null;
+  const activeIsPendingRecipient = Boolean(activeId?.startsWith("pending:"));
 
   const {
     data: msgData,
@@ -182,11 +219,11 @@ function MessagesClientInner() {
     queryKey: queryKeys.messages.conversation(activeId ?? ""),
     queryFn: () =>
       messagesApi(apiClient).getMessages(activeId!) as Promise<MessagesQueryData>,
-    enabled: !!activeId,
+    enabled: !!activeId && !activeIsPendingRecipient,
     refetchInterval: 5_000,
   });
 
-  const messages = msgData?.messages ?? [];
+  const messages = activeIsPendingRecipient ? [] : (msgData?.messages ?? []);
 
   const { data: providerDashboard } = useQuery({
     queryKey: queryKeys.dashboard.provider,
@@ -196,15 +233,15 @@ function MessagesClientInner() {
   });
 
   const finalOfferParams = useMemo(
-    () => (activeId ? { conversationId: activeId } : undefined),
-    [activeId],
+    () => (activeId && !activeIsPendingRecipient ? { conversationId: activeId } : undefined),
+    [activeId, activeIsPendingRecipient],
   );
 
   const { data: finalOfferData } = useQuery<FinalOffersQueryData>({
     queryKey: queryKeys.finalOffers.all(finalOfferParams),
     queryFn: () =>
       finalOffersApi(apiClient).getAll(finalOfferParams) as Promise<FinalOffersQueryData>,
-    enabled: !!activeId,
+    enabled: !!activeId && !activeIsPendingRecipient,
     refetchInterval: 10_000,
   });
 
@@ -264,6 +301,7 @@ function MessagesClientInner() {
     },
     onMutate: async (text: string) => {
       if (!activeId || !user) return {};
+      if (activeIsPendingRecipient) return {};
       const key = queryKeys.messages.conversation(activeId);
       await queryClient.cancelQueries({ queryKey: key });
       const prev = queryClient.getQueryData<MessagesQueryData>(key);
@@ -285,6 +323,15 @@ function MessagesClientInner() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.key && ctx.prev) {
         queryClient.setQueryData(ctx.key, ctx.prev);
+      }
+    },
+    onSuccess: (result) => {
+      const nextConversationId = result.conversationId ?? result.message?.conversationId;
+      if (nextConversationId) {
+        setActiveId(nextConversationId);
+        router.replace(`/messages?conversationId=${encodeURIComponent(nextConversationId)}`, {
+          scroll: false,
+        });
       }
     },
     onSettled: () => {
@@ -380,7 +427,7 @@ function MessagesClientInner() {
                 cta={{ label: "Réessayer", onClick: () => refetchConvs() }}
               />
             </div>
-          ) : conversations.length === 0 ? (
+          ) : visibleConversations.length === 0 ? (
             <EmptyState
               icon={InboxIcon}
               title="Aucun message"

@@ -61,6 +61,7 @@ type DashboardRequest = {
 
 type DashboardBookingRequest = {
   id: string;
+  clientId?: string | null;
   client: ClientSummary;
   kind: string;
   when: string;
@@ -173,6 +174,7 @@ function toDashboardBookingRequest(booking: DashboardBooking): DashboardBookingR
 
   return {
     id: booking.id,
+    clientId: booking.clientId ?? booking.client?.id ?? null,
     client: {
       name: clientName,
       initials: initialsFor(clientName),
@@ -514,6 +516,20 @@ export function ProviderDashboardScreen() {
                 onOpen={() =>
                   navigation.navigate('BookingDetail', { bookingId: booking.id })
                 }
+                onMessage={() => {
+                  if (!booking.clientId) return;
+                  const parent = navigation.getParent();
+                  (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
+                    'Messages',
+                    {
+                      screen: 'Chat',
+                      params: {
+                        recipientId: booking.clientId,
+                        recipientName: booking.client.name,
+                      },
+                    },
+                  );
+                }}
                 onAccept={() =>
                   bookingActionMutation.mutate({
                     id: booking.id,
@@ -745,12 +761,14 @@ function BookingRequestCard({
   booking,
   busy,
   onOpen,
+  onMessage,
   onAccept,
   onDecline,
 }: {
   booking: DashboardBookingRequest;
   busy: boolean;
   onOpen: () => void;
+  onMessage: () => void;
   onAccept: () => void;
   onDecline: () => void;
 }) {
@@ -793,8 +811,11 @@ function BookingRequestCard({
             {booking.fee > 0 ? `${booking.fee.toLocaleString('fr-FR')} FC` : 'À confirmer'}
           </Text>
         </View>
-        <TouchableOpacity activeOpacity={0.7} onPress={onOpen}>
-          <Text style={styles.linkLabel}>Voir détail</Text>
+        <TouchableOpacity activeOpacity={0.7} onPress={onMessage}>
+          <View style={styles.messageLinkRow}>
+            <I.messageCircle size={13} color={theme.colors.primaryHover} />
+            <Text style={styles.linkLabel}>Message</Text>
+          </View>
         </TouchableOpacity>
       </View>
       <View style={styles.requestActions}>
@@ -1283,6 +1304,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: theme.colors.textPrimary,
     marginTop: 2,
+  },
+  messageLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   btn: {
     height: 40,

@@ -72,7 +72,6 @@ export class EarningsService {
       lifetimeAgg,
       weekTxs,
       lastWeekAgg,
-      pendingPayoutsAgg,
     ] = await Promise.all([
       this.prisma.transaction.aggregate({
         where: {
@@ -113,19 +112,10 @@ export class EarningsService {
         },
         _sum: { netAmt: true },
       }),
-      this.prisma.transaction.aggregate({
-        where: {
-          providerId,
-          type: "PAYOUT",
-          status: { in: ["PENDING", "COMPLETED"] },
-        },
-        _sum: { netAmt: true },
-      }),
     ]);
 
     const earningsCompleted = availableAgg._sum.netAmt ?? 0;
-    const payoutsAbs = Math.abs(pendingPayoutsAgg._sum.netAmt ?? 0);
-    const balance = Math.max(0, earningsCompleted - payoutsAbs);
+    const balance = earningsCompleted;
 
     const lastWeekTotal = lastWeekAgg._sum.netAmt ?? 0;
     const days = this.buildWeeklyDays(weekTxs, weekStart, now);
@@ -160,7 +150,7 @@ export class EarningsService {
 
     const where: Prisma.TransactionWhereInput = {
       providerId,
-      ...(query.type ? { type: query.type } : {}),
+      ...(query.type ? { type: query.type } : { type: { in: ["EARNING", "BONUS"] } }),
     };
 
     const [total, rows] = await Promise.all([

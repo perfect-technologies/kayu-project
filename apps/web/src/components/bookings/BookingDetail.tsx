@@ -39,6 +39,7 @@ export interface BookingDetailData {
   providerNotes?: string | null;
   provider?: {
     id?: string | null;
+    userId?: string | null;
     profession?: string | null;
     user?: {
       firstName?: string | null;
@@ -121,6 +122,7 @@ export function BookingDetail({
     ? {
         first: booking.provider?.user?.firstName ?? "",
         last: booking.provider?.user?.lastName ?? "",
+        id: booking.provider?.userId ?? null,
         role: booking.provider?.profession ?? "Votre pro",
         verified: !!booking.provider?.user?.isVerified,
         rating: booking.rating,
@@ -129,6 +131,7 @@ export function BookingDetail({
     : {
         first: booking.client?.firstName ?? "",
         last: booking.client?.lastName ?? "",
+        id: booking.client?.id ?? booking.clientId ?? null,
         role: "Client",
         verified: false,
         rating: null,
@@ -136,6 +139,16 @@ export function BookingDetail({
       };
 
   const onBack = () => router.push("/bookings");
+  const onMessageCounterparty = () => {
+    const name = `${counterparty.first} ${counterparty.last}`.trim();
+    if (counterparty.id) {
+      router.push(
+        `/messages?recipientId=${encodeURIComponent(counterparty.id)}&recipientName=${encodeURIComponent(name || counterparty.role)}`,
+      );
+      return;
+    }
+    router.push("/messages");
+  };
 
   const cancelMutation = useMutation({
     mutationFn: () => bookingsApi(apiClient).cancel(booking.id),
@@ -265,9 +278,9 @@ export function BookingDetail({
             </WebCard>
 
             <WebCard title="Conversation">
-              <ChatPreview isClient={isClient} onOpen={() => router.push("/messages")} />
+              <ChatPreview isClient={isClient} onOpen={onMessageCounterparty} />
               <button
-                onClick={() => router.push("/messages")}
+                onClick={onMessageCounterparty}
                 className="k-btn k-btn-secondary"
                 style={{ marginTop: 10, width: "100%" }}
               >
@@ -299,7 +312,7 @@ export function BookingDetail({
               <div style={{ marginBottom: 16 }}>
                 <CounterpartyCard
                   counterparty={counterparty}
-                  onMessage={() => router.push("/messages")}
+                  onMessage={onMessageCounterparty}
                 />
               </div>
               <ActionButtons
@@ -308,7 +321,7 @@ export function BookingDetail({
                 isClient={isClient}
                 booking={booking}
                 busy={cancelMutation.isPending || updateMutation.isPending}
-                onMessage={() => router.push("/messages")}
+                onMessage={onMessageCounterparty}
                 onReview={() =>
                   booking.providerId &&
                   router.push(
@@ -747,6 +760,7 @@ function CounterpartyCard({
   counterparty: {
     first: string;
     last: string;
+    id: string | null;
     role: string;
     verified: boolean;
     rating: number | null | undefined;
@@ -817,9 +831,6 @@ function CounterpartyCard({
         )}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <button style={iconBtn} title="Appeler">
-          <I.phone size={15} />
-        </button>
         <button onClick={onMessage} style={iconBtn} title="Message">
           <I.messageCircle size={15} />
         </button>

@@ -31,7 +31,6 @@ type Filter = 'ALL' | TransactionType;
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'ALL', label: 'Tout' },
   { id: 'EARNING', label: 'Gains' },
-  { id: 'PAYOUT', label: 'Ajustements' },
   { id: 'BONUS', label: 'Bonus' },
 ];
 
@@ -178,7 +177,7 @@ export function EarningsScreen() {
                 <StatTile
                   label="Gains totaux"
                   value={`${(lifetime / 1000).toFixed(0)}k FC`}
-                  caption="Depuis l'inscription"
+                  caption="Historique des missions cash"
                   muted
                 />
               </View>
