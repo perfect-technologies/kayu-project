@@ -353,22 +353,46 @@ export class BookingsService {
       provider.userId,
     );
 
-    await this.assertOfferBookingMatchesParticipants(
-      body.bookingId,
-      body.clientId,
-      body.providerId,
-    );
+    const now = new Date();
 
-    const finalOffer = await this.prisma.$transaction(async (tx) => {
-      if (body.bookingId) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const bookingId = body.bookingId ?? null;
+      const existingBooking = bookingId
+        ? await this.getFinalOfferBookingForMutation(
+            tx,
+            bookingId,
+            body.clientId,
+            body.providerId,
+          )
+        : null;
+
+      if (bookingId) {
         await tx.finalOffer.updateMany({
           where: {
-            bookingId: body.bookingId,
+            providerId: body.providerId,
+            clientId: body.clientId,
+            bookingId,
+            status: { in: ["PENDING", "ACCEPTED"] },
+          },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: now,
+          },
+        });
+      }
+
+      if (!bookingId && body.conversationId) {
+        await tx.finalOffer.updateMany({
+          where: {
+            providerId: body.providerId,
+            clientId: body.clientId,
+            conversationId: body.conversationId,
+            bookingId: null,
             status: "PENDING",
           },
           data: {
             status: "CANCELLED",
-            cancelledAt: new Date(),
+            cancelledAt: now,
           },
         });
       }
@@ -378,7 +402,7 @@ export class BookingsService {
           providerId: body.providerId,
           clientId: body.clientId,
           conversationId: body.conversationId ?? null,
-          bookingId: body.bookingId ?? null,
+          bookingId,
           title: body.title,
           description: body.description ?? null,
           price: body.price,
@@ -389,7 +413,25 @@ export class BookingsService {
           notes: body.notes ?? null,
           paymentMethod: "cash",
           expiresAt: body.expiresAt ?? null,
-          status: "PENDING",
+          status: "ACCEPTED",
+          acceptedAt: now,
+        },
+        include: finalOfferInclude,
+      });
+
+      const booking = existingBooking
+        ? await this.updateBookingFromFinalOffer(
+            tx,
+            created,
+            existingBooking.status,
+            now,
+          )
+        : await this.createBookingFromFinalOffer(tx, created, now);
+
+      const updatedOffer = await tx.finalOffer.update({
+        where: { id: created.id },
+        data: {
+          bookingId: booking.id,
         },
         include: finalOfferInclude,
       });
@@ -398,24 +440,43 @@ export class BookingsService {
         {
           userId: body.clientId,
           type: "FINAL_OFFER_RECEIVED",
-          title: "Offre finale recue",
-          message: `${this.getDisplayName(actor)} vous a envoye une offre finale pour "${body.title}"`,
+          title: "Accord final enregistre",
+          message: `${this.getDisplayName(actor)} a enregistre l'accord final pour "${body.title}"`,
           data: {
-            finalOfferId: created.id,
-            bookingId: created.bookingId ?? undefined,
+            finalOfferId: updatedOffer.id,
+            bookingId: booking.id,
             conversationId: created.conversationId ?? undefined,
             paymentMethod: "cash",
+            status: "ACCEPTED",
           },
         },
         tx,
       );
 
-      return created;
+      await this.notifications.create(
+        {
+          userId: provider.userId,
+          type: "FINAL_OFFER_ACCEPTED",
+          title: "Reservation confirmee",
+          message: `L'accord final pour "${body.title}" a confirme la reservation`,
+          data: {
+            finalOfferId: updatedOffer.id,
+            bookingId: booking.id,
+            conversationId: created.conversationId ?? undefined,
+            paymentMethod: "cash",
+            status: "CONFIRMED",
+          },
+        },
+        tx,
+      );
+
+      return { finalOffer: updatedOffer, booking };
     });
 
     return {
       success: true as const,
-      finalOffer: this.mapFinalOffer(finalOffer),
+      finalOffer: this.mapFinalOffer(result.finalOffer),
+      booking: this.mapBooking(result.booking),
     };
   }
 
@@ -450,6 +511,25 @@ export class BookingsService {
     this.assertFinalOfferClient(actor, existing);
 
     const now = new Date();
+    if (existing.status === "ACCEPTED") {
+      const booking = existing.bookingId
+        ? await this.prisma.booking.findUnique({
+            where: { id: existing.bookingId },
+            include: bookingInclude,
+          })
+        : null;
+
+      if (!booking) {
+        throw new BadRequestException("Accepted final offer is missing a booking");
+      }
+
+      return {
+        success: true as const,
+        finalOffer: this.mapFinalOffer(existing),
+        booking: this.mapBooking(booking),
+      };
+    }
+
     if (existing.expiresAt && existing.expiresAt < now) {
       await this.prisma.finalOffer.update({
         where: { id },
@@ -469,6 +549,25 @@ export class BookingsService {
       }
 
       this.assertFinalOfferClient(actor, finalOffer);
+
+      if (finalOffer.status === "ACCEPTED") {
+        const booking = finalOffer.bookingId
+          ? await tx.booking.findUnique({
+              where: { id: finalOffer.bookingId },
+              include: bookingInclude,
+            })
+          : null;
+
+        if (!booking) {
+          throw new BadRequestException("Accepted final offer is missing a booking");
+        }
+
+        return {
+          success: true as const,
+          finalOffer: this.mapFinalOffer(finalOffer),
+          booking: this.mapBooking(booking),
+        };
+      }
 
       if (finalOffer.status !== "PENDING") {
         throw new BadRequestException("Only pending final offers can be accepted");
@@ -770,18 +869,16 @@ export class BookingsService {
     }
   }
 
-  private async assertOfferBookingMatchesParticipants(
-    bookingId: string | undefined,
+  private async getFinalOfferBookingForMutation(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
     clientId: string,
     providerId: string,
   ) {
-    if (!bookingId) {
-      return;
-    }
-
-    const booking = await this.prisma.booking.findUnique({
+    const booking = await tx.booking.findUnique({
       where: { id: bookingId },
       select: {
+        id: true,
         clientId: true,
         providerId: true,
         status: true,
@@ -798,11 +895,13 @@ export class BookingsService {
       );
     }
 
-    if (booking.status !== "PENDING") {
+    if (booking.status === "COMPLETED" || booking.status === "CANCELLED") {
       throw new BadRequestException(
-        "Only pending bookings can receive a final offer",
+        "Completed or cancelled bookings cannot receive a final offer",
       );
     }
+
+    return booking;
   }
 
   private assertFinalOfferAccess(
@@ -883,10 +982,30 @@ export class BookingsService {
     });
   }
 
+  private async updateBookingFromFinalOffer(
+    tx: Prisma.TransactionClient,
+    finalOffer: FinalOfferRecord,
+    currentStatus: BookingStatus,
+    now: Date,
+  ): Promise<BookingRecord> {
+    if (!finalOffer.bookingId) {
+      throw new BadRequestException("Final offer is not attached to a booking");
+    }
+
+    return tx.booking.update({
+      where: { id: finalOffer.bookingId },
+      data: this.buildBookingDataFromFinalOffer(finalOffer, now, currentStatus),
+      include: bookingInclude,
+    });
+  }
+
   private buildBookingDataFromFinalOffer(
     finalOffer: FinalOfferRecord,
     now: Date,
+    currentStatus?: BookingStatus,
   ) {
+    const shouldConfirm = !currentStatus || currentStatus === "PENDING";
+
     return {
       title: finalOffer.title,
       description: finalOffer.description,
@@ -897,8 +1016,12 @@ export class BookingsService {
       price: finalOffer.price,
       providerNotes: finalOffer.notes,
       paymentMethod: "cash",
-      status: "CONFIRMED" as const,
-      confirmedAt: now,
+      ...(shouldConfirm
+        ? {
+            status: "CONFIRMED" as const,
+            confirmedAt: now,
+          }
+        : {}),
     };
   }
 

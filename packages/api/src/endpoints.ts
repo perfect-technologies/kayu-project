@@ -169,7 +169,7 @@ export const finalOffersApi = (client: ApiClient) => ({
       params as Record<string, string | number | boolean | undefined>,
     ),
   create: (data: CreateFinalOfferDtoType) =>
-    client.post<FinalOfferResponse>("/final-offers", data),
+    client.post<FinalOfferAcceptResponse>("/final-offers", data),
   getById: (id: string) =>
     client.get<FinalOfferResponse>(`/final-offers/${id}`),
   accept: (id: string) =>

@@ -499,11 +499,38 @@ function createPrisma(state: IntegrationState) {
     where?: Record<string, unknown>,
   ) => {
     if (!where) return true;
+    if (where.OR) {
+      const clauses = where.OR as Record<string, unknown>[];
+      if (!clauses.some((clause) => finalOfferMatchesWhere(finalOffer, clause))) return false;
+    }
+    if (where.id && finalOffer.id !== where.id) return false;
     if (where.clientId && finalOffer.clientId !== where.clientId) return false;
     if (where.providerId && finalOffer.providerId !== where.providerId) return false;
-    if (where.status && finalOffer.status !== where.status) return false;
+    if (where.status) {
+      const status = where.status;
+      if (
+        typeof status === "object" &&
+        status !== null &&
+        "in" in status &&
+        !(status.in as unknown[]).includes(finalOffer.status)
+      ) {
+        return false;
+      }
+      if (typeof status !== "object" && finalOffer.status !== status) return false;
+    }
     if (where.conversationId && finalOffer.conversationId !== where.conversationId) return false;
-    if (where.bookingId && finalOffer.bookingId !== where.bookingId) return false;
+    if (where.bookingId) {
+      const bookingId = where.bookingId;
+      if (
+        typeof bookingId === "object" &&
+        bookingId !== null &&
+        "not" in bookingId &&
+        finalOffer.bookingId === bookingId.not
+      ) {
+        return false;
+      }
+      if (typeof bookingId !== "object" && finalOffer.bookingId !== bookingId) return false;
+    }
     return true;
   };
 
@@ -612,6 +639,10 @@ function createPrisma(state: IntegrationState) {
       },
     },
     finalOffer: {
+      findFirst: async ({ where }: { where?: Record<string, unknown> } = {}) =>
+        Array.from(state.finalOffersById.values()).find((finalOffer) =>
+          finalOfferMatchesWhere(finalOffer, where),
+        ) ?? null,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const provider = state.providersById.get(String(data.providerId));
         const client = state.usersById.get(String(data.clientId));
@@ -690,7 +721,21 @@ function createPrisma(state: IntegrationState) {
         state.finalOffersById.set(where.id, finalOffer);
         return finalOffer;
       },
-      updateMany: async () => ({ count: 0 }),
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where?: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        let count = 0;
+        for (const finalOffer of state.finalOffersById.values()) {
+          if (!finalOfferMatchesWhere(finalOffer, where)) continue;
+          Object.assign(finalOffer, data, { updatedAt: now });
+          count += 1;
+        }
+        return { count };
+      },
     },
     transaction: {
       create: async (input: Record<string, unknown>) => {
@@ -1321,8 +1366,10 @@ test("final offer route lets provider send terms and client accept into booking"
     assert.equal(created.status, 201);
     assert.equal(created.body?.success, true);
     const finalOffer = created.body?.finalOffer as { id: string; status: string; paymentMethod: string };
-    assert.equal(finalOffer.status, "PENDING");
+    assert.equal(finalOffer.status, "ACCEPTED");
     assert.equal(finalOffer.paymentMethod, "cash");
+    assert.equal((created.body?.booking as { status: string }).status, "CONFIRMED");
+    assert.equal((created.body?.booking as { paymentMethod: string }).paymentMethod, "cash");
 
     const accepted = await requestJson(baseUrl, `/final-offers/${finalOffer.id}/accept`, {
       method: "POST",
@@ -1548,7 +1595,8 @@ test("launch smoke covers signup, discovery, chat, direct booking, cash completi
     });
     assert.equal(acceptedOfferResponse.status, 201);
     const acceptedOffer = acceptedOfferResponse.body?.finalOffer as { id: string; status: string };
-    assert.equal(acceptedOffer.status, "PENDING");
+    assert.equal(acceptedOffer.status, "ACCEPTED");
+    assert.equal((acceptedOfferResponse.body?.booking as { status: string }).status, "CONFIRMED");
 
     const acceptedOfferResult = await requestJson(
       baseUrl,
@@ -1581,13 +1629,13 @@ test("launch smoke covers signup, discovery, chat, direct booking, cash completi
     });
     assert.equal(declinedOfferResponse.status, 201);
     const declinedOffer = declinedOfferResponse.body?.finalOffer as { id: string };
+    assert.equal((declinedOfferResponse.body?.booking as { status: string }).status, "CONFIRMED");
 
     const declined = await requestJson(baseUrl, `/final-offers/${declinedOffer.id}/decline`, {
       method: "POST",
       token: "client-token",
     });
-    assert.equal(declined.status, 201);
-    assert.equal((declined.body?.finalOffer as { status: string }).status, "DECLINED");
+    assert.equal(declined.status, 400);
 
     const continueDiscussion = await requestJson(baseUrl, "/messages", {
       method: "POST",

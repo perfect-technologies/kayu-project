@@ -19,7 +19,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | Workstream | Status | Owner | Notes |
 | --- | --- | --- | --- |
 | 00 - Product Contract | Done | Planning | Revised v1 launch truth documented |
-| 01 - Auto-Confirmed Final Offers | Not started | TBD | P0 backend/API contract change |
+| 01 - Auto-Confirmed Final Offers | Done | Codex | POST /final-offers now records provider agreement and returns confirmed booking |
 | 02 - Pricing And Commission Policy | Not started | TBD | P0 pricing/cash/commission consistency |
 | 03 - Web V1 Flow Alignment | Not started | TBD | P0 if web launch-facing |
 | 04 - Mobile V1 Flow Alignment | Not started | TBD | P0 if mobile launch-facing |
@@ -38,6 +38,8 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-09 | Cash remains the only v1 payment mode | Online/mobile money payment comes later |
 | 2026-05-09 | Quote marketplace, public job requests, payouts, and invoices stay hidden | Too complex for v1 launch |
 | 2026-05-09 | 10% commission is treated as internal policy until display is approved | Product note references 10% example, but client launch flow should stay simple |
+| 2026-05-09 | `POST /final-offers` stores agreement records as accepted and confirms or creates bookings immediately | Keeps the existing enum while removing client approval from the v1 path |
+| 2026-05-09 | `POST /final-offers/:id/accept` remains idempotent for already-confirmed agreement records | Preserves backwards compatibility for older clients that still call accept |
 
 ## Open Questions
 
@@ -82,3 +84,44 @@ When finishing work:
 ## Workstream Evidence
 
 Add implementation evidence below as each workstream completes.
+
+### 01 - Auto-Confirmed Final Offers
+
+Status: Done on 2026-05-09 by Codex.
+
+Changed files:
+
+- `apps/backend/src/modules/bookings/bookings.service.ts`
+- `apps/backend/src/modules/bookings/bookings.service.spec.ts`
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts`
+- `packages/api/src/endpoints.ts`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- `POST /final-offers` now creates the final offer with status `ACCEPTED`, sets `acceptedAt`, creates a new `CONFIRMED` booking or updates the attached non-completed/non-cancelled booking, links the final offer to that booking, and returns both `finalOffer` and `booking`.
+- Previous open final offers for the same booking are marked `CANCELLED` when corrected terms are recorded.
+- Legacy pending final offers without a booking are marked `CANCELLED` within the same conversation, but accepted agreement history for other bookings is preserved.
+- Existing pending bookings attached to a final offer are confirmed and updated with the final-offer title, description, scheduled date, address, duration, price, provider notes, and cash payment method.
+- Existing confirmed or in-progress bookings can receive corrected final-offer terms without reverting their status.
+- When no `bookingId` is supplied, a new confirmed booking is created even if the same conversation has older accepted, completed, or cancelled agreements.
+- Completed and cancelled bookings reject new final offers.
+- Both client and provider receive notifications when an agreement is recorded.
+- `POST /final-offers/:id/accept` remains for backwards compatibility and returns the existing confirmed booking when the final offer is already accepted.
+- `POST /final-offers/:id/decline` remains limited to legacy pending final offers; v1-created agreement records cannot be declined by the client.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend test:bookings` - passed, 19 tests.
+- `pnpm --filter @kayu/backend test:launch` - passed, 63 tests.
+- `pnpm --filter @kayu/backend type-check` - passed.
+- `pnpm --filter @kayu/api type-check` - passed.
+- `pnpm --filter @kayu/schemas type-check` - passed.
+
+Schema migration/push:
+
+- Not run. No Prisma schema change was required for this workstream.
+
+Manual/seeded scenario:
+
+- Covered through `apps/backend/src/test/launch/launch-critical.harness.spec.ts`: provider `POST /final-offers` returns an `ACCEPTED` final offer and `CONFIRMED` cash booking; a legacy follow-up accept call remains successful and returns the same confirmed-booking contract.
