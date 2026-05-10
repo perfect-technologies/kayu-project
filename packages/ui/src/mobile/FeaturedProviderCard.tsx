@@ -13,7 +13,12 @@ import {
 } from "../cards.js";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+} from "./Icon.js";
 import { PhotoTile } from "./PhotoTile.js";
 
 export type FeaturedProviderCardProps = {
@@ -69,8 +74,17 @@ export const FeaturedProviderCard: React.FC<FeaturedProviderCardProps> = ({
         style,
       ]}
     >
-      <PhotoTile category={slug} aspect="4/5">
-        <SpecialtyTag accent={portfolio.accent} label={portfolio.label} iconName={portfolio.iconName} />
+      <PhotoTile
+        category={slug}
+        accent={provider.categoryColor}
+        iconName={provider.categoryIconName}
+        aspect="4/5"
+      >
+        <SpecialtyTag
+          accent={provider.categoryColor ?? portfolio.accent}
+          label={provider.categoryName ?? portfolio.label}
+          iconName={provider.categoryIconName ?? portfolio.iconName}
+        />
         {onFavorite ? (
           <HeartButton
             favorited={favorited}
@@ -104,6 +118,7 @@ export const FeaturedProviderCard: React.FC<FeaturedProviderCardProps> = ({
           {provider.profession}
           {provider.commune ? ` · ${provider.commune}` : ""}
         </Text>
+        <SecondaryCategoryRow categories={provider.secondaryCategories} />
         <ResponseLine response={provider.response} />
         <PriceLine hourly={provider.hourly} />
       </View>
@@ -118,7 +133,14 @@ const SpecialtyTag: React.FC<{
   label: string;
   iconName: string;
 }> = ({ accent, label, iconName }) => {
-  const Icon = I[iconName as IconName];
+  const Icon =
+    resolveLucideIcon(iconName) ??
+    (iconName in I ? (I[iconName as IconName] as React.FC<{
+      size?: number;
+      color?: string;
+      strokeWidth?: number;
+    }>) : null) ??
+    FallbackCategoryIcon;
   return (
     <View
       style={{
@@ -134,7 +156,7 @@ const SpecialtyTag: React.FC<{
         gap: 4,
       }}
     >
-      {Icon ? <Icon size={11} color={accent} strokeWidth={1.75} /> : null}
+      <Icon size={11} color={accent} strokeWidth={1.75} />
       <Text
         style={{
           fontFamily: FONTS.mono,
@@ -146,6 +168,79 @@ const SpecialtyTag: React.FC<{
       >
         {label}
       </Text>
+    </View>
+  );
+};
+
+const SecondaryCategoryRow: React.FC<{
+  categories?: ProviderCardData["secondaryCategories"];
+}> = ({ categories }) => {
+  if (!categories || categories.length === 0) return null;
+  const visible = categories.slice(0, 2);
+  const overflow = categories.length - visible.length;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 6,
+        marginTop: 6,
+      }}
+    >
+      {visible.map((cat) => {
+        const ChipIcon =
+          resolveLucideIcon(cat.iconName) ?? FallbackCategoryIcon;
+        return (
+          <View
+            key={cat.name}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 999,
+              backgroundColor: tokens.color.surfaceMuted,
+            }}
+          >
+            <ChipIcon
+              size={10}
+              color={cat.color ?? tokens.color.textBody}
+              strokeWidth={1.75}
+            />
+            <Text
+              style={{
+                fontFamily: FONTS.bodyMed,
+                fontSize: 11,
+                color: tokens.color.textBody,
+              }}
+              numberOfLines={1}
+            >
+              {cat.name}
+            </Text>
+          </View>
+        );
+      })}
+      {overflow > 0 ? (
+        <View
+          style={{
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 999,
+            backgroundColor: tokens.color.surfaceMuted,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: FONTS.bodyMed,
+              fontSize: 11,
+              color: tokens.color.textBody,
+            }}
+          >
+            +{overflow}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -355,4 +450,5 @@ export const _featuredInternals = {
   CardMetaRow1,
   ResponseLine,
   PriceLine,
+  SecondaryCategoryRow,
 };

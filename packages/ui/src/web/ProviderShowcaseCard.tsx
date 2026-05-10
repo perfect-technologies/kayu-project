@@ -3,7 +3,13 @@
 import * as React from "react";
 import { portfolioSlug, type ProviderCardData } from "../cards.js";
 import { tokens } from "../tokens.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+  type IconProps,
+} from "./Icon.js";
 
 export type ProviderShowcaseCardProps = {
   provider: ProviderCardData;
@@ -35,9 +41,16 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
 }) => {
   const slug = portfolioSlug(provider.categories);
   const portfolio = tokens.portfolio[slug];
-  const SpecialtyIcon = (
-    I as Record<IconName, React.FC<{ size?: number; stroke?: number }>>
-  )[portfolio.iconName as IconName];
+  const tileBg = provider.categoryColor
+    ? hexWithAlpha(provider.categoryColor, 0.16)
+    : portfolio.bg;
+  const tileAccent = provider.categoryColor ?? portfolio.accent;
+  const SpecialtyIcon =
+    resolveLucideIcon(provider.categoryIconName) ??
+    ((I as Record<IconName, React.FC<IconProps>>)[
+      portfolio.iconName as IconName
+    ] ??
+      FallbackCategoryIcon);
   const [hovered, setHovered] = React.useState(false);
   const handleClick = onClick ? () => onClick(provider.id) : undefined;
   const isFastResponse = provider.response.includes("min");
@@ -70,22 +83,69 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
     >
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
         <div
-          aria-hidden
           style={{
             width: 64,
             height: 64,
             borderRadius: 14,
             flexShrink: 0,
             position: "relative",
-            background: portfolio.bg,
-            backgroundImage: `radial-gradient(circle at 25% 25%, ${portfolio.accent}2a 0%, transparent 60%)`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: portfolio.accent,
+            background: tileBg,
+            backgroundImage: `radial-gradient(circle at 25% 25%, ${tileAccent}2a 0%, transparent 60%)`,
+            color: tileAccent,
+            overflow: "hidden",
           }}
         >
-          {SpecialtyIcon ? <SpecialtyIcon size={28} /> : null}
+          {SpecialtyIcon ? (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 6,
+                left: 6,
+                display: "inline-flex",
+              }}
+            >
+              <SpecialtyIcon size={20} />
+            </span>
+          ) : null}
+
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              bottom: 4,
+              right: 4,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              overflow: "hidden",
+              border: `2px solid ${tokens.color.surface}`,
+              background: tileAccent,
+              color: tokens.color.textInverse,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: tokens.font.body,
+              fontWeight: 600,
+              fontSize: 11,
+              letterSpacing: 0.2,
+            }}
+          >
+            {provider.avatarUrl ? (
+              <img
+                src={provider.avatarUrl}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+              />
+            ) : (
+              provider.initials ?? initialsFrom(provider.firstName, provider.lastName)
+            )}
+          </span>
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -187,6 +247,24 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
         {typeof provider.distance === "number" ? (
           <span className="k-chip k-chip-sm">
             <I.mapPin size={12} /> {provider.distance.toFixed(1)} km
+          </span>
+        ) : null}
+        {provider.secondaryCategories?.slice(0, 2).map((cat) => {
+          const ChipIcon =
+            resolveLucideIcon(cat.iconName) ?? FallbackCategoryIcon;
+          return (
+            <span key={cat.name} className="k-chip k-chip-sm">
+              <span style={{ color: cat.color ?? "currentColor", display: "inline-flex" }}>
+                <ChipIcon size={12} />
+              </span>
+              {cat.name}
+            </span>
+          );
+        })}
+        {provider.secondaryCategories &&
+        provider.secondaryCategories.length > 2 ? (
+          <span className="k-chip k-chip-sm">
+            +{provider.secondaryCategories.length - 2}
           </span>
         ) : null}
       </div>
@@ -305,6 +383,22 @@ const StarRating: React.FC<{ value: number; count?: number; size?: number }> = (
     ) : null}
   </span>
 );
+
+function initialsFrom(firstName: string, lastName: string): string {
+  const f = firstName.trim()[0] ?? "";
+  const l = lastName.trim()[0] ?? "";
+  const combo = `${f}${l}`.toUpperCase();
+  return combo || "?";
+}
+
+function hexWithAlpha(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!match) return hex;
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${match[1]}${a}`;
+}
 
 const TrustChip: React.FC<{ topRated: boolean }> = ({ topRated }) =>
   topRated ? (

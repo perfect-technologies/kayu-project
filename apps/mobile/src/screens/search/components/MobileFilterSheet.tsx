@@ -10,8 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { I } from '@kayu/ui/mobile';
-import { tokens, type CategorySlug } from '@kayu/ui';
+import { FallbackCategoryIcon, I, resolveLucideIcon } from '@kayu/ui/mobile';
+import { tokens } from '@kayu/ui';
 import { theme } from '@/lib/theme';
 
 export type MobileSortOption =
@@ -28,7 +28,8 @@ export const MOBILE_SORT_LABELS: Record<MobileSortOption, string> = {
 };
 
 export type MobileFilters = {
-  category: CategorySlug | null;
+  category: string | null;
+  subcategory: string | null;
   q: string;
   city: string;
   available: boolean;
@@ -41,6 +42,7 @@ export type MobileFilters = {
 
 export const EMPTY_FILTERS: MobileFilters = {
   category: null,
+  subcategory: null,
   q: '',
   city: '',
   available: false,
@@ -51,22 +53,23 @@ export const EMPTY_FILTERS: MobileFilters = {
   sort: 'recommended',
 };
 
+export type MobileFilterCategory = {
+  slug: string;
+  label: string;
+  icon?: string | null;
+  color?: string | null;
+  count?: number;
+  subcategories?: Array<{ slug: string; label: string }>;
+};
+
 type MobileFilterSheetProps = {
   open: boolean;
   initial: MobileFilters;
   onApply: (next: MobileFilters) => void;
   onClose: () => void;
-  categoriesAvailable?: { slug: CategorySlug; label: string; count?: number }[];
+  categoriesAvailable: MobileFilterCategory[];
+  categoriesLoading?: boolean;
 };
-
-const DEFAULT_CATEGORIES: { slug: CategorySlug; label: string; count?: number }[] = [
-  { slug: 'plomberie', label: 'Plomberie' },
-  { slug: 'electricite', label: 'Électricité' },
-  { slug: 'menage', label: 'Ménage' },
-  { slug: 'coiffure', label: 'Coiffure' },
-  { slug: 'jardinage', label: 'Jardinage' },
-  { slug: 'informatique', label: 'Informatique' },
-];
 
 export function MobileFilterSheet({
   open,
@@ -74,6 +77,7 @@ export function MobileFilterSheet({
   onApply,
   onClose,
   categoriesAvailable,
+  categoriesLoading = false,
 }: MobileFilterSheetProps) {
   const insets = useSafeAreaInsets();
   const [local, setLocal] = React.useState<MobileFilters>(initial);
@@ -82,10 +86,24 @@ export function MobileFilterSheet({
     if (open) setLocal(initial);
   }, [open, initial]);
 
-  const categories = categoriesAvailable?.length ? categoriesAvailable : DEFAULT_CATEGORIES;
+  const categories = categoriesAvailable;
+  const selectedCategory = local.category
+    ? categories.find((c) => c.slug === local.category)
+    : undefined;
+  const subcategories = selectedCategory?.subcategories ?? [];
 
-  const toggleCategory = (slug: CategorySlug) =>
-    setLocal((f) => ({ ...f, category: f.category === slug ? null : slug }));
+  const toggleCategory = (slug: string) =>
+    setLocal((f) => ({
+      ...f,
+      category: f.category === slug ? null : slug,
+      subcategory: f.category === slug ? null : null,
+    }));
+
+  const toggleSubcategory = (slug: string) =>
+    setLocal((f) => ({
+      ...f,
+      subcategory: f.subcategory === slug ? null : slug,
+    }));
 
   const reset = () => setLocal(EMPTY_FILTERS);
 
@@ -119,42 +137,75 @@ export function MobileFilterSheet({
           contentContainerStyle={styles.bodyContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Catégorie */}
           <FilterSection title="Catégorie">
             <View style={{ gap: 2 }}>
-              {categories.map((c) => {
-                const portfolio = tokens.portfolio[c.slug];
-                const selected = local.category === c.slug;
-                return (
-                  <Pressable
-                    key={c.slug}
-                    style={styles.catRow}
-                    onPress={() => toggleCategory(c.slug)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                  >
-                    <View style={[styles.checkbox, selected && styles.checkboxOn]}>
-                      {selected ? <I.check size={13} color={theme.colors.textInverse} /> : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.catTint,
-                        { backgroundColor: `${portfolio.accent}20` },
-                      ]}
+              {categoriesLoading && categories.length === 0 ? (
+                <Text style={styles.catLabel}>Chargement…</Text>
+              ) : categories.length === 0 ? (
+                <Text style={styles.catLabel}>Aucune catégorie disponible.</Text>
+              ) : (
+                categories.map((c) => {
+                  const selected = local.category === c.slug;
+                  const Icon =
+                    resolveLucideIcon(c.icon ?? undefined) ?? FallbackCategoryIcon;
+                  const accent = c.color ?? tokens.color.textBody;
+                  return (
+                    <Pressable
+                      key={c.slug}
+                      style={styles.catRow}
+                      onPress={() => toggleCategory(c.slug)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
                     >
+                      <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+                        {selected ? (
+                          <I.check size={13} color={theme.colors.textInverse} />
+                        ) : null}
+                      </View>
                       <View
-                        style={[styles.catDot, { backgroundColor: portfolio.accent }]}
-                      />
-                    </View>
-                    <Text style={styles.catLabel}>{c.label}</Text>
-                    {c.count != null ? (
-                      <Text style={styles.catCount}>{c.count}</Text>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
+                        style={[
+                          styles.catTint,
+                          { backgroundColor: `${accent}20` },
+                        ]}
+                      >
+                        <Icon size={14} color={accent} strokeWidth={1.75} />
+                      </View>
+                      <Text style={styles.catLabel}>{c.label}</Text>
+                      {c.count != null ? (
+                        <Text style={styles.catCount}>{c.count}</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })
+              )}
             </View>
           </FilterSection>
+
+          {subcategories.length > 0 ? (
+            <FilterSection title="Spécialité">
+              <View style={{ gap: 2 }}>
+                {subcategories.map((sub) => {
+                  const selected = local.subcategory === sub.slug;
+                  return (
+                    <Pressable
+                      key={sub.slug}
+                      style={styles.catRow}
+                      onPress={() => toggleSubcategory(sub.slug)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                    >
+                      <View style={[styles.checkbox, selected && styles.checkboxOn]}>
+                        {selected ? (
+                          <I.check size={13} color={theme.colors.textInverse} />
+                        ) : null}
+                      </View>
+                      <Text style={styles.catLabel}>{sub.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </FilterSection>
+          ) : null}
 
           <FilterSection title="Recherche">
             <TextInput
@@ -428,11 +479,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  catDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   catLabel: {
     flex: 1,

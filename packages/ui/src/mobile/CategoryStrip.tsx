@@ -1,18 +1,24 @@
 import * as React from "react";
-import { Pressable, ScrollView, Text, View, type ViewStyle } from "react-native";
+import { Pressable, ScrollView, Text, type ViewStyle } from "react-native";
 import { tokens, type CategorySlug } from "../tokens.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+} from "./Icon.js";
 
 export type CategoryStripItem = {
-  slug: CategorySlug;
+  slug: string;
   label?: string;
-  iconName?: IconName;
+  iconName?: string;
+  color?: string;
 };
 
 export type CategoryStripProps = {
   items: CategoryStripItem[];
-  active?: CategorySlug;
-  onSelect?: (slug: CategorySlug) => void;
+  active?: string;
+  onSelect?: (slug: string) => void;
   style?: ViewStyle;
 };
 
@@ -22,8 +28,6 @@ const FONTS = {
   bodySemi: "Inter-SemiBold",
 };
 
-// CategoryStrip — horizontal-scroll category icon row (mobile home/search).
-// 22px Lucide icon + 11px label + 2px ink underline on the active item.
 export const CategoryStrip: React.FC<CategoryStripProps> = ({
   items,
   active,
@@ -41,9 +45,17 @@ export const CategoryStrip: React.FC<CategoryStripProps> = ({
     }}
   >
     {items.map((item) => {
-      const portfolio = tokens.portfolio[item.slug];
-      const Icon = I[(item.iconName ?? portfolio.iconName) as IconName];
+      const portfolio =
+        item.slug in tokens.portfolio
+          ? tokens.portfolio[item.slug as CategorySlug]
+          : undefined;
+      const Icon =
+        resolveLucideIcon(item.iconName) ??
+        (portfolio ? I[portfolio.iconName as IconName] : null) ??
+        FallbackCategoryIcon;
+      const label = item.label ?? portfolio?.label ?? item.slug;
       const isActive = active === item.slug;
+      const iconColor = item.color ?? tokens.color.textPrimary;
       return (
         <Pressable
           key={item.slug}
@@ -62,13 +74,7 @@ export const CategoryStrip: React.FC<CategoryStripProps> = ({
             opacity: isActive ? 1 : 0.64,
           }}
         >
-          {Icon ? (
-            <Icon
-              size={22}
-              color={tokens.color.textPrimary}
-              strokeWidth={1.75}
-            />
-          ) : null}
+          <Icon size={22} color={iconColor} strokeWidth={1.75} />
           <Text
             style={{
               fontFamily: isActive ? FONTS.bodySemi : FONTS.bodyMed,
@@ -78,11 +84,10 @@ export const CategoryStrip: React.FC<CategoryStripProps> = ({
             }}
             numberOfLines={1}
           >
-            {item.label ?? portfolio.label}
+            {label}
           </Text>
         </Pressable>
       );
     })}
   </ScrollView>
 );
-

@@ -9,12 +9,19 @@ import Svg, {
   Line,
 } from "react-native-svg";
 import { tokens, type CategorySlug } from "../tokens.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+} from "./Icon.js";
 
 export type PhotoAspect = "4/5" | "16/11" | "1/1";
 
 export type PhotoTileProps = {
-  category: CategorySlug;
+  category?: CategorySlug;
+  accent?: string;
+  iconName?: string;
   aspect?: PhotoAspect;
   radius?: number;
   showAmbient?: boolean;
@@ -34,6 +41,8 @@ const ASPECT_RATIO: Record<PhotoAspect, number> = {
 // primitives. Children render as absolutely positioned overlays on top.
 export const PhotoTile: React.FC<PhotoTileProps> = ({
   category,
+  accent: accentProp,
+  iconName,
   aspect = "4/5",
   radius,
   showAmbient = true,
@@ -41,9 +50,14 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
   style,
   children,
 }) => {
-  const portfolio = tokens.portfolio[category];
-  const accent = portfolio.accent;
-  const AmbientIcon = I[portfolio.iconName as IconName];
+  const portfolio = category ? tokens.portfolio[category] : undefined;
+  const accent = accentProp ?? portfolio?.accent ?? tokens.color.textBody;
+  const bg = portfolio?.bg ?? tokens.color.surfaceMuted;
+  const AmbientIcon =
+    resolveLucideIcon(iconName) ??
+    (portfolio ? I[portfolio.iconName as IconName] : null) ??
+    FallbackCategoryIcon;
+  const gradientId = category ?? "dyn";
 
   return (
     <View
@@ -53,7 +67,7 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
         {
           position: "relative",
           aspectRatio: ASPECT_RATIO[aspect],
-          backgroundColor: portfolio.bg,
+          backgroundColor: bg,
           borderRadius: radius,
           overflow: "hidden",
           width: "100%",
@@ -69,7 +83,7 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
       >
         <Defs>
           <RadialGradient
-            id={`pt-${category}-tl`}
+            id={`pt-${gradientId}-tl`}
             cx="20%"
             cy="15%"
             rx="55%"
@@ -79,7 +93,7 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
             <Stop offset="100%" stopColor={accent} stopOpacity={0} />
           </RadialGradient>
           <RadialGradient
-            id={`pt-${category}-br`}
+            id={`pt-${gradientId}-br`}
             cx="80%"
             cy="85%"
             rx="50%"
@@ -89,7 +103,7 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
             <Stop offset="100%" stopColor={accent} stopOpacity={0} />
           </RadialGradient>
           <Pattern
-            id={`pt-${category}-hatch`}
+            id={`pt-${gradientId}-hatch`}
             patternUnits="userSpaceOnUse"
             width={19}
             height={19}
@@ -106,12 +120,12 @@ export const PhotoTile: React.FC<PhotoTileProps> = ({
             />
           </Pattern>
         </Defs>
-        <Rect width="100%" height="100%" fill={`url(#pt-${category}-hatch)`} />
-        <Rect width="100%" height="100%" fill={`url(#pt-${category}-tl)`} />
-        <Rect width="100%" height="100%" fill={`url(#pt-${category}-br)`} />
+        <Rect width="100%" height="100%" fill={`url(#pt-${gradientId}-hatch)`} />
+        <Rect width="100%" height="100%" fill={`url(#pt-${gradientId}-tl)`} />
+        <Rect width="100%" height="100%" fill={`url(#pt-${gradientId}-br)`} />
       </Svg>
 
-      {showAmbient && AmbientIcon ? (
+      {showAmbient ? (
         <View
           pointerEvents="none"
           style={{

@@ -58,15 +58,66 @@ function responseFor(provider: AnyProvider): string {
   return `${Math.round(minutes / 60)} h`;
 }
 
-export function toProviderCardData(raw: AnyProvider): ProviderCardData {
+export type CategoryDisplay = {
+  name: string;
+  icon: string | null;
+  color: string | null;
+};
+
+export type CategoryLookup = Map<string, CategoryDisplay>;
+
+export function buildCategoryLookup(
+  categories: Array<{
+    slug?: string | null;
+    name?: string | null;
+    icon?: string | null;
+    color?: string | null;
+  }>,
+): CategoryLookup {
+  const map: CategoryLookup = new Map();
+  for (const cat of categories) {
+    if (!cat?.slug) continue;
+    map.set(cat.slug, {
+      name: cat.name ?? "",
+      icon: cat.icon ?? null,
+      color: cat.color ?? null,
+    });
+  }
+  return map;
+}
+
+export function toProviderCardData(
+  raw: AnyProvider,
+  categoryLookup?: CategoryLookup,
+): ProviderCardData {
   const firstName = raw.user?.firstName ?? "";
   const lastName = raw.user?.lastName ?? "";
   const initials =
     `${(firstName[0] ?? "?").toUpperCase()}${(lastName[0] ?? "").toUpperCase()}`.trim() ||
     "?";
 
-  const primaryCategory = (raw.categories ?? []).find((c) => c?.slug)?.slug ?? null;
-  const slug = resolveCategorySlug(primaryCategory);
+  const validCategories = (raw.categories ?? []).filter(
+    (c): c is { slug?: string | null; name?: string | null } =>
+      !!c && typeof c.slug === "string" && c.slug.length > 0,
+  );
+  const primaryCategoryRaw = validCategories[0];
+  const primaryCategorySlug = primaryCategoryRaw?.slug ?? null;
+  const slug = resolveCategorySlug(primaryCategorySlug);
+  const display = primaryCategorySlug
+    ? categoryLookup?.get(primaryCategorySlug)
+    : undefined;
+  type SecondaryCategory = { name: string; iconName?: string; color?: string };
+  const secondaryCategories: SecondaryCategory[] = [];
+  for (const c of validCategories.slice(1)) {
+    const lookup = c.slug ? categoryLookup?.get(c.slug) : undefined;
+    const name = lookup?.name || c.name || "";
+    if (!name) continue;
+    secondaryCategories.push({
+      name,
+      iconName: lookup?.icon ?? undefined,
+      color: lookup?.color ?? undefined,
+    });
+  }
 
   const commune =
     (raw.serviceZones ?? []).find((z) => z?.commune)?.commune ?? undefined;
@@ -80,6 +131,11 @@ export function toProviderCardData(raw: AnyProvider): ProviderCardData {
     commune: commune ?? undefined,
     city: raw.user?.city ?? undefined,
     categories: [slug],
+    categoryName: display?.name ?? primaryCategoryRaw?.name ?? undefined,
+    categoryIconName: display?.icon ?? undefined,
+    categoryColor: display?.color ?? undefined,
+    secondaryCategories:
+      secondaryCategories.length > 0 ? secondaryCategories : undefined,
     rating: raw.rating ?? 0,
     reviews: raw.totalReviews ?? 0,
     response: responseFor(raw),

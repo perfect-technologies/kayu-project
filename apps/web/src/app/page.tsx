@@ -1,7 +1,7 @@
 import { createServerApiClient } from "@/lib/api";
 import { statsApi, categoriesApi, providersApi } from "@kayu/api";
 import HomePageClient from "./HomePageClient";
-import { toProviderCardData } from "@/lib/provider-card";
+import { buildCategoryLookup, toProviderCardData } from "@/lib/provider-card";
 import type { ProviderCardData } from "@kayu/ui";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +38,11 @@ export default async function HomePage() {
       color: (cat.color as string | null) ?? null,
       providersCount: (cat.providersCount as number) ?? 0,
     }));
+    const categoryLookup = buildCategoryLookup(categories);
     const rawProviders = (providersRes as { providers?: unknown[] })?.providers ?? [];
-    featured = (rawProviders as Array<Record<string, unknown>>).map((p) => toProviderCardData(p));
+    featured = (rawProviders as Array<Record<string, unknown>>).map((p) =>
+      toProviderCardData(p, categoryLookup),
+    );
   } catch {
     // SSR fallback: backend unavailable
   }

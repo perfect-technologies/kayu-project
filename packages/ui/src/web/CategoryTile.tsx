@@ -2,46 +2,58 @@
 
 import * as React from "react";
 import { tokens, type CategorySlug } from "../tokens.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+  type IconProps,
+} from "./Icon.js";
 
 export type CategoryTileSize = "md" | "lg";
 
 export type CategoryTileProps = {
-  slug: CategorySlug;
-  /** Display label override; defaults to portfolio.label. */
+  slug?: CategorySlug;
   label?: string;
-  /** Provider count shown below the label. */
   count?: number;
-  /** Icon override; defaults to portfolio iconName. */
-  iconName?: IconName;
+  iconName?: IconName | string;
+  color?: string;
   size?: CategoryTileSize;
-  onClick?: (slug: CategorySlug) => void;
+  onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
 };
 
-// CategoryTile (web) — discovery card for the homepage 6-col category grid.
-// Keeps a 1px border (unlike content cards) per D03 spec — discovery surface.
 export const CategoryTile: React.FC<CategoryTileProps> = ({
   slug,
   label,
   count,
   iconName,
+  color,
   size = "lg",
   onClick,
   className,
   style,
 }) => {
-  const tint = tokens.categoryTint[slug];
-  const portfolio = tokens.portfolio[slug];
-  const ResolvedIconName = iconName ?? (portfolio.iconName as IconName);
-  const Icon = I[ResolvedIconName];
-  const isLg = size === "lg";
+  const portfolio = slug ? tokens.portfolio[slug] : undefined;
+  const tint = slug ? tokens.categoryTint[slug] : undefined;
+
+  const resolvedLabel = label ?? portfolio?.label ?? "Catégorie";
+  const Icon =
+    resolveLucideIcon(iconName) ??
+    (portfolio ? (I[portfolio.iconName as IconName] as React.FC<IconProps>) : null) ??
+    FallbackCategoryIcon;
+
+  const tileBg = color
+    ? hexWithAlpha(color, 0.16)
+    : tint?.bg ?? tokens.color.surfaceMuted;
+  const tileFg = color ?? tint?.fg ?? tokens.color.textBody;
+
   const [hovered, setHovered] = React.useState(false);
 
   return (
     <button
-      onClick={onClick ? () => onClick(slug) : undefined}
+      onClick={onClick ? () => onClick() : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={className}
@@ -49,10 +61,10 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
         background: tokens.color.surface,
         border: `1px solid ${tokens.color.border}`,
         borderRadius: tokens.radius.md,
-        padding: isLg ? 20 : 16,
+        padding: size === "lg" ? 20 : 16,
         display: "flex",
         flexDirection: "column",
-        gap: isLg ? 16 : 12,
+        gap: size === "lg" ? 16 : 12,
         alignItems: "flex-start",
         cursor: onClick ? "pointer" : "default",
         textAlign: "left",
@@ -68,31 +80,31 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
     >
       <div
         style={{
-          width: isLg ? 48 : 40,
-          height: isLg ? 48 : 40,
+          width: size === "lg" ? 48 : 40,
+          height: size === "lg" ? 48 : 40,
           borderRadius: 10,
-          background: tint?.bg ?? tokens.color.surfaceMuted,
-          color: tint?.fg ?? tokens.color.textBody,
+          background: tileBg,
+          color: tileFg,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
         }}
       >
-        {Icon ? <Icon size={isLg ? 24 : 20} /> : null}
+        <Icon size={size === "lg" ? 24 : 20} />
       </div>
       <div style={{ width: "100%", minWidth: 0 }}>
         <div
           style={{
             fontFamily: tokens.font.display,
             fontWeight: 600,
-            fontSize: isLg ? 17 : 15,
+            fontSize: size === "lg" ? 17 : 15,
             lineHeight: 1.25,
             color: tokens.color.textPrimary,
             overflowWrap: "anywhere",
           }}
         >
-          {label ?? portfolio.label}
+          {resolvedLabel}
         </div>
         {count != null ? (
           <div
@@ -112,3 +124,12 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
     </button>
   );
 };
+
+function hexWithAlpha(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!match) return hex;
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${match[1]}${a}`;
+}

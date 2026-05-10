@@ -782,7 +782,7 @@ export default function DesignProbePage() {
                 key={c.slug}
                 slug={c.slug}
                 count={c.count}
-                onClick={(slug) => console.log("category", slug)}
+                onClick={() => console.log("category", c.slug)}
               />
             ))}
           </div>

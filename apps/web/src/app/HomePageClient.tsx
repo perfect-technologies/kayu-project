@@ -14,7 +14,6 @@ import {
 import { CategoryTile, ProviderShowcaseCard } from "@kayu/ui/web";
 import type { ProviderCardData } from "@kayu/ui";
 import { Layout } from "@/components/layout";
-import { resolveCategorySlug } from "@/lib/provider-card";
 import type { PublicStatsResponse } from "@kayu/schemas";
 
 interface Category {
@@ -222,7 +221,9 @@ function CategoryGrid({
           {cats.map((c) => (
             <CategoryTile
               key={c.id}
-              slug={resolveCategorySlug(c.slug)}
+              label={c.name}
+              iconName={c.icon ?? undefined}
+              color={c.color ?? undefined}
               count={c.providersCount}
               size="lg"
               onClick={() => onSelect(c.slug)}

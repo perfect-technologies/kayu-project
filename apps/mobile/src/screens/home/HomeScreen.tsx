@@ -21,28 +21,17 @@ import {
   NearbyCardSkeleton,
   type CategoryStripItem,
 } from '@kayu/ui/mobile';
-import type { CategorySlug } from '@kayu/ui';
 import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
 import { useShrinkOnScroll } from '@/hooks/useShrinkOnScroll';
 import { ShrinkingSearchHeader } from '@/components/shell';
-import { providerToCardData, toCategorySlug } from '@/lib/providerAdapter';
+import {
+  buildCategoryLookup,
+  providerToCardData,
+} from '@/lib/providerAdapter';
 import type { MainTabParamList } from '@/navigation/AppNavigator';
 
 type HomeNav = BottomTabNavigationProp<MainTabParamList, 'Home'>;
-
-// Default category strip when the API hasn't returned yet. Mirrors the prototype
-// ordering and ensures each slug has a portfolio pair in @kayu/ui tokens.
-const FALLBACK_STRIP: CategoryStripItem[] = [
-  { slug: 'plomberie' },
-  { slug: 'electricite' },
-  { slug: 'menage' },
-  { slug: 'coiffure' },
-  { slug: 'jardinage' },
-  { slug: 'informatique' },
-  { slug: 'peinture' },
-  { slug: 'menuiserie' },
-];
 
 export function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
@@ -50,9 +39,41 @@ export function HomeScreen() {
   const { scrolled, onScroll } = useShrinkOnScroll(40);
 
   const { data: categoriesData } = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => api.categories.getAll(),
+    queryKey: queryKeys.categories.hierarchy,
+    queryFn: () => api.categories.getHierarchy(),
+    staleTime: 5 * 60 * 1000,
   });
+
+  const apiCategories = useMemo(() => {
+    const arr = Array.isArray(categoriesData)
+      ? categoriesData
+      : ((categoriesData as { categories?: unknown[] } | undefined)?.categories ?? []);
+    return (arr as Array<Record<string, unknown>>).map((cat) => ({
+      slug: (cat.slug as string) ?? '',
+      name: (cat.name as string) ?? '',
+      icon: (cat.icon as string | null) ?? null,
+      color: (cat.color as string | null) ?? null,
+    }));
+  }, [categoriesData]);
+
+  const categoryLookup = useMemo(
+    () => buildCategoryLookup(apiCategories),
+    [apiCategories],
+  );
+
+  const stripItems: CategoryStripItem[] = useMemo(
+    () =>
+      apiCategories
+        .filter((c) => c.slug.length > 0)
+        .slice(0, 8)
+        .map((c) => ({
+          slug: c.slug,
+          label: c.name,
+          iconName: c.icon ?? undefined,
+          color: c.color ?? undefined,
+        })),
+    [apiCategories],
+  );
 
   const {
     data: providersData,
@@ -70,27 +91,15 @@ export function HomeScreen() {
     setRefreshing(false);
   };
 
-  const stripItems: CategoryStripItem[] = useMemo(() => {
-    const apiCategories = categoriesData?.categories ?? [];
-    if (apiCategories.length === 0) return FALLBACK_STRIP;
-    const seen = new Set<CategorySlug>();
-    const items: CategoryStripItem[] = [];
-    for (const c of apiCategories) {
-      const slug = toCategorySlug(c.slug);
-      if (seen.has(slug)) continue;
-      seen.add(slug);
-      items.push({ slug, label: c.name });
-      if (items.length >= 8) break;
-    }
-    return items.length > 0 ? items : FALLBACK_STRIP;
-  }, [categoriesData]);
-
   const providers = providersData?.providers ?? [];
-  const cards = useMemo(() => providers.map(providerToCardData), [providers]);
+  const cards = useMemo(
+    () => providers.map((p) => providerToCardData(p, categoryLookup)),
+    [providers, categoryLookup],
+  );
   const featured = cards.slice(0, 4);
   const nearby = cards.slice(0, 4);
 
-  const goToSearch = (category?: CategorySlug) => {
+  const goToSearch = (category?: string) => {
     navigation.navigate('Search', { screen: 'SearchMain', params: { category } } as never);
   };
 

@@ -21,13 +21,15 @@ import {
   WideProviderCardSkeleton,
   type CategoryStripItem,
 } from '@kayu/ui/mobile';
-import type { CategorySlug } from '@kayu/ui';
 import { api } from '@/lib/api';
 import { theme } from '@/lib/theme';
 import { FloatingBackButton, IconButton } from '@/components/shell';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
-import { providerToCardData, toCategorySlug } from '@/lib/providerAdapter';
+import {
+  buildCategoryLookup,
+  providerToCardData,
+} from '@/lib/providerAdapter';
 import {
   MobileFilterSheet,
   MOBILE_SORT_LABELS,
@@ -38,17 +40,6 @@ import type { SearchStackParamList } from '@/navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<SearchStackParamList, 'SearchMain'>;
 type Route = RouteProp<SearchStackParamList, 'SearchMain'>;
-
-const FALLBACK_STRIP: CategoryStripItem[] = [
-  { slug: 'plomberie' },
-  { slug: 'electricite' },
-  { slug: 'menage' },
-  { slug: 'coiffure' },
-  { slug: 'jardinage' },
-  { slug: 'informatique' },
-  { slug: 'peinture' },
-  { slug: 'menuiserie' },
-];
 
 function parseFilterNumber(raw: string): number | undefined {
   const normalized = raw.trim();
@@ -62,9 +53,7 @@ export function SearchScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
 
-  const initialCategory = route.params?.category
-    ? toCategorySlug(route.params.category)
-    : null;
+  const initialCategory = route.params?.category ?? null;
 
   const [filters, setFilters] = useState<MobileFilters>({
     ...EMPTY_FILTERS,
@@ -72,16 +61,20 @@ export function SearchScreen() {
   });
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // React to nav param changes (Home → Search with category)
   useEffect(() => {
     if (route.params?.category) {
-      setFilters((f) => ({ ...f, category: toCategorySlug(route.params!.category!) }));
+      setFilters((f) => ({
+        ...f,
+        category: route.params!.category!,
+        subcategory: null,
+      }));
     }
   }, [route.params?.category]);
 
   const searchParams = useMemo<Partial<ProviderSearchParams>>(
     () => ({
       category: filters.category ?? undefined,
+      subcategory: filters.subcategory ?? undefined,
       q: filters.q.trim() || undefined,
       city: filters.city.trim() || undefined,
       available: filters.available || undefined,
@@ -106,10 +99,64 @@ export function SearchScreen() {
     [filters],
   );
 
-  const { data: categoriesData } = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => api.categories.getAll(),
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: queryKeys.categories.hierarchy,
+    queryFn: () => api.categories.getHierarchy(),
+    staleTime: 5 * 60 * 1000,
   });
+
+  const apiCategories = useMemo(() => {
+    const arr = Array.isArray(categoriesData)
+      ? categoriesData
+      : ((categoriesData as { categories?: unknown[] } | undefined)?.categories ?? []);
+    return (arr as Array<Record<string, unknown>>).map((cat) => ({
+      slug: (cat.slug as string) ?? '',
+      name: (cat.name as string) ?? '',
+      icon: (cat.icon as string | null) ?? null,
+      color: (cat.color as string | null) ?? null,
+      subcategories: Array.isArray(cat.subcategories)
+        ? (cat.subcategories as Array<Record<string, unknown>>).map((sub) => ({
+            slug: (sub.slug as string) ?? '',
+            name: (sub.name as string) ?? '',
+          }))
+        : [],
+    }));
+  }, [categoriesData]);
+
+  const categoryLookup = useMemo(
+    () => buildCategoryLookup(apiCategories),
+    [apiCategories],
+  );
+
+  const stripItems: CategoryStripItem[] = useMemo(
+    () =>
+      apiCategories
+        .filter((c) => c.slug.length > 0)
+        .slice(0, 8)
+        .map((c) => ({
+          slug: c.slug,
+          label: c.name,
+          iconName: c.icon ?? undefined,
+          color: c.color ?? undefined,
+        })),
+    [apiCategories],
+  );
+
+  const filterCategories = useMemo(
+    () =>
+      apiCategories
+        .filter((c) => c.slug.length > 0)
+        .map((c) => ({
+          slug: c.slug,
+          label: c.name,
+          icon: c.icon,
+          color: c.color,
+          subcategories: c.subcategories
+            .filter((s) => s.slug.length > 0)
+            .map((s) => ({ slug: s.slug, label: s.name })),
+        })),
+    [apiCategories],
+  );
 
   const {
     data: providersData,
@@ -128,24 +175,11 @@ export function SearchScreen() {
     setRefreshing(false);
   };
 
-  const stripItems: CategoryStripItem[] = useMemo(() => {
-    const apiCategories = categoriesData?.categories ?? [];
-    if (apiCategories.length === 0) return FALLBACK_STRIP;
-    const seen = new Set<CategorySlug>();
-    const items: CategoryStripItem[] = [];
-    for (const c of apiCategories) {
-      const slug = toCategorySlug(c.slug);
-      if (seen.has(slug)) continue;
-      seen.add(slug);
-      items.push({ slug, label: c.name });
-      if (items.length >= 8) break;
-    }
-    return items.length > 0 ? items : FALLBACK_STRIP;
-  }, [categoriesData]);
-
   const rawProviders = providersData?.providers ?? [];
-  const rawCards = useMemo(() => rawProviders.map(providerToCardData), [rawProviders]);
-  const cards = rawCards;
+  const cards = useMemo(
+    () => rawProviders.map((p) => providerToCardData(p, categoryLookup)),
+    [rawProviders, categoryLookup],
+  );
   const totalResults = providersData?.pagination.total ?? cards.length;
   const locationLabel = filters.city.trim() || 'Toutes zones';
 
@@ -156,7 +190,7 @@ export function SearchScreen() {
   const queryLabel =
     filters.q.trim() ||
     (filters.category
-      ? (stripItems.find((s) => s.slug === filters.category)?.label ??
+      ? (apiCategories.find((c) => c.slug === filters.category)?.name ??
         filters.category)
       : 'Trouver un pro');
 
@@ -214,7 +248,11 @@ export function SearchScreen() {
             items={stripItems}
             active={filters.category ?? undefined}
             onSelect={(slug) =>
-              setFilters((f) => ({ ...f, category: f.category === slug ? null : slug }))
+              setFilters((f) => ({
+                ...f,
+                category: f.category === slug ? null : slug,
+                subcategory: null,
+              }))
             }
           />
 
@@ -304,10 +342,8 @@ export function SearchScreen() {
         initial={filters}
         onApply={setFilters}
         onClose={() => setSheetOpen(false)}
-        categoriesAvailable={stripItems.map((item) => ({
-          slug: item.slug,
-          label: item.label ?? item.slug,
-        }))}
+        categoriesAvailable={filterCategories}
+        categoriesLoading={categoriesLoading}
       />
     </View>
   );

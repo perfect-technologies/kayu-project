@@ -1,7 +1,9 @@
 import * as React from "react";
 import type { ComponentProps, ComponentType } from "react";
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import * as LucideAll from "lucide-react-native";
 import {
+  Tag,
   Search,
   MapPin,
   Star,
@@ -244,3 +246,40 @@ export const Icon: React.FC<IconProps & { as: Lucide }> = ({
   strokeWidth = 1.75,
   ...rest
 }) => <As size={size} strokeWidth={strokeWidth} {...rest} />;
+
+export function resolveLucideIcon(
+  name: string | null | undefined,
+): React.FC<IconProps> | null {
+  if (!name) return null;
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  if (trimmed in I) {
+    return I[trimmed as IconName] as React.FC<IconProps>;
+  }
+
+  const direct = (LucideAll as Record<string, unknown>)[trimmed];
+  if (isLucideComponent(direct)) {
+    return wrap(direct as Lucide);
+  }
+  // lucide-react-native ships some icons only under an "Icon"-suffixed alias.
+  const aliased = (LucideAll as Record<string, unknown>)[`${trimmed}Icon`];
+  if (isLucideComponent(aliased)) {
+    return wrap(aliased as Lucide);
+  }
+  return null;
+}
+
+function isLucideComponent(value: unknown): boolean {
+  if (typeof value === "function") return true;
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "$$typeof" in (value as Record<string, unknown>)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export const FallbackCategoryIcon: React.FC<IconProps> = wrap(Tag);

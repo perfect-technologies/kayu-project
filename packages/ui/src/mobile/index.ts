@@ -10,7 +10,12 @@ export type { AvatarProps } from "./Avatar.js";
 export { Chip } from "./Chip.js";
 export type { ChipProps, ChipVariant, ChipSize } from "./Chip.js";
 
-export { Icon, I } from "./Icon.js";
+export {
+  Icon,
+  I,
+  FallbackCategoryIcon,
+  resolveLucideIcon,
+} from "./Icon.js";
 export type { IconProps, IconName } from "./Icon.js";
 
 export { StarRating } from "./StarRating.js";

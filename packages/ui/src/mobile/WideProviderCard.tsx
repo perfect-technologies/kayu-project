@@ -6,8 +6,15 @@ import { Avatar } from "./Avatar.js";
 import { _featuredInternals } from "./FeaturedProviderCard.js";
 import { PhotoTile } from "./PhotoTile.js";
 
-const { SpecialtyTag, HeartButton, TopRatedPill, CardMetaRow1, ResponseLine, PriceLine } =
-  _featuredInternals;
+const {
+  SpecialtyTag,
+  HeartButton,
+  TopRatedPill,
+  CardMetaRow1,
+  ResponseLine,
+  PriceLine,
+  SecondaryCategoryRow,
+} = _featuredInternals;
 
 const FONTS = {
   bodyMed: "Inter-Medium",
@@ -52,8 +59,17 @@ export const WideProviderCard: React.FC<WideProviderCardProps> = ({
         style,
       ]}
     >
-      <PhotoTile category={slug} aspect="16/11">
-        <SpecialtyTag accent={portfolio.accent} label={portfolio.label} iconName={portfolio.iconName} />
+      <PhotoTile
+        category={slug}
+        accent={provider.categoryColor}
+        iconName={provider.categoryIconName}
+        aspect="16/11"
+      >
+        <SpecialtyTag
+          accent={provider.categoryColor ?? portfolio.accent}
+          label={provider.categoryName ?? portfolio.label}
+          iconName={provider.categoryIconName ?? portfolio.iconName}
+        />
         {onFavorite ? (
           <HeartButton
             favorited={favorited}
@@ -88,6 +104,7 @@ export const WideProviderCard: React.FC<WideProviderCardProps> = ({
           {provider.commune ? ` · ${provider.commune}` : ""}
           {provider.distance != null ? ` · ${provider.distance} km` : ""}
         </Text>
+        <SecondaryCategoryRow categories={provider.secondaryCategories} />
         <ResponseLine response={provider.response} />
         <PriceLine hourly={provider.hourly} />
       </View>

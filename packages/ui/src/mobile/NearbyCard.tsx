@@ -7,7 +7,12 @@ import {
 } from "../cards.js";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
-import { I, type IconName } from "./Icon.js";
+import {
+  FallbackCategoryIcon,
+  I,
+  resolveLucideIcon,
+  type IconName,
+} from "./Icon.js";
 import { PhotoTile } from "./PhotoTile.js";
 
 const FONTS = {
@@ -27,7 +32,10 @@ export type NearbyRowProps = {
 export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onPress, last }) => {
   const slug = portfolioSlug(provider.categories);
   const portfolio = tokens.portfolio[slug];
-  const TileIcon = I[portfolio.iconName as IconName];
+  const tileAccent = provider.categoryColor ?? portfolio.accent;
+  const TileIcon =
+    resolveLucideIcon(provider.categoryIconName) ??
+    (I[portfolio.iconName as IconName] ?? FallbackCategoryIcon);
 
   return (
     <Pressable
@@ -58,11 +66,16 @@ export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onPress, last })
           elevation: 2,
         }}
       >
-        <PhotoTile category={slug} aspect="1/1" radius={14} showAmbient={false}>
+        <PhotoTile
+          category={slug}
+          accent={provider.categoryColor}
+          iconName={provider.categoryIconName}
+          aspect="1/1"
+          radius={14}
+          showAmbient={false}
+        >
           <View style={{ position: "absolute", left: 6, top: 6 }}>
-            {TileIcon ? (
-              <TileIcon size={14} color={portfolio.accent} strokeWidth={1.75} />
-            ) : null}
+            <TileIcon size={14} color={tileAccent} strokeWidth={1.75} />
           </View>
           <View style={{ position: "absolute", right: 6, bottom: 6 }}>
             <Avatar

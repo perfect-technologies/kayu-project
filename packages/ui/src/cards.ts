@@ -14,6 +14,14 @@ export type ProviderCardData = {
   commune?: string;
   city?: string;
   categories: CategorySlug[];
+  categoryName?: string;
+  categoryIconName?: string;
+  categoryColor?: string;
+  secondaryCategories?: Array<{
+    name: string;
+    iconName?: string;
+    color?: string;
+  }>;
   avatarBg?: string;
   avatarUrl?: string;
   rating: number;

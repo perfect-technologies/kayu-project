@@ -15,14 +15,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 import {
-  I,
+  FallbackCategoryIcon,
   ProviderShowcaseCard,
   ProviderShowcaseCardSkeleton,
+  resolveLucideIcon,
 } from "@kayu/ui/web";
-import type { CategorySlug, ProviderCardData } from "@kayu/ui";
+import type { ProviderCardData } from "@kayu/ui";
 import { apiClient } from "@/lib/api";
 import { categoriesApi, providersApi, queryKeys } from "@kayu/api";
-import { toProviderCardData, resolveCategorySlug } from "@/lib/provider-card";
+import { buildCategoryLookup, toProviderCardData } from "@/lib/provider-card";
 
 const PRICE_MAX = 100000;
 
@@ -47,15 +48,6 @@ const cities = [
   "Lubumbashi",
   "Matadi",
   "Goma",
-];
-
-const defaultCategories: Category[] = [
-  { id: "1", name: "Plomberie", slug: "plomberie" },
-  { id: "2", name: "Électricité", slug: "electricite" },
-  { id: "3", name: "Ménage & Nettoyage", slug: "menage-nettoyage" },
-  { id: "4", name: "Coiffure & Beauté", slug: "coiffure-beaute" },
-  { id: "5", name: "Informatique", slug: "informatique" },
-  { id: "6", name: "Jardinage", slug: "jardinage" },
 ];
 
 export function ServicesPageContent() {
@@ -153,24 +145,14 @@ export function ServicesPageContent() {
     placeholderData: (prev) => prev,
   });
 
-  const rawProviders = (providersData?.providers ?? []) as Array<
-    Record<string, unknown>
-  >;
-  const providers = useMemo<ProviderCardData[]>(
-    () => rawProviders.map((p) => toProviderCardData(p)),
-    [rawProviders],
-  );
-  const total = providersData?.pagination?.total ?? 0;
-  const totalPages = providersData?.pagination?.totalPages ?? 1;
-
-  const { data: categoriesData } = useQuery({
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: queryKeys.categories.hierarchy,
     queryFn: () => categoriesApi(apiClient).getHierarchy(),
     staleTime: 5 * 60 * 1000,
   });
 
   const categories: Category[] = useMemo(() => {
-    if (!categoriesData) return defaultCategories;
+    if (!categoriesData) return [];
     const arr = Array.isArray(categoriesData)
       ? categoriesData
       : ((categoriesData as { categories?: unknown[] }).categories ?? []);
@@ -189,6 +171,18 @@ export function ServicesPageContent() {
         : [],
     }));
   }, [categoriesData]);
+
+  const categoryLookup = useMemo(() => buildCategoryLookup(categories), [categories]);
+
+  const rawProviders = (providersData?.providers ?? []) as Array<
+    Record<string, unknown>
+  >;
+  const providers = useMemo<ProviderCardData[]>(
+    () => rawProviders.map((p) => toProviderCardData(p, categoryLookup)),
+    [rawProviders, categoryLookup],
+  );
+  const total = providersData?.pagination?.total ?? 0;
+  const totalPages = providersData?.pagination?.totalPages ?? 1;
 
   const updateUrl = useCallback(
     (extra: Record<string, string | number | boolean | null>) => {
@@ -365,6 +359,7 @@ export function ServicesPageContent() {
         >
           <FilterPanel
             categories={categories}
+            categoriesLoading={categoriesLoading}
             selectedCategory={selectedCategory}
             onCategory={(slug) => {
               setSelectedCategory(slug);
@@ -615,6 +610,7 @@ export function ServicesPageContent() {
             </div>
             <FilterPanel
               categories={categories}
+              categoriesLoading={categoriesLoading}
               selectedCategory={selectedCategory}
               onCategory={(slug) => {
                 setSelectedCategory(slug);
@@ -704,6 +700,7 @@ function FilterPill({
 
 interface FilterPanelProps {
   categories: Category[];
+  categoriesLoading: boolean;
   selectedCategory: string;
   onCategory: (slug: string) => void;
   selectedSubcategory: string;
@@ -722,6 +719,7 @@ interface FilterPanelProps {
 
 function FilterPanel({
   categories,
+  categoriesLoading,
   selectedCategory,
   onCategory,
   selectedSubcategory,
@@ -780,24 +778,39 @@ function FilterPanel({
 
       <FilterSection title="Catégorie">
         <div style={{ display: "grid", gap: 6 }}>
-          {categories.slice(0, 6).map((c) => (
-            <CategoryRow
-              key={c.id}
-              slug={c.slug}
-              label={c.name}
-              checked={selectedCategory === c.slug}
-              onToggle={() =>
-                onCategory(selectedCategory === c.slug ? "" : c.slug)
-              }
-            />
-          ))}
+          {categoriesLoading && categories.length === 0 ? (
+            <CategorySkeletonList />
+          ) : categories.length === 0 ? (
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--k-text-muted)",
+                padding: "4px 0",
+              }}
+            >
+              Aucune catégorie disponible.
+            </div>
+          ) : (
+            categories.map((c) => (
+              <CategoryRow
+                key={c.id}
+                label={c.name}
+                iconName={c.icon}
+                color={c.color}
+                checked={selectedCategory === c.slug}
+                onToggle={() =>
+                  onCategory(selectedCategory === c.slug ? "" : c.slug)
+                }
+              />
+            ))
+          )}
         </div>
       </FilterSection>
 
       {selectedCategory && subSlugs && subSlugs.length > 0 ? (
         <FilterSection title="Spécialité">
           <div style={{ display: "grid", gap: 6 }}>
-            {subSlugs.slice(0, 8).map((sub) => (
+            {subSlugs.map((sub) => (
               <label
                 key={sub.id}
                 style={{
@@ -924,41 +937,21 @@ function FilterPanel({
 }
 
 function CategoryRow({
-  slug,
   label,
+  iconName,
+  color,
   checked,
   onToggle,
 }: {
-  slug: string;
   label: string;
+  iconName?: string | null;
+  color?: string | null;
   checked: boolean;
   onToggle: () => void;
 }) {
-  const resolved = resolveCategorySlug(slug) as CategorySlug;
-  const tintMap: Record<CategorySlug, { bg: string; fg: string }> = {
-    plomberie: { bg: "#CCFBF1", fg: "#0D9488" },
-    electricite: { bg: "#FEF3C7", fg: "#D97706" },
-    menage: { bg: "#FFE4E6", fg: "#E11D48" },
-    coiffure: { bg: "#FCE7F3", fg: "#BE185D" },
-    informatique: { bg: "#EDE9FE", fg: "#7C3AED" },
-    jardinage: { bg: "#D1FAE5", fg: "#059669" },
-    peinture: { bg: "#DBEAFE", fg: "#2563EB" },
-    transport: { bg: "#E2E8F0", fg: "#475569" },
-    menuiserie: { bg: "#FEF3C7", fg: "#B45309" },
-  };
-  const tint = tintMap[resolved] ?? tintMap.plomberie;
-  const portfolioIconMap: Record<CategorySlug, keyof typeof I> = {
-    plomberie: "wrench",
-    electricite: "zap",
-    menage: "sparkles",
-    coiffure: "scissors",
-    informatique: "laptop",
-    jardinage: "leaf",
-    peinture: "paintbrush",
-    transport: "car",
-    menuiserie: "hammer",
-  };
-  const Icon = I[portfolioIconMap[resolved]] as React.FC<{ size?: number }>;
+  const Icon = resolveLucideIcon(iconName ?? undefined) ?? FallbackCategoryIcon;
+  const swatchBg = color ? hexWithAlpha(color, 0.16) : "var(--k-surface-muted)";
+  const swatchFg = color ?? "var(--k-text-body)";
   return (
     <label
       style={{
@@ -981,19 +974,74 @@ function CategoryRow({
           width: 24,
           height: 24,
           borderRadius: 6,
-          background: tint.bg,
-          color: tint.fg,
+          background: swatchBg,
+          color: swatchFg,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
         }}
       >
-        {Icon ? <Icon size={14} /> : null}
+        <Icon size={14} />
       </span>
       <span style={{ flex: 1, color: "var(--k-text-body)" }}>{label}</span>
     </label>
   );
+}
+
+function CategorySkeletonList() {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "2px 0",
+          }}
+        >
+          <div
+            className="animate-k-shimmer"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 4,
+              background: "var(--k-surface-muted)",
+            }}
+          />
+          <div
+            className="animate-k-shimmer"
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              background: "var(--k-surface-muted)",
+            }}
+          />
+          <div
+            className="animate-k-shimmer"
+            style={{
+              flex: 1,
+              height: 12,
+              borderRadius: 6,
+              background: "var(--k-surface-muted)",
+            }}
+          />
+        </div>
+      ))}
+    </>
+  );
+}
+
+function hexWithAlpha(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!match) return hex;
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${match[1]}${a}`;
 }
 
 function PriceSlider({
