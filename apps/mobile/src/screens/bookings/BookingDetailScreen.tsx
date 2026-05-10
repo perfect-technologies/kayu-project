@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@kayu/api';
+import type { FinalOffer } from '@kayu/schemas';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
@@ -20,6 +21,7 @@ import { I } from '@kayu/ui/mobile';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { theme } from '@/lib/theme';
+import { FinalOfferFormCard } from '@/components/bookings/FinalOfferFormCard';
 import {
   formatRelativeFR,
   formatWhen,
@@ -135,6 +137,45 @@ export function BookingDetailScreen() {
     },
   });
 
+  const offersQuery = useQuery({
+    queryKey: queryKeys.finalOffers.all({ bookingId: params.bookingId }),
+    queryFn: () => api.finalOffers.getAll({ bookingId: params.bookingId }),
+  });
+  const bookingOffers = React.useMemo<FinalOffer[]>(
+    () => offersQuery.data?.finalOffers ?? [],
+    [offersQuery.data],
+  );
+  const activeOffer = React.useMemo<FinalOffer | null>(() => {
+    const accepted = bookingOffers.find((o) => o.status === 'ACCEPTED');
+    if (accepted) return accepted;
+    return bookingOffers.find((o) => o.status === 'PENDING') ?? null;
+  }, [bookingOffers]);
+
+  const [offerFormOpen, setOfferFormOpen] = React.useState(false);
+  const createOfferMutation = useMutation({
+    mutationFn: (data: Parameters<typeof api.finalOffers.create>[0]) =>
+      api.finalOffers.create(data),
+    onSuccess: (result) => {
+      setOfferFormOpen(false);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.finalOffers.all({ bookingId: params.bookingId }),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(params.bookingId),
+      });
+      if (result.booking?.id) {
+        queryClient.setQueryData(queryKeys.bookings.detail(result.booking.id), {
+          success: true,
+          booking: result.booking,
+        });
+      }
+    },
+    onError: (err: Error) => {
+      Alert.alert('Accord final impossible', err.message);
+    },
+  });
+
   const completeMutation = useMutation({
     mutationFn: async () => {
       const current = data?.booking as Booking | undefined;
@@ -214,6 +255,30 @@ export function BookingDetailScreen() {
       };
 
   const counterName = `${counterparty.first} ${counterparty.last}`.trim() || '—';
+
+  const providerRecordId = booking.provider?.id ?? null;
+  const clientUserId = booking.client?.id ?? null;
+  const isLockedStatus =
+    booking.status === 'COMPLETED' || booking.status === 'CANCELLED';
+  const canRecordOffer =
+    !isClient && !isLockedStatus && !!providerRecordId && !!clientUserId;
+  const adjustingOffer = !!activeOffer;
+  const offerInitialValues = {
+    title: activeOffer?.title ?? booking.title ?? '',
+    description: activeOffer?.description ?? '',
+    price: activeOffer?.price ?? booking.price ?? '',
+    durationHours:
+      activeOffer?.duration != null
+        ? String(Math.max(0.25, activeOffer.duration / 60))
+        : booking.duration != null
+          ? String(Math.max(0.25, booking.duration / 60))
+          : undefined,
+    scheduledDate:
+      activeOffer?.scheduledDate ?? booking.scheduledDate ?? undefined,
+    address: activeOffer?.address ?? booking.address ?? '',
+    city: activeOffer?.city ?? booking.city ?? 'Kinshasa',
+    notes: activeOffer?.notes ?? '',
+  };
 
   const cancelWithReason = (reason: string) =>
     updateMutation.mutate({ status: 'CANCELLED', cancelReason: reason });
@@ -408,14 +473,64 @@ export function BookingDetailScreen() {
         <MobileSection
           title="Accord"
           subtitle={
-            booking.quote
+            activeOffer
               ? 'Accord final confirmé'
-              : booking.status === 'PENDING'
-                ? 'Estimation'
-                : 'Demande directe'
+              : booking.quote
+                ? 'Accord final confirmé'
+                : booking.status === 'PENDING'
+                  ? 'Estimation'
+                  : 'Demande directe'
           }
         >
-          <QuoteBreakdown booking={booking} isClient={isClient} />
+          {activeOffer ? (
+            <BookingFinalOfferView offer={activeOffer} isClient={isClient} />
+          ) : (
+            <QuoteBreakdown booking={booking} isClient={isClient} />
+          )}
+          {canRecordOffer && !offerFormOpen ? (
+            <Pressable
+              style={[
+                activeOffer ? styles.secondaryBtn : styles.primaryBtn,
+                { marginTop: 12 },
+              ]}
+              onPress={() => setOfferFormOpen(true)}
+            >
+              {activeOffer ? (
+                <I.pencil size={14} color={theme.colors.textPrimary} />
+              ) : (
+                <I.coins size={15} color="#fff" />
+              )}
+              <Text
+                style={
+                  activeOffer ? styles.secondaryBtnText : styles.primaryBtnText
+                }
+              >
+                {activeOffer ? "Ajuster l'accord" : "Enregistrer l'accord final"}
+              </Text>
+            </Pressable>
+          ) : null}
+          {canRecordOffer && offerFormOpen && providerRecordId && clientUserId ? (
+            <FinalOfferFormCard
+              providerId={providerRecordId}
+              clientId={clientUserId}
+              bookingId={booking.id}
+              initialValues={offerInitialValues}
+              heading={
+                adjustingOffer ? "Ajuster l'accord final" : "Enregistrer l'accord final"
+              }
+              subheading={
+                adjustingOffer
+                  ? "L'accord précédent sera remplacé par cette mise à jour."
+                  : "La réservation est confirmée dès que l'accord est enregistré."
+              }
+              submitLabel={
+                adjustingOffer ? "Mettre à jour l'accord" : "Confirmer l'accord"
+              }
+              busy={createOfferMutation.isPending}
+              onCancel={() => setOfferFormOpen(false)}
+              onSubmit={(data) => createOfferMutation.mutateAsync(data)}
+            />
+          ) : null}
         </MobileSection>
 
         {/* Meta */}
@@ -665,6 +780,264 @@ function Timeline({
     </View>
   );
 }
+
+function BookingFinalOfferView({
+  offer,
+  isClient,
+}: {
+  offer: FinalOffer;
+  isClient: boolean;
+}) {
+  const scheduled = offer.scheduledDate
+    ? offer.scheduledDate instanceof Date
+      ? offer.scheduledDate
+      : new Date(offer.scheduledDate)
+    : null;
+  const dateLabel =
+    scheduled && !Number.isNaN(scheduled.getTime())
+      ? scheduled
+          .toLocaleString('fr-FR', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          .replace(',', ' ·')
+      : 'Date à confirmer';
+  const minutes = offer.duration ?? 0;
+  const durationLabel = (() => {
+    if (!minutes || minutes <= 0) return 'À confirmer';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h > 0 && m > 0) return `${h}h${String(m).padStart(2, '0')}`;
+    if (h > 0) return `${h}h`;
+    return `${m} min`;
+  })();
+  const addressLabel =
+    [offer.address, offer.city].filter(Boolean).join(', ') || 'À confirmer';
+  const isAccepted = offer.status === 'ACCEPTED';
+
+  return (
+    <View style={offerViewStyles.card}>
+      <View style={offerViewStyles.header}>
+        <View style={offerViewStyles.icon}>
+          <I.coins size={16} color={theme.colors.primaryHover} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={offerViewStyles.overline}>Accord final</Text>
+          <Text style={offerViewStyles.title}>{offer.title}</Text>
+        </View>
+        <View
+          style={[
+            offerViewStyles.chip,
+            isAccepted
+              ? { backgroundColor: theme.colors.successSubtle }
+              : { backgroundColor: theme.colors.surfaceMuted },
+          ]}
+        >
+          <Text
+            style={[
+              offerViewStyles.chipText,
+              {
+                color: isAccepted ? theme.colors.success : theme.colors.textMuted,
+              },
+            ]}
+          >
+            {isAccepted ? 'Confirmé' : 'Enregistré'}
+          </Text>
+        </View>
+      </View>
+      <Text style={offerViewStyles.price}>
+        {offer.price.toLocaleString('fr-FR')} FC
+      </Text>
+      {offer.description ? (
+        <Text style={offerViewStyles.body}>{offer.description}</Text>
+      ) : null}
+      <View style={offerViewStyles.metaGrid}>
+        <OfferDetailRow icon="calendar" label="Date et heure" value={dateLabel} />
+        <OfferDetailRow icon="clock" label="Durée" value={durationLabel} />
+        <OfferDetailRow icon="mapPin" label="Adresse" value={addressLabel} />
+        {offer.notes ? (
+          <OfferDetailRow icon="info" label="Précision" value={offer.notes} />
+        ) : null}
+      </View>
+      {!isClient ? (
+        <View style={offerViewStyles.providerBreakdown}>
+          <View style={offerViewStyles.breakdownRow}>
+            <Text style={offerViewStyles.breakdownLabel}>
+              Commission KAYOU{offer.commissionPct ? ` (${offer.commissionPct}%)` : ''}
+            </Text>
+            <Text style={offerViewStyles.breakdownValue}>
+              −{(offer.commissionAmt ?? 0).toLocaleString('fr-FR')} FC
+            </Text>
+          </View>
+          <View style={offerViewStyles.breakdownRow}>
+            <Text style={[offerViewStyles.breakdownLabel, { color: theme.colors.textBody, fontWeight: '600' }]}>
+              Gain net estimé
+            </Text>
+            <Text style={offerViewStyles.payout}>
+              {(offer.providerNetAmt ?? 0).toLocaleString('fr-FR')} FC
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      <View style={offerViewStyles.cashNote}>
+        <I.coins size={14} color={theme.colors.primaryHover} />
+        <Text style={offerViewStyles.cashNoteText}>
+          Paiement en espèces à la fin de la mission.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function OfferDetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: 'calendar' | 'clock' | 'mapPin' | 'info';
+  label: string;
+  value: string;
+}) {
+  const Icon = I[icon];
+  return (
+    <View style={offerViewStyles.metaRow}>
+      <Icon size={14} color={theme.colors.textMuted} />
+      <Text style={offerViewStyles.metaLabel}>{label}</Text>
+      <Text style={offerViewStyles.metaValue}>{value}</Text>
+    </View>
+  );
+}
+
+const offerViewStyles = StyleSheet.create({
+  card: {
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    gap: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  icon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  overline: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.primaryHover,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  title: {
+    fontFamily: theme.fonts.displayMed,
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+    marginTop: 2,
+  },
+  chip: {
+    minHeight: 22,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipText: {
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  price: {
+    fontFamily: theme.fonts.display,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    color: theme.colors.textPrimary,
+  },
+  body: {
+    fontFamily: theme.fonts.body,
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: theme.colors.textBody,
+  },
+  metaGrid: {
+    gap: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  metaLabel: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12.5,
+    color: theme.colors.textMuted,
+    minWidth: 90,
+  },
+  metaValue: {
+    flex: 1,
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+    textAlign: 'right',
+  },
+  providerBreakdown: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+    gap: 4,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLabel: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  breakdownValue: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  payout: {
+    fontFamily: theme.fonts.mono,
+    fontSize: 13,
+    color: theme.colors.primary,
+    fontWeight: '700',
+  },
+  cashNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: theme.colors.primarySubtle,
+  },
+  cashNoteText: {
+    flex: 1,
+    fontFamily: theme.fonts.bodySemi,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: theme.colors.textBody,
+  },
+});
 
 function QuoteBreakdown({
   booking,
