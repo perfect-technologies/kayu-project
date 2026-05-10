@@ -4,7 +4,7 @@
 
 Make v1 pricing and commission behavior coherent across backend, web, mobile, and docs.
 
-Provider prices should be starting-from guidance. Final offers/bookings should store the agreed price. Commission should be tracked internally from the agreed price.
+Provider prices should be fixed starting-from guidance, not hourly pricing. Final offers/bookings should store the agreed price. Commission should be tracked internally from the agreed price.
 
 ## Severity
 
@@ -22,7 +22,7 @@ P0
 
 ## Current State
 
-- Provider profile pricing is `Provider.hourlyRate`.
+- Provider profile pricing is currently stored in `Provider.hourlyRate`, but v1 product semantics are fixed starting price.
 - Booking and final-offer prices are stored as `Float`.
 - Quotes store integer gross/commission/payout fields.
 - Booking transactions compute 10% commission on completion.
@@ -32,8 +32,8 @@ P0
 
 Display pricing:
 
-- listings and profiles: `A partir de X FC` or `A partir de X FC/h`,
-- booking request: estimate only,
+- listings and profiles: `A partir de X FC`,
+- booking request: estimate only, without multiplying by duration,
 - final offer: agreed price,
 - booking detail: agreed price,
 - payment surfaces: cash payment direct to provider.
@@ -77,10 +77,12 @@ Avoid:
 - `commission KAYOU` on client-facing surfaces,
 - `devis` as the main v1 flow,
 - `facture` unless a real invoice exists.
+- `FC/h`, `/h`, `/heure`, or `Tarif horaire` on launch-facing provider pricing.
 
 ## Acceptance Criteria
 
-- Web and mobile provider cards/profile use starting-from pricing.
+- Web and mobile provider cards/profile use fixed starting-from pricing without hourly units.
+- Direct booking estimates do not multiply starting price by duration.
 - Final-offer form labels the amount as agreed price.
 - Final-offer creation stores or derives commission economics.
 - Booking transaction uses final agreed price and the same commission policy.

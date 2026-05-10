@@ -24,7 +24,7 @@ Rules:
 - Do not show client accept/decline for final offers in v1.
 - Provider-created final offer should immediately create or confirm a booking.
 - Do not launch job requests, quote comparison, standalone devis, online payment, payouts, invoices, route tracking, push, email, or SMS.
-- Keep pricing as starting-from guidance until final offer.
+- Keep pricing as fixed starting-from guidance until final offer; do not show hourly units in launch-facing pricing.
 - Keep payment copy cash-first.
 - Run relevant type-check/tests.
 - Update PROGRESS.md with status, changed files, tests, and decisions.
@@ -117,7 +117,7 @@ Tighten provider onboarding around phone/identity state, max 3 service categorie
 Update PROGRESS.md when done.
 ```
 
-### Workstream 06 - Discovery Map Distance And Reviews
+### Workstream 06 - Fixed Starting Price Model
 
 ```text
 You are implementing workstream 06 of the KAYOU v1 launch alignment plan.
@@ -125,15 +125,15 @@ You are implementing workstream 06 of the KAYOU v1 launch alignment plan.
 Read:
 - /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/00-product-contract.md
 - /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/PROGRESS.md
-- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/06-discovery-map-distance-reviews.md
+- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/06-fixed-starting-price-model.md
 
 Goal:
-Handle P2 discovery and review improvements: real map/distance/radius if promoted, mandatory review behavior, and Expo readiness for native location/upload/map capabilities if required.
+Correct provider pricing from hourly-rate semantics to fixed starting-price semantics. Launch-facing web/mobile UI should show `À partir de X FC`, never `FC/h`, `/h`, `/heure`, or `Tarif horaire`. Direct booking estimates must not multiply starting price by duration. Keep the existing DB column if needed for compatibility, but document any remaining internal `hourlyRate` usages.
 
 Update PROGRESS.md when done.
 ```
 
-### Workstream 07 - V1 QA And Release Smoke
+### Workstream 07 - Discovery Map Distance And Reviews
 
 ```text
 You are implementing workstream 07 of the KAYOU v1 launch alignment plan.
@@ -141,7 +141,23 @@ You are implementing workstream 07 of the KAYOU v1 launch alignment plan.
 Read:
 - /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/00-product-contract.md
 - /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/PROGRESS.md
-- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/07-v1-qa-release-smoke.md
+- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/07-discovery-map-distance-reviews.md
+
+Goal:
+Handle P2 discovery and review improvements: real map/distance/radius if promoted, mandatory review behavior, and Expo readiness for native location/upload/map capabilities if required.
+
+Update PROGRESS.md when done.
+```
+
+### Workstream 08 - V1 QA And Release Smoke
+
+```text
+You are implementing workstream 08 of the KAYOU v1 launch alignment plan.
+
+Read:
+- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/00-product-contract.md
+- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/PROGRESS.md
+- /Users/alainmk/startups/kayu-project/docs/v1-launch-alignment/08-v1-qa-release-smoke.md
 
 Goal:
 Create/run smoke tests for signup, discovery, direct contact, direct booking, auto-confirmed final offers, cash completion, review, and launch-scope guards.

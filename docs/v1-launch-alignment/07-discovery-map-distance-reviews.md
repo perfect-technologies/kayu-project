@@ -1,4 +1,4 @@
-# 06 - Discovery Map Distance And Reviews
+# 07 - Discovery Map Distance And Reviews
 
 ## Objective
 

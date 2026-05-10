@@ -8,7 +8,7 @@ The current codebase already moved toward the Kinshasa MVP: direct provider disc
 
 - final offers are agreement records, not client approval requests,
 - provider-created final offers immediately create or confirm bookings,
-- pricing is shown as starting-from guidance,
+- pricing is shown as fixed starting-from guidance, not hourly pricing,
 - the final price is agreed in chat and recorded by the provider,
 - cash payment remains the only v1 payment mode,
 - online payment, quote comparison, payouts, and complex invoices stay hidden.
@@ -34,7 +34,7 @@ Keep for v1:
 
 - Provider discovery
 - Provider profiles
-- Starting-from base pricing
+- Fixed starting-from base pricing
 - Direct chat and phone contact
 - Direct booking requests
 - Provider-issued final agreement
@@ -66,8 +66,9 @@ Hide or defer for v1:
 4. [03 - Web V1 Flow Alignment](./03-web-v1-flow-alignment.md)
 5. [04 - Mobile V1 Flow Alignment](./04-mobile-v1-flow-alignment.md)
 6. [05 - Provider Onboarding Tightening](./05-provider-onboarding-tightening.md)
-7. [06 - Discovery Map Distance And Reviews](./06-discovery-map-distance-reviews.md)
-8. [07 - V1 QA And Release Smoke](./07-v1-qa-release-smoke.md)
+7. [06 - Fixed Starting Price Model](./06-fixed-starting-price-model.md)
+8. [07 - Discovery Map Distance And Reviews](./07-discovery-map-distance-reviews.md)
+9. [08 - V1 QA And Release Smoke](./08-v1-qa-release-smoke.md)
 
 ## Priority Bands
 
@@ -75,7 +76,7 @@ P0:
 
 - Final offers auto-confirm bookings.
 - Remove client accept/decline from launch UI.
-- Standardize starting-from pricing.
+- Standardize fixed starting-from pricing and remove hourly-rate launch copy.
 - Resolve commission policy and make final-offer/booking economics auditable.
 - Keep online payment, quote marketplace, payouts, and invoice/devis comparison hidden.
 - Add consistent cash payment disclaimer.
@@ -101,8 +102,9 @@ Agents can work in parallel if they stay within ownership boundaries:
 - `02` should happen before earnings/dashboard copy is finalized.
 - `03` and `04` can run in parallel after `01` and `02` contracts are clear.
 - `05` can run in parallel unless it changes shared provider schemas.
-- `06` is P2 and should not block P0 launch cleanup unless map/distance is promoted.
-- `07` should run after P0 work is complete.
+- `06` is a P0 correction and should happen before final QA.
+- `07` is P2 and should not block P0 launch cleanup unless map/distance is promoted.
+- `08` should run after P0 work is complete.
 
 ## Working Rules For Agents
 
@@ -128,7 +130,8 @@ Agents can work in parallel if they stay within ownership boundaries:
 | `03-web-v1-flow-alignment.md` | Web UI changes for final offer, pricing, payment, and hidden scope |
 | `04-mobile-v1-flow-alignment.md` | Mobile UI changes for final offer, pricing, payment, and hidden scope |
 | `05-provider-onboarding-tightening.md` | Provider onboarding, verification, category limits, and portfolio |
-| `06-discovery-map-distance-reviews.md` | P2 map/distance and mandatory review work |
-| `07-v1-qa-release-smoke.md` | Manual and automated v1 smoke tests |
+| `06-fixed-starting-price-model.md` | P0 correction for fixed starting prices and no hourly-rate launch copy |
+| `07-discovery-map-distance-reviews.md` | P2 map/distance and mandatory review work |
+| `08-v1-qa-release-smoke.md` | Manual and automated v1 smoke tests |
 | `AGENT-HANDOFFS.md` | Ready-to-send agent prompts |
 | `PROGRESS.md` | Live execution tracker |

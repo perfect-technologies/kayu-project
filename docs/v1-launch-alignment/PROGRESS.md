@@ -8,7 +8,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 
 - final offers auto-confirm bookings,
 - clients do not accept/decline final offers,
-- pricing is starting-from guidance,
+- pricing is fixed starting-from guidance, not hourly pricing,
 - final-offer price is the agreed price,
 - cash remains the only v1 payment mode,
 - commission tracking is internal and consistent,
@@ -24,8 +24,9 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 03 - Web V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 04 - Mobile V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 05 - Provider Onboarding Tightening | Done | Claude | P1 onboarding tightened: max-3 categories enforced, experience required, deferred uploads, Kinshasa communes expanded, 24h verification copy aligned |
-| 06 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
-| 07 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
+| 06 - Fixed Starting Price Model | Not started | TBD | P0 correction: remove hourly-rate launch semantics and use fixed starting prices |
+| 07 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
+| 08 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
 
 ## Decisions Log
 
@@ -45,8 +46,9 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-10 | Phone verification is required for the verified badge only, not for provider publish | Auth currently does not write `phoneVerifiedAt` automatically, so gating publish on it would block onboarding; the badge path through `/pro/verify` already exposes phone/identity verification to providers |
 | 2026-05-10 | Years of experience is required for provider publish; at-least-one skill remains optional | Experience appears on profile cards and shapes the Trust score baseline; skills stay category-driven suggestions until product confirms a hard requirement |
 | 2026-05-10 | Max 3 service categories is enforced both at draft validation and on `PATCH /providers/me` | Aligns the provider-facing UI limit with the backend, preventing drift via direct profile edits after onboarding |
-| 2026-05-10 | `zoneRadiusKm` stays in the onboarding draft JSON for v1 | Discovery does not yet read it (workstream 06 is P2); promoting it to a Provider column would be hypothetical work |
+| 2026-05-10 | `zoneRadiusKm` stays in the onboarding draft JSON for v1 | Discovery does not yet read it (workstream 07 is P2); promoting it to a Provider column would be hypothetical work |
 | 2026-05-10 | Identity uploads and portfolio photos are surfaced as deferred panels (no fake toggles) in onboarding | Real upload happens in `/pro/verify` and the portfolio gallery is post-launch; pretending otherwise misleads providers about what is actually saved |
+| 2026-05-10 | Starting-from provider pricing means fixed base price, not hourly rate | Product clarified providers set a usual starting price for the service (`À partir de 10 000 FC`); launch UI must not show `FC/h`, `/h`, `/heure`, or multiply by duration |
 
 ## Open Questions
 
@@ -56,6 +58,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 - Should the 24h verification promise be explicit in product copy before the admin workflow is tested?
 - Should mandatory review mean hard blocking future bookings, or persistent review reminders?
 - Should map/distance be promoted from P2 to required v1 launch scope?
+- Should the existing `Provider.hourlyRate` column be renamed after v1, or kept with adapter-level `startingPrice` naming?
 
 ## Known Starting Point
 
@@ -167,7 +170,7 @@ Implementation notes:
 - Direct booking requests also store economics when an estimated price exists, so completion transactions have a consistent fallback if no final offer is recorded.
 - Booking completion transactions now use stored booking economics for `amount`, `feeAmt`, and `netAmt` instead of re-deriving hardcoded math inline.
 - Shared schemas expose the new economics fields for bookings and final offers.
-- Provider cards and provider profile price surfaces now use starting-from copy (`À partir de ... FC` or `À partir de ... FC/h`).
+- Provider cards and provider profile price surfaces now use starting-from copy. Note: the `FC/h` interpretation from this workstream was superseded by workstream 06; launch pricing must be fixed `À partir de ... FC`.
 - Booking request totals stay labeled as estimates; confirmed/in-progress booking labels now read `Prix convenu`.
 - Removed the launch-facing settings claim that KAYOU takes no commission on cash payment.
 - Existing provider-only booking detail and earnings surfaces continue to show commission/net values, now based on backend economics fields where available.
@@ -294,7 +297,7 @@ Manual routes checked:
 - `Messages → Chat` (client perspective): chat shows agreements without accept/decline; provider CTA labelled `Enregistrer l'accord final`; suggested reply prompts updated agreement copy.
 - `Messages → Chat` (provider perspective): inline form opens with v1 copy and creates a confirmed booking; agreement card surfaces `Voir la réservation` once the booking exists.
 - `Bookings → BookingDetail`: `Accord` section subtitle reads `Accord final confirmé` once the agreement is recorded; `Estimation` only on PENDING; `Demande directe` for direct bookings without quote; cash disclaimer block visible.
-- `Search → ProviderProfile`: sticky rail shows `À partir de … FC /h` and rating chip.
+- `Search → ProviderProfile`: sticky rail shows starting-from pricing and rating chip. Note: workstream 06 must remove the remaining hourly unit.
 - `Search → CreateBooking`: header pricing line, recap line, and total row keep `À partir de` / `Total estimé`; cash protected panel describes the pro confirming the prix final by enregistrant l'accord.
 - `Pro tab → Requests` and `Client tab → Requests`: only mounted when `EXPO_PUBLIC_ENABLE_JOB_REQUESTS=true`; `QuoteCompose` only mounted when either job-requests or quote-marketplace flag is enabled.
 
@@ -331,15 +334,15 @@ Changed files:
 Implementation notes:
 
 - Backend now enforces a max of 3 service categories on `PATCH /providers/me` (the onboarding draft already capped at 3 via `ProviderDraftDto`, and `UpdateProviderDto.categoryIds` now also has `.max(3)`).
-- `OnboardingService.validateForPublish` now requires `yearsOfExperience` to be set, in addition to the existing first/last name, phone, profession, primary category, service zones and hourly rate checks. New regression test `provider publish requires explicit years of experience` covers this.
+- `OnboardingService.validateForPublish` now requires `yearsOfExperience` to be set, in addition to the existing first/last name, phone, profession, primary category, service zones and positive provider price checks. New regression test `provider publish requires explicit years of experience` covers this.
 - Phone verification is not required for publish; `phoneVerifiedAt` continues to gate the verified badge through the existing `/pro/verify` flow only.
 - Web onboarding step 1 replaces the recto/verso click toggles with a deferred-state panel that links the provider to the post-publish verification flow and states "L'équipe KAYOU revoit ton dossier sous 24h pour activer le badge « Vérifié »."
-- Web onboarding step 5 portfolio replaces the fake "click-to-fill" tiles with a deferred panel ("La galerie photos sera activée prochainement"). The misleading green `Nouveau · Vérifié` preview chip on step 6 is now a neutral `Nouveau prestataire` chip and the preview hourly rate uses the starting-from convention with a cash disclaimer.
+- Web onboarding step 5 portfolio replaces the fake "click-to-fill" tiles with a deferred panel ("La galerie photos sera activée prochainement"). The misleading green `Nouveau · Vérifié` preview chip on step 6 is now a neutral `Nouveau prestataire` chip and the preview price uses the starting-from convention with a cash disclaimer. Note: workstream 06 must remove any remaining hourly unit.
 - Mobile onboarding step 1 mirrors the web change: the fake recto/verso tiles are replaced with the same deferred panel, and the step 1 validator no longer requires `id.front`/`id.back`.
-- Mobile onboarding step 4 hint now describes `À partir de … FC/h` and reminds providers that the final price is convenu avec le client. Step 5 portfolio is the same deferred panel as web. The publish preview shows `À partir de` with the cash disclaimer line.
+- Mobile onboarding step 4 reminds providers that the final price is convenu avec le client. Step 5 portfolio is the same deferred panel as web. The publish preview shows `À partir de` with the cash disclaimer line. Note: workstream 06 must remove any remaining hourly unit.
 - Both web and mobile commune lists collapse to Kinshasa only with the full official 24-commune list (Bandalungwa, Barumbu, Bumbu, Gombe, Kalamu, Kasa-Vubu, Kimbanseke, Kinshasa, Kintambo, Kisenso, Lemba, Limete, Lingwala, Makala, Maluku, Masina, Matete, Mont Ngafula, Ndjili, Ngaba, Ngaliema, Ngiri-Ngiri, Nsele, Selembao). Lubumbashi/Brazzaville/Pointe-Noire entries were removed for the v1 Kinshasa-only launch.
 - Verification copy is aligned to "sous 24h" in both `apps/web/src/app/pro/verify/fixtures.ts` and `apps/mobile/src/screens/pro/verifyData.ts`, matching the onboarding publish-step promise.
-- `zoneRadiusKm` continues to live in the onboarding draft JSON; discovery does not read it yet (workstream 06 is P2), so no Prisma schema change was made.
+- `zoneRadiusKm` continues to live in the onboarding draft JSON; discovery does not read it yet (workstream 07 is P2), so no Prisma schema change was made.
 
 Search terms checked:
 
@@ -377,3 +380,34 @@ Schema migration/push:
 Manual/seeded scenario:
 
 - Backend regression coverage in `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`: provider publish now rejects drafts missing `yearsOfExperience` with a `BadRequestException` whose `missing` array contains `yearsOfExperience`, alongside the existing checks for `phone`, `serviceZones`, and `primaryCategoryId`.
+
+### 06 - Fixed Starting Price Model
+
+Status: Not started.
+
+Scope:
+
+- Correct the product mismatch where previous workstreams treated starting-from pricing as hourly pricing.
+- Launch-facing provider prices must be fixed base prices: `À partir de 10 000 FC`.
+- Remove `FC/h`, `/h`, `/heure`, `Tarif horaire`, and hourly-rate wording from launch-facing web/mobile pricing.
+- Direct booking estimates must not multiply provider starting price by duration.
+- Keep final-offer and booking agreed prices as the source of truth for commission economics.
+- Prefer no immediate DB migration: the existing `Provider.hourlyRate` column can temporarily store the starting price while UI/API adapters migrate to `startingPrice` or `basePrice` naming.
+
+Known hotspots from pre-work review:
+
+- `apps/backend/prisma/schema.prisma` has `Provider.hourlyRate`.
+- `packages/schemas/src/dto.ts` exposes `hourlyRate` and `sortBy: "hourlyRate"`.
+- `apps/backend/src/modules/onboarding/onboarding.service.ts` validates `hourlyRate` for publish.
+- `apps/backend/src/modules/providers/providers.service.ts` filters/sorts by `hourlyRate`.
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx` shows `FC/h` and `/h`.
+- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx` computes `total = hourly * duration`.
+- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx` shows `/h`.
+- `apps/mobile/src/components/providers/ProviderCard.tsx` shows `/h`.
+- `apps/mobile/src/screens/booking/BookingScreen.tsx` computes `price = hourlyRate * duration`.
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx` and `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx` still use hourly-rate labels/copy.
+- `packages/ui/src/web/*ProviderCard*`, `packages/ui/src/mobile/*ProviderCard*`, and nearby cards use `hourly` props and hourly suffixes.
+
+Implementation evidence:
+
+- Add changed files and command results when workstream 06 is implemented.

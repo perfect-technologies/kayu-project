@@ -8,7 +8,7 @@ KAYOU v1 should feel like a fast local service marketplace for Kinshasa: people 
 
 ## Launch Truth
 
-1. Provider profiles show starting-from pricing only.
+1. Provider profiles show fixed starting-from pricing only.
 2. The actual final price is agreed in chat or by phone.
 3. Final offer means `accord final`, not `devis a valider`.
 4. Provider creates the final offer after both sides have already agreed.
@@ -56,7 +56,9 @@ Backend may keep `IN_PROGRESS` where already needed, but launch UI should not de
 
 Provider listing/profile pricing is guidance only:
 
-- use `A partir de ... FC` or `A partir de ... FC/h`,
+- use `A partir de ... FC`,
+- do not show `/h`, `/heure`, `FC/h`, or hourly-rate language in launch-facing pricing,
+- do not multiply the starting price by duration for direct booking estimates,
 - do not present it as a guaranteed final price,
 - always clarify that the final price is agreed with the provider.
 
@@ -116,6 +118,7 @@ For v1, commission should be internal unless explicitly approved for provider-fa
 - Provider-created final offer immediately creates or confirms a booking.
 - Booking and final-offer terms match.
 - Starting-from pricing appears consistently across web/mobile.
+- No launch-facing provider pricing is shown as hourly.
 - Online payment and quote marketplace surfaces remain hidden.
 - Cash disclaimer is visible where payment is mentioned.
 - Internal commission tracking is consistent and test-covered.
