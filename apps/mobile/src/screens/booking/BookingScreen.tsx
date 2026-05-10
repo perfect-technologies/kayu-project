@@ -584,7 +584,7 @@ function Step1({
         })}
       </View>
       <Text style={styles.requestedTimeHint}>
-        Le pro confirme ce créneau dans la discussion ou avec une offre finale.
+        Le pro confirme ce créneau dans la discussion ou en enregistrant l'accord final.
       </Text>
 
       <Text style={styles.blockLabel}>Adresse d&apos;intervention</Text>
@@ -660,8 +660,8 @@ function Step2({
         <View style={{ flex: 1 }}>
           <Text style={styles.protectedTitle}>Paiement en espèces à la fin de la mission</Text>
           <Text style={styles.protectedBody}>
-            Ce montant reste une estimation. Le pro peut confirmer l'accord
-            après discussion avec une offre finale.
+            Ce montant reste une estimation. Le pro peut confirmer le prix final
+            après discussion en enregistrant l'accord.
           </Text>
         </View>
       </View>

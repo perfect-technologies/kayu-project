@@ -407,7 +407,13 @@ export function BookingDetailScreen() {
         {/* Final offer / estimate */}
         <MobileSection
           title="Accord"
-          subtitle={booking.quote ? 'Confirmé' : 'Estimation'}
+          subtitle={
+            booking.quote
+              ? 'Accord final confirmé'
+              : booking.status === 'PENDING'
+                ? 'Estimation'
+                : 'Demande directe'
+          }
         >
           <QuoteBreakdown booking={booking} isClient={isClient} />
         </MobileSection>
@@ -674,12 +680,15 @@ function QuoteBreakdown({
     const providerNet = booking.providerNetAmt ?? total - commission;
     const durationHours =
       typeof booking.duration === 'number' ? Math.round((booking.duration / 60) * 10) / 10 : null;
+    const isPending = booking.status === 'PENDING';
+    const priceLabel = isPending ? 'Prix estimé' : 'Prix convenu';
+    const durationLabel = isPending ? 'Durée estimée' : 'Durée convenue';
 
     return (
       <View>
-        <MetaRow label="Prix estimé" value={`${total.toLocaleString('fr-FR')} FC`} />
+        <MetaRow label={priceLabel} value={`${total.toLocaleString('fr-FR')} FC`} />
         <MetaRow
-          label="Durée estimée"
+          label={durationLabel}
           value={durationHours ? `${durationHours} h` : 'À confirmer'}
         />
         <MetaRow label="Paiement" value="Paiement en espèces à la fin de la mission" />

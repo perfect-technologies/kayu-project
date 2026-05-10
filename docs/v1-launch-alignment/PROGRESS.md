@@ -22,7 +22,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 01 - Auto-Confirmed Final Offers | Done | Codex | POST /final-offers now records provider agreement and returns confirmed booking |
 | 02 - Pricing And Commission Policy | Done | Codex | Starting-from pricing and 10% internal economics aligned |
 | 03 - Web V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
-| 04 - Mobile V1 Flow Alignment | Not started | TBD | P0 if mobile launch-facing |
+| 04 - Mobile V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 05 - Provider Onboarding Tightening | Not started | TBD | P1 onboarding and verification cleanup |
 | 06 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
 | 07 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
@@ -250,3 +250,57 @@ Commands run:
 - `pnpm --filter @kayu/schemas build` - passed (refreshed dist after workstream 02 schema additions).
 - `pnpm --filter @kayu/api build` - passed (refreshed dist so `finalOffersApi.create` returns the v1 `{ finalOffer, booking }` shape).
 - `pnpm --filter @kayu/web type-check` - passed.
+
+### 04 - Mobile V1 Flow Alignment
+
+Status: Done on 2026-05-10 by Claude.
+
+Changed files:
+
+- `apps/mobile/src/screens/messages/ChatScreen.tsx`
+- `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx`
+- `apps/mobile/src/screens/booking/BookingScreen.tsx`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- Removed client final-offer accept/decline from the mobile chat: `acceptOfferMutation` and `declineOfferMutation` are gone, and `FinalOfferCard` no longer renders Accepter/Décliner/Discuter buttons. The card now exposes a single `Voir la réservation` action when a booking is linked and the agreement is live.
+- `FinalOfferCard` status labels read `Accord enregistré`, `Accord confirmé`, `Accord remplacé`, `Accord annulé`, `Accord expiré`, with a success-style chip for live agreements and a muted chip for cancelled/expired records. Header overline reads `Accord final`.
+- Provider create-offer mutation now warms the booking detail cache, invalidates booking list/detail queries, and surfaces an `Accord final enregistré : ...` system message. Error toasts and validation copy updated to "Accord final".
+- Provider chat CTA renamed from `Envoyer une offre finale` to `Enregistrer l'accord final`. Inline form header reads `Enregistrer l'accord` with a sub-line confirming the booking is created immediately. Submit button reads `Enregistrer l'accord` (busy: `Enregistrement...`).
+- Suggested chat reply updated from `Pouvez-vous m'envoyer une offre finale ?` to `Pouvez-vous enregistrer l'accord final ?`.
+- Booking detail accord section subtitle now reads `Accord final confirmé` when a quote exists, `Estimation` only while pending, and `Demande directe` once the booking is past `PENDING` without a stored quote. Non-pending direct bookings show `Prix convenu` / `Durée convenue` instead of the estimated labels.
+- Booking flow recap and date hint copy updated: replaced references to `offre finale` with `accord final` and clarified that the pro can confirm the price by enregistrant l'accord.
+- Pricing across mobile (`ProviderProfileScreen` sticky bar, `ProviderCard`, booking flow header/footer/recap, booking detail price label via `bookingV2.priceLabelFor`) already follows the starting-from convention from workstream 02; no additional changes were required.
+- Cash payment copy remains visible on the agreement card, the inline final-offer form, the booking detail help/footer block, and the booking-flow recap protected panel.
+- Job request and quote marketplace screens (`JobRequestsScreen`, `ClientRequestsScreen`, `QuoteComposeScreen`) and their nav entries remain gated behind `launchFlags.enableJobRequests` / `launchFlags.enableQuoteMarketplace` and stay hidden by default. No mobile-facing online-payment, mobile-money, escrow, payout, or invoice copy was introduced.
+
+Search terms checked (mobile src):
+
+- `Accepter` / `Décliner` / `Refuser` — only remaining usages are the provider booking-request accept/decline (PENDING booking flow) and the flag-gated job-requests/quotes screens; no final-offer accept/decline UI remains.
+- `Offre finale` / `offre finale` — replaced with `Accord final` / `accord final` in chat, booking flow, and recap copy.
+- `paiement en ligne` / `paiement sécuris` / `Mobile Money` / `mpesa` / `airtel` / `orange money` / `escrow` / `stripe` — only present inside flag-gated provider screens (`EarningsScreen`, `JobRequestsScreen`, `QuoteComposeScreen`, `ProviderOnboardingScreen` payment method enum); no client launch-facing usage.
+- `À partir de` / `A partir de` — present on `ProviderCard`, `ProviderProfileScreen` sticky bar, `BookingScreen` header/footer/recap.
+- `Prix convenu` — added to booking detail for non-pending direct bookings; preserved from workstream 02 inside `bookingV2.priceLabelFor`.
+- `payout` / `Payouts` — only inside flag-gated job-request/quote screens.
+
+Manual routes checked:
+
+- `Messages → Chat` (client perspective): chat shows agreements without accept/decline; provider CTA labelled `Enregistrer l'accord final`; suggested reply prompts updated agreement copy.
+- `Messages → Chat` (provider perspective): inline form opens with v1 copy and creates a confirmed booking; agreement card surfaces `Voir la réservation` once the booking exists.
+- `Bookings → BookingDetail`: `Accord` section subtitle reads `Accord final confirmé` once the agreement is recorded; `Estimation` only on PENDING; `Demande directe` for direct bookings without quote; cash disclaimer block visible.
+- `Search → ProviderProfile`: sticky rail shows `À partir de … FC /h` and rating chip.
+- `Search → CreateBooking`: header pricing line, recap line, and total row keep `À partir de` / `Total estimé`; cash protected panel describes the pro confirming the prix final by enregistrant l'accord.
+- `Pro tab → Requests` and `Client tab → Requests`: only mounted when `EXPO_PUBLIC_ENABLE_JOB_REQUESTS=true`; `QuoteCompose` only mounted when either job-requests or quote-marketplace flag is enabled.
+
+Commands run:
+
+- `pnpm --filter @kayu/mobile type-check` - passed.
+
+Schema migration/push:
+
+- Not run. Workstream 04 is mobile-only and depends on schema/API changes already shipped in workstreams 01–02.
+
+Manual/seeded scenario:
+
+- Not exercised on a device/simulator in this session. Behavior validated through TS type-check and code-level review of the cache invalidation, navigation, and copy paths described above. Device walkthrough is recommended as part of workstream 07 QA.

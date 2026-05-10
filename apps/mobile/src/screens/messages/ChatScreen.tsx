@@ -29,7 +29,7 @@ type Route = RouteProp<MessagesStackParamList, 'Chat'>;
 
 const SUGGESTED_REPLIES = [
   'Merci beaucoup !',
-  "Pouvez-vous m'envoyer une offre finale ?",
+  "Pouvez-vous enregistrer l'accord final ?",
   'À quelle heure serez-vous disponible ?',
   'Ça marche pour moi.',
 ];
@@ -233,7 +233,7 @@ export function ChatScreen() {
         throw new Error('Profil prestataire introuvable.');
       }
       if (!currentConversationId) {
-        throw new Error('Envoyez un message avant de créer une offre finale.');
+        throw new Error("Envoyez un message avant d'enregistrer un accord final.");
       }
       if (!offerTitle.trim()) {
         throw new Error('Ajoutez un titre de service.');
@@ -267,54 +267,37 @@ export function ChatScreen() {
       setOfferAddress('');
       setOfferDate(defaultOfferDate());
       await sendMut.mutateAsync(
-        `Offre finale envoyée : ${result.finalOffer.title} · ${result.finalOffer.price.toLocaleString('fr-FR')} FC · paiement en espèces à la fin de la mission.`,
+        `Accord final enregistré : ${result.finalOffer.title} · ${result.finalOffer.price.toLocaleString('fr-FR')} FC · paiement en espèces à la fin de la mission.`,
       );
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.finalOffers.all({ conversationId: currentConversationId }),
-      });
-    },
-    onError: (err: Error) => {
-      Alert.alert('Offre finale impossible', err.message);
-    },
-  });
-
-  const acceptOfferMutation = useMutation({
-    mutationFn: (offerId: string) => api.finalOffers.accept(offerId),
-    onSuccess: (result) => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.finalOffers.all({ conversationId: currentConversationId }),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      queryClient.setQueryData(queryKeys.bookings.detail(result.booking.id), {
-        success: true,
-        booking: result.booking,
-      });
-      const parent = navigation.getParent();
-      (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
-        'Bookings',
-        {
-          screen: 'BookingDetail',
-          params: { bookingId: result.booking.id },
-        },
-      );
+      if (result.booking?.id) {
+        queryClient.setQueryData(queryKeys.bookings.detail(result.booking.id), {
+          success: true,
+          booking: result.booking,
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.bookings.detail(result.booking.id),
+        });
+      }
     },
     onError: (err: Error) => {
-      Alert.alert('Action impossible', err.message);
+      Alert.alert('Accord final impossible', err.message);
     },
   });
 
-  const declineOfferMutation = useMutation({
-    mutationFn: (offerId: string) => api.finalOffers.decline(offerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.finalOffers.all({ conversationId: currentConversationId }),
-      });
-      send('Je préfère continuer la discussion avant de valider.');
-    },
-    onError: (err: Error) => {
-      Alert.alert('Action impossible', err.message);
-    },
-  });
+  const openBooking = (bookingId: string) => {
+    const parent = navigation.getParent();
+    (parent as unknown as { navigate: (tab: string, params: object) => void } | undefined)?.navigate(
+      'Bookings',
+      {
+        screen: 'BookingDetail',
+        params: { bookingId },
+      },
+    );
+  };
 
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && !sendMut.isPending;
@@ -387,11 +370,7 @@ export function ChatScreen() {
             <FinalOfferCard
               key={offer.id}
               offer={offer}
-              isClient={user?.role !== 'PROVIDER'}
-              busy={acceptOfferMutation.isPending || declineOfferMutation.isPending}
-              onAccept={() => acceptOfferMutation.mutate(offer.id)}
-              onDecline={() => declineOfferMutation.mutate(offer.id)}
-              onDiscuss={() => setDraft('Discutons encore de cette offre finale.')}
+              onOpenBooking={openBooking}
             />
           ))}
           {user?.role === 'PROVIDER' && offerOpen ? (
@@ -444,7 +423,7 @@ export function ChatScreen() {
           <Pressable
             style={[styles.offerCta, offerOpen && styles.offerCtaActive]}
             accessibilityRole="button"
-            accessibilityLabel="Envoyer une offre finale"
+            accessibilityLabel="Enregistrer l'accord final"
             onPress={() => setOfferOpen((open) => !open)}
           >
             <I.coins
@@ -457,7 +436,7 @@ export function ChatScreen() {
                 offerOpen && styles.offerCtaTextActive,
               ]}
             >
-              Envoyer une offre finale
+              Enregistrer l'accord final
             </Text>
           </Pressable>
         </View>
@@ -500,27 +479,23 @@ export function ChatScreen() {
 
 function FinalOfferCard({
   offer,
-  isClient,
-  busy,
-  onAccept,
-  onDecline,
-  onDiscuss,
+  onOpenBooking,
 }: {
   offer: FinalOffer;
-  isClient: boolean;
-  busy: boolean;
-  onAccept: () => void;
-  onDecline: () => void;
-  onDiscuss: () => void;
+  onOpenBooking: (bookingId: string) => void;
 }) {
   const statusLabel: Record<FinalOffer['status'], string> = {
-    PENDING: 'En attente',
-    ACCEPTED: 'Acceptée',
-    DECLINED: 'Refusée',
-    CANCELLED: 'Annulée',
-    EXPIRED: 'Expirée',
+    PENDING: 'Accord enregistré',
+    ACCEPTED: 'Accord confirmé',
+    DECLINED: 'Accord remplacé',
+    CANCELLED: 'Accord annulé',
+    EXPIRED: 'Accord expiré',
   };
-  const canAct = isClient && offer.status === 'PENDING';
+  const isCancelled = offer.status === 'CANCELLED' || offer.status === 'EXPIRED';
+  const bookingId =
+    (offer as { bookingId?: string | null }).bookingId ??
+    (offer as { booking?: { id?: string | null } | null }).booking?.id ??
+    null;
 
   return (
     <View style={styles.offerCard}>
@@ -529,11 +504,23 @@ function FinalOfferCard({
           <I.coins size={16} color={theme.colors.primaryHover} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.offerOverline}>Offre finale</Text>
+          <Text style={styles.offerOverline}>Accord final</Text>
           <Text style={styles.offerTitle}>{offer.title}</Text>
         </View>
-        <View style={styles.offerStatusChip}>
-          <Text style={styles.offerStatusText}>{statusLabel[offer.status]}</Text>
+        <View
+          style={[
+            styles.offerStatusChip,
+            isCancelled && styles.offerStatusChipMuted,
+          ]}
+        >
+          <Text
+            style={[
+              styles.offerStatusText,
+              isCancelled && styles.offerStatusTextMuted,
+            ]}
+          >
+            {statusLabel[offer.status]}
+          </Text>
         </View>
       </View>
       <Text style={styles.offerPrice}>
@@ -561,37 +548,22 @@ function FinalOfferCard({
           Paiement en espèces à la fin de la mission.
         </Text>
       </View>
-      {canAct ? (
-        <View style={styles.offerActions}>
-          <Pressable
-            style={[styles.offerSecondaryButton, { flex: 1 }]}
-            disabled={busy}
-            onPress={onDecline}
-          >
-            <Text style={styles.offerSecondaryText}>Décliner</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.offerSecondaryButton, { flex: 1.3 }]}
-            disabled={busy}
-            onPress={onDiscuss}
-          >
-            <Text style={styles.offerSecondaryText}>Discuter</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.offerPrimaryButton, { flex: 1 }]}
-            disabled={busy}
-            onPress={onAccept}
-          >
-            <Text style={styles.offerPrimaryText}>Accepter</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Text style={styles.offerWaiting}>
-          {offer.status === 'PENDING'
-            ? 'En attente de réponse client.'
-            : 'La conversation reste ouverte dans ce fil.'}
+      {!isCancelled && bookingId ? (
+        <Pressable
+          style={styles.offerSecondaryButton}
+          onPress={() => onOpenBooking(bookingId)}
+          accessibilityRole="button"
+          accessibilityLabel="Voir la réservation"
+        >
+          <Text style={styles.offerSecondaryText}>Voir la réservation</Text>
+          <I.arrowRight size={14} color={theme.colors.textPrimary} />
+        </Pressable>
+      ) : null}
+      {!isCancelled ? (
+        <Text style={styles.offerHint}>
+          Si les termes doivent être ajustés, continuez la discussion dans ce fil.
         </Text>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -655,8 +627,11 @@ function FinalOfferForm({
           <I.fileText size={16} color={theme.colors.primaryHover} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.offerOverline}>Offre finale</Text>
-          <Text style={styles.offerTitle}>Accord à envoyer</Text>
+          <Text style={styles.offerOverline}>Accord final</Text>
+          <Text style={styles.offerTitle}>Enregistrer l'accord</Text>
+          <Text style={styles.offerHint}>
+            La réservation est confirmée dès que l'accord est enregistré.
+          </Text>
         </View>
       </View>
       <TextInput
@@ -725,7 +700,7 @@ function FinalOfferForm({
           onPress={onSubmit}
         >
           <Text style={styles.offerPrimaryText}>
-            {busy ? 'Envoi...' : "Envoyer l'offre finale"}
+            {busy ? 'Enregistrement...' : "Enregistrer l'accord"}
           </Text>
         </Pressable>
       </View>
@@ -918,13 +893,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.primarySubtle,
+    backgroundColor: theme.colors.successSubtle,
+  },
+  offerStatusChipMuted: {
+    backgroundColor: theme.colors.surfaceMuted,
   },
   offerStatusText: {
     fontFamily: theme.fonts.bodySemi,
     fontSize: 11,
     fontWeight: '700',
-    color: theme.colors.primaryHover,
+    color: theme.colors.success,
+  },
+  offerStatusTextMuted: {
+    color: theme.colors.textMuted,
   },
   offerBody: {
     fontFamily: theme.fonts.body,
@@ -969,10 +950,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textBody,
   },
-  offerWaiting: {
-    fontFamily: theme.fonts.bodySemi,
-    fontSize: 13,
-    color: theme.colors.primaryHover,
+  offerHint: {
+    fontFamily: theme.fonts.body,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
   },
   offerActions: {
     flexDirection: 'row',
@@ -1000,6 +982,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
     paddingHorizontal: 12,
   },
   offerSecondaryText: {
