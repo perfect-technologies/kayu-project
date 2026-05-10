@@ -271,7 +271,7 @@ export function BookingDetail({
 
             <WebCard
               title="Accord"
-              subtitle={booking.quote ? "Offre finale acceptée" : "Demande directe"}
+              subtitle={booking.quote ? "Accord final confirmé" : "Demande directe"}
             >
               <QuoteBreakdown booking={booking} isClient={isClient} />
             </WebCard>
@@ -680,8 +680,9 @@ function QuoteBreakdown({
             fontSize: 13,
           }}
         >
-          Montant estimé à la réservation. Le prestataire peut confirmer une
-          offre finale après discussion.
+          {booking.status === "PENDING"
+            ? "Montant estimé à la réservation. Le prestataire enregistre l'accord final après discussion pour confirmer la réservation."
+            : "Prix convenu avec le prestataire. Réglement en espèces à la fin de la mission."}
         </div>
       )}
       <div
@@ -695,7 +696,11 @@ function QuoteBreakdown({
         }}
       >
         <span style={{ fontFamily: "var(--k-font-display)", fontWeight: 700, fontSize: 14 }}>
-          {lines && lines.length > 0 ? "Total" : "Estimation"}
+          {lines && lines.length > 0
+            ? "Total"
+            : booking.status === "PENDING"
+              ? "Estimation"
+              : "Prix convenu"}
         </span>
         <span
           className="k-price"

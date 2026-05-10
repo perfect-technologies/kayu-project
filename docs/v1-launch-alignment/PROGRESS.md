@@ -21,7 +21,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 00 - Product Contract | Done | Planning | Revised v1 launch truth documented |
 | 01 - Auto-Confirmed Final Offers | Done | Codex | POST /final-offers now records provider agreement and returns confirmed booking |
 | 02 - Pricing And Commission Policy | Done | Codex | Starting-from pricing and 10% internal economics aligned |
-| 03 - Web V1 Flow Alignment | Not started | TBD | P0 if web launch-facing |
+| 03 - Web V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 04 - Mobile V1 Flow Alignment | Not started | TBD | P0 if mobile launch-facing |
 | 05 - Provider Onboarding Tightening | Not started | TBD | P1 onboarding and verification cleanup |
 | 06 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
@@ -204,3 +204,49 @@ Schema migration/push:
 Manual/seeded scenario:
 
 - Covered by backend unit and launch harness tests: provider-created final offers store `commissionPct: 10`, gross price, commission amount, provider net, and pass those economics to the confirmed booking and earning transaction.
+
+### 03 - Web V1 Flow Alignment
+
+Status: Done on 2026-05-10 by Claude.
+
+Changed files:
+
+- `apps/web/src/app/messages/MessagesClient.tsx`
+- `apps/web/src/components/bookings/BookingDetail.tsx`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- Removed client final-offer accept/decline UI from the chat thread: `acceptOffer`/`declineOffer` mutations and props are gone, and the `FinalOfferCard` no longer renders Accepter/Décliner buttons.
+- `FinalOfferCard` now presents the agreement as a confirmed accord. Status labels read `Accord enregistré`, `Accord confirmé`, `Accord remplacé`, `Accord annulé`, `Accord expiré`, with a success-style chip for live agreements and a muted chip for cancelled ones.
+- When the agreement has a linked booking, the card exposes a `Voir la réservation` action that routes to `/bookings/:id`. Provider create-offer mutation now invalidates booking list/detail caches alongside the existing message and final-offer caches.
+- Provider-side dialog renamed to `Enregistrer l'accord final` with copy stating the booking is confirmed immediately. Header CTA reads `Enregistrer l'accord` (mobile: `Accord`).
+- Booking detail `Accord` card subtitle updated from `Offre finale acceptée` to `Accord final confirmé`. Quote breakdown footer now shows `Prix convenu` instead of `Estimation` once the booking is past `PENDING`, and the empty-state copy distinguishes pending estimations from already-agreed bookings.
+- Cash disclaimer remains visible on the offer card, the booking detail sidebar, the provider profile booking rail, and the booking flow recap.
+- Pricing across web (`ProviderProfileClient`, booking flow recap, `BookingForm`, `ServiceCard`, mobile bottom bar) already follows the starting-from convention from workstream 02; no additional changes were required.
+- Quote/devis (`/quotes/[id]`, `/pro/devis/new`) and job-request (`/pro/requests`, dashboard quick action, AppShell nav, provider dashboard inbox) routes remain gated behind `launchFlags.enableQuoteMarketplace` / `launchFlags.enableJobRequests` and stay hidden by default.
+- Settings still surfaces Mobile Money & paiement en ligne with a `ComingLaterChip` so it is not presented as a launch-facing capability; admin payouts UI is internal and out of launch scope.
+
+Search terms checked (web src, launch-facing surfaces):
+
+- `Accepter` / `Décliner` / `Refuser` — no remaining final-offer accept/decline CTAs in `messages` flow.
+- `Offre finale` — replaced with `Accord final` / `Accord` in chat surfaces.
+- `paiement en ligne` / `paiement sécuris` / `Mobile Money` / `mpesa` / `airtel` / `orange money` / `escrow` / `stripe` — only present in Settings ("Coming later"), provider onboarding payout config, and admin/internal surfaces.
+- `À partir de` / `A partir de` — present on provider rail, provider mobile bar, booking flow recap, BookingForm, ServiceCard, PremiumUpsell.
+- `Prix convenu` — added to booking detail footer for non-pending bookings; preserved from workstream 02 for booking detail price label.
+- `payout` / `Payouts` — only inside admin internal section (out of launch scope).
+
+Manual routes checked:
+
+- `/messages` — chat shows agreements without accept/decline; provider button labelled `Enregistrer l'accord`.
+- `/bookings/:id` — `Accord final confirmé` subtitle; cash disclaimer visible; price label `Prix convenu` once confirmed/in-progress/completed.
+- `/providers/:id` — sticky rail uses `À partir de` and cash disclaimer; mobile bottom bar mirrors copy.
+- `/book/:providerId` — recap uses `À partir de … FC × Nh`, `Total estimé`, cash disclaimer.
+- `/services` — provider cards inherit shared `À partir de` UI (workstream 02).
+- `/quotes/:id`, `/pro/devis/new`, `/pro/requests` — return 404 unless `NEXT_PUBLIC_ENABLE_QUOTE_MARKETPLACE` / `NEXT_PUBLIC_ENABLE_JOB_REQUESTS` flags are set.
+
+Commands run:
+
+- `pnpm --filter @kayu/schemas build` - passed (refreshed dist after workstream 02 schema additions).
+- `pnpm --filter @kayu/api build` - passed (refreshed dist so `finalOffersApi.create` returns the v1 `{ finalOffer, booking }` shape).
+- `pnpm --filter @kayu/web type-check` - passed.

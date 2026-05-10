@@ -252,8 +252,9 @@ function MessagesClientInner() {
 
   const finalOffers = finalOfferData?.finalOffers ?? [];
 
-  const acceptOffer = useMutation({
-    mutationFn: (id: string) => finalOffersApi(apiClient).accept(id),
+  const createOffer = useMutation({
+    mutationFn: (data: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0]) =>
+      finalOffersApi(apiClient).create(data),
     onSuccess: (result) => {
       if (activeId) {
         queryClient.invalidateQueries({
@@ -263,35 +264,13 @@ function MessagesClientInner() {
           queryKey: queryKeys.messages.conversation(activeId),
         });
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.bookings.detail(result.booking.id),
-      });
-      router.push(`/bookings/${result.booking.id}`);
-    },
-  });
-
-  const declineOffer = useMutation({
-    mutationFn: (id: string) => finalOffersApi(apiClient).decline(id),
-    onSuccess: () => {
-      if (activeId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.finalOffers.all(finalOfferParams),
-        });
-      }
-    },
-  });
-
-  const createOffer = useMutation({
-    mutationFn: (data: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0]) =>
-      finalOffersApi(apiClient).create(data),
-    onSuccess: () => {
-      if (activeId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.finalOffers.all(finalOfferParams),
-        });
-      }
       queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
+      if (result?.booking?.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.bookings.detail(result.booking.id),
+        });
+      }
     },
   });
 
@@ -493,13 +472,10 @@ function MessagesClientInner() {
             providerId={providerDashboard?.provider?.id ?? null}
             onSend={(text) => sendMut.mutate(text)}
             onCreateOffer={(offer) => createOffer.mutateAsync(offer)}
-            onAcceptOffer={(id) => acceptOffer.mutate(id)}
-            onDeclineOffer={(id) => declineOffer.mutate(id)}
+            onOpenBooking={(id) => router.push(`/bookings/${id}`)}
             onBack={() => setActiveId(null)}
             sending={sendMut.isPending}
-            offerBusy={
-              createOffer.isPending || acceptOffer.isPending || declineOffer.isPending
-            }
+            offerBusy={createOffer.isPending}
           />
         ) : convLoading ? (
           <div
@@ -692,8 +668,7 @@ function ThreadView({
   providerId,
   onSend,
   onCreateOffer,
-  onAcceptOffer,
-  onDeclineOffer,
+  onOpenBooking,
   onBack,
   sending,
   offerBusy,
@@ -711,8 +686,7 @@ function ThreadView({
   onCreateOffer: (
     offer: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0],
   ) => Promise<unknown>;
-  onAcceptOffer: (id: string) => void;
-  onDeclineOffer: (id: string) => void;
+  onOpenBooking: (bookingId: string) => void;
   onBack: () => void;
   sending: boolean;
   offerBusy: boolean;
@@ -814,8 +788,8 @@ function ThreadView({
         </div>
         {myRole === "PROVIDER" && (
           <button
-            title="Envoyer une offre finale"
-            aria-label="Envoyer une offre finale"
+            title="Enregistrer l'accord final"
+            aria-label="Enregistrer l'accord final"
             onClick={() => setOfferOpen(true)}
             disabled={!canSendOffer}
             className="k-btn k-btn-primary k-btn-sm"
@@ -826,8 +800,8 @@ function ThreadView({
             }}
           >
             <I.coins size={15} />
-            <span className="k-messages-offer-label">Envoyer une offre finale</span>
-            <span className="k-messages-offer-label-mobile">Offre finale</span>
+            <span className="k-messages-offer-label">Enregistrer l'accord</span>
+            <span className="k-messages-offer-label-mobile">Accord</span>
           </button>
         )}
       </div>
@@ -887,10 +861,7 @@ function ThreadView({
                   <FinalOfferCard
                     key={offer.id}
                     offer={offer}
-                    myRole={myRole}
-                    busy={offerBusy}
-                    onAccept={() => onAcceptOffer(offer.id)}
-                    onDecline={() => onDeclineOffer(offer.id)}
+                    onOpenBooking={onOpenBooking}
                   />
                 ))}
               </div>
@@ -1025,18 +996,11 @@ function ThreadView({
 
 function FinalOfferCard({
   offer,
-  myRole,
-  busy,
-  onAccept,
-  onDecline,
+  onOpenBooking,
 }: {
   offer: FinalOffer;
-  myRole: "CLIENT" | "PROVIDER" | "ADMIN" | null;
-  busy: boolean;
-  onAccept: () => void;
-  onDecline: () => void;
+  onOpenBooking: (bookingId: string) => void;
 }) {
-  const canAct = myRole === "CLIENT" && offer.status === "PENDING";
   const scheduled = new Date(offer.scheduledDate);
   const dateLabel = Number.isNaN(scheduled.getTime())
     ? "Date à confirmer"
@@ -1047,13 +1011,15 @@ function FinalOfferCard({
         hour: "2-digit",
         minute: "2-digit",
       });
+  const isCancelled = offer.status === "CANCELLED";
   const statusLabel: Record<FinalOffer["status"], string> = {
-    PENDING: "En attente",
-    ACCEPTED: "Acceptée",
-    DECLINED: "Refusée",
-    CANCELLED: "Annulée",
-    EXPIRED: "Expirée",
+    PENDING: "Accord enregistré",
+    ACCEPTED: "Accord confirmé",
+    DECLINED: "Accord remplacé",
+    CANCELLED: "Accord annulé",
+    EXPIRED: "Accord expiré",
   };
+  const bookingId = offer.bookingId ?? offer.booking?.id ?? null;
 
   return (
     <div
@@ -1068,7 +1034,7 @@ function FinalOfferCard({
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
         <div style={{ minWidth: 0 }}>
           <div className="k-overline" style={{ color: "var(--k-primary)" }}>
-            Offre finale
+            Accord final
           </div>
           <div
             style={{
@@ -1082,7 +1048,10 @@ function FinalOfferCard({
             {offer.title}
           </div>
         </div>
-        <span className="k-chip k-chip-sm k-chip-primary">
+        <span
+          className={`k-chip k-chip-sm ${isCancelled ? "" : "k-chip-success"}`}
+          style={isCancelled ? { background: "var(--k-surface-muted)", color: "var(--k-text-muted)" } : undefined}
+        >
           {statusLabel[offer.status]}
         </span>
       </div>
@@ -1127,29 +1096,18 @@ function FinalOfferCard({
       >
         Paiement en espèces à la fin de la mission.
       </div>
-      {canAct && (
-        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-          <button
-            className="k-btn k-btn-primary"
-            style={{ flex: 1 }}
-            disabled={busy}
-            onClick={onAccept}
-          >
-            <I.check size={14} /> Accepter
-          </button>
-          <button
-            className="k-btn k-btn-secondary"
-            style={{ flex: 1 }}
-            disabled={busy}
-            onClick={onDecline}
-          >
-            <I.x size={14} /> Décliner
-          </button>
-        </div>
+      {!isCancelled && bookingId && (
+        <button
+          className="k-btn k-btn-secondary"
+          style={{ width: "100%", marginTop: 12 }}
+          onClick={() => onOpenBooking(bookingId)}
+        >
+          Voir la réservation <I.arrowRight size={13} />
+        </button>
       )}
-      {canAct && (
+      {!isCancelled && (
         <div className="k-caption" style={{ marginTop: 8, color: "var(--k-text-muted)" }}>
-          Pour continuer la discussion, répondez simplement dans le fil.
+          Si les termes doivent être ajustés, continuez la discussion dans le fil.
         </div>
       )}
     </div>
@@ -1284,10 +1242,10 @@ function FinalOfferDialog({
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <div>
             <h2 className="k-display-m" style={{ margin: 0, fontSize: 22 }}>
-              Envoyer une offre finale
+              Enregistrer l'accord final
             </h2>
             <p className="k-body-m" style={{ color: "var(--k-text-muted)", margin: "4px 0 0" }}>
-              Résumez simplement l'accord discuté dans ce fil.
+              Résumez l'accord déjà convenu dans ce fil. La réservation est confirmée immédiatement.
             </p>
           </div>
           <button
@@ -1408,7 +1366,7 @@ function FinalOfferDialog({
             disabled={busy || !title.trim() || !price.trim()}
             onClick={submit}
           >
-            Envoyer l'offre finale
+            Confirmer l'accord
           </button>
         </div>
       </div>
