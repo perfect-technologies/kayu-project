@@ -11,6 +11,9 @@ import {
   MessageCircle,
   Star,
   CreditCard,
+  FileText,
+  Handshake,
+  Briefcase,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -31,6 +34,13 @@ type NotificationType =
   | 'PAYMENT_RECEIVED'
   | 'CERTIFICATION_VERIFIED'
   | 'BADGE_EARNED'
+  | 'JOB_REQUEST_NEW'
+  | 'QUOTE_RECEIVED'
+  | 'QUOTE_ACCEPTED'
+  | 'QUOTE_DECLINED'
+  | 'FINAL_OFFER_RECEIVED'
+  | 'FINAL_OFFER_ACCEPTED'
+  | 'FINAL_OFFER_DECLINED'
   | 'SYSTEM';
 
 interface Notification {
@@ -62,6 +72,13 @@ const notificationIcons: Record<NotificationType, typeof Bell> = {
   PAYMENT_RECEIVED: CreditCard,
   CERTIFICATION_VERIFIED: CheckCircle,
   BADGE_EARNED: Star,
+  JOB_REQUEST_NEW: Briefcase,
+  QUOTE_RECEIVED: FileText,
+  QUOTE_ACCEPTED: CheckCircle,
+  QUOTE_DECLINED: XCircle,
+  FINAL_OFFER_RECEIVED: Handshake,
+  FINAL_OFFER_ACCEPTED: CheckCircle,
+  FINAL_OFFER_DECLINED: XCircle,
   SYSTEM: Bell,
 };
 
@@ -77,6 +94,13 @@ const notificationColors: Record<NotificationType, string> = {
   PAYMENT_RECEIVED: 'text-emerald-500 bg-emerald-100',
   CERTIFICATION_VERIFIED: 'text-green-500 bg-green-100',
   BADGE_EARNED: 'text-amber-500 bg-amber-100',
+  JOB_REQUEST_NEW: 'text-blue-500 bg-blue-100',
+  QUOTE_RECEIVED: 'text-blue-500 bg-blue-100',
+  QUOTE_ACCEPTED: 'text-green-500 bg-green-100',
+  QUOTE_DECLINED: 'text-red-500 bg-red-100',
+  FINAL_OFFER_RECEIVED: 'text-blue-500 bg-blue-100',
+  FINAL_OFFER_ACCEPTED: 'text-green-500 bg-green-100',
+  FINAL_OFFER_DECLINED: 'text-red-500 bg-red-100',
   SYSTEM: 'text-gray-500 bg-gray-100',
 };
 
@@ -160,8 +184,9 @@ export function NotificationList({
         <ScrollArea className={cn('pr-4', compact ? 'max-h-64' : 'max-h-96')}>
           <div className="space-y-3">
             {notifications.map((notification) => {
-              const Icon = notificationIcons[notification.type];
-              const colorClass = notificationColors[notification.type];
+              const Icon = notificationIcons[notification.type] ?? Bell;
+              const colorClass =
+                notificationColors[notification.type] ?? notificationColors.SYSTEM;
 
               return (
                 <div
