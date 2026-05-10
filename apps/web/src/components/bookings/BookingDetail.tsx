@@ -1,11 +1,15 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { bookingsApi, queryKeys } from "@kayu/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { bookingsApi, finalOffersApi, queryKeys } from "@kayu/api";
+import type { FinalOffer } from "@kayu/schemas";
+import { formatMoneyFc } from "@kayu/ui";
 import { apiClient } from "@/lib/api";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { I } from "@kayu/ui/web";
+import { FinalOfferDialog } from "@/components/bookings/FinalOfferDialog";
 import {
   formatRelativeFR,
   formatWhen,
@@ -169,6 +173,55 @@ export function BookingDetail({
     },
   });
 
+  const [offerOpen, setOfferOpen] = useState(false);
+  const offerQueryParams = useMemo(() => ({ bookingId: booking.id }), [booking.id]);
+  const { data: offersData } = useQuery({
+    queryKey: queryKeys.finalOffers.all(offerQueryParams),
+    queryFn: () => finalOffersApi(apiClient).getAll(offerQueryParams),
+    enabled: !!booking.id,
+  });
+  const bookingOffers = offersData?.finalOffers ?? [];
+  const activeOffer = useMemo(() => {
+    const accepted = bookingOffers.find((o) => o.status === "ACCEPTED");
+    if (accepted) return accepted;
+    return bookingOffers.find((o) => o.status === "PENDING") ?? null;
+  }, [bookingOffers]);
+  const createOffer = useMutation({
+    mutationFn: (data: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0]) =>
+      finalOffersApi(apiClient).create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.finalOffers.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+    },
+  });
+  const providerRecordId = booking.provider?.id ?? null;
+  const clientUserId = booking.client?.id ?? booking.clientId ?? null;
+  const isLockedStatus =
+    booking.status === "COMPLETED" || booking.status === "CANCELLED";
+  const canRecordOffer =
+    !isClient && !isLockedStatus && !!providerRecordId && !!clientUserId;
+  const scheduledForOffer = (() => {
+    const source = activeOffer?.scheduledDate ?? booking.scheduledDate;
+    if (!source) return undefined;
+    return source instanceof Date ? source : new Date(source);
+  })();
+  const offerInitialValues = {
+    title: activeOffer?.title ?? booking.title ?? "",
+    description: activeOffer?.description ?? booking.description ?? "",
+    price: activeOffer?.price ?? booking.price ?? "",
+    durationHours:
+      activeOffer?.duration != null
+        ? String(Math.max(0.25, activeOffer.duration / 60))
+        : undefined,
+    scheduledDate: scheduledForOffer,
+    address: activeOffer?.address ?? booking.address ?? "",
+    city: activeOffer?.city ?? booking.city ?? "Kinshasa",
+    notes: activeOffer?.notes ?? "",
+  };
+  const adjustingOffer = !!activeOffer;
+
   const onConfirmPayment = () => {
     updateMutation.mutate({ isPaid: true, paymentMethod: "cash" });
   };
@@ -271,9 +324,35 @@ export function BookingDetail({
 
             <WebCard
               title="Accord"
-              subtitle={booking.quote ? "Accord final confirmé" : "Demande directe"}
+              subtitle={
+                activeOffer
+                  ? "Accord final confirmé"
+                  : booking.quote
+                    ? "Accord final confirmé"
+                    : "Demande directe"
+              }
             >
-              <QuoteBreakdown booking={booking} isClient={isClient} />
+              {activeOffer ? (
+                <BookingFinalOfferCard
+                  offer={activeOffer}
+                  isClient={isClient}
+                  canAdjust={canRecordOffer}
+                  onAdjust={() => setOfferOpen(true)}
+                />
+              ) : (
+                <>
+                  <QuoteBreakdown booking={booking} isClient={isClient} />
+                  {canRecordOffer && booking.status === "PENDING" && (
+                    <button
+                      onClick={() => setOfferOpen(true)}
+                      className="k-btn k-btn-primary"
+                      style={{ marginTop: 16, width: "100%" }}
+                    >
+                      <I.coins size={14} /> Enregistrer l'accord final
+                    </button>
+                  )}
+                </>
+              )}
             </WebCard>
 
             <WebCard title={isClient ? "Adresse d'intervention" : "Adresse client"}>
@@ -401,6 +480,25 @@ export function BookingDetail({
             </div>
           </aside>
         </div>
+      {canRecordOffer && providerRecordId && clientUserId && (
+        <FinalOfferDialog
+          open={offerOpen}
+          onOpenChange={setOfferOpen}
+          providerId={providerRecordId}
+          clientId={clientUserId}
+          bookingId={booking.id}
+          initialValues={offerInitialValues}
+          heading={adjustingOffer ? "Ajuster l'accord final" : "Enregistrer l'accord final"}
+          subheading={
+            adjustingOffer
+              ? "L'accord précédent sera remplacé par cette mise à jour."
+              : "Résumez l'accord déjà convenu avec le client. La réservation est confirmée immédiatement."
+          }
+          submitLabel={adjustingOffer ? "Mettre à jour l'accord" : "Confirmer l'accord"}
+          onSubmit={(data) => createOffer.mutateAsync(data)}
+          busy={createOffer.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -608,6 +706,210 @@ function Timeline({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function BookingFinalOfferCard({
+  offer,
+  isClient,
+  canAdjust,
+  onAdjust,
+}: {
+  offer: FinalOffer;
+  isClient: boolean;
+  canAdjust: boolean;
+  onAdjust: () => void;
+}) {
+  const scheduled = offer.scheduledDate
+    ? offer.scheduledDate instanceof Date
+      ? offer.scheduledDate
+      : new Date(offer.scheduledDate)
+    : null;
+  const dateLabel =
+    scheduled && !Number.isNaN(scheduled.getTime())
+      ? scheduled.toLocaleString("fr-FR", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "Date à confirmer";
+  const durationLabel = (() => {
+    const minutes = offer.duration ?? 0;
+    if (!minutes || minutes <= 0) return "À confirmer";
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (hours > 0 && remainder > 0) return `${hours}h${String(remainder).padStart(2, "0")}`;
+    if (hours > 0) return `${hours} h`;
+    return `${remainder} min`;
+  })();
+  const addressLabel = [offer.address, offer.city].filter(Boolean).join(", ") || "À confirmer";
+  const isAccepted = offer.status === "ACCEPTED";
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--k-border)",
+        borderRadius: "var(--k-r-md)",
+        padding: 18,
+        background: "linear-gradient(180deg, var(--k-surface-primary) 0%, var(--k-surface) 65%)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            className="k-overline"
+            style={{ color: "var(--k-primary)", letterSpacing: "0.08em" }}
+          >
+            Accord final
+          </div>
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily: "var(--k-font-display)",
+              fontSize: 17,
+              fontWeight: 700,
+              color: "var(--k-text-primary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {offer.title}
+          </div>
+        </div>
+        <span className={`k-chip k-chip-sm ${isAccepted ? "k-chip-success" : ""}`}>
+          {isAccepted ? "Confirmé" : "Enregistré"}
+        </span>
+      </div>
+      <div
+        className="k-price"
+        style={{
+          marginTop: 12,
+          color: "var(--k-text-primary)",
+          fontFamily: "var(--k-font-display)",
+          fontWeight: 700,
+          fontSize: 28,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {formatMoneyFc(offer.price)}
+      </div>
+      {offer.description && (
+        <p
+          className="k-body-m"
+          style={{ margin: "8px 0 0", color: "var(--k-text-body)", fontSize: 13.5 }}
+        >
+          {offer.description}
+        </p>
+      )}
+      <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+        <OfferDetailRow icon="calendar" label="Date et heure" value={dateLabel} />
+        <OfferDetailRow icon="clock" label="Durée" value={durationLabel} />
+        <OfferDetailRow icon="mapPin" label="Adresse" value={addressLabel} />
+        {offer.notes && (
+          <OfferDetailRow icon="info" label="Précision" value={offer.notes} />
+        )}
+      </div>
+      {!isClient && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 8,
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: "1px dashed var(--k-border)",
+            fontSize: 12.5,
+          }}
+        >
+          <span style={{ color: "var(--k-text-muted)" }}>
+            Commission KAYOU{offer.commissionPct ? ` (${offer.commissionPct}%)` : ""}
+          </span>
+          <span className="k-price" style={{ color: "var(--k-text-muted)" }}>
+            −{(offer.commissionAmt ?? 0).toLocaleString("fr-FR")} FC
+          </span>
+        </div>
+      )}
+      {!isClient && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: 8,
+            marginTop: 4,
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          <span style={{ color: "var(--k-text-body)" }}>Gain net estimé</span>
+          <span className="k-price" style={{ color: "var(--k-primary)", fontWeight: 700 }}>
+            {(offer.providerNetAmt ?? 0).toLocaleString("fr-FR")} FC
+          </span>
+        </div>
+      )}
+      <div
+        className="k-caption"
+        style={{
+          marginTop: 12,
+          padding: "10px 12px",
+          borderRadius: 10,
+          background: "var(--k-surface)",
+          border: "1px solid var(--k-border-subtle)",
+          color: "var(--k-text-body)",
+          fontSize: 12,
+        }}
+      >
+        Paiement en espèces à la fin de la mission.
+      </div>
+      {canAdjust && (
+        <button
+          onClick={onAdjust}
+          className="k-btn k-btn-secondary"
+          style={{ width: "100%", marginTop: 12 }}
+        >
+          <I.pencil size={14} /> Ajuster l'accord
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OfferDetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof I;
+  label: string;
+  value: string;
+}) {
+  const Icon = I[icon] ?? I.check;
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "16px 1fr auto",
+        alignItems: "baseline",
+        gap: 10,
+        fontSize: 13,
+      }}
+    >
+      <Icon size={14} strokeColor="var(--k-text-muted)" />
+      <span style={{ color: "var(--k-text-muted)" }}>{label}</span>
+      <span style={{ color: "var(--k-text-primary)", fontWeight: 600, textAlign: "right" }}>
+        {value}
+      </span>
     </div>
   );
 }
