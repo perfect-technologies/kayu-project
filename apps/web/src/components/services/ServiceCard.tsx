@@ -140,7 +140,7 @@ export function ServiceCard({
             {startingPrice && (
               <div>
                 <span className="text-xs text-muted-foreground">À partir de</span>
-                <p className="font-bold text-primary">{startingPrice.toLocaleString()} CDF</p>
+                <p className="font-bold text-primary">{startingPrice.toLocaleString("fr-FR")} FC</p>
               </div>
             )}
             <Button

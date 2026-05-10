@@ -304,6 +304,17 @@ const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
   <div style={{ marginTop: 8 }}>
     <span
       style={{
+        color: tokens.color.textMuted,
+        fontSize: 12,
+        fontFamily: tokens.font.body,
+        fontWeight: 500,
+        marginRight: 5,
+      }}
+    >
+      À partir de
+    </span>
+    <span
+      style={{
         fontFamily: tokens.font.mono,
         fontSize: 15,
         fontWeight: 600,

@@ -355,7 +355,7 @@ export function BookingScreen() {
       <View style={[styles.footer, { paddingBottom: 18 + insets.bottom }]}>
         <View style={styles.footerPriceBlock}>
           <Text style={styles.footerCaption}>
-            {step === 2 ? 'Total estimé' : `à ${formatHourly(hourly)} FC/h`}
+            {step === 2 ? 'Total estimé' : `À partir de ${formatHourly(hourly)} FC/h`}
           </Text>
           <Text
             style={[
@@ -644,7 +644,7 @@ function Step2({
       <Text style={styles.blockLabel}>Paiement</Text>
       <View style={[styles.priceCard, theme.shadow.e2]}>
         <MbPriceRow
-          label={`${formatHourly(hourly)} FC × ${duration}h`}
+          label={`À partir de ${formatHourly(hourly)} FC × ${duration}h`}
           value={`${formatHourly(total)} FC`}
         />
         <View style={styles.priceDivider} />

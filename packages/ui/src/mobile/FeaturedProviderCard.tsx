@@ -312,6 +312,17 @@ const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
   <View style={{ marginTop: 8, flexDirection: "row", alignItems: "baseline" }}>
     <Text
       style={{
+        color: tokens.color.textMuted,
+        fontSize: 12,
+        fontFamily: FONTS.body,
+        fontWeight: "500",
+        marginRight: 5,
+      }}
+    >
+      À partir de
+    </Text>
+    <Text
+      style={{
         fontFamily: FONTS.mono,
         fontSize: 15,
         fontWeight: "600",

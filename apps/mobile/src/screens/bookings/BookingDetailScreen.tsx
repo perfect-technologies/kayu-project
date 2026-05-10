@@ -669,7 +669,9 @@ function QuoteBreakdown({
 }) {
   if (!booking.quote) {
     const total = booking.price ?? 0;
-    const commission = Math.round(total * 0.1);
+    const commissionPct = booking.commissionPct ?? 10;
+    const commission = booking.commissionAmt ?? Math.round((total * commissionPct) / 100);
+    const providerNet = booking.providerNetAmt ?? total - commission;
     const durationHours =
       typeof booking.duration === 'number' ? Math.round((booking.duration / 60) * 10) / 10 : null;
 
@@ -684,7 +686,9 @@ function QuoteBreakdown({
         {!isClient && total > 0 ? (
           <>
             <View style={styles.qbExtraRow}>
-              <Text style={styles.qbExtraLabel}>Commission KAYOU estimée (10%)</Text>
+              <Text style={styles.qbExtraLabel}>
+                Commission KAYOU estimée ({commissionPct}%)
+              </Text>
               <Text style={styles.qbExtraValue}>
                 −{commission.toLocaleString('fr-FR')} FC
               </Text>
@@ -696,7 +700,7 @@ function QuoteBreakdown({
                 Gain net estimé
               </Text>
               <Text style={[styles.qbExtraValue, styles.qbPayout]}>
-                {(total - commission).toLocaleString('fr-FR')} FC
+                {providerNet.toLocaleString('fr-FR')} FC
               </Text>
             </View>
           </>
@@ -708,7 +712,9 @@ function QuoteBreakdown({
   const lines = booking.quote.lines;
   const subtotal = lines.reduce((a, b) => a + b.qty * b.unitPrice, 0);
   const total = booking.price ?? subtotal;
-  const commission = Math.round(total * 0.1);
+  const commissionPct = booking.commissionPct ?? 10;
+  const commission = booking.commissionAmt ?? Math.round((total * commissionPct) / 100);
+  const providerNet = booking.providerNetAmt ?? total - commission;
   return (
     <View>
       {lines.map((l, i) => (
@@ -736,7 +742,7 @@ function QuoteBreakdown({
       {!isClient && (
         <>
           <View style={styles.qbExtraRow}>
-            <Text style={styles.qbExtraLabel}>Commission KAYOU (10%)</Text>
+            <Text style={styles.qbExtraLabel}>Commission KAYOU ({commissionPct}%)</Text>
             <Text style={styles.qbExtraValue}>
               −{commission.toLocaleString('fr-FR')} FC
             </Text>
@@ -748,7 +754,7 @@ function QuoteBreakdown({
               Gain net
             </Text>
             <Text style={[styles.qbExtraValue, styles.qbPayout]}>
-              {(total - commission).toLocaleString('fr-FR')} FC
+              {providerNet.toLocaleString('fr-FR')} FC
             </Text>
           </View>
         </>
@@ -1038,6 +1044,9 @@ interface Booking {
   city?: string | null;
   duration?: number | null;
   price?: number | null;
+  commissionPct?: number | null;
+  commissionAmt?: number | null;
+  providerNetAmt?: number | null;
   isPaid?: boolean | null;
   paymentMethod?: string | null;
   cancelReason?: string | null;

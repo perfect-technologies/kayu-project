@@ -155,6 +155,16 @@ export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onPress, last })
       <View style={{ alignItems: "flex-end", flexShrink: 0 }}>
         <Text
           style={{
+            color: tokens.color.textMuted,
+            fontSize: 11,
+            fontFamily: FONTS.bodyMed,
+            marginBottom: 2,
+          }}
+        >
+          À partir de
+        </Text>
+        <Text
+          style={{
             fontFamily: FONTS.mono,
             fontSize: 14,
             fontWeight: "600",
@@ -172,7 +182,7 @@ export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onPress, last })
             marginTop: 2,
           }}
         >
-          /heure
+          /h
         </Text>
       </View>
     </Pressable>

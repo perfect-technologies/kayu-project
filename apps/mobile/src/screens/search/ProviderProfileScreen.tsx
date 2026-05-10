@@ -402,6 +402,7 @@ export function ProviderProfileScreen() {
       {/* Sticky price/reserve bar */}
       <StickyBottomBar>
         <View style={styles.priceBlock}>
+          <Text style={styles.pricePrefix}>À partir de</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
             <Text style={styles.priceText}>{formatHourly(hourly)} FC</Text>
             <Text style={styles.priceSuffix}> /h</Text>
@@ -782,6 +783,12 @@ const styles = StyleSheet.create({
   },
   priceBlock: {
     flexShrink: 1,
+  },
+  pricePrefix: {
+    fontFamily: theme.fonts.body,
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginBottom: 1,
   },
   priceText: {
     fontFamily: theme.fonts.mono,

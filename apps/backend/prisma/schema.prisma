@@ -585,7 +585,10 @@ model Booking {
   clientLongitude Float?
   scheduledDate   DateTime?
   duration        Int? // Durée en minutes
-  price           Float? // Prix convenu en CDF
+  price           Float? // Prix convenu en CDF; gross client amount for v1 economics
+  commissionPct   Int       @default(10)
+  commissionAmt   Int       @default(0)
+  providerNetAmt  Int       @default(0)
 
   // Notes
   clientNotes   String?
@@ -657,16 +660,19 @@ model FinalOffer {
   bookingId String?
   booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
-  title         String
-  description   String?
-  price         Float
-  duration      Int?
-  scheduledDate DateTime
-  address       String?
-  city          String?
-  notes         String?
-  paymentMethod String           @default("cash")
-  status        FinalOfferStatus @default(PENDING)
+  title          String
+  description    String?
+  price          Float // Prix convenu en CDF; gross client amount for v1 economics
+  commissionPct  Int              @default(10)
+  commissionAmt  Int              @default(0)
+  providerNetAmt Int              @default(0)
+  duration       Int?
+  scheduledDate  DateTime
+  address        String?
+  city           String?
+  notes          String?
+  paymentMethod  String           @default("cash")
+  status         FinalOfferStatus @default(PENDING)
 
   sentAt      DateTime  @default(now())
   acceptedAt  DateTime?

@@ -797,8 +797,8 @@ function PaymentSection({ isProvider }: { isProvider: boolean }) {
               }}
             >
               Le prix convenu dans le chat est réglé en cash, directement entre client et
-              prestataire. KAYOU ne prend pas de commission sur le paiement et ne stocke pas
-              de carte bancaire.
+              prestataire. KAYOU ne gère pas le paiement cash réalisé en personne et ne
+              stocke pas de carte bancaire.
             </div>
           </div>
         </div>

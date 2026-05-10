@@ -65,7 +65,9 @@ export function ProviderCard({ provider, onPress }: ProviderCardProps) {
         </View>
 
         {provider.hourlyRate != null && provider.hourlyRate > 0 && (
-          <Text style={styles.price}>{formatCDF(provider.hourlyRate)}/h</Text>
+          <Text style={styles.price}>
+            À partir de {formatCDF(provider.hourlyRate)}/h
+          </Text>
         )}
       </View>
 

@@ -176,7 +176,7 @@ export function BookingForm({
           <DialogDescription>
             {provider.profession}
             {hourlyRate > 0 && (
-              <span className="ml-2">• {formatPrice(hourlyRate)} CDF/heure</span>
+              <span className="ml-2">• À partir de {formatPrice(hourlyRate)} FC/heure</span>
             )}
           </DialogDescription>
         </DialogHeader>

@@ -434,7 +434,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
               >
                 <div className="flex justify-between text-[14px]">
                   <span style={{ color: "var(--k-text-body)" }}>
-                    {hourly.toLocaleString("fr-FR")} FC × {duration}h
+                    À partir de {hourly.toLocaleString("fr-FR")} FC × {duration}h
                   </span>
                   <span className="k-price">
                     {total.toLocaleString("fr-FR")} FC
@@ -472,7 +472,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                     className="h-3 w-3"
                     style={{ color: "var(--k-success)" }}
                   />
-                  Paiement en espèces à la fin de la mission.
+                  Paiement en espèces à la fin de la mission. Le prix final est convenu avec le prestataire avant l'intervention.
                 </div>
               </div>
 

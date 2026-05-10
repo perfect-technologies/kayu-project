@@ -553,7 +553,7 @@ export function ProviderProfileClient({
                 </div>
               )}
               <div className="k-caption mt-2">
-                Paiement en espèces à la fin de la mission
+                Paiement en espèces à la fin de la mission. Le prix final est convenu avec le prestataire.
               </div>
 
               <div
@@ -646,6 +646,7 @@ export function ProviderProfileClient({
         <div className="min-w-0 flex-shrink">
           {hourlyFormatted ? (
             <>
+              <div className="k-caption mt-0.5">À partir de</div>
               <div>
                 <span
                   className="k-price"

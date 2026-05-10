@@ -36,6 +36,9 @@ function makeBooking(overrides: Record<string, unknown> = {}) {
     scheduledDate: now,
     duration: 120,
     price: 50000,
+    commissionPct: 10,
+    commissionAmt: 5000,
+    providerNetAmt: 45000,
     clientNotes: null,
     providerNotes: null,
     paymentMethod: null,
@@ -90,6 +93,9 @@ function makeFinalOffer(overrides: Record<string, unknown> = {}) {
     city: "Kinshasa",
     notes: "Paiement en espèces à la fin.",
     paymentMethod: "cash",
+    commissionPct: 10,
+    commissionAmt: 6500,
+    providerNetAmt: 58500,
     status: "PENDING",
     sentAt: now,
     acceptedAt: null,
@@ -228,6 +234,10 @@ test("provider completes an in-progress booking and creates pending earning", as
   assert.ok(calls.updateData?.completedAt instanceof Date);
   assert.equal(calls.providerUpdates.length, 1);
   assert.equal(calls.createdTransactions.length, 1);
+  const txData = (calls.createdTransactions[0] as { data: Record<string, unknown> }).data;
+  assert.equal(txData.amount, 50000);
+  assert.equal(txData.feeAmt, 5000);
+  assert.equal(txData.netAmt, 45000);
 });
 
 test("provider completes an in-progress booking and confirms offline payment", async () => {
@@ -407,8 +417,14 @@ test("provider sends a cash final offer to a client", async () => {
   assert.equal(calls.createdOfferData?.providerId, "provider_1");
   assert.equal(calls.createdOfferData?.clientId, "client_user_1");
   assert.equal(calls.createdOfferData?.paymentMethod, "cash");
+  assert.equal(calls.createdOfferData?.commissionPct, 10);
+  assert.equal(calls.createdOfferData?.commissionAmt, 6500);
+  assert.equal(calls.createdOfferData?.providerNetAmt, 58500);
   assert.equal(calls.createdOfferData?.status, "ACCEPTED");
   assert.equal(calls.bookingCreateData?.status, "CONFIRMED");
+  assert.equal(calls.bookingCreateData?.commissionPct, 10);
+  assert.equal(calls.bookingCreateData?.commissionAmt, 6500);
+  assert.equal(calls.bookingCreateData?.providerNetAmt, 58500);
   assert.equal(calls.finalOfferUpdateData?.bookingId, "booking_1");
   assert.equal(calls.notifications.length, 2);
 });

@@ -20,7 +20,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | --- | --- | --- | --- |
 | 00 - Product Contract | Done | Planning | Revised v1 launch truth documented |
 | 01 - Auto-Confirmed Final Offers | Done | Codex | POST /final-offers now records provider agreement and returns confirmed booking |
-| 02 - Pricing And Commission Policy | Not started | TBD | P0 pricing/cash/commission consistency |
+| 02 - Pricing And Commission Policy | Done | Codex | Starting-from pricing and 10% internal economics aligned |
 | 03 - Web V1 Flow Alignment | Not started | TBD | P0 if web launch-facing |
 | 04 - Mobile V1 Flow Alignment | Not started | TBD | P0 if mobile launch-facing |
 | 05 - Provider Onboarding Tightening | Not started | TBD | P1 onboarding and verification cleanup |
@@ -40,10 +40,12 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-09 | 10% commission is treated as internal policy until display is approved | Product note references 10% example, but client launch flow should stay simple |
 | 2026-05-09 | `POST /final-offers` stores agreement records as accepted and confirms or creates bookings immediately | Keeps the existing enum while removing client approval from the v1 path |
 | 2026-05-09 | `POST /final-offers/:id/accept` remains idempotent for already-confirmed agreement records | Preserves backwards compatibility for older clients that still call accept |
+| 2026-05-09 | `Booking.price` and `FinalOffer.price` remain the gross agreed client price, with integer `commissionPct`, `commissionAmt`, and `providerNetAmt` stored alongside it | Keeps the existing API shape while making the 10% economics explicit and consistent |
+| 2026-05-09 | Provider-facing commission/net copy remains limited to existing provider-only booking and earnings surfaces; client-facing surfaces hide commission | Matches the internal-first commission policy without removing provider operational context already present |
 
 ## Open Questions
 
-- Should commission be visible to providers as `Gain net estime`, or remain admin/internal only for v1?
+- Should provider-facing commission visibility expand beyond existing provider-only booking and earnings surfaces?
 - Should direct booking request remain useful, or should chat plus provider-issued final offer become the primary path?
 - Should phone verification be required before provider publish, or only before verified badge?
 - Should the 24h verification promise be explicit in product copy before the admin workflow is tested?
@@ -125,3 +127,80 @@ Schema migration/push:
 Manual/seeded scenario:
 
 - Covered through `apps/backend/src/test/launch/launch-critical.harness.spec.ts`: provider `POST /final-offers` returns an `ACCEPTED` final offer and `CONFIRMED` cash booking; a legacy follow-up accept call remains successful and returns the same confirmed-booking contract.
+
+### 02 - Pricing And Commission Policy
+
+Status: Done on 2026-05-09 by Codex.
+
+Changed files:
+
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/src/modules/bookings/bookings.service.ts`
+- `apps/backend/src/modules/bookings/bookings.service.spec.ts`
+- `packages/schemas/src/models.ts`
+- `packages/ui/src/web/FeaturedProviderCard.tsx`
+- `packages/ui/src/web/NearbyCard.tsx`
+- `packages/ui/src/mobile/FeaturedProviderCard.tsx`
+- `packages/ui/src/mobile/NearbyCard.tsx`
+- `apps/web/src/lib/booking-v2.ts`
+- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx`
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`
+- `apps/web/src/components/bookings/BookingDetail.tsx`
+- `apps/web/src/components/provider-profile/BookingForm.tsx`
+- `apps/web/src/components/services/ServiceCard.tsx`
+- `apps/web/src/app/dashboard/settings/page.tsx`
+- `apps/mobile/src/lib/bookingV2.ts`
+- `apps/mobile/src/components/providers/ProviderCard.tsx`
+- `apps/mobile/src/screens/booking/BookingScreen.tsx`
+- `apps/mobile/src/screens/bookings/BookingDetailScreen.tsx`
+- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx`
+
+Implementation notes:
+
+- Added integer `commissionPct`, `commissionAmt`, and `providerNetAmt` fields to `Booking` and `FinalOffer`; `price` remains the gross agreed client price.
+- Final-offer creation stores 10% economics from the agreed price, and confirmed/created bookings copy the same economics from the final offer.
+- Direct booking requests also store economics when an estimated price exists, so completion transactions have a consistent fallback if no final offer is recorded.
+- Booking completion transactions now use stored booking economics for `amount`, `feeAmt`, and `netAmt` instead of re-deriving hardcoded math inline.
+- Shared schemas expose the new economics fields for bookings and final offers.
+- Provider cards and provider profile price surfaces now use starting-from copy (`À partir de ... FC` or `À partir de ... FC/h`).
+- Booking request totals stay labeled as estimates; confirmed/in-progress booking labels now read `Prix convenu`.
+- Removed the launch-facing settings claim that KAYOU takes no commission on cash payment.
+- Existing provider-only booking detail and earnings surfaces continue to show commission/net values, now based on backend economics fields where available.
+
+Search terms checked:
+
+- `ne prend pas de commission`
+- `commission KAYOU`
+- `paiement securise`
+- `paiement sécurisé`
+- `paiement en ligne`
+- `Mobile Money`
+- `mobile money`
+- `A partir de`
+- `À partir de`
+- `Prix convenu`
+- `Prix estimé`
+- `Total estimé`
+
+Commands run:
+
+- `pnpm --filter @kayu/backend exec prisma format` - passed.
+- `pnpm --filter @kayu/backend exec prisma validate` - passed.
+- `pnpm --filter @kayu/backend exec prisma generate` - passed.
+- `pnpm --filter @kayu/backend run prisma:push` - passed; local PostgreSQL schema synced and Prisma Client regenerated.
+- `pnpm --filter @kayu/backend test:bookings` - passed, 19 tests.
+- `pnpm --filter @kayu/schemas type-check` - passed.
+- `pnpm --filter @kayu/api type-check` - passed.
+- `pnpm --filter @kayu/backend type-check` - passed.
+- `pnpm --filter @kayu/mobile type-check` - passed.
+- `pnpm --filter @kayu/web type-check` - passed.
+- `pnpm --filter @kayu/ui type-check` - passed.
+- `pnpm --filter @kayu/backend test:launch` - passed, 63 tests.
+
+Schema migration/push:
+
+- No migration files exist in this repo. Ran `pnpm --filter @kayu/backend run prisma:push`; local database is in sync with the updated Prisma schema.
+
+Manual/seeded scenario:
+
+- Covered by backend unit and launch harness tests: provider-created final offers store `commissionPct: 10`, gross price, commission amount, provider net, and pass those economics to the confirmed booking and earning transaction.

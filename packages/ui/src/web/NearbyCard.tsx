@@ -167,6 +167,17 @@ export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onClick, last })
       <div style={{ textAlign: "right", flexShrink: 0 }}>
         <div
           style={{
+            color: tokens.color.textMuted,
+            fontSize: 11,
+            fontFamily: tokens.font.body,
+            fontWeight: 500,
+            marginBottom: 2,
+          }}
+        >
+          À partir de
+        </div>
+        <div
+          style={{
             fontFamily: tokens.font.mono,
             fontSize: 14,
             fontWeight: 600,
@@ -185,7 +196,7 @@ export const NearbyRow: React.FC<NearbyRowProps> = ({ provider, onClick, last })
             marginTop: 2,
           }}
         >
-          /heure
+          /h
         </div>
       </div>
     </button>

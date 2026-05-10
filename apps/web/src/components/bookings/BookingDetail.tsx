@@ -29,6 +29,9 @@ export interface BookingDetailData {
   scheduledDate?: string | Date | null;
   createdAt?: string | Date | null;
   price?: number | null;
+  commissionPct?: number | null;
+  commissionAmt?: number | null;
+  providerNetAmt?: number | null;
   isPaid?: boolean | null;
   paymentMethod?: string | null;
   providerId?: string | null;
@@ -618,7 +621,9 @@ function QuoteBreakdown({
 }) {
   const lines = booking.quote?.lines ?? null;
   const total = booking.price ?? 0;
-  const commission = Math.round(total * 0.1);
+  const commissionPct = booking.commissionPct ?? 10;
+  const commission = booking.commissionAmt ?? Math.round((total * commissionPct) / 100);
+  const providerNet = booking.providerNetAmt ?? total - commission;
   return (
     <div>
       {lines && lines.length > 0 ? (
@@ -715,7 +720,9 @@ function QuoteBreakdown({
               fontSize: 12,
             }}
           >
-            <span style={{ color: "var(--k-text-muted)" }}>Commission KAYOU (10%)</span>
+            <span style={{ color: "var(--k-text-muted)" }}>
+              Commission KAYOU ({commissionPct}%)
+            </span>
             <span
               className="k-price"
               style={{ color: "var(--k-text-muted)", fontSize: 12 }}
@@ -734,7 +741,7 @@ function QuoteBreakdown({
           >
             <span style={{ color: "var(--k-text-body)" }}>Gain net estimé</span>
             <span className="k-price" style={{ color: "var(--k-primary)", fontWeight: 700 }}>
-              {(total - commission).toLocaleString("fr-FR")} FC
+              {providerNet.toLocaleString("fr-FR")} FC
             </span>
           </div>
           <div

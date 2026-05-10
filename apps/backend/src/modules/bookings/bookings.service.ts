@@ -159,6 +159,9 @@ const finalOfferInclude = {
       status: true,
       scheduledDate: true,
       price: true,
+      commissionPct: true,
+      commissionAmt: true,
+      providerNetAmt: true,
     },
   },
 } satisfies Prisma.FinalOfferInclude;
@@ -190,6 +193,14 @@ const OFFLINE_PAYMENT_PENDING_NOTE =
   "Paiement en especes a confirmer avant disponibilite.";
 const OFFLINE_PAYMENT_CONFIRMED_NOTE =
   "Paiement en especes confirme.";
+const DEFAULT_COMMISSION_PCT = 10;
+
+type CommissionEconomics = {
+  grossAmount: number;
+  commissionPct: number;
+  commissionAmt: number;
+  providerNetAmt: number;
+};
 
 @Injectable()
 export class BookingsService {
@@ -251,6 +262,7 @@ export class BookingsService {
     }
 
     const booking = await this.prisma.$transaction(async (tx) => {
+      const economics = calculateCommissionEconomics(body.price);
       const created = await tx.booking.create({
         data: {
           clientId: actor.id,
@@ -262,6 +274,9 @@ export class BookingsService {
           scheduledDate: body.scheduledDate,
           duration: body.duration ?? null,
           price: body.price ?? null,
+          commissionPct: economics.commissionPct,
+          commissionAmt: economics.commissionAmt,
+          providerNetAmt: economics.providerNetAmt,
           clientNotes: body.clientNotes ?? null,
           status: "PENDING",
         },
@@ -397,6 +412,7 @@ export class BookingsService {
         });
       }
 
+      const economics = calculateCommissionEconomics(body.price);
       const created = await tx.finalOffer.create({
         data: {
           providerId: body.providerId,
@@ -412,6 +428,9 @@ export class BookingsService {
           city: body.city ?? null,
           notes: body.notes ?? null,
           paymentMethod: "cash",
+          commissionPct: economics.commissionPct,
+          commissionAmt: economics.commissionAmt,
+          providerNetAmt: economics.providerNetAmt,
           expiresAt: body.expiresAt ?? null,
           status: "ACCEPTED",
           acceptedAt: now,
@@ -1005,6 +1024,7 @@ export class BookingsService {
     currentStatus?: BookingStatus,
   ) {
     const shouldConfirm = !currentStatus || currentStatus === "PENDING";
+    const economics = economicsFromRecord(finalOffer);
 
     return {
       title: finalOffer.title,
@@ -1014,6 +1034,9 @@ export class BookingsService {
       scheduledDate: finalOffer.scheduledDate,
       duration: finalOffer.duration,
       price: finalOffer.price,
+      commissionPct: economics.commissionPct,
+      commissionAmt: economics.commissionAmt,
+      providerNetAmt: economics.providerNetAmt,
       providerNotes: finalOffer.notes,
       paymentMethod: "cash",
       ...(shouldConfirm
@@ -1204,21 +1227,19 @@ export class BookingsService {
     tx: Prisma.TransactionClient,
     booking: BookingRecord,
   ) {
-    const price = Math.round(booking.price ?? 0);
-    if (price <= 0) {
+    const economics = economicsFromRecord(booking);
+    if (economics.grossAmount <= 0) {
       return;
     }
-    const feeAmt = Math.round(price * 0.1);
-    const netAmt = price - feeAmt;
     const isPaid = booking.isPaid === true;
     await tx.transaction.create({
       data: {
         providerId: booking.providerId,
         type: "EARNING",
         bookingId: booking.id,
-        amount: price,
-        feeAmt,
-        netAmt,
+        amount: economics.grossAmount,
+        feeAmt: economics.commissionAmt,
+        netAmt: economics.providerNetAmt,
         paymentMethod: booking.paymentMethod ?? "cash",
         status: isPaid ? "COMPLETED" : "PENDING",
         note: isPaid
@@ -1358,6 +1379,9 @@ export class BookingsService {
       scheduledDate: booking.scheduledDate,
       duration: booking.duration,
       price: booking.price,
+      commissionPct: booking.commissionPct,
+      commissionAmt: booking.commissionAmt,
+      providerNetAmt: booking.providerNetAmt,
       clientNotes: booking.clientNotes,
       providerNotes: booking.providerNotes,
       paymentMethod: booking.paymentMethod,
@@ -1448,6 +1472,9 @@ export class BookingsService {
       city: finalOffer.city,
       notes: finalOffer.notes,
       paymentMethod: "cash" as const,
+      commissionPct: finalOffer.commissionPct,
+      commissionAmt: finalOffer.commissionAmt,
+      providerNetAmt: finalOffer.providerNetAmt,
       status: finalOffer.status,
       sentAt: finalOffer.sentAt,
       acceptedAt: finalOffer.acceptedAt,
@@ -1517,4 +1544,46 @@ function formatPaymentMethodLabel(
     default:
       return "en especes";
   }
+}
+
+function calculateCommissionEconomics(
+  price: number | null | undefined,
+  commissionPct = DEFAULT_COMMISSION_PCT,
+): CommissionEconomics {
+  const grossAmount = Math.max(0, Math.round(price ?? 0));
+  const commissionAmt = Math.round((grossAmount * commissionPct) / 100);
+
+  return {
+    grossAmount,
+    commissionPct,
+    commissionAmt,
+    providerNetAmt: grossAmount - commissionAmt,
+  };
+}
+
+function economicsFromRecord(record: {
+  price?: number | null;
+  commissionPct?: number | null;
+  commissionAmt?: number | null;
+  providerNetAmt?: number | null;
+}): CommissionEconomics {
+  const computed = calculateCommissionEconomics(
+    record.price,
+    record.commissionPct ?? DEFAULT_COMMISSION_PCT,
+  );
+
+  if (
+    computed.grossAmount > 0 &&
+    typeof record.commissionAmt === "number" &&
+    typeof record.providerNetAmt === "number" &&
+    (record.commissionAmt > 0 || record.providerNetAmt > 0)
+  ) {
+    return {
+      ...computed,
+      commissionAmt: record.commissionAmt,
+      providerNetAmt: record.providerNetAmt,
+    };
+  }
+
+  return computed;
 }
