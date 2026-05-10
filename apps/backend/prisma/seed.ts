@@ -27,10 +27,8 @@ async function clearDatabase() {
   await prisma.availabilitySchedule.deleteMany();
   await prisma.trustScore.deleteMany();
   await prisma.subscription.deleteMany();
-  await prisma.providerTrade.deleteMany();
+  await prisma.providerSubcategory.deleteMany();
   await prisma.providerCategory.deleteMany();
-  await prisma.service.deleteMany();
-  await prisma.trade.deleteMany();
   await prisma.subcategory.deleteMany();
   await prisma.category.deleteMany();
   await prisma.activityLog.deleteMany();
@@ -153,9 +151,9 @@ async function main() {
   await seedDemo(prisma);
   await seedSupabaseAuthUsers();
 
-  const [categories, trades, users, providers, bookings, reviews] = await Promise.all([
+  const [categories, subcategories, users, providers, bookings, reviews] = await Promise.all([
     prisma.category.count(),
-    prisma.trade.count(),
+    prisma.subcategory.count(),
     prisma.user.count(),
     prisma.provider.count(),
     prisma.booking.count(),
@@ -164,7 +162,7 @@ async function main() {
 
   console.log("KAYOU seed completed.");
   console.log(`Categories: ${categories}`);
-  console.log(`Trades: ${trades}`);
+  console.log(`Subcategories: ${subcategories}`);
   console.log(`Users: ${users}`);
   console.log(`Providers: ${providers}`);
   console.log(`Bookings: ${bookings}`);

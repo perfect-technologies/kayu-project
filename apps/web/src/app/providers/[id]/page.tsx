@@ -235,12 +235,12 @@ export default async function ProviderProfilePage({
       icon: cat.icon ?? null,
       color: cat.color ?? null,
     })),
-    trades: (provider.trades ?? []).map((trade) => ({
-      id: trade.id ?? "",
-      name: trade.name,
-      slug: trade.slug ?? "",
-      isPrimary: trade.isPrimary ?? false,
-      experience: trade.experience ?? null,
+    subcategories: (provider.subcategories ?? []).map((subcategory) => ({
+      id: subcategory.id ?? "",
+      name: subcategory.name,
+      slug: subcategory.slug ?? "",
+      isPrimary: subcategory.isPrimary ?? false,
+      experience: subcategory.experience ?? null,
     })),
     skills: (provider.skills ?? []).map((skill) => ({
       id: skill.id ?? "",

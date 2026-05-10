@@ -589,7 +589,6 @@ export class QuotesService {
       id: booking.id,
       clientId: booking.clientId,
       providerId: booking.providerId,
-      serviceId: booking.serviceId,
       title: booking.title,
       description: booking.description,
       status: booking.status,

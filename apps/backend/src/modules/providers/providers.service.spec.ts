@@ -161,14 +161,11 @@ test("provider search applies category and subcategory filters by id or slug", a
       (condition) =>
         JSON.stringify(condition) ===
         JSON.stringify({
-          trades: {
+          subcategories: {
             some: {
-              trade: {
+              subcategory: {
                 isActive: true,
-                subcategory: {
-                  isActive: true,
-                  OR: [{ id: "robinetterie" }, { slug: "robinetterie" }],
-                },
+                OR: [{ id: "robinetterie" }, { slug: "robinetterie" }],
               },
             },
           },

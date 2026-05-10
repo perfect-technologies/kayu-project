@@ -97,31 +97,13 @@ export const SubcategorySchema = z.object({
   createdAt: DateTimeSchema.optional(),
 });
 
-export const TradeSchema = z.object({
-  id: IdSchema,
-  subcategoryId: IdSchema.optional(),
-  name: z.string(),
-  slug: z.string(),
-  description: z.string().nullable().optional(),
-  icon: z.string().nullable().optional(),
-  basePrice: z.number().nullable().optional(),
-  duration: z.number().int().nullable().optional(),
-  isActive: z.boolean().optional(),
-  order: z.number().int().optional(),
-  createdAt: DateTimeSchema.optional(),
-});
-
-export const ProviderTradeSchema = TradeSchema.extend({
+export const ProviderSubcategorySchema = SubcategorySchema.extend({
   isPrimary: z.boolean(),
   experience: z.number().int().nullable().optional(),
 });
 
 export const CategoryHierarchySchema = CategorySchema.extend({
-  subcategories: z.array(
-    SubcategorySchema.extend({
-      trades: z.array(TradeSchema).default([]),
-    }),
-  ),
+  subcategories: z.array(SubcategorySchema),
 });
 
 export const SkillSchema = z.object({
@@ -282,7 +264,7 @@ export const ProviderSchema = z.object({
     isVerified: true,
   }),
   categories: z.array(CategorySummarySchema).default([]),
-  trades: z.array(ProviderTradeSchema).default([]),
+  subcategories: z.array(ProviderSubcategorySchema).default([]),
   serviceZones: z.array(ServiceZoneSchema).default([]),
   createdAt: DateTimeSchema.optional(),
   updatedAt: DateTimeSchema.optional(),
@@ -304,7 +286,7 @@ export const ProviderDetailSchema = ProviderSchema.extend({
     isVerified: true,
   }),
   categories: z.array(CategorySchema).default([]),
-  trades: z.array(ProviderTradeSchema).default([]),
+  subcategories: z.array(ProviderSubcategorySchema).default([]),
   skills: z.array(SkillSchema).default([]),
   serviceZones: z.array(ServiceZoneSchema).default([]),
   trustScore: TrustScoreSchema.nullable().optional(),
@@ -314,19 +296,6 @@ export const ProviderDetailSchema = ProviderSchema.extend({
   portfolioProjects: z.array(PortfolioProjectSchema).default([]),
   availabilitySchedules: z.array(AvailabilityScheduleSchema).default([]),
   subscription: SubscriptionSchema.nullable().optional(),
-});
-
-export const ServiceSchema = z.object({
-  id: IdSchema,
-  categoryId: IdSchema.nullable().optional(),
-  subcategoryId: IdSchema.nullable().optional(),
-  name: z.string(),
-  slug: z.string().optional(),
-  description: z.string().nullable().optional(),
-  basePrice: z.number().nullable().optional(),
-  duration: z.number().int().nullable().optional(),
-  isActive: z.boolean().optional(),
-  createdAt: DateTimeSchema.optional(),
 });
 
 export const BookingReviewSummarySchema = z.object({
@@ -358,7 +327,6 @@ export const BookingSchema = z.object({
   id: IdSchema,
   clientId: IdSchema.optional(),
   providerId: IdSchema.optional(),
-  serviceId: IdSchema.nullable().optional(),
   title: z.string(),
   description: z.string().nullable().optional(),
   status: BookingStatus,
@@ -397,7 +365,6 @@ export const BookingSchema = z.object({
     profession: true,
     user: true,
   }).optional(),
-  service: ServiceSchema.pick({ id: true, name: true }).nullable().optional(),
   review: BookingReviewSummarySchema.nullable().optional(),
   clientReview: BookingClientReviewSummarySchema.nullable().optional(),
 });
@@ -618,8 +585,7 @@ export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type CategorySummary = z.infer<typeof CategorySummarySchema>;
 export type Category = z.infer<typeof CategorySchema>;
 export type Subcategory = z.infer<typeof SubcategorySchema>;
-export type Trade = z.infer<typeof TradeSchema>;
-export type ProviderTrade = z.infer<typeof ProviderTradeSchema>;
+export type ProviderSubcategory = z.infer<typeof ProviderSubcategorySchema>;
 export type CategoryHierarchy = z.infer<typeof CategoryHierarchySchema>;
 export type Skill = z.infer<typeof SkillSchema>;
 export type ServiceZone = z.infer<typeof ServiceZoneSchema>;
@@ -634,7 +600,6 @@ export type AvailabilitySchedule = z.infer<typeof AvailabilityScheduleSchema>;
 export type Subscription = z.infer<typeof SubscriptionSchema>;
 export type Provider = z.infer<typeof ProviderSchema>;
 export type ProviderDetail = z.infer<typeof ProviderDetailSchema>;
-export type Service = z.infer<typeof ServiceSchema>;
 export type Booking = z.infer<typeof BookingSchema>;
 export type FinalOffer = z.infer<typeof FinalOfferSchema>;
 export type Review = z.infer<typeof ReviewSchema>;

@@ -83,12 +83,6 @@ const bookingInclude = {
       },
     },
   },
-  service: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
   review: {
     select: {
       id: true,
@@ -127,11 +121,6 @@ const bookingDetailInclude = {
       booking: {
         select: {
           title: true,
-          service: {
-            select: {
-              name: true,
-            },
-          },
         },
       },
     },
@@ -1368,7 +1357,6 @@ export class BookingsService {
       id: booking.id,
       clientId: booking.clientId,
       providerId: booking.providerId,
-      serviceId: booking.serviceId,
       title: booking.title,
       description: booking.description,
       status: booking.status,
@@ -1404,7 +1392,6 @@ export class BookingsService {
       updatedAt: booking.updatedAt,
       client: booking.client,
       provider: booking.provider,
-      service: booking.service,
     };
   }
 
@@ -1435,8 +1422,7 @@ export class BookingsService {
             createdAt: booking.review.createdAt,
             updatedAt: booking.review.updatedAt,
             client: booking.review.client,
-            service:
-              booking.review.booking.service?.name ?? booking.review.booking.title,
+            service: booking.review.booking.title,
           }
         : null,
       clientReview: booking.clientReview

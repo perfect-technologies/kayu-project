@@ -24,7 +24,7 @@ import type { OnboardingData } from "./types";
 
 const STEPS: StepIndicatorStep[] = [
   { key: "identity", n: 1, label: "Identité", icon: "shieldCheck" },
-  { key: "craft", n: 2, label: "Métier", icon: "wrench" },
+  { key: "craft", n: 2, label: "Activité", icon: "wrench" },
   { key: "zones", n: 3, label: "Zones", icon: "mapPin" },
   { key: "pricing", n: 4, label: "Tarifs", icon: "coins" },
   { key: "profile", n: 5, label: "Profil", icon: "user" },
@@ -33,7 +33,7 @@ const STEPS: StepIndicatorStep[] = [
 
 const TITLES: Record<number, string> = {
   1: "Vérifions ton identité",
-  2: "Quel est ton métier ?",
+  2: "Quelle est ton activité ?",
   3: "Où tu interviens ?",
   4: "Définis tes tarifs",
   5: "Complète ton profil",

@@ -48,8 +48,7 @@ type UpdateProviderBody = {
     city: string;
     commune?: string | null;
   }>;
-  tradeIds?: string[];
-  primaryTradeId?: string | null;
+  subcategoryIds?: string[];
 };
 
 type Viewer = User | null;
@@ -78,9 +77,9 @@ type ProviderSummaryRecord = Prisma.ProviderGetPayload<{
       };
     };
     serviceZones: true;
-    trades: {
+    subcategories: {
       include: {
-        trade: true;
+        subcategory: true;
       };
     };
   };
@@ -106,18 +105,11 @@ const providerDetailInclude = {
       category: true,
     },
   },
-  trades: {
+  subcategories: {
     include: {
-      trade: {
+      subcategory: {
         include: {
-          subcategory: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-              categoryId: true,
-            },
-          },
+          category: true,
         },
       },
     },
@@ -240,9 +232,9 @@ export class ProvidersService {
                 },
               },
               serviceZones: true,
-              trades: {
+              subcategories: {
                 include: {
-                  trade: true,
+                  subcategory: true,
                 },
               },
             },
@@ -327,7 +319,7 @@ export class ProvidersService {
         userId: actor.id,
       },
       include: {
-        trades: true,
+        subcategories: true,
       },
     });
 
@@ -336,37 +328,22 @@ export class ProvidersService {
     }
 
     const categoryIds = body.categoryIds ? this.unique(body.categoryIds) : undefined;
-    const tradeIds = body.tradeIds ? this.unique(body.tradeIds) : undefined;
+    const subcategoryIds = body.subcategoryIds
+      ? this.unique(body.subcategoryIds)
+      : undefined;
 
     if (categoryIds && categoryIds.length > 3) {
       throw new BadRequestException("A provider can have at most 3 service categories");
     }
 
-    if (tradeIds && tradeIds.length > 3) {
-      throw new BadRequestException("A provider can have at most 3 trades");
-    }
-
-    if (
-      body.primaryTradeId &&
-      tradeIds &&
-      !tradeIds.includes(body.primaryTradeId)
-    ) {
-      throw new BadRequestException("primaryTradeId must be included in tradeIds");
+    if (subcategoryIds && subcategoryIds.length > 3) {
+      throw new BadRequestException("A provider can have at most 3 service subcategories");
     }
 
     await this.validateReferencedRecords({
       categoryIds,
-      tradeIds,
+      subcategoryIds,
     });
-
-    if (body.primaryTradeId && !tradeIds) {
-      const existingTradeIds = provider.trades.map((item) => item.tradeId);
-      if (!existingTradeIds.includes(body.primaryTradeId)) {
-        throw new BadRequestException(
-          "primaryTradeId must reference one of the provider's existing trades",
-        );
-      }
-    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.provider.update({
@@ -438,48 +415,35 @@ export class ProvidersService {
         }
       }
 
-      if (tradeIds || body.primaryTradeId !== undefined) {
-        const existingTrades = await tx.providerTrade.findMany({
+      if (subcategoryIds) {
+        const existingSubcategories = await tx.providerSubcategory.findMany({
           where: {
             providerId: provider.id,
           },
         });
 
-        const desiredTradeIds = tradeIds ?? existingTrades.map((item) => item.tradeId);
-        const primaryTradeId =
-          body.primaryTradeId === undefined
-            ? existingTrades.find((item) => item.isPrimary)?.tradeId ??
-              desiredTradeIds[0] ??
-              null
-            : body.primaryTradeId ?? desiredTradeIds[0] ?? null;
-
-        if (primaryTradeId && !desiredTradeIds.includes(primaryTradeId)) {
-          throw new BadRequestException(
-            "primaryTradeId must reference one of the provider's trades",
-          );
-        }
-
-        await tx.providerTrade.deleteMany({
+        await tx.providerSubcategory.deleteMany({
           where: {
             providerId: provider.id,
           },
         });
 
-        if (desiredTradeIds.length > 0) {
-          const existingExperienceByTradeId = new Map(
-            existingTrades.map((item) => [item.tradeId, item.experience]),
+        if (subcategoryIds.length > 0) {
+          const existingExperienceBySubcategoryId = new Map(
+            existingSubcategories.map((item) => [
+              item.subcategoryId,
+              item.experience,
+            ]),
           );
 
-          await tx.providerTrade.createMany({
-            data: desiredTradeIds.map((tradeId, index) => ({
+          await tx.providerSubcategory.createMany({
+            data: subcategoryIds.map((subcategoryId, index) => ({
               providerId: provider.id,
-              tradeId,
-              isPrimary: primaryTradeId
-                ? tradeId === primaryTradeId
-                : index === 0,
+              subcategoryId,
+              isPrimary: index === 0,
               experience:
                 body.experience ??
-                existingExperienceByTradeId.get(tradeId) ??
+                existingExperienceBySubcategoryId.get(subcategoryId) ??
                 provider.experience ??
                 null,
             })),
@@ -613,14 +577,11 @@ export class ProvidersService {
 
     if (query.subcategory) {
       conditions.push({
-        trades: {
+        subcategories: {
           some: {
-            trade: {
+            subcategory: {
               isActive: true,
-              subcategory: {
-                isActive: true,
-                OR: [{ id: query.subcategory }, { slug: query.subcategory }],
-              },
+              OR: [{ id: query.subcategory }, { slug: query.subcategory }],
             },
           },
         },
@@ -759,9 +720,9 @@ export class ProvidersService {
 
   private async validateReferencedRecords(params: {
     categoryIds?: string[];
-    tradeIds?: string[];
+    subcategoryIds?: string[];
   }) {
-    const [categoryCount, tradeCount] = await Promise.all([
+    const [categoryCount, subcategoryCount] = await Promise.all([
       params.categoryIds
         ? this.prisma.category.count({
             where: {
@@ -770,10 +731,10 @@ export class ProvidersService {
             },
           })
         : Promise.resolve(undefined),
-      params.tradeIds
-        ? this.prisma.trade.count({
+      params.subcategoryIds
+        ? this.prisma.subcategory.count({
             where: {
-              id: { in: params.tradeIds },
+              id: { in: params.subcategoryIds },
               isActive: true,
             },
           })
@@ -789,11 +750,11 @@ export class ProvidersService {
     }
 
     if (
-      params.tradeIds &&
-      tradeCount !== undefined &&
-      tradeCount !== params.tradeIds.length
+      params.subcategoryIds &&
+      subcategoryCount !== undefined &&
+      subcategoryCount !== params.subcategoryIds.length
     ) {
-      throw new BadRequestException("One or more trades are invalid");
+      throw new BadRequestException("One or more subcategories are invalid");
     }
   }
 
@@ -974,19 +935,17 @@ export class ProvidersService {
         icon: item.category.icon,
         color: item.category.color,
       })),
-      trades: provider.trades
+      subcategories: provider.subcategories
         .map((item) => ({
-          id: item.trade.id,
-          subcategoryId: item.trade.subcategoryId,
-          name: item.trade.name,
-          slug: item.trade.slug,
-          description: item.trade.description,
-          icon: item.trade.icon,
-          basePrice: item.trade.basePrice,
-          duration: item.trade.duration,
-          isActive: item.trade.isActive,
-          order: item.trade.order,
-          createdAt: item.trade.createdAt,
+          id: item.subcategory.id,
+          categoryId: item.subcategory.categoryId,
+          name: item.subcategory.name,
+          slug: item.subcategory.slug,
+          description: item.subcategory.description,
+          icon: item.subcategory.icon,
+          isActive: item.subcategory.isActive,
+          order: item.subcategory.order,
+          createdAt: item.subcategory.createdAt,
           isPrimary: item.isPrimary,
           experience: item.experience,
         }))
@@ -1057,19 +1016,17 @@ export class ProvidersService {
         isActive: item.category.isActive,
         createdAt: item.category.createdAt,
       })),
-      trades: provider.trades
+      subcategories: provider.subcategories
         .map((item) => ({
-          id: item.trade.id,
-          subcategoryId: item.trade.subcategoryId,
-          name: item.trade.name,
-          slug: item.trade.slug,
-          description: item.trade.description,
-          icon: item.trade.icon,
-          basePrice: item.trade.basePrice,
-          duration: item.trade.duration,
-          isActive: item.trade.isActive,
-          order: item.trade.order,
-          createdAt: item.trade.createdAt,
+          id: item.subcategory.id,
+          categoryId: item.subcategory.categoryId,
+          name: item.subcategory.name,
+          slug: item.subcategory.slug,
+          description: item.subcategory.description,
+          icon: item.subcategory.icon,
+          isActive: item.subcategory.isActive,
+          order: item.subcategory.order,
+          createdAt: item.subcategory.createdAt,
           isPrimary: item.isPrimary,
           experience: item.experience,
         }))

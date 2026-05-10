@@ -1089,11 +1089,6 @@ export class AdminService {
               status: true,
               price: true,
               scheduledDate: true,
-              service: {
-                select: {
-                  name: true,
-                },
-              },
             },
           },
         },
@@ -1180,7 +1175,7 @@ export class AdminService {
               status: review.booking.status,
               price: review.booking.price,
               scheduledDate: review.booking.scheduledDate,
-              service: review.booking.service?.name ?? review.booking.title,
+              service: review.booking.title,
             }
           : null,
       })),

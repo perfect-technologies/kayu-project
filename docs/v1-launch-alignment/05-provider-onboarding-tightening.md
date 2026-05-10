@@ -40,7 +40,7 @@ Provider onboarding should collect:
 - Mobile identity document controls are fake upload toggles.
 - Backend publish does not require experience or skills.
 - `zoneRadiusKm` lives in draft JSON, not provider/search model.
-- Provider update enforces max 3 trades but not max 3 categories.
+- Provider update now uses direct subcategory assignment; max 3 category and subcategory limits should stay aligned with onboarding.
 - Portfolio models exist, but onboarding portfolio is placeholder count.
 - Verification copy is inconsistent about review timing.
 

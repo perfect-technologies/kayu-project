@@ -47,8 +47,7 @@ type UpdateProviderBody = {
     city: string;
     commune?: string | null;
   }>;
-  tradeIds?: string[];
-  primaryTradeId?: string | null;
+  subcategoryIds?: string[];
 };
 
 const providersQueryPipe = new LazyZodValidationPipe(async () => {

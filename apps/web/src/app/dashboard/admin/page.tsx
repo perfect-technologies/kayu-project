@@ -1264,7 +1264,7 @@ function prettyDocKind(kind: string) {
     case 'ADDRESS':
       return "Justificatif d'adresse";
     case 'CERT_OPTIONAL':
-      return 'Certificat métier (optionnel)';
+      return 'Certificat professionnel (optionnel)';
     default:
       return kind;
   }
@@ -2252,7 +2252,7 @@ function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <SectionHeader
         title="Catégories de service"
-        subtitle="Référentiel des métiers exposés à la recherche client."
+        subtitle="Référentiel des catégories et services exposés à la recherche client."
       />
       {isLoading ? (
         <OpsCard>

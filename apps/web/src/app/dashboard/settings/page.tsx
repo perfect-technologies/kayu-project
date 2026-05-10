@@ -64,10 +64,10 @@ const CLIENT_SECTIONS: SectionDef[] = [
 ];
 
 const PROVIDER_SECTIONS: SectionDef[] = [
-  { id: 'profile', label: 'Profil pro', icon: User, group: 'métier' },
-  { id: 'services', label: 'Services & tarifs', icon: Wrench, group: 'métier' },
-  { id: 'availability', label: 'Disponibilités', icon: Calendar, group: 'métier' },
-  { id: 'zones', label: "Zones d'intervention", icon: MapPin, group: 'métier' },
+  { id: 'profile', label: 'Profil pro', icon: User, group: 'pro' },
+  { id: 'services', label: 'Services & tarifs', icon: Wrench, group: 'pro' },
+  { id: 'availability', label: 'Disponibilités', icon: Calendar, group: 'pro' },
+  { id: 'zones', label: "Zones d'intervention", icon: MapPin, group: 'pro' },
   { id: 'language', label: 'Langue & région', icon: Globe, group: 'perso' },
   { id: 'payment', label: 'Paiement', icon: Wallet, group: 'perso' },
   { id: 'notifications', label: 'Notifications', icon: Bell, group: 'préférences' },
@@ -661,7 +661,7 @@ function ProfileSection({ role }: { role: Role }) {
               lineHeight: 1.5,
             }}
           >
-            La bio, le métier principal et les langues parlées s'éditent depuis le parcours
+            La bio, l’activité principale et les langues parlées s'éditent depuis le parcours
             d'onboarding pro et la fiche prestataire. Une édition rapide depuis les réglages
             arrive dans une prochaine itération.
           </div>

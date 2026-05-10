@@ -120,12 +120,6 @@ export class CategoriesService {
         subcategories: {
           where: { isActive: true },
           orderBy: [{ order: "asc" }, { name: "asc" }],
-          include: {
-            trades: {
-              where: { isActive: true },
-              orderBy: [{ order: "asc" }, { name: "asc" }],
-            },
-          },
         },
       },
     });
@@ -166,19 +160,6 @@ export class CategoriesService {
           createdAt: subcategory.createdAt,
           providerCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
           providersCount: providerCountBySubcategoryId.get(subcategory.id) ?? 0,
-          trades: subcategory.trades.map((trade) => ({
-            id: trade.id,
-            subcategoryId: trade.subcategoryId,
-            name: trade.name,
-            slug: trade.slug,
-            description: trade.description,
-            icon: trade.icon,
-            basePrice: trade.basePrice,
-            duration: trade.duration,
-            isActive: trade.isActive,
-            order: trade.order,
-            createdAt: trade.createdAt,
-          })),
         })),
       })),
     };
@@ -240,34 +221,27 @@ export class CategoriesService {
       return new Map<string, number>();
     }
 
-    const providerTrades = await this.prisma.providerTrade.findMany({
+    const providerSubcategories = await this.prisma.providerSubcategory.findMany({
       where: {
-        trade: {
-          subcategoryId: { in: subcategoryIds },
+        subcategoryId: { in: subcategoryIds },
+        subcategory: {
           isActive: true,
-          subcategory: {
-            isActive: true,
-          },
         },
         provider: this.searchableProviderWhere(),
       },
       select: {
         providerId: true,
-        trade: {
-          select: {
-            subcategoryId: true,
-          },
-        },
+        subcategoryId: true,
       },
     });
 
     const providersBySubcategoryId = new Map<string, Set<string>>();
-    for (const providerTrade of providerTrades) {
+    for (const providerSubcategory of providerSubcategories) {
       const set =
-        providersBySubcategoryId.get(providerTrade.trade.subcategoryId) ??
+        providersBySubcategoryId.get(providerSubcategory.subcategoryId) ??
         new Set<string>();
-      set.add(providerTrade.providerId);
-      providersBySubcategoryId.set(providerTrade.trade.subcategoryId, set);
+      set.add(providerSubcategory.providerId);
+      providersBySubcategoryId.set(providerSubcategory.subcategoryId, set);
     }
 
     return new Map(

@@ -96,7 +96,7 @@ interface ProviderProfileClientProps {
       icon?: string | null;
       color?: string | null;
     }>;
-    trades: Array<{
+    subcategories: Array<{
       id: string;
       name: string;
       slug: string;

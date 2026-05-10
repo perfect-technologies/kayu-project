@@ -273,7 +273,7 @@ export function StepIdentity({ data, setData }: StepProps) {
   );
 }
 
-// ─── Step 2 — Métier ──────────────────────────────────────────────────────
+// ─── Step 2 — Activité ──────────────────────────────────────────────────────
 
 export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
   const selectedCategoryIds = resolveCategoryIds(data.categories, categoryOptions);
@@ -445,7 +445,7 @@ export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
 
       <div>
         <FieldLabel
-          label="Intitulé de métier"
+          label="Intitulé d’activité"
           hint="Ex : Plombier certifié, Électricienne agréée SNEL…"
         />
         <input

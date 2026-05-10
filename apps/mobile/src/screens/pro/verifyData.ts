@@ -37,7 +37,7 @@ export const VERIFY_STEPS: VerifyStep[] = [
   },
   {
     id: 'cert',
-    label: 'Certificat métier',
+    label: 'Certificat professionnel',
     icon: 'award',
     required: false,
     caption: 'Optionnel · augmente vos chances',

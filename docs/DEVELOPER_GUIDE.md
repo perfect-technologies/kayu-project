@@ -35,8 +35,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5433/kayu?schema=public
 Seed files live in `apps/backend/prisma`:
 
 - `seed.ts`: orchestrator, cleanup, optional Supabase Auth user creation.
-- `seed-categories.ts`: 15 categories, 40 subcategories, and 93 trades migrated from the legacy app.
-- `seed-demo.ts`: demo services, users, providers, bookings, reviews, favorites, conversations, notifications, visibility settings, and system settings.
+- `seed-categories.ts`: 15 categories and 40 subcategories migrated from the legacy app.
+- `seed-demo.ts`: demo users, providers, subcategory assignments, bookings, reviews, favorites, conversations, notifications, visibility settings, and system settings.
 
 Run:
 
@@ -119,7 +119,7 @@ Core models:
 
 - `User`: local profile keyed by Supabase `authUserId`.
 - `Provider`: professional profile linked one-to-one to `User`.
-- `Category`, `Subcategory`, `Trade`, `ProviderTrade`: marketplace taxonomy and provider skills.
+- `Category`, `Subcategory`, `ProviderSubcategory`, `Skill`: marketplace taxonomy and provider skills.
 - `Booking`: client/provider service request lifecycle.
 - `Review`, `ClientReview`: bidirectional reputation.
 - `TrustScore`, `ProviderBadge`, `Certification`: provider trust system.

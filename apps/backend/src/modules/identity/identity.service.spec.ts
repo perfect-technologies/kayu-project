@@ -87,9 +87,9 @@ function makeProviderProfile(data: ProviderOnboardingData) {
     categories: data.categoryIds.map((id) => ({
       category: { id, name: "Plomberie", slug: "plomberie" },
     })),
-    trades: data.tradeIds.map((id, index) => ({
-      trade: { id, name: "Fuites", slug: "fuites" },
-      isPrimary: data.primaryTradeId ? id === data.primaryTradeId : index === 0,
+    subcategories: data.subcategoryIds.map((id, index) => ({
+      subcategory: { id, name: "Depannage", slug: "depannage" },
+      isPrimary: index === 0,
       experience: data.experience ?? null,
     })),
     skills: data.skills.map((name) => ({ name })),
@@ -169,9 +169,9 @@ test("legacy provider onboarding rejects incomplete launch profile", async () =>
       service.providerOnboarding(user as never, {
         profession: "Plombier",
         categoryIds: [],
+        subcategoryIds: [],
         skills: [],
         serviceZones: [],
-        tradeIds: [],
         hourlyRate: 0,
       }),
     (error) => error instanceof BadRequestException,
@@ -184,7 +184,7 @@ test("legacy provider onboarding publishes normalized launch-ready provider", as
   const repo = {
     findById: async () => user,
     countCategories: async (ids: string[]) => ids.length,
-    countTrades: async (ids: string[]) => ids.length,
+    countSubcategories: async (ids: string[]) => ids.length,
     createProviderProfile: async (
       _userId: string,
       data: ProviderOnboardingData,
@@ -203,8 +203,7 @@ test("legacy provider onboarding publishes normalized launch-ready provider", as
       { city: " Kinshasa ", commune: " Gombe " },
       { city: "Kinshasa", commune: "Gombe" },
     ],
-    tradeIds: ["trade_1"],
-    primaryTradeId: "trade_1",
+    subcategoryIds: ["sub_1"],
     experience: 5,
     hourlyRate: 15000,
     description: "  Disponible pour les urgences.  ",
@@ -220,7 +219,6 @@ test("legacy provider onboarding publishes normalized launch-ready provider", as
     categoryIds: ["cat_1"],
     skills: ["Fuites", "Installation"],
     serviceZones: [{ city: "Kinshasa", commune: "Gombe" }],
-    tradeIds: ["trade_1"],
-    primaryTradeId: "trade_1",
+    subcategoryIds: ["sub_1"],
   });
 });

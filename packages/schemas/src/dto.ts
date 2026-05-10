@@ -31,7 +31,7 @@ import {
   PayoutSchema,
   ProviderDetailSchema,
   ProviderSchema,
-  ProviderTradeSchema,
+  ProviderSubcategorySchema,
   ReviewSchema,
   ServiceZoneSchema,
   SkillSchema,
@@ -83,8 +83,7 @@ export const RegisterDto = CompleteProfileDto.extend({
   hourlyRate: z.number().min(0).optional(),
   skills: z.array(z.string()).optional(),
   serviceZones: z.array(ServiceZoneInputSchema).optional(),
-  tradeIds: z.array(IdSchema).max(3).optional(),
-  primaryTradeId: IdSchema.optional(),
+  subcategoryIds: z.array(IdSchema).max(3).optional(),
 });
 
 export const LoginDto = z.object({
@@ -102,8 +101,7 @@ export const ProviderOnboardingDto = z.object({
   categoryIds: z.array(IdSchema).default([]),
   skills: z.array(z.string().min(1)).default([]),
   serviceZones: z.array(ServiceZoneInputSchema).default([]),
-  tradeIds: z.array(IdSchema).max(3).default([]),
-  primaryTradeId: IdSchema.optional(),
+  subcategoryIds: z.array(IdSchema).max(3).default([]),
   experience: z.number().int().min(0).max(50).optional(),
   hourlyRate: z.number().min(0).optional(),
   description: z.string().max(1000).optional(),
@@ -117,10 +115,9 @@ export const UpdateProviderDto = z.object({
   isAvailable: z.boolean().optional(),
   languages: z.array(z.string()).optional(),
   categoryIds: z.array(IdSchema).max(3).optional(),
+  subcategoryIds: z.array(IdSchema).max(3).optional(),
   skills: z.array(SkillInputSchema).optional(),
   serviceZones: z.array(ServiceZoneInputSchema).optional(),
-  tradeIds: z.array(IdSchema).max(3).optional(),
-  primaryTradeId: IdSchema.nullable().optional(),
 });
 
 export const CreateBookingDto = z.object({
@@ -833,7 +830,7 @@ export const ProviderProfileStatsSchema = z.object({
 });
 
 export const ProviderProfileResponseSchema = ProviderDetailSchema.extend({
-  trades: z.array(ProviderTradeSchema).default([]),
+  subcategories: z.array(ProviderSubcategorySchema).default([]),
   recentReviews: z.array(ReviewSchema).default([]),
   stats: ProviderProfileStatsSchema,
   hasAccess: z.boolean(),
@@ -994,7 +991,7 @@ export const ProviderDraftDto = z.object({
   idFrontUploaded: z.boolean().optional(),
   idBackUploaded: z.boolean().optional(),
 
-  // Step 2 — Métier
+  // Step 2 — Activité
   primaryCategoryId: IdSchema.optional(),
   categoryIds: z.array(IdSchema).max(3).optional(),
   subcategoryIds: z.array(IdSchema).optional(),

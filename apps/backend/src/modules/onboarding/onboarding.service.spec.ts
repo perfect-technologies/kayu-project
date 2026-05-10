@@ -68,7 +68,7 @@ function makeProvider(overrides: Record<string, unknown> = {}) {
     categories: [{ categoryId: "cat_1" }],
     skills: [{ name: "Fuites", level: 3 }],
     serviceZones: [{ city: " Kinshasa ", commune: " Gombe " }],
-    trades: [],
+    subcategories: [],
     ...overrides,
   };
 }
@@ -87,7 +87,7 @@ function hasMissingField(
   return Array.isArray(missing) && missing.includes(field);
 }
 
-test("provider publish materializes launch fields, trust score, and trade mapping", async () => {
+test("provider publish materializes launch fields, trust score, and subcategory mapping", async () => {
   const provider = makeProvider();
   const calls: Record<string, unknown> = {};
 
@@ -126,18 +126,18 @@ test("provider publish materializes launch fields, trust score, and trade mappin
         calls.serviceZoneCreateMany = args;
       },
     },
-    trade: {
+    subcategory: {
       findMany: async (args: unknown) => {
-        calls.tradeFindMany = args;
-        return [{ id: "trade_1", subcategoryId: "sub_1", order: 0 }];
+        calls.subcategoryFindMany = args;
+        return [{ id: "sub_1", order: 0 }];
       },
     },
-    providerTrade: {
+    providerSubcategory: {
       deleteMany: async (args: unknown) => {
-        calls.providerTradeDeleteMany = args;
+        calls.providerSubcategoryDeleteMany = args;
       },
       createMany: async (args: unknown) => {
-        calls.providerTradeCreateMany = args;
+        calls.providerSubcategoryCreateMany = args;
       },
     },
     trustScore: {
@@ -204,11 +204,11 @@ test("provider publish materializes launch fields, trust score, and trade mappin
   assert.deepEqual(calls.serviceZoneCreateMany, {
     data: [{ providerId: provider.id, city: "Kinshasa", commune: "Gombe" }],
   });
-  assert.deepEqual(calls.providerTradeCreateMany, {
+  assert.deepEqual(calls.providerSubcategoryCreateMany, {
     data: [
       {
         providerId: provider.id,
-        tradeId: "trade_1",
+        subcategoryId: "sub_1",
         isPrimary: true,
         experience: 5,
       },

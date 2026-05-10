@@ -96,7 +96,7 @@ Mobile:
 | `pnpm db:up` | Start local PostgreSQL |
 | `pnpm db:down` | Stop Compose services |
 | `pnpm db:push` | Push Prisma schema to PostgreSQL |
-| `pnpm db:seed` | Seed categories, trades, demo users, providers, bookings, reviews, messages |
+| `pnpm db:seed` | Seed categories, subcategories, demo users, providers, bookings, reviews, messages |
 | `pnpm db:reset` | Reset database with Prisma and reseed |
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm run setup` | Install, start database, push schema, seed data |

@@ -10,7 +10,7 @@ export type OnboardingData = {
   lastName: string;
   phone: string;
   id: IdUploads;
-  // Step 2 — métier
+  // Step 2 — activité
   // Backend category IDs. Labels and visuals are resolved from the categories API.
   categories: string[];
   subcategoryIds: string[];

@@ -25,8 +25,7 @@ export type ProviderOnboardingBody = {
     city: string;
     commune?: string | null;
   }>;
-  tradeIds: string[];
-  primaryTradeId?: string;
+  subcategoryIds: string[];
   experience?: number;
   hourlyRate?: number;
   description?: string;
@@ -37,10 +36,13 @@ export type MeUser = Omit<UserWithProvider, "provider"> & {
   provider: ProviderResponse | null;
 };
 
-type ProviderResponse = Omit<ProviderWithRelations, "categories" | "trades"> & {
+type ProviderResponse = Omit<
+  ProviderWithRelations,
+  "categories" | "subcategories"
+> & {
   categories: Array<ProviderWithRelations["categories"][number]["category"]>;
-  trades: Array<
-    ProviderWithRelations["trades"][number]["trade"] & {
+  subcategories: Array<
+    ProviderWithRelations["subcategories"][number]["subcategory"] & {
       isPrimary: boolean;
       experience: number | null;
     }
@@ -207,8 +209,7 @@ export class IdentityService implements IActorResolver {
       categoryIds: this.unique(body.categoryIds),
       skills: this.unique(body.skills.map((skill) => skill.trim()).filter(Boolean)),
       serviceZones: this.uniqueZones(body.serviceZones),
-      tradeIds: this.unique(body.tradeIds),
-      primaryTradeId: body.primaryTradeId,
+      subcategoryIds: this.unique(body.subcategoryIds),
     };
   }
 
@@ -231,25 +232,21 @@ export class IdentityService implements IActorResolver {
       throw new BadRequestException("Hourly rate is required");
     }
 
-    if (data.tradeIds.length > 3) {
-      throw new BadRequestException("A provider can have at most 3 trades");
+    if (data.subcategoryIds.length > 3) {
+      throw new BadRequestException("A provider can have at most 3 service subcategories");
     }
 
-    if (data.primaryTradeId && !data.tradeIds.includes(data.primaryTradeId)) {
-      throw new BadRequestException("primaryTradeId must be included in tradeIds");
-    }
-
-    const [categoryCount, tradeCount] = await Promise.all([
+    const [categoryCount, subcategoryCount] = await Promise.all([
       this.repo.countCategories(data.categoryIds),
-      this.repo.countTrades(data.tradeIds),
+      this.repo.countSubcategories(data.subcategoryIds),
     ]);
 
     if (categoryCount !== data.categoryIds.length) {
       throw new BadRequestException("One or more categories are invalid");
     }
 
-    if (tradeCount !== data.tradeIds.length) {
-      throw new BadRequestException("One or more trades are invalid");
+    if (subcategoryCount !== data.subcategoryIds.length) {
+      throw new BadRequestException("One or more subcategories are invalid");
     }
   }
 
@@ -269,8 +266,8 @@ export class IdentityService implements IActorResolver {
     return {
       ...provider,
       categories: provider.categories.map((item) => item.category),
-      trades: provider.trades.map((item) => ({
-        ...item.trade,
+      subcategories: provider.subcategories.map((item) => ({
+        ...item.subcategory,
         isPrimary: item.isPrimary,
         experience: item.experience,
       })),

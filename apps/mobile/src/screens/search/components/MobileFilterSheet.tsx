@@ -160,7 +160,7 @@ export function MobileFilterSheet({
             <TextInput
               value={local.q}
               onChangeText={(value) => setLocal((f) => ({ ...f, q: value }))}
-              placeholder="Métier, service ou nom du pro"
+              placeholder="Service, compétence ou nom du pro"
               placeholderTextColor={theme.colors.textMuted}
               style={styles.input}
               autoCapitalize="none"

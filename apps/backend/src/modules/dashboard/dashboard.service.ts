@@ -63,12 +63,6 @@ const providerTodayBookingInclude = {
       avatar: true,
     },
   },
-  service: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
 } satisfies Prisma.BookingInclude;
 
 type ProviderTodayBookingRecord = Prisma.BookingGetPayload<{
@@ -82,12 +76,6 @@ const providerBookingsInclude = {
       firstName: true,
       lastName: true,
       avatar: true,
-    },
-  },
-  service: {
-    select: {
-      id: true,
-      name: true,
     },
   },
 } satisfies Prisma.BookingInclude;
@@ -108,12 +96,6 @@ const clientBookingsInclude = {
       },
     },
   },
-  service: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
 } satisfies Prisma.BookingInclude;
 
 const providerReviewInclude = {
@@ -128,11 +110,6 @@ const providerReviewInclude = {
   booking: {
     select: {
       title: true,
-      service: {
-        select: {
-          name: true,
-        },
-      },
     },
   },
 } satisfies Prisma.ReviewInclude;
@@ -979,7 +956,6 @@ export class DashboardService {
       id: booking.id,
       clientId: booking.clientId,
       providerId: booking.providerId,
-      serviceId: booking.serviceId,
       title: booking.title,
       description: booking.description,
       status: booking.status,
@@ -1008,7 +984,6 @@ export class DashboardService {
         name: this.formatName(booking.client.firstName, booking.client.lastName, "Client"),
         avatar: booking.client.avatar,
       },
-      service: booking.service,
     };
   }
 
@@ -1017,7 +992,6 @@ export class DashboardService {
       id: booking.id,
       clientId: booking.clientId,
       providerId: booking.providerId,
-      serviceId: booking.serviceId,
       title: booking.title,
       description: booking.description,
       status: booking.status,
@@ -1051,7 +1025,6 @@ export class DashboardService {
         avatar: booking.provider.user.avatar,
         profession: booking.provider.profession,
       },
-      service: booking.service,
     };
   }
 
@@ -1086,7 +1059,7 @@ export class DashboardService {
       booking: {
         title: review.booking.title,
       },
-      service: review.booking.service?.name ?? review.booking.title,
+      service: review.booking.title,
     };
   }
 
@@ -1267,7 +1240,7 @@ export class DashboardService {
       id: booking.id,
       time,
       duration,
-      kind: booking.service?.name ?? booking.title,
+      kind: booking.title,
       client: {
         id: booking.client.id,
         name: this.formatName(booking.client.firstName, booking.client.lastName, "Client"),

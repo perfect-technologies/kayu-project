@@ -71,13 +71,9 @@ type ProviderDraftRecord = Prisma.ProviderGetPayload<{
     categories: true;
     skills: true;
     serviceZones: true;
-    trades: {
+    subcategories: {
       include: {
-        trade: {
-          select: {
-            subcategoryId: true;
-          };
-        };
+        subcategory: true;
       };
     };
   };
@@ -201,8 +197,11 @@ export class OnboardingService {
       }
 
       if (body.subcategoryIds !== undefined) {
-        const tradeIds = await this.resolveDraftTradeIds(tx, body.subcategoryIds);
-        await this.replaceProviderTrades(tx, provider.id, tradeIds, {
+        const subcategoryIds = await this.resolveDraftSubcategoryIds(
+          tx,
+          body.subcategoryIds,
+        );
+        await this.replaceProviderSubcategories(tx, provider.id, subcategoryIds, {
           experience: body.yearsOfExperience ?? provider.experience,
         });
       }
@@ -403,14 +402,10 @@ export class OnboardingService {
       if (!draft.categoryIds && state.provider.categories.length > 0) {
         draft.categoryIds = state.provider.categories.map((item) => item.categoryId);
       }
-      if (!draft.subcategoryIds && state.provider.trades.length > 0) {
-        draft.subcategoryIds = [
-          ...new Set(
-            state.provider.trades
-              .map((item) => item.trade.subcategoryId)
-              .filter((id): id is string => Boolean(id)),
-          ),
-        ];
+      if (!draft.subcategoryIds && state.provider.subcategories.length > 0) {
+        draft.subcategoryIds = state.provider.subcategories.map(
+          (item) => item.subcategoryId,
+        );
       }
       if (!draft.profession && overflow.bio && state.provider.description) {
         draft.profession = state.provider.description;
@@ -592,8 +587,11 @@ export class OnboardingService {
       });
     }
 
-    const tradeIds = await this.resolveDraftTradeIds(tx, draft.subcategoryIds);
-    await this.replaceProviderTrades(tx, providerId, tradeIds, {
+    const subcategoryIds = await this.resolveDraftSubcategoryIds(
+      tx,
+      draft.subcategoryIds,
+    );
+    await this.replaceProviderSubcategories(tx, providerId, subcategoryIds, {
       experience: draft.yearsOfExperience,
     });
 
@@ -604,47 +602,34 @@ export class OnboardingService {
     });
   }
 
-  private async resolveDraftTradeIds(
+  private async resolveDraftSubcategoryIds(
     tx: Prisma.TransactionClient,
-    subcategoryOrTradeIds: string[] | undefined,
+    subcategoryIds: string[] | undefined,
   ): Promise<string[]> {
-    const ids = this.uniqueIds(subcategoryOrTradeIds);
+    const ids = this.uniqueIds(subcategoryIds);
     if (ids.length === 0) return [];
 
-    const trades = await tx.trade.findMany({
+    const subcategories = await tx.subcategory.findMany({
       where: {
+        id: { in: ids },
         isActive: true,
-        OR: [
-          { id: { in: ids } },
-          {
-            subcategoryId: { in: ids },
-            subcategory: { isActive: true },
-          },
-        ],
       },
       select: {
         id: true,
-        subcategoryId: true,
         order: true,
       },
       orderBy: [{ order: "asc" }, { id: "asc" }],
     });
 
     const inputOrder = new Map(ids.map((id, index) => [id, index]));
-    return trades
+    return subcategories
       .sort((left, right) => {
-        const leftRank =
-          inputOrder.get(left.id) ??
-          inputOrder.get(left.subcategoryId) ??
-          Number.MAX_SAFE_INTEGER;
-        const rightRank =
-          inputOrder.get(right.id) ??
-          inputOrder.get(right.subcategoryId) ??
-          Number.MAX_SAFE_INTEGER;
+        const leftRank = inputOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
+        const rightRank = inputOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
         if (leftRank !== rightRank) return leftRank - rightRank;
         return (left.order ?? 0) - (right.order ?? 0);
       })
-      .map((trade) => trade.id)
+      .map((subcategory) => subcategory.id)
       .filter((id, index, all) => all.indexOf(id) === index);
   }
 
@@ -655,19 +640,19 @@ export class OnboardingService {
     ]).slice(0, 3);
   }
 
-  private async replaceProviderTrades(
+  private async replaceProviderSubcategories(
     tx: Prisma.TransactionClient,
     providerId: string,
-    tradeIds: string[],
+    subcategoryIds: string[],
     options: { experience?: number | null },
   ) {
-    await tx.providerTrade.deleteMany({ where: { providerId } });
-    if (tradeIds.length === 0) return;
+    await tx.providerSubcategory.deleteMany({ where: { providerId } });
+    if (subcategoryIds.length === 0) return;
 
-    await tx.providerTrade.createMany({
-      data: tradeIds.map((tradeId, index) => ({
+    await tx.providerSubcategory.createMany({
+      data: subcategoryIds.map((subcategoryId, index) => ({
         providerId,
-        tradeId,
+        subcategoryId,
         isPrimary: index === 0,
         experience: options.experience ?? null,
       })),
@@ -683,13 +668,9 @@ const draftProviderInclude = {
   categories: true,
   skills: true,
   serviceZones: true,
-  trades: {
+  subcategories: {
     include: {
-      trade: {
-        select: {
-          subcategoryId: true,
-        },
-      },
+      subcategory: true,
     },
   },
 } satisfies Prisma.ProviderInclude;

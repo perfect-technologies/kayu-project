@@ -46,7 +46,7 @@ const STEPS: StepIndicatorStep[] = [
 
 const TITLES: Record<number, string> = {
   1: "Vérifions ton identité",
-  2: 'Quel est ton métier ?',
+  2: 'Quelle est ton activité ?',
   3: 'Où tu interviens ?',
   4: 'Définis tes tarifs',
   5: 'Complète ton profil',
@@ -681,7 +681,7 @@ function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
 
       <View>
         <FieldLabel
-          label="Intitulé de métier"
+          label="Intitulé d’activité"
           hint="Ex : Plombier certifié, Électricienne agréée SNEL…"
         />
         <TextInput

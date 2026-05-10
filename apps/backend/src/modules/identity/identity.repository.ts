@@ -11,9 +11,9 @@ const providerInclude = {
   },
   skills: true,
   serviceZones: true,
-  trades: {
+  subcategories: {
     include: {
-      trade: true,
+      subcategory: true,
     },
   },
   trustScore: {
@@ -42,8 +42,7 @@ export type ProviderOnboardingData = {
     city: string;
     commune?: string | null;
   }>;
-  tradeIds: string[];
-  primaryTradeId?: string;
+  subcategoryIds: string[];
 };
 
 export type UserProfileData = {
@@ -173,12 +172,12 @@ export class IdentityRepository {
     });
   }
 
-  countTrades(tradeIds: string[]): Promise<number> {
-    if (tradeIds.length === 0) return Promise.resolve(0);
+  countSubcategories(subcategoryIds: string[]): Promise<number> {
+    if (subcategoryIds.length === 0) return Promise.resolve(0);
 
-    return this.prisma.trade.count({
+    return this.prisma.subcategory.count({
       where: {
-        id: { in: tradeIds },
+        id: { in: subcategoryIds },
         isActive: true,
       },
     });
@@ -210,12 +209,10 @@ export class IdentityRepository {
               commune: zone.commune,
             })),
           },
-          trades: {
-            create: data.tradeIds.map((tradeId, index) => ({
-              tradeId,
-              isPrimary: data.primaryTradeId
-                ? tradeId === data.primaryTradeId
-                : index === 0,
+          subcategories: {
+            create: data.subcategoryIds.map((subcategoryId, index) => ({
+              subcategoryId,
+              isPrimary: index === 0,
               experience: data.experience,
             })),
           },

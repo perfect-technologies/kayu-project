@@ -59,11 +59,6 @@ const reviewInclude = {
   booking: {
     select: {
       title: true,
-      service: {
-        select: {
-          name: true,
-        },
-      },
     },
   },
 } satisfies Prisma.ReviewInclude;
@@ -702,7 +697,7 @@ export class ReviewsService {
       createdAt: review.createdAt,
       updatedAt: review.updatedAt,
       client: review.client,
-      service: review.booking.service?.name ?? review.booking.title,
+      service: review.booking.title,
     };
   }
 

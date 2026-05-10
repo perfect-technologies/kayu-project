@@ -200,7 +200,7 @@ function CategoryGrid({
     <section className="mx-auto max-w-[1240px] px-5 py-10 md:px-10">
       <div className="mb-5 flex items-baseline justify-between">
         <h2 className="k-display-m" style={{ margin: 0 }}>
-          Trouve ton métier
+          Trouve ton service
         </h2>
         <Link href="/services" className="k-btn k-btn-ghost">
           Toutes les catégories <ArrowRight className="h-3.5 w-3.5" />
@@ -299,7 +299,7 @@ function HowItWorks() {
     {
       n: "01",
       title: "Trouve un prestataire",
-      desc: "Cherche par métier, ville et disponibilité pour ouvrir un profil utile.",
+      desc: "Cherche par service, ville et disponibilité pour ouvrir un profil utile.",
       icon: Search,
     },
     {

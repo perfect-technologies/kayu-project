@@ -108,7 +108,6 @@ function makeBooking(overrides: Record<string, unknown> = {}) {
     id: "booking_1",
     clientId: "client_user_1",
     providerId: "provider_1",
-    serviceId: null,
     title: "Réparer une fuite",
     description: "Je peux intervenir demain matin.",
     status: "CONFIRMED",

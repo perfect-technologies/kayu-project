@@ -16,20 +16,20 @@ datasource db {
 // ==================== UTILISATEURS ====================
 
 model User {
-  id         String   @id @default(cuid())
-  authUserId String   @unique
-  email      String?  @unique
-  phone      String?  @unique
-  firstName  String?
-  lastName   String?
-  avatar     String?
-  role       UserRole @default(CLIENT)
+  id             String    @id @default(cuid())
+  authUserId     String    @unique
+  email          String?   @unique
+  phone          String?   @unique
+  firstName      String?
+  lastName       String?
+  avatar         String?
+  role           UserRole  @default(CLIENT)
   roleSelectedAt DateTime?
-  city       String?
-  country    String   @default("RDC")
-  address    String?
-  latitude   Float?
-  longitude  Float?
+  city           String?
+  country        String    @default("RDC")
+  address        String?
+  latitude       Float?
+  longitude      Float?
 
   // Vérification
   isVerified      Boolean   @default(false)
@@ -143,7 +143,7 @@ model Provider {
   certifications         Certification[]
   availabilitySchedules  AvailabilitySchedule[]
   availabilityExceptions AvailabilityException[]
-  trades                 ProviderTrade[] // Métiers (max 3)
+  subcategories          ProviderSubcategory[]
   jobRequestMatches      JobRequestMatch[]
   transactions           Transaction[]
   payouts                Payout[]
@@ -257,7 +257,6 @@ model Category {
   // Relations
   subcategories     Subcategory[]
   providers         ProviderCategory[]
-  services          Service[]
   certifications    Certification[]
   portfolioProjects PortfolioProject[]
   jobRequests       JobRequest[]
@@ -279,76 +278,12 @@ model Subcategory {
   createdAt   DateTime @default(now())
 
   // Relations
-  services    Service[]
-  trades      Trade[] // Métiers associés
+  providers   ProviderSubcategory[]
   jobRequests JobRequest[]
 
   @@index([categoryId])
   @@index([slug])
   @@index([isActive, order])
-}
-
-// ==================== MÉTIERS (Trades) ====================
-
-model Trade {
-  id            String      @id @default(cuid())
-  subcategoryId String
-  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  name          String
-  slug          String      @unique
-  description   String?
-  icon          String?
-  basePrice     Float? // Prix de base suggéré en CDF
-  duration      Int? // Durée moyenne en minutes
-  isActive      Boolean     @default(true)
-  order         Int         @default(0)
-  createdAt     DateTime    @default(now())
-
-  // Relations
-  providerTrades ProviderTrade[]
-
-  @@index([subcategoryId])
-  @@index([slug])
-  @@index([isActive, order])
-}
-
-// ==================== RELATION PRESTATAIRE-MÉTIER ====================
-
-model ProviderTrade {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  tradeId    String
-  trade      Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
-  isPrimary  Boolean  @default(false) // Métier principal
-  experience Int? // Années d'expérience dans ce métier
-  createdAt  DateTime @default(now())
-
-  @@unique([providerId, tradeId])
-  @@index([providerId])
-  @@index([tradeId])
-}
-
-model Service {
-  id            String       @id @default(cuid())
-  categoryId    String?
-  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  subcategoryId String?
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
-  name          String
-  slug          String       @unique
-  description   String?
-  basePrice     Float? // Prix de base en CDF
-  duration      Int? // Durée estimée en minutes
-  isActive      Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-
-  // Relations
-  bookings Booking[]
-
-  @@index([categoryId])
-  @@index([subcategoryId])
-  @@index([slug])
 }
 
 // ==================== RELATION PRESTATAIRE-CATÉGORIE ====================
@@ -364,6 +299,23 @@ model ProviderCategory {
   @@unique([providerId, categoryId])
   @@index([providerId])
   @@index([categoryId])
+}
+
+// ==================== RELATION PRESTATAIRE-SOUS-CATÉGORIE ====================
+
+model ProviderSubcategory {
+  id            String      @id @default(cuid())
+  providerId    String
+  provider      Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  subcategoryId String
+  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  isPrimary     Boolean     @default(false)
+  experience    Int?
+  createdAt     DateTime    @default(now())
+
+  @@unique([providerId, subcategoryId])
+  @@index([providerId])
+  @@index([subcategoryId])
 }
 
 // ==================== CERTIFICATIONS & DIPLÔMES ====================
@@ -571,8 +523,6 @@ model Booking {
   client     User     @relation("ClientBookings", fields: [clientId], references: [id])
   providerId String
   provider   Provider @relation("ProviderBookings", fields: [providerId], references: [id])
-  serviceId  String?
-  service    Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
 
   status BookingStatus @default(PENDING)
 
@@ -1147,11 +1097,11 @@ model Quote {
   commissionAmt Int
   payoutAmt     Int
 
-  status      QuoteStatus @default(DRAFT)
-  sentAt      DateTime?
-  acceptedAt  DateTime?
-  declinedAt  DateTime?
-  expiresAt   DateTime?
+  status     QuoteStatus @default(DRAFT)
+  sentAt     DateTime?
+  acceptedAt DateTime?
+  declinedAt DateTime?
+  expiresAt  DateTime?
 
   lines     QuoteLineItem[]
   bookingId String?         @unique
@@ -1236,9 +1186,9 @@ enum DisputeOrigin {
 }
 
 model Dispute {
-  id         String  @id @default(cuid())
+  id         String        @id @default(cuid())
   bookingId  String
-  booking    Booking @relation(fields: [bookingId], references: [id])
+  booking    Booking       @relation(fields: [bookingId], references: [id])
   origin     DisputeOrigin
   openedById String
   reason     String
@@ -1264,9 +1214,9 @@ model Dispute {
 }
 
 model DisputeEvidence {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   disputeId    String
-  dispute      Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  dispute      Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   uploadedById String
   url          String
   note         String?

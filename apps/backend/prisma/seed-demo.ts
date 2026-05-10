@@ -32,7 +32,7 @@ type DemoProvider = {
   trustLevel: TrustLevel;
   skills: string[];
   serviceZones: Array<{ city: string; commune?: string }>;
-  tradeSlugs: string[];
+  subcategorySlugs: string[];
 };
 
 type DemoClient = {
@@ -49,8 +49,11 @@ type DemoClient = {
 type CreatedProvider = {
   userId: string;
   providerId: string;
-  primaryTradeSlug: string;
   profession: string;
+  bookingTitle: string;
+  bookingDescription: string;
+  bookingDuration: number;
+  bookingPrice: number;
   trustScoreId: string;
 };
 
@@ -77,7 +80,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.EXPERT,
     skills: ["Installation electrique", "Depannage", "Domotique", "Mise aux normes"],
     serviceZones: [{ city: "Kinshasa", commune: "Gombe" }, { city: "Kinshasa", commune: "Ngaliema" }],
-    tradeSlugs: ["electricien", "electrotechnicien", "climaticien"],
+    subcategorySlugs: ["electricite-generale", "climatisation"],
   },
   {
     firstName: "Marie-Claire",
@@ -96,7 +99,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Menage regulier", "Grand menage", "Repassage", "Nettoyage profond"],
     serviceZones: [{ city: "Kinshasa", commune: "Lemba" }, { city: "Kinshasa", commune: "Limete" }],
-    tradeSlugs: ["agent-menage", "femme-menage", "repassage"],
+    subcategorySlugs: ["nettoyage", "nettoyage-textile"],
   },
   {
     firstName: "Patrick",
@@ -115,7 +118,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Fuites", "Sanitaires", "Debouchage", "Chauffe-eau"],
     serviceZones: [{ city: "Lubumbashi", commune: "Annexe" }],
-    tradeSlugs: ["plombier", "installateur-sanitaire", "deboucheur"],
+    subcategorySlugs: ["plomberie-generale", "sanitaires"],
   },
   {
     firstName: "Francoise",
@@ -134,7 +137,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.EXPERT,
     skills: ["Coiffure femme", "Tresses", "Tissage", "Soins capillaires"],
     serviceZones: [{ city: "Kinshasa", commune: "Bandalungwa" }],
-    tradeSlugs: ["coiffeur", "tresseur", "barbier"],
+    subcategorySlugs: ["coiffure"],
   },
   {
     firstName: "Thierry",
@@ -153,7 +156,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Maconnerie", "Beton arme", "Renovation", "Fondations"],
     serviceZones: [{ city: "Brazzaville", commune: "Poto-Poto" }, { city: "Pointe-Noire" }],
-    tradeSlugs: ["macon", "briquetier", "carreleur"],
+    subcategorySlugs: ["maconnerie", "carrelage"],
   },
   {
     firstName: "Esperance",
@@ -172,7 +175,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.ESTABLISHED,
     skills: ["Manucure", "Pedicure", "Maquillage", "Soins visage"],
     serviceZones: [{ city: "Kinshasa", commune: "Kintambo" }],
-    tradeSlugs: ["estheticienne", "manucure", "pedicure"],
+    subcategorySlugs: ["esthetique"],
   },
   {
     firstName: "Dieudonne",
@@ -191,7 +194,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.EXPERT,
     skills: ["Mecanique generale", "Diagnostic", "Electricite auto", "Climatisation"],
     serviceZones: [{ city: "Lubumbashi", commune: "Kamalondo" }],
-    tradeSlugs: ["mecanicien-auto", "electricien-auto", "climaticien"],
+    subcategorySlugs: ["mecanique-auto", "electricite-automobile", "climatisation"],
   },
   {
     firstName: "Veronique",
@@ -210,7 +213,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Mathematiques", "Francais", "Sciences", "Preparation examens"],
     serviceZones: [{ city: "Matadi" }],
-    tradeSlugs: ["professeur-particulier", "coach-scolaire", "formateur-informatique"],
+    subcategorySlugs: ["education", "support-informatique"],
   },
   {
     firstName: "Olivier",
@@ -229,7 +232,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.ESTABLISHED,
     skills: ["Entretien jardin", "Paysagisme", "Taille", "Arrosage"],
     serviceZones: [{ city: "Pointe-Noire" }],
-    tradeSlugs: ["jardinier", "paysagiste", "elagueur"],
+    subcategorySlugs: ["jardinage"],
   },
   {
     firstName: "Grace",
@@ -248,7 +251,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TOP_RATED,
     skills: ["Cuisine congolaise", "Traiteur", "Buffets", "Chef a domicile"],
     serviceZones: [{ city: "Kinshasa", commune: "Gombe" }],
-    tradeSlugs: ["traiteur", "cuisinier-domicile", "patissier"],
+    subcategorySlugs: ["traiteur"],
   },
   {
     firstName: "Emmanuel",
@@ -267,7 +270,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Depannage PC", "Reseaux", "Formation", "Sauvegarde"],
     serviceZones: [{ city: "Kinshasa", commune: "Ngaba" }],
-    tradeSlugs: ["technicien-informatique", "administrateur-reseau", "developpeur-web"],
+    subcategorySlugs: ["support-informatique", "reseaux", "developpement"],
   },
   {
     firstName: "Beatrice",
@@ -286,7 +289,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.TRUSTED,
     skills: ["Mariages", "Coordination", "Decoration", "Budget"],
     serviceZones: [{ city: "Lubumbashi" }, { city: "Kinshasa" }],
-    tradeSlugs: ["wedding-planner", "organisateur-evenements", "dj"],
+    subcategorySlugs: ["organisation-evenements", "animation"],
   },
   {
     firstName: "Firmin",
@@ -305,7 +308,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.ESTABLISHED,
     skills: ["Gardiennage", "Surveillance", "Controle d'acces", "Rondes"],
     serviceZones: [{ city: "Brazzaville" }],
-    tradeSlugs: ["agent-securite", "gardien", "agent-surveillance"],
+    subcategorySlugs: ["gardiennage"],
   },
   {
     firstName: "Charlene",
@@ -324,7 +327,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.ESTABLISHED,
     skills: ["Massage therapeutique", "Kinesitherapie", "Relaxation", "Sport"],
     serviceZones: [{ city: "Kinshasa", commune: "Limete" }],
-    tradeSlugs: ["masseur", "kinesitherapeute", "coach-sportif"],
+    subcategorySlugs: ["bien-etre", "soins-domicile", "sport"],
   },
   {
     firstName: "Roger",
@@ -343,7 +346,7 @@ const providersData: DemoProvider[] = [
     trustLevel: TrustLevel.NEWCOMER,
     skills: ["Peinture interieure", "Peinture exterieure", "Finitions", "Decoration"],
     serviceZones: [{ city: "Kinshasa", commune: "Masina" }],
-    tradeSlugs: ["peintre-batiment", "decorateur", "platrier"],
+    subcategorySlugs: ["peinture", "platrerie"],
   },
 ];
 
@@ -424,20 +427,19 @@ function authSeedId(email: string): string {
 }
 
 export async function seedDemo(prisma: SeedPrismaClient) {
-  console.log("Seeding services...");
-  const services = await seedServices(prisma);
-  const tradeBySlug = await getTradeLookup(prisma);
-  const serviceByTradeSlug = new Map(
-    services.map((service) => [service.slug.replace(/^service-/, ""), service]),
+  console.log("Loading seed subcategories...");
+  const subcategories = await seedSubcategories(prisma);
+  const subcategoryBySlug = new Map(
+    subcategories.map((subcategory) => [subcategory.slug, subcategory]),
   );
 
   console.log("Seeding demo users and provider profiles...");
-  const providers = await seedProviders(prisma, tradeBySlug);
+  const providers = await seedProviders(prisma, subcategoryBySlug);
   const clients = await seedClients(prisma);
   const admin = await seedAdmin(prisma);
 
   console.log("Seeding marketplace activity...");
-  const bookings = await seedBookings(prisma, providers, clients, serviceByTradeSlug);
+  const bookings = await seedBookings(prisma, providers, clients);
   await seedReviews(prisma, bookings);
   await seedFavorites(prisma, clients, providers);
   await seedConversations(prisma, clients, providers);
@@ -448,50 +450,24 @@ export async function seedDemo(prisma: SeedPrismaClient) {
   console.log(`Seeded ${providers.length} providers, ${clients.length} clients, and ${bookings.length} bookings.`);
 }
 
-async function seedServices(prisma: SeedPrismaClient) {
-  const trades = await prisma.trade.findMany({
-    include: { subcategory: true },
-    orderBy: { order: "asc" },
+async function seedSubcategories(prisma: SeedPrismaClient) {
+  return prisma.subcategory.findMany({
+    orderBy: { slug: "asc" },
   });
-
-  for (const trade of trades) {
-    await prisma.service.create({
-      data: {
-        categoryId: trade.subcategory.categoryId,
-        subcategoryId: trade.subcategoryId,
-        name: trade.name,
-        slug: `service-${trade.slug}`,
-        description: trade.description,
-        basePrice: trade.basePrice,
-        duration: trade.duration,
-        isActive: true,
-      },
-    });
-  }
-
-  return prisma.service.findMany();
-}
-
-async function getTradeLookup(prisma: SeedPrismaClient) {
-  const trades = await prisma.trade.findMany({
-    include: { subcategory: true },
-  });
-
-  return new Map(trades.map((trade) => [trade.slug, trade]));
 }
 
 async function seedProviders(
   prisma: SeedPrismaClient,
-  tradeBySlug: Awaited<ReturnType<typeof getTradeLookup>>,
+  subcategoryBySlug: Map<string, Awaited<ReturnType<typeof seedSubcategories>>[number]>,
 ): Promise<CreatedProvider[]> {
   const created: CreatedProvider[] = [];
 
   for (let index = 0; index < providersData.length; index += 1) {
     const providerData = providersData[index];
-    const selectedTrades = providerData.tradeSlugs.map((slug) => {
-      const trade = tradeBySlug.get(slug);
-      if (!trade) throw new Error(`Missing trade seed data for slug ${slug}`);
-      return trade;
+    const selectedSubcategories = providerData.subcategorySlugs.map((slug) => {
+      const subcategory = subcategoryBySlug.get(slug);
+      if (!subcategory) throw new Error(`Missing subcategory seed data for slug ${slug}`);
+      return subcategory;
     });
 
     const user = await prisma.user.create({
@@ -532,18 +508,21 @@ async function seedProviders(
     });
 
     const categoryIds = Array.from(
-      new Set(selectedTrades.map((trade) => trade.subcategory.categoryId)),
+      new Set(selectedSubcategories.map((subcategory) => subcategory.categoryId)),
+    );
+    const subcategoryIds = Array.from(
+      new Set(selectedSubcategories.map((subcategory) => subcategory.id)),
     );
     await prisma.providerCategory.createMany({
       data: categoryIds.map((categoryId) => ({ providerId: provider.id, categoryId })),
     });
 
-    await prisma.providerTrade.createMany({
-      data: selectedTrades.map((trade, tradeIndex) => ({
+    await prisma.providerSubcategory.createMany({
+      data: subcategoryIds.map((subcategoryId, subcategoryIndex) => ({
         providerId: provider.id,
-        tradeId: trade.id,
-        isPrimary: tradeIndex === 0,
-        experience: Math.max(1, providerData.experience - tradeIndex),
+        subcategoryId,
+        isPrimary: subcategoryIndex === 0,
+        experience: Math.max(1, providerData.experience - subcategoryIndex),
       })),
     });
 
@@ -618,8 +597,11 @@ async function seedProviders(
     created.push({
       userId: user.id,
       providerId: provider.id,
-      primaryTradeSlug: selectedTrades[0].slug,
       profession: providerData.profession,
+      bookingTitle: providerData.skills[0] ?? providerData.profession,
+      bookingDescription: `Demande de ${providerData.profession.toLowerCase()} creee pour les donnees de demonstration.`,
+      bookingDuration: 90 + (index % 4) * 30,
+      bookingPrice: providerData.hourlyRate + index * 1000,
       trustScoreId: trustScore.id,
     });
   }
@@ -759,14 +741,12 @@ async function seedBookings(
   prisma: SeedPrismaClient,
   providers: CreatedProvider[],
   clients: CreatedClient[],
-  serviceByTradeSlug: Map<string, Awaited<ReturnType<typeof seedServices>>[number]>,
 ) {
   const bookings = [];
 
   for (let index = 0; index < 25; index += 1) {
     const provider = providers[index % providers.length];
     const client = clients[(index * 3) % clients.length];
-    const service = serviceByTradeSlug.get(provider.primaryTradeSlug);
     const status = statusCycle[index % statusCycle.length];
     const scheduledDate = daysFromNow(index - 12);
 
@@ -774,15 +754,14 @@ async function seedBookings(
       data: {
         clientId: client.userId,
         providerId: provider.providerId,
-        serviceId: service?.id,
         status,
-        title: `${provider.profession} - intervention ${index + 1}`,
-        description: "Demande de service creee pour les donnees de demonstration.",
+        title: `${provider.bookingTitle} - intervention ${index + 1}`,
+        description: provider.bookingDescription,
         address: `${100 + index}, Avenue de la Liberation`,
         city: client.city,
         scheduledDate,
-        duration: service?.duration ?? 120,
-        price: service?.basePrice ? service.basePrice + index * 1000 : 20000 + index * 1000,
+        duration: provider.bookingDuration,
+        price: provider.bookingPrice + index * 1000,
         clientNotes: index % 2 === 0 ? "Merci de confirmer votre disponibilite." : null,
         providerNotes: status === BookingStatus.PENDING ? null : "Intervention planifiee.",
         isPaid: status === BookingStatus.COMPLETED,

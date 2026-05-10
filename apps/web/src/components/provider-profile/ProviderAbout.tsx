@@ -8,7 +8,7 @@ interface ProviderAboutProps {
     description?: string | null;
     experience?: number | null;
     profession: string;
-    trades?: Array<{
+    subcategories?: Array<{
       id: string;
       name: string;
       isPrimary?: boolean;
@@ -17,7 +17,7 @@ interface ProviderAboutProps {
 }
 
 export function ProviderAbout({ provider }: ProviderAboutProps) {
-  const trades = provider.trades?.slice(0, 6) ?? [];
+  const subcategories = provider.subcategories?.slice(0, 6) ?? [];
 
   return (
     <ProviderSection title="À propos">
@@ -50,7 +50,7 @@ export function ProviderAbout({ provider }: ProviderAboutProps) {
         className="k-overline"
         style={{ marginTop: 6, marginBottom: 10, color: "var(--k-text-muted)" }}
       >
-        Métier
+        Activité
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <span className="k-chip k-chip-sm">
@@ -63,17 +63,17 @@ export function ProviderAbout({ provider }: ProviderAboutProps) {
             {provider.experience} ans d&apos;expérience
           </span>
         ) : null}
-        {trades.map((trade) => (
+        {subcategories.map((subcategory) => (
           <span
-            key={trade.id}
+            key={subcategory.id}
             className={
-              trade.isPrimary
+              subcategory.isPrimary
                 ? "k-chip k-chip-sm k-chip-primary"
                 : "k-chip k-chip-sm"
             }
           >
-            {trade.name}
-            {trade.isPrimary ? " · principal" : ""}
+            {subcategory.name}
+            {subcategory.isPrimary ? " · principale" : ""}
           </span>
         ))}
       </div>

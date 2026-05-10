@@ -37,11 +37,6 @@ const transactionInclude = {
           lastName: true,
         },
       },
-      service: {
-        select: {
-          name: true,
-        },
-      },
     },
   },
   payout: {
@@ -339,7 +334,7 @@ export class EarningsService {
       return tx.note ?? "Bonus KAYOU";
     }
     if (tx.booking) {
-      const title = tx.booking.service?.name ?? tx.booking.title;
+      const title = tx.booking.title;
       const clientName = `${tx.booking.client.firstName ?? ""} ${tx.booking.client.lastName ?? ""}`.trim();
       return clientName ? `${title} · ${clientName}` : title;
     }

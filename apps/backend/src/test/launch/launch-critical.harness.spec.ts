@@ -140,27 +140,21 @@ function createState() {
         },
       },
     ],
-    trades: [
+    subcategories: [
       {
-        trade: {
-          id: "trade_fuite",
-          subcategoryId: "sub_depannage",
-          name: "Reparation de fuite",
-          slug: "reparation-fuite",
+        isPrimary: true,
+        experience: 7,
+        subcategory: {
+          id: "sub_depannage",
+          categoryId: "cat_plomberie",
+          name: "Depannage",
+          slug: "depannage",
           description: "Fuites, joints et canalisations",
           icon: "droplets",
-          basePrice: 50000,
-          duration: 120,
           isActive: true,
           order: 1,
           createdAt: now,
           updatedAt: now,
-          subcategory: {
-            id: "sub_depannage",
-            name: "Depannage",
-            slug: "depannage",
-            categoryId: "cat_plomberie",
-          },
         },
       },
     ],
@@ -357,7 +351,6 @@ function makeBookingRecord(input: {
     id: input.id,
     clientId: input.clientId,
     providerId: input.providerId,
-    serviceId: null,
     title: "Dépannage urgent",
     description: "Canalisation bouchée",
     status: input.status,

@@ -27,6 +27,8 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 06 - Fixed Starting Price Model | Done | Claude | Hourly-rate launch semantics removed across web/mobile; direct booking estimate now uses provider starting price without × duration |
 | 07 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
 | 08 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
+| 09 - Remove Trade Taxonomy | Done | Codex | `Trade`/`ProviderTrade` removed; providers now assign directly to subcategories plus free-form skills |
+| 10 - Remove Service Catalog | Done | Codex | Prisma `Service` catalog table and all `serviceId` API dependencies removed; bookings carry direct title/description/duration/price |
 
 ## Decisions Log
 
@@ -51,6 +53,8 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-10 | Starting-from provider pricing means fixed base price, not hourly rate | Product clarified providers set a usual starting price for the service (`À partir de 10 000 FC`); launch UI must not show `FC/h`, `/h`, `/heure`, or multiply by duration |
 | 2026-05-10 | Direct booking estimate is sent as the provider starting price (option 1 of workstream 06) | Keeps `Booking.price` populated for downstream commission/economics math; still labelled as an estimate until the provider records the final-offer accord |
 | 2026-05-10 | Backend Prisma column `Provider.hourlyRate` is kept; no immediate rename | Workstream 06 explicitly defers the DB rename to limit blast radius; comments at the schema/service boundary now document that the field semantically holds the starting price |
+| 2026-05-10 | The `Trade` and `ProviderTrade` taxonomy layer is removed for v1 | Product taxonomy is now Category + Subcategory + provider-entered Skill; direct provider subcategory assignment replaces the old indirect provider-to-trade mapping |
+| 2026-05-10 | The Prisma `Service` catalog table is removed for v1 | Public product language and `/services` discovery remain, but provider matching and bookings now use Category, Subcategory, Skill, and direct booking fields instead of catalog service rows |
 
 ## Open Questions
 
@@ -474,3 +478,152 @@ Manual routes checked (code-level, not on device/browser):
 - Mobile `Search → ProviderProfile` — sticky rail shows `À partir de … FC` with no `/h`.
 - Mobile `Search → CreateBooking` (`BookingScreen`) — header/footer caption shows `À partir de … FC`; recap totals show `Prix de départ` and `Prix indicatif: À partir de … FC`; submitted `price` equals the provider starting price (no × duration).
 - Mobile `Pro tab → ProviderOnboarding` step 4 — `Prix de départ` field label, FC suffix, preview and info card mirror web copy.
+
+### 09 - Remove Trade Taxonomy
+
+Status: Done on 2026-05-10 by Codex.
+
+Changed files:
+
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/prisma/seed-categories.ts`
+- `apps/backend/prisma/seed-demo.ts`
+- `apps/backend/prisma/seed.ts`
+- `apps/backend/src/modules/categories/categories.service.ts`
+- `apps/backend/src/modules/identity/identity.repository.ts`
+- `apps/backend/src/modules/identity/identity.service.ts`
+- `apps/backend/src/modules/identity/identity.service.spec.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`
+- `apps/backend/src/modules/providers/providers.controller.ts`
+- `apps/backend/src/modules/providers/providers.service.ts`
+- `apps/backend/src/modules/providers/providers.service.spec.ts`
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts`
+- `packages/schemas/src/models.ts`
+- `packages/schemas/src/dto.ts`
+- `apps/web/src/app/HomePageClient.tsx`
+- `apps/web/src/app/dashboard/admin/page.tsx`
+- `apps/web/src/app/dashboard/settings/page.tsx`
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `apps/web/src/app/pro/onboarding/ProviderOnboardingClient.tsx`
+- `apps/web/src/app/pro/onboarding/types.ts`
+- `apps/web/src/app/pro/verify/VerifyWizard.tsx`
+- `apps/web/src/app/pro/verify/fixtures.ts`
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`
+- `apps/web/src/app/providers/[id]/page.tsx`
+- `apps/web/src/components/provider-profile/ProviderAbout.tsx`
+- `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx`
+- `apps/mobile/src/screens/pro/verifyData.ts`
+- `apps/mobile/src/screens/search/components/MobileFilterSheet.tsx`
+- `README.md`
+- `docs/DEVELOPER_GUIDE.md`
+- `docs/v1-launch-alignment/05-provider-onboarding-tightening.md`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- Removed Prisma `Trade` and `ProviderTrade`, `Subcategory.trades`, and `Provider.trades`.
+- Added `ProviderSubcategory` as the direct provider-to-subcategory join with `isPrimary`, `experience`, and uniqueness on `[providerId, subcategoryId]`.
+- Category hierarchy now returns `categories -> subcategories`; it no longer includes nested third-level taxonomy rows.
+- Provider search subcategory filtering now uses `ProviderSubcategory.subcategory` by id or slug.
+- Provider summary/detail responses now expose `subcategories` directly. Provider profile UI renders subcategory chips from that field and keeps free-form `skills` as the granular provider capability layer.
+- Onboarding draft and publish flows validate selected `subcategoryIds` directly and write `ProviderSubcategory`; they no longer resolve subcategories into trade rows.
+- Legacy `/me/provider-onboarding` and `PATCH /providers/me` DTOs removed `tradeIds` and `primaryTradeId`; they accept `subcategoryIds`.
+- Seed category data now creates `Service` rows from the former useful trade/service copy. Demo providers assign direct subcategories derived from their seeded service selections and keep detailed provider skills in `Skill`.
+- Launch-facing web/mobile copy no longer uses `métier` for a third taxonomy concept; profession wording was softened to `activité`, `service`, or `compétence` where relevant.
+
+Compatibility notes:
+
+- This was applied as a destructive local schema reset. Existing local provider-to-trade data is not preserved; seed-first local data now uses `ProviderSubcategory`.
+- `profession` remains the provider's public activity title. It is not a taxonomy layer.
+- Historical docs still mention `Trade`/`ProviderTrade`; those references describe earlier implementation plans or audits and are not active launch code.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend exec prisma format` — passed.
+- `pnpm --filter @kayu/backend exec prisma validate` — passed.
+- `pnpm --filter @kayu/backend exec prisma generate` — passed.
+- `pnpm --filter @kayu/schemas type-check` — passed.
+- `pnpm --filter @kayu/schemas build` — passed.
+- `pnpm --filter @kayu/api type-check` — passed.
+- `pnpm --filter @kayu/api build` — passed.
+- `pnpm --filter @kayu/api exec tsc -b tsconfig.json --force` — passed; refreshed stale API declarations after schema build.
+- `pnpm --filter @kayu/backend type-check` — passed.
+- `pnpm --filter @kayu/backend test:onboarding` — passed (16 tests).
+- `pnpm --filter @kayu/backend test:launch` — passed (64 tests).
+- `pnpm --filter @kayu/web type-check` — passed.
+- `pnpm --filter @kayu/mobile type-check` — passed.
+- `pnpm --filter @kayu/backend exec tsc --noEmit prisma/seed.ts prisma/seed-categories.ts prisma/seed-demo.ts --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --types node` — passed.
+
+Schema migration/push and seed commands:
+
+- `pnpm --filter @kayu/backend run prisma:reset` — partially completed: `prisma db push --force-reset` succeeded and regenerated Prisma Client; the seed step initially failed on a strict seed nullability guard.
+- `pnpm --filter @kayu/backend run db:seed` — passed after the seed guard fix. Seeded 15 categories, 40 subcategories, 93 services, 29 users, 15 providers, 25 bookings, and 8 reviews.
+
+Search terms checked:
+
+- Active app/package/backend/prisma source has no matches for `model Trade`, `model ProviderTrade`, `TradeSchema`, `ProviderTradeSchema`, `tradeIds`, `primaryTradeId`, `providerTrade`, `ProviderTrade`, `.trades`, `trades:`, `Métiers`, `métier`, `trade`, `Trade`, or `trades`.
+- Remaining repo-wide matches are in historical docs and in `docs/v1-launch-alignment/09-remove-trade-taxonomy-plan.md`, which intentionally documents the removal request and acceptance criteria.
+
+### 10 - Remove Service Catalog
+
+Status: Done on 2026-05-10 by Codex.
+
+Changed files:
+
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/prisma/seed-categories.ts`
+- `apps/backend/prisma/seed-demo.ts`
+- `apps/backend/prisma/seed.ts`
+- `apps/backend/src/modules/admin/admin.service.ts`
+- `apps/backend/src/modules/bookings/bookings.service.ts`
+- `apps/backend/src/modules/bookings/bookings.service.spec.ts`
+- `apps/backend/src/modules/dashboard/dashboard.service.ts`
+- `apps/backend/src/modules/earnings/earnings.service.ts`
+- `apps/backend/src/modules/quotes/quotes.service.ts`
+- `apps/backend/src/modules/quotes/quotes.service.spec.ts`
+- `apps/backend/src/modules/reviews/reviews.service.ts`
+- `apps/backend/src/test/launch/launch-critical.harness.spec.ts`
+- `packages/schemas/src/models.ts`
+- `apps/web/src/app/pro/ProviderDashboardClient.tsx`
+- `apps/web/src/lib/booking-v2.ts`
+- `apps/mobile/src/screens/pro/ProviderDashboardScreen.tsx`
+- `README.md`
+- `docs/DEVELOPER_GUIDE.md`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- Removed Prisma `Service`, `Category.services`, `Subcategory.services`, `Booking.serviceId`, and `Booking.service`.
+- Kept `ServiceZone` and application service classes such as `BookingsService`.
+- Removed `ServiceSchema`, `BookingSchema.serviceId`, and `BookingSchema.service` from shared schemas.
+- Backend booking, dashboard, review, earnings, quote, and admin mappings now use `booking.title` as the display label instead of `booking.service.name`.
+- Seed category data now creates only categories and subcategories. Demo providers assign through direct subcategory slugs plus free-form `Skill` rows.
+- Demo bookings now store direct `title`, `description`, `duration`, and `price`; they no longer read catalog `basePrice` or `duration`.
+- Web and mobile provider dashboard request cards now display direct booking titles. Public `/services` route and product language remain intact.
+
+Commands run:
+
+- `pnpm --filter @kayu/backend exec prisma format` — passed.
+- `pnpm --filter @kayu/backend exec prisma validate` — passed.
+- `pnpm --filter @kayu/backend exec prisma generate` — passed.
+- `pnpm --filter @kayu/schemas type-check` — passed.
+- `pnpm --filter @kayu/schemas build` — passed.
+- `pnpm --filter @kayu/api type-check` — passed.
+- `pnpm --filter @kayu/api build` — passed.
+- `pnpm --filter @kayu/backend type-check` — passed.
+- `pnpm --filter @kayu/backend test:onboarding` — passed (16 tests).
+- `pnpm --filter @kayu/backend test:launch` — passed (64 tests).
+- `pnpm --filter @kayu/web type-check` — passed.
+- `pnpm --filter @kayu/mobile type-check` — passed.
+
+Schema migration/push and seed commands:
+
+- `pnpm --filter @kayu/backend run prisma:push` — blocked by Prisma data-loss guard because local `Booking.serviceId` and `Service` rows still existed.
+- `pnpm --filter @kayu/backend exec prisma db push --accept-data-loss` — passed; dropped the local `Service` table and `Booking.serviceId` column, then regenerated Prisma Client.
+- `pnpm --filter @kayu/backend run db:seed` — passed. Seeded 15 categories, 40 subcategories, 29 users, 15 providers, 25 bookings, and 8 reviews.
+
+Search terms checked:
+
+- Active app/package/backend/prisma source has no matches for `serviceId`, `ServiceSchema`, `prisma.service`, `model Service`, `serviceSlugs`, `primaryServiceSlug`, `seedServices`, `serviceBySlug`, `selectedServices`, `booking.service`, or `.service?.name`.
+- Remaining scoped search hits are expected false positives: `ServiceZone`, application `PrismaService` classes, generic UI props named `service`, and this workstream's plan document.

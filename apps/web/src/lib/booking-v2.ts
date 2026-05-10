@@ -29,8 +29,8 @@ export const toV2Status = (status: string | undefined | null): V2Status => {
 
 export type CategorySlug = keyof typeof tokens.portfolio;
 
-// Light keyword matcher. Real category linkage is via serviceId; this is a
-// visual fallback so the work-tile accent reads right regardless of data shape.
+// Light keyword matcher for work-tile accents now that bookings no longer
+// carry catalog category IDs.
 export const categoryFromTitle = (
   title: string | null | undefined,
   fallback: CategorySlug = "plomberie",

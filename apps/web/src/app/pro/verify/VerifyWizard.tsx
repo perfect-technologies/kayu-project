@@ -561,7 +561,7 @@ function StepDocCert({ uploadedSet, isUploading, onUpload }: StepProps) {
             color: tokens.color.textPrimary,
           }}
         >
-          Certificat métier
+          Certificat professionnel
         </h2>
         <span
           style={{

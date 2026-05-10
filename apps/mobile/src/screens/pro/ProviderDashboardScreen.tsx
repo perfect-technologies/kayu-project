@@ -180,7 +180,7 @@ function toDashboardBookingRequest(booking: DashboardBooking): DashboardBookingR
       initials: initialsFor(clientName),
       bg: colorFor(booking.client?.id ?? booking.clientId ?? booking.id),
     },
-    kind: booking.service?.name ?? booking.title,
+    kind: booking.title,
     when: formatScheduledDate(booking.scheduledDate),
     address: address || 'Adresse à confirmer',
     fee: booking.price ?? 0,
