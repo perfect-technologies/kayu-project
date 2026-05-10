@@ -116,7 +116,7 @@ export const UpdateProviderDto = z.object({
   hourlyRate: z.number().min(0).nullable().optional(),
   isAvailable: z.boolean().optional(),
   languages: z.array(z.string()).optional(),
-  categoryIds: z.array(IdSchema).optional(),
+  categoryIds: z.array(IdSchema).max(3).optional(),
   skills: z.array(SkillInputSchema).optional(),
   serviceZones: z.array(ServiceZoneInputSchema).optional(),
   tradeIds: z.array(IdSchema).max(3).optional(),

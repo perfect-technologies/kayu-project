@@ -243,51 +243,30 @@ export function StepIdentity({ data, setData }: StepProps) {
         <FieldLabel
           label="Pièce d'identité"
           optional
-          hint="Carte d'électeur, passeport ou permis. Tu peux compléter cette vérification après publication."
+          hint="Carte d'électeur, passeport ou permis. La vérification se fait après publication, depuis « Mon profil pro › Vérification »."
         />
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 10,
+            padding: 14,
+            borderRadius: tokens.radius.md,
+            background: tokens.color.surfaceMuted,
+            border: `1px dashed ${tokens.color.borderStrong}`,
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
           }}
         >
-          {(
-            [
-              { k: "front", label: "Recto" },
-              { k: "back", label: "Verso" },
-            ] as const
-          ).map((s) => {
-            const done = Boolean(data.id?.[s.k]);
-            return (
-              <button
-                key={s.k}
-                type="button"
-                onClick={() =>
-                  setData({ id: { ...data.id, [s.k]: !done } })
-                }
-                style={{
-                  padding: "22px 12px",
-                  borderRadius: tokens.radius.md,
-                  border: done
-                    ? `2px solid ${tokens.color.success}`
-                    : `2px dashed ${tokens.color.borderStrong}`,
-                  background: done
-                    ? tokens.color.successSubtle
-                    : tokens.color.surface,
-                  cursor: "pointer",
-                  textAlign: "center",
-                  color: done ? tokens.color.success : tokens.color.textMuted,
-                  transition: "all 160ms cubic-bezier(0.2, 0, 0, 1)",
-                }}
-              >
-                {done ? <I.check size={22} /> : <I.plus size={22} />}
-                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-                  {done ? `${s.label} ajouté` : `Ajouter ${s.label.toLowerCase()}`}
-                </div>
-              </button>
-            );
-          })}
+          <I.shieldCheck size={18} strokeColor={tokens.color.textMuted} />
+          <div
+            style={{
+              fontSize: 13,
+              color: tokens.color.textMuted,
+              lineHeight: 1.5,
+            }}
+          >
+            Les téléversements sont gérés dans l'écran Vérification après publication.
+            L'équipe KAYOU revoit ton dossier sous 24h pour activer le badge « Vérifié ».
+          </div>
         </div>
       </div>
     </div>
@@ -1064,46 +1043,30 @@ export function StepProfile({ data, setData }: StepProps) {
         <FieldLabel
           label="Portfolio"
           optional
-          hint="La galerie arrive avec l'upload photo. Tu peux préparer tes exemples et les ajouter plus tard."
+          hint="La galerie arrive avec l'upload photo. Tu peux préparer tes exemples et les ajouter plus tard depuis ton profil."
         />
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 8,
+            padding: 14,
+            borderRadius: tokens.radius.md,
+            background: tokens.color.surfaceMuted,
+            border: `1px dashed ${tokens.color.borderStrong}`,
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
           }}
         >
-          {[0, 1, 2, 3].map((i) => {
-            const filled = i < data.portfolio;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() =>
-                  setData({
-                    portfolio: Math.min(4, (data.portfolio || 0) + 1),
-                  })
-                }
-                style={{
-                  aspectRatio: "1 / 1",
-                  borderRadius: 10,
-                  background: filled
-                    ? `linear-gradient(135deg, ${["#0EA5E9", "#10B981", "#F59E0B", "#FB7185"][i]}, #fff)`
-                    : tokens.color.surfaceMuted,
-                  border: filled
-                    ? "none"
-                    : `2px dashed ${tokens.color.borderStrong}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  color: tokens.color.textMuted,
-                }}
-              >
-                {!filled && <I.plus size={20} />}
-              </button>
-            );
-          })}
+          <I.camera size={18} strokeColor={tokens.color.textMuted} />
+          <div
+            style={{
+              fontSize: 13,
+              color: tokens.color.textMuted,
+              lineHeight: 1.5,
+            }}
+          >
+            La galerie photos sera activée prochainement. Pour le lancement, ton profil
+            est publié sans portfolio.
+          </div>
         </div>
       </div>
     </div>
@@ -1194,8 +1157,8 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                 marginTop: 10,
               }}
             >
-              <span className="k-chip k-chip-sm k-chip-success">
-                <I.badgeCheck size={12} /> Nouveau · Vérifié
+              <span className="k-chip k-chip-sm">
+                <I.sparkles size={12} /> Nouveau prestataire
               </span>
               <span className="k-chip k-chip-sm">
                 <I.award size={12} /> {data.years || "—"}
@@ -1224,6 +1187,11 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
               }}
             >
               <span
+                style={{ color: tokens.color.textMuted, fontSize: 13 }}
+              >
+                À partir de{" "}
+              </span>
+              <span
                 style={{
                   fontFamily: tokens.font.mono,
                   fontSize: 18,
@@ -1239,6 +1207,16 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                 {" "}
                 /heure
               </span>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: tokens.color.textMuted,
+                  marginTop: 4,
+                  lineHeight: 1.4,
+                }}
+              >
+                Le prix final est convenu avec le client avant l'intervention.
+              </div>
             </div>
           </div>
         </div>

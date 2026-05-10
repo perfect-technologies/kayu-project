@@ -552,38 +552,16 @@ function StepIdentity({ data, setData }: StepProps) {
       <View>
         <FieldLabel
           label="Pièce d'identité"
-          hint="Carte d'électeur, passeport ou permis. Stockée de façon sécurisée."
+          optional
+          hint="Carte d'électeur, passeport ou permis. La vérification se fait après publication, depuis « Vérification »."
         />
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          {(
-            [
-              { k: 'front', label: 'Recto' },
-              { k: 'back', label: 'Verso' },
-            ] as const
-          ).map((s) => {
-            const done = Boolean(data.id[s.k]);
-            return (
-              <Pressable
-                key={s.k}
-                onPress={() => setData({ id: { ...data.id, [s.k]: !done } })}
-                style={[styles.idTile, done && styles.idTileDone]}
-              >
-                {done ? (
-                  <I.check size={24} color={tokens.color.success} />
-                ) : (
-                  <I.plus size={24} color={theme.colors.textMuted} />
-                )}
-                <Text
-                  style={[
-                    styles.idTileLabel,
-                    done && { color: tokens.color.success },
-                  ]}
-                >
-                  {s.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+        <View style={styles.deferredCard}>
+          <I.shieldCheck size={18} color={theme.colors.textMuted} />
+          <Text style={styles.deferredText}>
+            Le téléversement et la revue se passent dans l'écran Vérification après
+            publication. L'équipe KAYOU revoit ton dossier sous 24h pour activer le
+            badge « Vérifié ».
+          </Text>
         </View>
       </View>
     </View>
@@ -908,7 +886,10 @@ function StepPricing({ data, setData }: StepProps) {
       </View>
 
       <View>
-        <FieldLabel label="Tarif horaire" hint="Prix que tu affiches." />
+        <FieldLabel
+          label="Tarif horaire"
+          hint="Prix indicatif affiché sur ton profil sous la forme « À partir de … FC/h ». Le prix final est convenu avec le client avant l'intervention."
+        />
         <View style={[styles.chipRow, { marginBottom: 10 }]}>
           {HOURLY_PRESETS.map((p) => {
             const isSel = data.hourly === p;
@@ -1038,32 +1019,14 @@ function StepProfile({ data, setData }: StepProps) {
         <FieldLabel
           label="Portfolio"
           optional
-          hint="Photos de tes chantiers terminés."
+          hint="La galerie photo arrive prochainement. Tu pourras ajouter tes chantiers terminés depuis ton profil après publication."
         />
-        <View style={styles.portfolioGrid}>
-          {[0, 1, 2, 3].map((i) => {
-            const filled = i < data.portfolio;
-            return (
-              <Pressable
-                key={i}
-                onPress={() =>
-                  setData({
-                    portfolio: Math.min(4, (data.portfolio || 0) + 1),
-                  })
-                }
-                style={[
-                  styles.portfolioTile,
-                  filled && {
-                    backgroundColor:
-                      ['#BAE6FD', '#A7F3D0', '#FDE68A', '#FECDD3'][i],
-                    borderWidth: 0,
-                  },
-                ]}
-              >
-                {!filled && <I.plus size={20} color={theme.colors.textMuted} />}
-              </Pressable>
-            );
-          })}
+        <View style={styles.deferredCard}>
+          <I.camera size={18} color={theme.colors.textMuted} />
+          <Text style={styles.deferredText}>
+            Pour le lancement, ton profil est publié sans portfolio. La galerie
+            photos sera activée dans une prochaine version.
+          </Text>
         </View>
       </View>
     </View>
@@ -1099,10 +1062,16 @@ function StepPublish({ data, setData, categoryOptions = [] }: StepProps) {
                 { marginTop: 8, color: theme.colors.textPrimary },
               ]}
             >
+              <Text style={{ color: theme.colors.textMuted, fontWeight: '400', fontSize: 13 }}>
+                À partir de{' '}
+              </Text>
               {hourly.toLocaleString('fr-FR')} FC
               <Text style={{ color: theme.colors.textMuted, fontWeight: '400' }}>
                 {'  '}/heure
               </Text>
+            </Text>
+            <Text style={{ marginTop: 4, fontSize: 11, color: theme.colors.textMuted }}>
+              Le prix final est convenu avec le client avant l'intervention.
             </Text>
           </View>
         </View>
@@ -1225,6 +1194,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: theme.colors.textMuted,
+  },
+  deferredCard: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+    borderRadius: tokens.radius.md,
+    backgroundColor: theme.colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    borderStyle: 'dashed',
+    alignItems: 'flex-start',
+  },
+  deferredText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    lineHeight: 19,
   },
   infoCardSky: {
     flexDirection: 'row',

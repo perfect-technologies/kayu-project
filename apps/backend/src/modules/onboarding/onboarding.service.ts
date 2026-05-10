@@ -431,6 +431,13 @@ export class OnboardingService {
     if (!this.normalizePhone(draft.phone)) missing.push("phone");
     if (!draft.profession || draft.profession.trim().length < 2) missing.push("profession");
     if (this.normalizedCategoryIds(draft).length === 0) missing.push("primaryCategoryId");
+    if (
+      draft.yearsOfExperience === undefined ||
+      draft.yearsOfExperience === null ||
+      draft.yearsOfExperience < 0
+    ) {
+      missing.push("yearsOfExperience");
+    }
     if (!draft.serviceZones || draft.serviceZones.length === 0) missing.push("serviceZones");
     if (!draft.hourlyRate || draft.hourlyRate <= 0) missing.push("hourlyRate");
     return missing;

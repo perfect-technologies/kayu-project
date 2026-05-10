@@ -23,7 +23,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 02 - Pricing And Commission Policy | Done | Codex | Starting-from pricing and 10% internal economics aligned |
 | 03 - Web V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 04 - Mobile V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
-| 05 - Provider Onboarding Tightening | Not started | TBD | P1 onboarding and verification cleanup |
+| 05 - Provider Onboarding Tightening | Done | Claude | P1 onboarding tightened: max-3 categories enforced, experience required, deferred uploads, Kinshasa communes expanded, 24h verification copy aligned |
 | 06 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
 | 07 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
 
@@ -42,6 +42,11 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-09 | `POST /final-offers/:id/accept` remains idempotent for already-confirmed agreement records | Preserves backwards compatibility for older clients that still call accept |
 | 2026-05-09 | `Booking.price` and `FinalOffer.price` remain the gross agreed client price, with integer `commissionPct`, `commissionAmt`, and `providerNetAmt` stored alongside it | Keeps the existing API shape while making the 10% economics explicit and consistent |
 | 2026-05-09 | Provider-facing commission/net copy remains limited to existing provider-only booking and earnings surfaces; client-facing surfaces hide commission | Matches the internal-first commission policy without removing provider operational context already present |
+| 2026-05-10 | Phone verification is required for the verified badge only, not for provider publish | Auth currently does not write `phoneVerifiedAt` automatically, so gating publish on it would block onboarding; the badge path through `/pro/verify` already exposes phone/identity verification to providers |
+| 2026-05-10 | Years of experience is required for provider publish; at-least-one skill remains optional | Experience appears on profile cards and shapes the Trust score baseline; skills stay category-driven suggestions until product confirms a hard requirement |
+| 2026-05-10 | Max 3 service categories is enforced both at draft validation and on `PATCH /providers/me` | Aligns the provider-facing UI limit with the backend, preventing drift via direct profile edits after onboarding |
+| 2026-05-10 | `zoneRadiusKm` stays in the onboarding draft JSON for v1 | Discovery does not yet read it (workstream 06 is P2); promoting it to a Provider column would be hypothetical work |
+| 2026-05-10 | Identity uploads and portfolio photos are surfaced as deferred panels (no fake toggles) in onboarding | Real upload happens in `/pro/verify` and the portfolio gallery is post-launch; pretending otherwise misleads providers about what is actually saved |
 
 ## Open Questions
 
@@ -304,3 +309,71 @@ Schema migration/push:
 Manual/seeded scenario:
 
 - Not exercised on a device/simulator in this session. Behavior validated through TS type-check and code-level review of the cache invalidation, navigation, and copy paths described above. Device walkthrough is recommended as part of workstream 07 QA.
+
+### 05 - Provider Onboarding Tightening
+
+Status: Done on 2026-05-10 by Claude.
+
+Changed files:
+
+- `packages/schemas/src/dto.ts`
+- `apps/backend/src/modules/providers/providers.service.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`
+- `apps/web/src/app/pro/onboarding/types.ts`
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `apps/web/src/app/pro/verify/fixtures.ts`
+- `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx`
+- `apps/mobile/src/screens/pro/onboardingData.ts`
+- `apps/mobile/src/screens/pro/verifyData.ts`
+- `docs/v1-launch-alignment/PROGRESS.md`
+
+Implementation notes:
+
+- Backend now enforces a max of 3 service categories on `PATCH /providers/me` (the onboarding draft already capped at 3 via `ProviderDraftDto`, and `UpdateProviderDto.categoryIds` now also has `.max(3)`).
+- `OnboardingService.validateForPublish` now requires `yearsOfExperience` to be set, in addition to the existing first/last name, phone, profession, primary category, service zones and hourly rate checks. New regression test `provider publish requires explicit years of experience` covers this.
+- Phone verification is not required for publish; `phoneVerifiedAt` continues to gate the verified badge through the existing `/pro/verify` flow only.
+- Web onboarding step 1 replaces the recto/verso click toggles with a deferred-state panel that links the provider to the post-publish verification flow and states "L'équipe KAYOU revoit ton dossier sous 24h pour activer le badge « Vérifié »."
+- Web onboarding step 5 portfolio replaces the fake "click-to-fill" tiles with a deferred panel ("La galerie photos sera activée prochainement"). The misleading green `Nouveau · Vérifié` preview chip on step 6 is now a neutral `Nouveau prestataire` chip and the preview hourly rate uses the starting-from convention with a cash disclaimer.
+- Mobile onboarding step 1 mirrors the web change: the fake recto/verso tiles are replaced with the same deferred panel, and the step 1 validator no longer requires `id.front`/`id.back`.
+- Mobile onboarding step 4 hint now describes `À partir de … FC/h` and reminds providers that the final price is convenu avec le client. Step 5 portfolio is the same deferred panel as web. The publish preview shows `À partir de` with the cash disclaimer line.
+- Both web and mobile commune lists collapse to Kinshasa only with the full official 24-commune list (Bandalungwa, Barumbu, Bumbu, Gombe, Kalamu, Kasa-Vubu, Kimbanseke, Kinshasa, Kintambo, Kisenso, Lemba, Limete, Lingwala, Makala, Maluku, Masina, Matete, Mont Ngafula, Ndjili, Ngaba, Ngaliema, Ngiri-Ngiri, Nsele, Selembao). Lubumbashi/Brazzaville/Pointe-Noire entries were removed for the v1 Kinshasa-only launch.
+- Verification copy is aligned to "sous 24h" in both `apps/web/src/app/pro/verify/fixtures.ts` and `apps/mobile/src/screens/pro/verifyData.ts`, matching the onboarding publish-step promise.
+- `zoneRadiusKm` continues to live in the onboarding draft JSON; discovery does not read it yet (workstream 06 is P2), so no Prisma schema change was made.
+
+Search terms checked:
+
+- `Pièce d'identité`, `Recto`, `Verso`, `idFrontUploaded`, `idBackUploaded` — fake upload toggles are gone from web/mobile onboarding; only the API-stored draft flags remain (always false).
+- `moins de 2 heures` — no remaining instances; verification copy is uniformly `sous 24h`.
+- `Nouveau · Vérifié` — chip removed; preview now shows `Nouveau prestataire`.
+- `categoryIds`, `max(3)` — schema and service both enforce the max-3 cap on draft and update flows.
+- `À partir de`, `Prix convenu` — present in onboarding step 4 hint, mobile preview, web preview, matching the workstream 02 starting-from convention.
+
+Manual onboarding path checked (code-level, not on device):
+
+- `/pro/onboarding` step 1 → ID block is read-only deferred copy, name + phone still required to continue.
+- `/pro/onboarding` step 2 → up to 3 categories selectable, additional categories show the lock icon and don't add.
+- `/pro/onboarding` step 3 → only Kinshasa is offered with the expanded commune list; the radius slider stays in JSON draft.
+- `/pro/onboarding` step 4 → starting-from copy + cash disclaimer.
+- `/pro/onboarding` step 5 → bio required, photo and portfolio panels are deferred.
+- `/pro/onboarding` step 6 → preview shows neutral "Nouveau prestataire" chip and "Profil vérifié sous 24h" promise; publish requires `yearsOfExperience` server-side.
+
+Commands run:
+
+- `pnpm --filter @kayu/schemas type-check` — passed.
+- `pnpm --filter @kayu/schemas build` — passed.
+- `pnpm --filter @kayu/api type-check` — passed.
+- `pnpm --filter @kayu/api build` — passed.
+- `pnpm --filter @kayu/backend type-check` — passed.
+- `pnpm --filter @kayu/backend test:onboarding` — passed (16 tests, including the new years-of-experience publish guard).
+- `pnpm --filter @kayu/backend test:launch` — passed (64 tests).
+- `pnpm --filter @kayu/web type-check` — passed.
+- `pnpm --filter @kayu/mobile type-check` — passed.
+
+Schema migration/push:
+
+- Not run. No Prisma schema change was required for this workstream; `zoneRadiusKm` stays in the onboarding draft JSON until discovery uses it.
+
+Manual/seeded scenario:
+
+- Backend regression coverage in `apps/backend/src/modules/onboarding/onboarding.service.spec.ts`: provider publish now rejects drafts missing `yearsOfExperience` with a `BadRequestException` whose `missing` array contains `yearsOfExperience`, alongside the existing checks for `phone`, `serviceZones`, and `primaryCategoryId`.

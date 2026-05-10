@@ -336,6 +336,10 @@ export class ProvidersService {
     const categoryIds = body.categoryIds ? this.unique(body.categoryIds) : undefined;
     const tradeIds = body.tradeIds ? this.unique(body.tradeIds) : undefined;
 
+    if (categoryIds && categoryIds.length > 3) {
+      throw new BadRequestException("A provider can have at most 3 service categories");
+    }
+
     if (tradeIds && tradeIds.length > 3) {
       throw new BadRequestException("A provider can have at most 3 trades");
     }

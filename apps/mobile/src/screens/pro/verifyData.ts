@@ -99,7 +99,7 @@ export const STATUS_CONFIG: Record<VerificationState, StatusConfig> = {
     tintBg: '#EDE9FE',
     icon: 'clock',
     title: "Dossier en cours d'examen",
-    sub: 'Notre équipe vérifie vos documents. Délai habituel : moins de 2 heures.',
+    sub: 'Notre équipe vérifie vos documents. Délai habituel : sous 24h.',
     cta: null,
   },
   VERIFIED: {

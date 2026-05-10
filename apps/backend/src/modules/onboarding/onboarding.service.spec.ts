@@ -314,3 +314,29 @@ test("provider publish rejects malformed phone values", async () => {
   );
   assert.equal(transactionRan, false);
 });
+
+test("provider publish requires explicit years of experience", async () => {
+  let transactionRan = false;
+  const prisma = {
+    user: {
+      findUnique: async () => ({
+        ...makeUser(),
+        provider: makeProvider({ experience: null }),
+      }),
+    },
+    category: {
+      findFirst: async () => ({ id: "cat_1", name: "Plomberie" }),
+    },
+    $transaction: async () => {
+      transactionRan = true;
+    },
+  };
+
+  const service = new OnboardingService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () => service.publish(makeActor()),
+    (error) => hasMissingField(error, "yearsOfExperience"),
+  );
+  assert.equal(transactionRan, false);
+});

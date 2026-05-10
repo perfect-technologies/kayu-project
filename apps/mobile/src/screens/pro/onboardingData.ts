@@ -30,11 +30,33 @@ export type OnboardingData = {
 export const CITIES = [
   {
     name: 'Kinshasa',
-    communes: ['Gombe', 'Lemba', 'Limete', 'Ngaliema', 'Kintambo', 'Kasa-Vubu', 'Bandal'],
+    communes: [
+      'Bandalungwa',
+      'Barumbu',
+      'Bumbu',
+      'Gombe',
+      'Kalamu',
+      'Kasa-Vubu',
+      'Kimbanseke',
+      'Kinshasa',
+      'Kintambo',
+      'Kisenso',
+      'Lemba',
+      'Limete',
+      'Lingwala',
+      'Makala',
+      'Maluku',
+      'Masina',
+      'Matete',
+      'Mont Ngafula',
+      'Ndjili',
+      'Ngaba',
+      'Ngaliema',
+      'Ngiri-Ngiri',
+      'Nsele',
+      'Selembao',
+    ],
   },
-  { name: 'Lubumbashi', communes: ['Kamalondo', 'Lubumbashi', 'Kenya'] },
-  { name: 'Brazzaville', communes: ['Poto-Poto', 'Bacongo', 'Makélékélé'] },
-  { name: 'Pointe-Noire', communes: ['Tié-Tié', 'Loandjili'] },
 ];
 
 export const SKILL_SUGGESTIONS: Partial<Record<CategorySlug, string[]>> = {
@@ -68,9 +90,7 @@ export function validateStep(step: number, d: OnboardingData): boolean {
       return (
         d.firstName.trim().length > 0 &&
         d.lastName.trim().length > 0 &&
-        d.phone.length === 9 &&
-        Boolean(d.id.front) &&
-        Boolean(d.id.back)
+        d.phone.length === 9
       );
     case 2:
       return d.categories.length > 0 && d.title.trim().length > 0 && d.years.length > 0;
