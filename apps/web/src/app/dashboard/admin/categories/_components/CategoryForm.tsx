@@ -160,16 +160,6 @@ export function CategoryForm({
         </div>
       </Field>
 
-      <Field label="Ordre">
-        <input
-          type="number"
-          value={values.order}
-          onChange={(event) => update("order", Number(event.target.value) || 0)}
-          min={0}
-          style={inputStyle}
-        />
-      </Field>
-
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
         <input
           type="checkbox"

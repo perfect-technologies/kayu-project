@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,19 +13,20 @@ import {
   Flag,
   Home as HomeIcon,
   Layers,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
   Star,
   TrendingUp,
-  Trash2,
   Users,
   XCircle,
 } from 'lucide-react';
 import { NewCategoryModal } from './categories/_components/NewCategoryModal';
 import { DeleteConfirmDialog } from './categories/_components/DeleteConfirmDialog';
-import { LucideIconView } from './categories/_components/LucideIcon';
+import {
+  AdminCategoriesList,
+  type AdminCategoryListItem,
+} from './categories/_components/AdminCategoriesList';
 import { adminApi, dashboardApi, queryKeys } from '@kayu/api';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -2272,6 +2272,23 @@ function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: async (updates: Array<{ id: string; order: number }>) => {
+      await Promise.all(
+        updates.map((u) =>
+          adminApi(apiClient).updateCategory({ categoryId: u.id, order: u.order }),
+        ),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.categories });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Réorganisation impossible.');
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.categories });
+    },
+  });
+
   return (
     <div>
       <SectionHeader
@@ -2302,108 +2319,23 @@ function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
       ) : cats.length === 0 ? (
         <EmptyOpsState icon={Layers} title="Aucune catégorie" description="Le référentiel est vide." />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {cats.map((c: any) => (
-            <div
-              key={c.id}
-              style={{
-                background: 'var(--k-surface)',
-                border: '1px solid var(--k-border)',
-                borderRadius: 12,
-                padding: 14,
-                position: 'relative',
-              }}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <Link
-                  href={`/dashboard/admin/categories/${c.id}`}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    textDecoration: 'none',
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    aria-hidden
-                    style={{
-                      flexShrink: 0,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: c.color ? `${c.color}1A` : 'var(--k-surface-muted)',
-                      color: c.color || 'var(--k-text-muted)',
-                      border: '1px solid var(--k-border)',
-                    }}
-                  >
-                    <LucideIconView name={c.icon} size={16} />
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontWeight: 600,
-                        fontSize: 14,
-                        color: 'var(--k-text-primary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {c.name}
-                    </span>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: 11.5,
-                        color: 'var(--k-text-subtle)',
-                        fontFamily: 'var(--k-font-mono)',
-                        marginTop: 2,
-                      }}
-                    >
-                      /{c.slug}
-                    </span>
-                  </span>
-                </Link>
-                <div className="flex items-center gap-1.5">
-                  <StatusChip tone={c.isActive === false ? 'warning' : 'success'}>
-                    {c.isActive === false ? 'Inactive' : 'Active'}
-                  </StatusChip>
-                  <Link
-                    href={`/dashboard/admin/categories/${c.id}`}
-                    aria-label="Modifier"
-                    title="Modifier"
-                    style={{ padding: 6, borderRadius: 6, color: 'var(--k-text-muted)' }}
-                  >
-                    <Pencil size={14} />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget({ id: c.id, name: c.name })}
-                    aria-label="Supprimer"
-                    title="Supprimer"
-                    style={{ padding: 6, borderRadius: 6, color: 'var(--k-danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--k-text-muted)' }}>
-                {c.providerCount ?? c.stats?.providerCount ?? 0} pros
-                {c.subcategoryCount != null
-                  ? ` · ${c.subcategoryCount} sous-catégories`
-                  : c.stats?.subcategoryCount != null
-                    ? ` · ${c.stats.subcategoryCount} sous-catégories`
-                    : ''}
-              </div>
-            </div>
-          ))}
-        </div>
+        <AdminCategoriesList
+          categories={cats as AdminCategoryListItem[]}
+          onDelete={(target) => setDeleteTarget(target)}
+          onReorder={(orderedIds) => {
+            const updates = orderedIds
+              .map((id, index) => {
+                const current = cats.find((c: any) => c.id === id);
+                if (!current) return null;
+                if (current.order === index) return null;
+                return { id, order: index };
+              })
+              .filter((u): u is { id: string; order: number } => u !== null);
+            if (updates.length > 0) {
+              reorderMutation.mutate(updates);
+            }
+          }}
+        />
       )}
       <NewCategoryModal open={createOpen} onOpenChange={setCreateOpen} />
       <DeleteConfirmDialog
