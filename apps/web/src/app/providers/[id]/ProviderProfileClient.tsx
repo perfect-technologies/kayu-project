@@ -540,13 +540,13 @@ export function ProviderProfileClient({
                       className="k-body"
                       style={{ color: "var(--k-text-muted)" }}
                     >
-                      FC/h
+                      FC
                     </span>
                   </div>
                 </>
               ) : (
                 <div>
-                  <div className="k-caption">Tarif</div>
+                  <div className="k-caption">Prix de départ</div>
                   <div className="k-display-m" style={{ margin: "4px 0 0" }}>
                     À convenir
                   </div>
@@ -657,10 +657,6 @@ export function ProviderProfileClient({
                   }}
                 >
                   {hourlyFormatted} FC
-                </span>
-                <span style={{ color: "var(--k-text-muted)", fontSize: 13 }}>
-                  {" "}
-                  /h
                 </span>
               </div>
               <div className="k-caption mt-0.5">

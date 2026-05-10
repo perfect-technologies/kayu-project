@@ -754,7 +754,7 @@ export function StepPricing({ data, setData }: StepProps) {
         <I.coins size={20} strokeColor="#B45309" />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, color: "#92400E", fontSize: 14 }}>
-            Tarif moyen à Kinshasa
+            Prix de départ moyen à Kinshasa
           </div>
           <div
             style={{
@@ -767,15 +767,15 @@ export function StepPricing({ data, setData }: StepProps) {
             <span style={{ fontFamily: tokens.font.mono, fontWeight: 700 }}>
               12 000 – 18 000 FC
             </span>{" "}
-            / heure. Tu peux ajuster à tout moment.
+            par intervention. Tu peux ajuster à tout moment.
           </div>
         </div>
       </div>
 
       <div>
         <FieldLabel
-          label="Tarif horaire"
-          hint="Prix indicatif affiché sur ton profil. Le prix final se confirme dans la conversation."
+          label="Prix de départ"
+          hint="Prix indicatif affiché sur ton profil sous la forme « À partir de … FC ». Le prix final est convenu avec le client avant l'intervention."
         />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           {HOURLY_PRESETS.map((p) => {
@@ -835,7 +835,7 @@ export function StepPricing({ data, setData }: StepProps) {
               pointerEvents: "none",
             }}
           >
-            FC / h
+            FC
           </div>
         </div>
       </div>
@@ -1200,12 +1200,6 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                 }}
               >
                 {hourly.toLocaleString("fr-FR")} FC
-              </span>
-              <span
-                style={{ color: tokens.color.textMuted, fontSize: 14 }}
-              >
-                {" "}
-                /heure
               </span>
               <div
                 style={{

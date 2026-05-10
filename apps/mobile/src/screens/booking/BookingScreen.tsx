@@ -127,7 +127,7 @@ export function BookingScreen() {
         city: provider?.user.city ?? undefined,
         scheduledDate: scheduled,
         duration: duration * 60,
-        price: (provider?.hourlyRate ?? 0) * duration,
+        price: provider?.hourlyRate ?? 0,
         clientNotes: note || undefined,
       });
     },
@@ -233,8 +233,9 @@ export function BookingScreen() {
   const fullName = `${firstName} ${lastName}`.trim() || params.providerName;
   const categorySlug: CategorySlug = toCategorySlug(provider.categories?.[0]?.slug);
   const portfolio = tokens.portfolio[categorySlug];
+  // Provider starting price; not multiplied by duration.
   const hourly = provider.hourlyRate ?? 0;
-  const total = hourly * duration;
+  const total = hourly;
   const rating = provider.rating ?? 0;
 
   const stepTitle = ['Quel service ?', 'Quel moment demander ?', 'Récapitulatif'][step];
@@ -355,7 +356,7 @@ export function BookingScreen() {
       <View style={[styles.footer, { paddingBottom: 18 + insets.bottom }]}>
         <View style={styles.footerPriceBlock}>
           <Text style={styles.footerCaption}>
-            {step === 2 ? 'Total estimé' : `À partir de ${formatHourly(hourly)} FC/h`}
+            {step === 2 ? 'Prix indicatif' : `À partir de ${formatHourly(hourly)} FC`}
           </Text>
           <Text
             style={[
@@ -644,13 +645,13 @@ function Step2({
       <Text style={styles.blockLabel}>Paiement</Text>
       <View style={[styles.priceCard, theme.shadow.e2]}>
         <MbPriceRow
-          label={`À partir de ${formatHourly(hourly)} FC × ${duration}h`}
-          value={`${formatHourly(total)} FC`}
+          label="Prix de départ"
+          value={`${formatHourly(hourly)} FC`}
         />
         <View style={styles.priceDivider} />
         <MbPriceRow
-          label="Total estimé"
-          value={`${formatHourly(total)} FC`}
+          label="Prix indicatif"
+          value={`À partir de ${formatHourly(total)} FC`}
           bold
         />
       </View>

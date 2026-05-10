@@ -825,7 +825,7 @@ function FilterPanel({
         </FilterSection>
       ) : null}
 
-      <FilterSection title="Prix horaire">
+      <FilterSection title="Prix de départ">
         <PriceSlider
           value={priceRange}
           onChange={onPriceRange}

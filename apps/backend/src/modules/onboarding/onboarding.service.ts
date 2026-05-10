@@ -439,6 +439,9 @@ export class OnboardingService {
       missing.push("yearsOfExperience");
     }
     if (!draft.serviceZones || draft.serviceZones.length === 0) missing.push("serviceZones");
+    // `hourlyRate` semantically holds the provider starting price (fixed base
+    // price), not an hourly rate. The column is kept under its legacy name
+    // pending a v2 rename; v1 publish still requires it to be positive.
     if (!draft.hourlyRate || draft.hourlyRate <= 0) missing.push("hourlyRate");
     return missing;
   }

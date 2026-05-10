@@ -1236,15 +1236,15 @@ function ServicesSection() {
           action={<ComingLaterChip>Édition rapide à venir</ComingLaterChip>}
         />
         <div style={{ fontSize: 12.5, color: 'var(--k-text-muted)', lineHeight: 1.5 }}>
-          Vos catégories, prestations et tarif horaire sont configurés depuis le parcours
+          Vos catégories, prestations et prix de départ sont configurés depuis le parcours
           d'onboarding pro. Une édition rapide depuis les réglages arrive bientôt.
         </div>
       </CardSection>
       <CardSection>
-        <CardTitle title="Tarif horaire de référence" action={<ComingLaterChip />} />
+        <CardTitle title="Prix de départ de référence" action={<ComingLaterChip />} />
         <div style={{ fontSize: 12.5, color: 'var(--k-text-muted)', lineHeight: 1.5 }}>
-          Pour le lancement, indiquez votre prix dans la conversation et confirmez via une
-          offre finale. Le tarif affiché publiquement vient des paramètres pro.
+          Pour le lancement, indiquez votre prix dans la conversation et enregistrez l'accord
+          final. Le prix de départ affiché publiquement vient des paramètres pro.
         </div>
       </CardSection>
     </div>

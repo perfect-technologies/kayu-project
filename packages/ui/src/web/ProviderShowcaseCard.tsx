@@ -22,7 +22,7 @@ export type ProviderShowcaseCardProps = {
 // (file 052e06e1-4809-46c9-b44e-a37e517fa61a.js, function ProviderCard).
 // Square category icon tile (radial-gradient bg) on the left, name + verified
 // + StarRating header on the right, profession line, response line, trust
-// chips strip, optional testimonial, and a footer with `À partir de … FC/h`
+// chips strip, optional testimonial, and a footer with `À partir de … FC`
 // plus a CTA pill.
 export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
   provider,
@@ -235,16 +235,6 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
             }}
           >
             {provider.hourly.toLocaleString("fr-FR")} FC
-            <span
-              style={{
-                color: tokens.color.textMuted,
-                fontWeight: 400,
-                fontFamily: tokens.font.body,
-                fontSize: 14,
-              }}
-            >
-              /h
-            </span>
           </div>
         </div>
 

@@ -103,7 +103,7 @@ model Provider {
   profession  String
   description String?
   experience  Int? // Années d'expérience
-  hourlyRate  Float? // Tarif horaire en CDF
+  hourlyRate  Float? // Prix de départ (FC) - fixed starting price, NOT an hourly rate. Column name kept for backward compatibility (v1 deferred rename).
   videoUrl    String? // Vidéo de présentation
   languages   String[] @default([])
 

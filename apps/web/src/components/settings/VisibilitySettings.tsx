@@ -283,10 +283,10 @@ export function VisibilitySettings({ userRole }: VisibilitySettingsProps) {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <Label htmlFor="showHourlyRate" className="font-medium">
-                      Tarif horaire
+                      Prix de départ
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Afficher votre taux horaire
+                      Afficher votre prix indicatif
                     </p>
                   </div>
                 </div>

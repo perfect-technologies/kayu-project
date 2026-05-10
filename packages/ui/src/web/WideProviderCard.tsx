@@ -93,7 +93,7 @@ export const WideProviderCard: React.FC<WideProviderCardProps> = ({
           {provider.distance != null ? ` · ${provider.distance} km` : ""}
         </div>
         <ResponseLine response={provider.response} />
-        <PriceLine hourly={provider.hourly} suffix="/heure" />
+        <PriceLine hourly={provider.hourly} />
       </div>
     </article>
   );

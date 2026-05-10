@@ -100,7 +100,7 @@ export const FeaturedProviderCard: React.FC<FeaturedProviderCardProps> = ({
           {provider.commune ? ` · ${provider.commune}` : ""}
         </div>
         <ResponseLine response={provider.response} />
-        <PriceLine hourly={provider.hourly} suffix="/h" />
+        <PriceLine hourly={provider.hourly} />
       </div>
     </article>
   );
@@ -297,7 +297,7 @@ const ResponseLine: React.FC<{ response: string }> = ({ response }) => {
   );
 };
 
-const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
+const PriceLine: React.FC<{ hourly: number; suffix?: string }> = ({
   hourly,
   suffix,
 }) => (
@@ -326,16 +326,18 @@ const PriceLine: React.FC<{ hourly: number; suffix: string }> = ({
     >
       {formatMoneyFc(hourly)}
     </span>
-    <span
-      style={{
-        color: tokens.color.textMuted,
-        fontSize: 14,
-        fontFamily: tokens.font.body,
-      }}
-    >
-      {" "}
-      {suffix}
-    </span>
+    {suffix ? (
+      <span
+        style={{
+          color: tokens.color.textMuted,
+          fontSize: 14,
+          fontFamily: tokens.font.body,
+        }}
+      >
+        {" "}
+        {suffix}
+      </span>
+    ) : null}
   </div>
 );
 

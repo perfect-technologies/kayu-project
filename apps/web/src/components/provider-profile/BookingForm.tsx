@@ -88,9 +88,11 @@ export function BookingForm({
     }).format(price);
   };
 
-  const hourlyRate = provider.hourlyRate || 0;
+  // Provider starting price; not multiplied by duration. The provider-issued
+  // final offer becomes the agreed price.
+  const startingPrice = provider.hourlyRate || 0;
   const durationHours = parseFloat(duration);
-  const estimatedPrice = hourlyRate * durationHours;
+  const estimatedPrice = startingPrice;
 
   const timeSlots = [
     "08:00", "09:00", "10:00", "11:00", "12:00",
@@ -175,8 +177,8 @@ export function BookingForm({
           <DialogTitle>Réserver {provider.user.firstName} {provider.user.lastName}</DialogTitle>
           <DialogDescription>
             {provider.profession}
-            {hourlyRate > 0 && (
-              <span className="ml-2">• À partir de {formatPrice(hourlyRate)} FC/heure</span>
+            {startingPrice > 0 && (
+              <span className="ml-2">• À partir de {formatPrice(startingPrice)} FC</span>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -397,16 +399,16 @@ export function BookingForm({
                 {estimatedPrice > 0 && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Prix estimé</span>
+                      <span className="text-muted-foreground">Prix de départ</span>
                       <div className="text-right">
                         <span className="text-xl font-bold text-primary">
-                          {formatPrice(estimatedPrice)}
+                          À partir de {formatPrice(estimatedPrice)}
                         </span>
-                        <span className="text-sm text-muted-foreground ml-1">CDF</span>
+                        <span className="text-sm text-muted-foreground ml-1">FC</span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Le prix final sera confirmé après discussion avec le prestataire.
+                      Le prix final est convenu avec le prestataire avant l&apos;intervention.
                     </p>
                   </div>
                 )}

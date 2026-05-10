@@ -20,7 +20,7 @@ export type ProviderCardData = {
   reviews: number;
   /** "15 min" | "1h" | "3h" — the bare time string. */
   response: string;
-  /** Hourly rate in FC. */
+  /** Provider starting price in FC (fixed base price, not hourly). Field kept as `hourly` while DB column rename is deferred. */
   hourly: number;
   /** Distance in km. Omit on cards that don't show it. */
   distance?: number;
@@ -44,8 +44,10 @@ export const portfolioSlug = (
 export const formatMoneyFc = (amount: number): string =>
   `${amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} FC`;
 
-// Format an hourly rate for the wide/featured card meta — "15 000" with
+// Format a starting price for the wide/featured card meta — "15 000" with
 // French thousand separators (NBSP), separator handled by Intl.
+// Function name kept as `formatHourly` to avoid widespread call-site churn;
+// semantically this is the provider starting price.
 export const formatHourly = (hourly: number): string =>
   hourly.toLocaleString("fr-FR");
 

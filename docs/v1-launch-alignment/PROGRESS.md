@@ -24,7 +24,7 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 03 - Web V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 04 - Mobile V1 Flow Alignment | Done | Claude | Client final-offer accept/decline removed; offers shown as confirmed agreements |
 | 05 - Provider Onboarding Tightening | Done | Claude | P1 onboarding tightened: max-3 categories enforced, experience required, deferred uploads, Kinshasa communes expanded, 24h verification copy aligned |
-| 06 - Fixed Starting Price Model | Not started | TBD | P0 correction: remove hourly-rate launch semantics and use fixed starting prices |
+| 06 - Fixed Starting Price Model | Done | Claude | Hourly-rate launch semantics removed across web/mobile; direct booking estimate now uses provider starting price without × duration |
 | 07 - Discovery Map Distance And Reviews | Not started | TBD | P2 unless promoted |
 | 08 - V1 QA And Release Smoke | Not started | TBD | P0 after implementation |
 
@@ -49,6 +49,8 @@ This workstream aligns the existing Kinshasa MVP implementation with the latest 
 | 2026-05-10 | `zoneRadiusKm` stays in the onboarding draft JSON for v1 | Discovery does not yet read it (workstream 07 is P2); promoting it to a Provider column would be hypothetical work |
 | 2026-05-10 | Identity uploads and portfolio photos are surfaced as deferred panels (no fake toggles) in onboarding | Real upload happens in `/pro/verify` and the portfolio gallery is post-launch; pretending otherwise misleads providers about what is actually saved |
 | 2026-05-10 | Starting-from provider pricing means fixed base price, not hourly rate | Product clarified providers set a usual starting price for the service (`À partir de 10 000 FC`); launch UI must not show `FC/h`, `/h`, `/heure`, or multiply by duration |
+| 2026-05-10 | Direct booking estimate is sent as the provider starting price (option 1 of workstream 06) | Keeps `Booking.price` populated for downstream commission/economics math; still labelled as an estimate until the provider records the final-offer accord |
+| 2026-05-10 | Backend Prisma column `Provider.hourlyRate` is kept; no immediate rename | Workstream 06 explicitly defers the DB rename to limit blast radius; comments at the schema/service boundary now document that the field semantically holds the starting price |
 
 ## Open Questions
 
@@ -383,31 +385,92 @@ Manual/seeded scenario:
 
 ### 06 - Fixed Starting Price Model
 
-Status: Not started.
+Status: Done on 2026-05-10 by Claude.
 
-Scope:
+Changed files:
 
-- Correct the product mismatch where previous workstreams treated starting-from pricing as hourly pricing.
-- Launch-facing provider prices must be fixed base prices: `À partir de 10 000 FC`.
-- Remove `FC/h`, `/h`, `/heure`, `Tarif horaire`, and hourly-rate wording from launch-facing web/mobile pricing.
-- Direct booking estimates must not multiply provider starting price by duration.
-- Keep final-offer and booking agreed prices as the source of truth for commission economics.
-- Prefer no immediate DB migration: the existing `Provider.hourlyRate` column can temporarily store the starting price while UI/API adapters migrate to `startingPrice` or `basePrice` naming.
+- `packages/ui/src/cards.ts`
+- `packages/ui/src/web/FeaturedProviderCard.tsx`
+- `packages/ui/src/web/WideProviderCard.tsx`
+- `packages/ui/src/web/ProviderShowcaseCard.tsx`
+- `packages/ui/src/mobile/FeaturedProviderCard.tsx`
+- `packages/ui/src/mobile/WideProviderCard.tsx`
+- `packages/schemas/src/dto.ts`
+- `apps/backend/prisma/schema.prisma`
+- `apps/backend/src/modules/providers/providers.service.ts`
+- `apps/backend/src/modules/onboarding/onboarding.service.ts`
+- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx`
+- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx`
+- `apps/web/src/components/provider-profile/BookingForm.tsx`
+- `apps/web/src/app/services/ServicesPageContent.tsx`
+- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx`
+- `apps/web/src/app/dashboard/settings/page.tsx`
+- `apps/web/src/components/settings/VisibilitySettings.tsx`
+- `apps/mobile/src/components/providers/ProviderCard.tsx`
+- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx`
+- `apps/mobile/src/screens/booking/BookingScreen.tsx`
+- `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx`
+- `docs/v1-launch-alignment/PROGRESS.md`
 
-Known hotspots from pre-work review:
+Implementation notes:
 
-- `apps/backend/prisma/schema.prisma` has `Provider.hourlyRate`.
-- `packages/schemas/src/dto.ts` exposes `hourlyRate` and `sortBy: "hourlyRate"`.
-- `apps/backend/src/modules/onboarding/onboarding.service.ts` validates `hourlyRate` for publish.
-- `apps/backend/src/modules/providers/providers.service.ts` filters/sorts by `hourlyRate`.
-- `apps/web/src/app/providers/[id]/ProviderProfileClient.tsx` shows `FC/h` and `/h`.
-- `apps/web/src/app/book/[providerId]/BookingFlowClient.tsx` computes `total = hourly * duration`.
-- `apps/mobile/src/screens/search/ProviderProfileScreen.tsx` shows `/h`.
-- `apps/mobile/src/components/providers/ProviderCard.tsx` shows `/h`.
-- `apps/mobile/src/screens/booking/BookingScreen.tsx` computes `price = hourlyRate * duration`.
-- `apps/web/src/app/pro/onboarding/OnboardingSteps.tsx` and `apps/mobile/src/screens/pro/ProviderOnboardingScreen.tsx` still use hourly-rate labels/copy.
-- `packages/ui/src/web/*ProviderCard*`, `packages/ui/src/mobile/*ProviderCard*`, and nearby cards use `hourly` props and hourly suffixes.
+- No Prisma migration. `Provider.hourlyRate` is kept as the storage column for the provider starting price; the column comment now states it is a fixed base price (FC), not an hourly rate.
+- Backend publish validation (`OnboardingService.validateForPublish`) still requires a positive `hourlyRate`; comment now documents that the value semantically represents the starting price.
+- API/DTO surface keeps `hourlyRate` and `sortBy: "hourlyRate"` for wire compatibility; both have inline comments documenting that they represent the provider starting price (not an hourly rate). Sort labels in the web filter (`Prix croissant` / `Prix décroissant`) already say price.
+- Shared UI card prop kept as `hourly` on `ProviderCardData` with an updated doc comment. `PriceLine` no longer displays a `/h` or `/heure` suffix on either web or mobile; suffix prop is now optional and unused. `ProviderShowcaseCard` no longer renders the trailing `/h`.
+- Web provider profile (`ProviderProfileClient`) sticky rail and mobile bottom bar now show `À partir de … FC` with no `/h` suffix; `À convenir` fallback uses `Prix de départ` instead of `Tarif`.
+- Web direct booking flow (`BookingFlowClient`) no longer computes `total = hourly × duration`. The recap line shows `Prix de départ` and `Prix indicatif: À partir de … FC`. `bookings.create({ price })` is sent as the provider starting price (option 1 of the workstream doc).
+- Web provider booking modal (`BookingForm`) uses the same starting price as the estimated price and renders `Prix de départ` / `À partir de … FC` instead of `Prix estimé / × heure`.
+- Web onboarding step 4 (`StepPricing`) field label is `Prix de départ`; hint and preview no longer mention `/heure`. The amber info card now reads `Prix de départ moyen à Kinshasa … par intervention`. Preview and FC suffix in the input dropped the trailing `/h`.
+- Web settings: `Tarif horaire` switch label renamed to `Prix de départ`; dashboard settings `Tarif horaire de référence` card retitled `Prix de départ de référence`. The web services filter section title changed from `Prix horaire` to `Prix de départ`.
+- Mobile provider card (`ProviderCard`) and provider profile sticky bar (`ProviderProfileScreen`) no longer render `/h`. Removed unused `priceSuffix` style.
+- Mobile direct booking flow (`BookingScreen`) sends `price = provider.hourlyRate` and the recap displays `Prix de départ` / `Prix indicatif: À partir de … FC` with no `× duration` multiplication.
+- Mobile onboarding step 4 (`StepPricing`) field label is `Prix de départ`; the input suffix is `FC`; the preview drops `/heure`; info card mirrors the web copy.
+- Booking detail surfaces (`BookingDetail.tsx` web, `BookingDetailScreen.tsx` mobile, `bookingV2.priceLabelFor`) already used the workstream 02 `Prix convenu` / `Estimation` copy; no further changes were needed.
+- Direct booking flows still capture `duration` for scheduling context only; the value is sent on the booking create payload but no longer multiplies the price.
 
-Implementation evidence:
+Search terms checked (launch-facing app/package source):
 
-- Add changed files and command results when workstream 06 is implemented.
+- `FC/h` — only remaining hits are in `apps/web/src/app/design/page.tsx:221` and `apps/mobile/src/screens/DesignProbeScreen.tsx:186`, both of which are dev-only design-system probes used to demonstrate JetBrains Mono font rendering. No launch-facing pricing UI uses `FC/h`.
+- `/h` — no remaining hits in launch-facing UI; the only matches are inside the two design probes above.
+- `/heure` / `par heure` — no remaining hits anywhere under `apps/` or `packages/`.
+- `Tarif horaire` / `Prix horaire` — no remaining hits anywhere under `apps/` or `packages/`.
+- `× duration` / `* duration` — no remaining `hourlyRate × duration` or `hourly × duration` price multiplications.
+- `hourlyRate` — still present internally as the database column, the API DTO field, the search/sort key, and within backend services. All retained occurrences semantically represent the provider starting price; the schema column comment, the providers/onboarding service comments, and the schemas DTO sort enum comment now document this. Renaming the column is deferred until a follow-up workstream.
+- `hourly` — still present as the shared UI card prop name (`ProviderCardData.hourly`) and the helpers `formatHourly` / `formatHourlyCompact`. Field doc comment and helper comment now explicitly state the value is the provider starting price; renaming is deferred to avoid widespread call-site churn.
+
+Remaining internal `hourlyRate` compatibility points (intentional, documented):
+
+- `Provider.hourlyRate` Prisma column (storage). Comment in `apps/backend/prisma/schema.prisma` notes it is the starting price, not an hourly rate.
+- Backend services (`providers.service.ts`, `onboarding.service.ts`, `dashboard.service.ts`, `favorites.service.ts`, `quotes.service.ts`, `admin.service.ts`, `identity.service.ts`, `categories.service.ts`, `bookings.service.ts`) and seed data continue to read/write the field under the legacy name; the public meaning has been clarified at the schema/service boundary.
+- API DTOs (`packages/schemas/src/dto.ts`, `packages/api`) continue to expose `hourlyRate` and `sortBy: "hourlyRate"` for wire compatibility.
+- Settings flag `showHourlyRate` retained for client/server compatibility; user-facing label is now `Prix de départ`.
+- Web onboarding draft state (`ProviderOnboardingClient`, `OnboardingSteps`) and mobile onboarding state (`ProviderOnboardingScreen`, `onboardingData.ts`) keep the local `hourly` field name in form state to map to the existing API field.
+
+Commands run:
+
+- `pnpm --filter @kayu/ui type-check` — passed.
+- `pnpm --filter @kayu/ui build` — passed.
+- `pnpm --filter @kayu/schemas type-check` — passed.
+- `pnpm --filter @kayu/schemas build` — passed.
+- `pnpm --filter @kayu/backend type-check` — passed.
+- `pnpm --filter @kayu/backend test:onboarding` — passed (16 tests).
+- `pnpm --filter @kayu/backend test:bookings` — passed (19 tests).
+- `pnpm --filter @kayu/backend test:launch` — passed (64 tests).
+- `pnpm --filter @kayu/web type-check` — passed.
+- `pnpm --filter @kayu/mobile type-check` — passed.
+
+Schema migration/push:
+
+- Skipped. The Prisma column `Provider.hourlyRate` is kept as-is per the workstream's "no immediate DB migration" guidance; only the column comment was updated. A follow-up workstream may rename the column with `@map("hourlyRate")` once API/UI naming churn is paid down.
+
+Manual routes checked (code-level, not on device/browser):
+
+- `/services` (web) — provider cards via shared UI no longer render `/h`; filter section title is `Prix de départ`.
+- `/providers/:id` (web) — sticky booking rail and mobile bottom bar render `À partir de … FC` with no `/h`; `À convenir` fallback uses `Prix de départ`.
+- `/book/:providerId` (web) — recap shows `Prix de départ` and `Prix indicatif: À partir de … FC`; cash disclaimer preserved; submitted `price` equals the provider starting price (no × duration).
+- `/pro/onboarding` step 4 (web) — `Prix de départ` field label, FC suffix, info card and preview free of hourly wording; cash disclaimer preserved.
+- `/dashboard/settings` (web) — `Prix de départ de référence` card and `Prix de départ` visibility toggle replace the prior `Tarif horaire` copy.
+- Mobile `Search → ProviderProfile` — sticky rail shows `À partir de … FC` with no `/h`.
+- Mobile `Search → CreateBooking` (`BookingScreen`) — header/footer caption shows `À partir de … FC`; recap totals show `Prix de départ` and `Prix indicatif: À partir de … FC`; submitted `price` equals the provider starting price (no × duration).
+- Mobile `Pro tab → ProviderOnboarding` step 4 — `Prix de départ` field label, FC suffix, preview and info card mirror web copy.

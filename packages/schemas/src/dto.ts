@@ -281,6 +281,8 @@ export const ProviderSearchParams = PaginationParams.extend({
   maxPrice: z.coerce.number().min(0).optional(),
   available: BooleanQueryParamSchema.optional(),
   verified: BooleanQueryParamSchema.optional(),
+  // "hourlyRate" sort key is kept for wire compatibility; it sorts on the
+  // provider starting price (the underlying column has not been renamed yet).
   sortBy: z.enum(["recommended", "createdAt", "hourlyRate"]).optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
 }).extend({

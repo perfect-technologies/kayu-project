@@ -49,8 +49,11 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const [address, setAddress] = useState("Kinshasa, Gombe");
   const [note, setNote] = useState("");
 
-  const hourly = provider.hourlyRate || 0;
-  const total = hourly * duration;
+  // Provider starting price; not multiplied by duration. Stored as the initial
+  // estimated booking price; the provider-issued final offer becomes the
+  // agreed price.
+  const startingPrice = provider.hourlyRate || 0;
+  const estimatedPrice = startingPrice;
   const fullName = `${provider.firstName} ${provider.lastName}`.trim();
   const initials =
     `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
@@ -83,7 +86,7 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
       city: provider.city,
       scheduledDate: scheduled,
       duration: duration * 60,
-      price: total,
+      price: estimatedPrice,
       clientNotes: note,
     });
   };
@@ -434,10 +437,10 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
               >
                 <div className="flex justify-between text-[14px]">
                   <span style={{ color: "var(--k-text-body)" }}>
-                    À partir de {hourly.toLocaleString("fr-FR")} FC × {duration}h
+                    Prix de départ
                   </span>
                   <span className="k-price">
-                    {total.toLocaleString("fr-FR")} FC
+                    {startingPrice.toLocaleString("fr-FR")} FC
                   </span>
                 </div>
                 <div className="mt-1.5 flex justify-between text-[14px]">
@@ -456,13 +459,13 @@ export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
                 />
                 <div className="flex items-baseline justify-between">
                   <span className="k-heading" style={{ margin: 0 }}>
-                    Total estimé
+                    Prix indicatif
                   </span>
                   <span
                     className="k-price"
                     style={{ fontSize: 22, color: "var(--k-primary-hover)" }}
                   >
-                    {total.toLocaleString("fr-FR")} FC
+                    À partir de {startingPrice.toLocaleString("fr-FR")} FC
                   </span>
                 </div>
                 <div

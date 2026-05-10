@@ -875,20 +875,20 @@ function StepPricing({ data, setData }: StepProps) {
       <View style={styles.infoCardAmber}>
         <I.coins size={20} color="#B45309" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.infoCardTitleAmber}>Tarif moyen à Kinshasa</Text>
+          <Text style={styles.infoCardTitleAmber}>Prix de départ moyen à Kinshasa</Text>
           <Text style={[styles.infoCardBody, { color: '#78350F' }]}>
             <Text style={{ fontFamily: theme.fonts.mono, fontWeight: '700' }}>
               12 000 – 18 000 FC
             </Text>
-            {' / heure. Tu peux ajuster à tout moment.'}
+            {' par intervention. Tu peux ajuster à tout moment.'}
           </Text>
         </View>
       </View>
 
       <View>
         <FieldLabel
-          label="Tarif horaire"
-          hint="Prix indicatif affiché sur ton profil sous la forme « À partir de … FC/h ». Le prix final est convenu avec le client avant l'intervention."
+          label="Prix de départ"
+          hint="Prix indicatif affiché sur ton profil sous la forme « À partir de … FC ». Le prix final est convenu avec le client avant l'intervention."
         />
         <View style={[styles.chipRow, { marginBottom: 10 }]}>
           {HOURLY_PRESETS.map((p) => {
@@ -932,7 +932,7 @@ function StepPricing({ data, setData }: StepProps) {
             placeholderTextColor={theme.colors.textSubtle}
           />
           <View style={styles.priceSuffix}>
-            <Text style={styles.priceSuffixText}>FC / h</Text>
+            <Text style={styles.priceSuffixText}>FC</Text>
           </View>
         </View>
       </View>
@@ -1066,9 +1066,6 @@ function StepPublish({ data, setData, categoryOptions = [] }: StepProps) {
                 À partir de{' '}
               </Text>
               {hourly.toLocaleString('fr-FR')} FC
-              <Text style={{ color: theme.colors.textMuted, fontWeight: '400' }}>
-                {'  '}/heure
-              </Text>
             </Text>
             <Text style={{ marginTop: 4, fontSize: 11, color: theme.colors.textMuted }}>
               Le prix final est convenu avec le client avant l'intervention.

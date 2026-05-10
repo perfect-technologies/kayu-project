@@ -26,6 +26,8 @@ type ProviderSearchQuery = {
   verified?: boolean;
   page: number;
   limit: number;
+  // "hourlyRate" sorts on the provider starting price (the legacy column name
+  // semantically holds the fixed base price for v1).
   sortBy?: "recommended" | "createdAt" | "hourlyRate";
   sortOrder?: "asc" | "desc";
 };

@@ -405,7 +405,6 @@ export function ProviderProfileScreen() {
           <Text style={styles.pricePrefix}>À partir de</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
             <Text style={styles.priceText}>{formatHourly(hourly)} FC</Text>
-            <Text style={styles.priceSuffix}> /h</Text>
           </View>
           <View style={styles.priceMeta}>
             <I.star size={11} color={theme.colors.warning} fill={theme.colors.warning} />
@@ -796,11 +795,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.textPrimary,
     textDecorationLine: 'underline',
-  },
-  priceSuffix: {
-    fontFamily: theme.fonts.body,
-    fontSize: 13,
-    color: theme.colors.textMuted,
   },
   priceMeta: {
     flexDirection: 'row',
