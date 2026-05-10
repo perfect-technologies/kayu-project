@@ -179,31 +179,24 @@ All mutations surface errors via the existing admin toast pattern **and** an inl
 
 ## Testing
 
-**Backend (`admin.service.spec.ts` and a controller spec if appropriate):**
+**Backend (`apps/backend/src/modules/admin/admin.service.spec.ts`, using `node:test` + `node:assert/strict` and hand-rolled Prisma fakes — same pattern as the existing tests in that file):**
 
 - `getCategory` returns 404 when missing; returns subcategories sorted `order asc, name asc`; includes the right `stats` shape.
 - `createSubcategory` happy path; rejects when parent missing; rejects on slug collision; writes activity log.
 - `updateSubcategory` happy path; slug uniqueness excludes the current id (saving the same slug back is fine); rejects on missing id; writes activity log.
 - `deleteSubcategory` happy path; rejects with `BadRequestException` when `providerSubcategory.count > 0`; writes activity log.
-- Existing `updateCategory` partial-update covers the new editable fields; add a single test confirming `description/icon/image/color/order/isActive` round-trip if not already covered.
+- `updateCategory` round-trip on the new editable fields (`description/icon/image/color/order/isActive`) if not already covered.
 
-**Frontend (RTL):**
-
-- `CategoryForm` — does not auto-derive slug (existing-row form); save disabled when not dirty; surfaces inline error on slug conflict.
-- `NewCategoryModal` slug auto-derive — typing in name updates slug; once user edits slug, auto-derive stops for that instance.
-- `SubcategoryRow` — draft mode saves via create; persisted mode saves via update; delete prompts confirm; surfaces inline error on "providers attached".
-- `NewCategoryModal` — submits create then navigates to the new id (router mocked).
-- `CategoryDetailClient` — renders both columns from seeded React Query cache; mutation success invalidates both query keys (assert via spy on `queryClient.invalidateQueries`).
-- `CategoriesSection` — `+ Nouvelle catégorie` opens the modal; per-card delete prompts confirm and calls the mutation.
-
-**No E2E in this iteration.** Admin surface; well-covered by unit + integration tests. Add Playwright later if/when admin E2E is set up generally.
+**Frontend:** the web app has no test runner today (no Jest/Vitest/RTL). Setting one up is a separate workstream — out of scope here. We rely on `pnpm --filter @kayu/web type-check` plus a manual smoke checklist.
 
 **Pre-merge verification:**
 
-- `pnpm --filter backend test` green for new specs.
-- `pnpm --filter web test` green for new component specs.
-- `pnpm --filter web typecheck` and `pnpm --filter backend typecheck` green.
-- Manual smoke: list → create modal → detail page → edit each field → save → add 2 subcategories → edit one → delete one → delete the category (expect blocked when providers attached, allowed when not).
+- `pnpm --filter @kayu/schemas type-check && pnpm --filter @kayu/schemas build` (downstream packages depend on this).
+- `pnpm --filter @kayu/api type-check && pnpm --filter @kayu/api build`.
+- `pnpm --filter @kayu/backend test:launch` green (the existing script that runs `admin.service.spec.ts` among others).
+- `pnpm --filter @kayu/backend type-check`.
+- `pnpm --filter @kayu/web type-check`.
+- Manual smoke: list → `+ Nouvelle catégorie` modal → detail page → edit each field → save → add 2 subcategories → edit one → delete one → delete the category (expect blocked when providers attached, allowed when not).
 
 ## Out of scope (explicit non-goals)
 
