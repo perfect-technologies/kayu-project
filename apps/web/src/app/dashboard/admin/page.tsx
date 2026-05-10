@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,13 +14,19 @@ import {
   Flag,
   Home as HomeIcon,
   Layers,
+  Pencil,
+  Plus,
   RefreshCw,
   Search,
   Star,
   TrendingUp,
+  Trash2,
   Users,
   XCircle,
 } from 'lucide-react';
+import { NewCategoryModal } from './categories/_components/NewCategoryModal';
+import { DeleteConfirmDialog } from './categories/_components/DeleteConfirmDialog';
+import { LucideIconView } from './categories/_components/LucideIcon';
 import { adminApi, dashboardApi, queryKeys } from '@kayu/api';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -2241,6 +2248,7 @@ function ReviewsModeration({ isAdmin }: { isAdmin: boolean }) {
 // ───── Categories ───────────────────────────────────────────────────────
 
 function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.admin.categories,
     queryFn: () => adminApi(apiClient).getCategories({ includeInactive: true } as any),
@@ -2248,11 +2256,44 @@ function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
   });
   const cats = (data?.categories ?? []) as any[];
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi(apiClient).deleteCategory(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.categories });
+      toast.success('Catégorie supprimée');
+      setDeleteTarget(null);
+    },
+    onError: (err: Error) => {
+      const message = err.message || 'Une erreur est survenue, réessayez.';
+      toast.error(message);
+    },
+  });
+
   return (
     <div>
       <SectionHeader
         title="Catégories de service"
         subtitle="Référentiel des catégories et services exposés à la recherche client."
+        action={
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-1.5"
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              background: 'var(--k-primary)',
+              color: 'white',
+              fontSize: 12.5,
+              fontWeight: 600,
+            }}
+          >
+            <Plus size={14} /> Nouvelle catégorie
+          </button>
+        }
       />
       {isLoading ? (
         <OpsCard>
@@ -2270,55 +2311,118 @@ function CategoriesSection({ isAdmin }: { isAdmin: boolean }) {
                 border: '1px solid var(--k-border)',
                 borderRadius: 12,
                 padding: 14,
+                position: 'relative',
               }}
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <div>
-                  <div
+                <Link
+                  href={`/dashboard/admin/categories/${c.id}`}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    textDecoration: 'none',
+                    minWidth: 0,
+                  }}
+                >
+                  <span
+                    aria-hidden
                     style={{
-                      fontWeight: 600,
-                      fontSize: 14,
-                      color: 'var(--k-text-primary)',
+                      flexShrink: 0,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: c.color ? `${c.color}1A` : 'var(--k-surface-muted)',
+                      color: c.color || 'var(--k-text-muted)',
+                      border: '1px solid var(--k-border)',
                     }}
                   >
-                    {c.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: 'var(--k-text-subtle)',
-                      fontFamily: 'var(--k-font-mono)',
-                      marginTop: 2,
-                    }}
+                    <LucideIconView name={c.icon} size={16} />
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: 'var(--k-text-primary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {c.name}
+                    </span>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 11.5,
+                        color: 'var(--k-text-subtle)',
+                        fontFamily: 'var(--k-font-mono)',
+                        marginTop: 2,
+                      }}
+                    >
+                      /{c.slug}
+                    </span>
+                  </span>
+                </Link>
+                <div className="flex items-center gap-1.5">
+                  <StatusChip tone={c.isActive === false ? 'warning' : 'success'}>
+                    {c.isActive === false ? 'Inactive' : 'Active'}
+                  </StatusChip>
+                  <Link
+                    href={`/dashboard/admin/categories/${c.id}`}
+                    aria-label="Modifier"
+                    title="Modifier"
+                    style={{ padding: 6, borderRadius: 6, color: 'var(--k-text-muted)' }}
                   >
-                    /{c.slug}
-                  </div>
+                    <Pencil size={14} />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget({ id: c.id, name: c.name })}
+                    aria-label="Supprimer"
+                    title="Supprimer"
+                    style={{ padding: 6, borderRadius: 6, color: 'var(--k-danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <StatusChip tone={c.isActive === false ? 'warning' : 'success'}>
-                  {c.isActive === false ? 'Inactive' : 'Active'}
-                </StatusChip>
               </div>
               <div style={{ fontSize: 12, color: 'var(--k-text-muted)' }}>
-                {c.providerCount ?? 0} pros
-                {c.subcategoryCount != null ? ` · ${c.subcategoryCount} sous-catégories` : ''}
+                {c.providerCount ?? c.stats?.providerCount ?? 0} pros
+                {c.subcategoryCount != null
+                  ? ` · ${c.subcategoryCount} sous-catégories`
+                  : c.stats?.subcategoryCount != null
+                    ? ` · ${c.stats.subcategoryCount} sous-catégories`
+                    : ''}
               </div>
             </div>
           ))}
         </div>
       )}
-      <div
-        className="mt-4 inline-flex items-center gap-2"
-        style={{
-          background: 'var(--k-warning-subtle)',
-          border: '1px solid #FDE68A',
-          color: '#78350F',
-          padding: '10px 14px',
-          borderRadius: 10,
-          fontSize: 12.5,
+      <NewCategoryModal open={createOpen} onOpenChange={setCreateOpen} />
+      <DeleteConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
         }}
-      >
-        <AlertTriangle size={14} /> Création et édition de catégories à brancher dans une prochaine itération admin.
-      </div>
+        title="Supprimer la catégorie"
+        description={
+          deleteTarget
+            ? `La catégorie "${deleteTarget.name}" sera définitivement supprimée. Si des prestataires y sont associés, la suppression sera bloquée.`
+            : ''
+        }
+        confirmLabel="Supprimer la catégorie"
+        isPending={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

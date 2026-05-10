@@ -80,7 +80,15 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const activeTab = searchParams.get('tab') ?? 'overview';
+  // On sub-routes under /dashboard/admin/<section>/..., highlight that section
+  // even when the URL has no `?tab=` query string. For example, a detail page
+  // like /dashboard/admin/categories/[id] should keep "Catégories" active.
+  const subRouteSection = (() => {
+    if (!pathname.startsWith('/dashboard/admin/')) return null;
+    const segment = pathname.slice('/dashboard/admin/'.length).split('/')[0];
+    return SECTIONS.some((s) => s.id === segment) ? segment : null;
+  })();
+  const activeTab = subRouteSection ?? searchParams.get('tab') ?? 'overview';
   const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'Admin';
   const initials =
     `${(user.firstName ?? '').charAt(0)}${(user.lastName ?? '').charAt(0)}`.toUpperCase() ||
@@ -91,7 +99,9 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     router.push('/');
   };
 
-  const buildHref = (id: string) => `${pathname}?tab=${id}`;
+  // Always navigate back to the admin root for the section, even when on a
+  // sub-route (e.g. /dashboard/admin/categories/[id]).
+  const buildHref = (id: string) => `/dashboard/admin?tab=${id}`;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--k-bg)' }}>

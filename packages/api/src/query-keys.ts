@@ -104,6 +104,7 @@ export const queryKeys = {
     verification: (params?: Partial<AdminVerificationQueueSearchParams>) =>
       ["admin", "verification", params] as const,
     categories: ["admin", "categories"] as const,
+    category: (id: string) => ["admin", "categories", id] as const,
     reviews: (params?: Partial<AdminReviewSearchParams>) =>
       ["admin", "reviews", params] as const,
     supportBookings: (params?: Partial<AdminSupportBookingSearchParams>) =>

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Param,
   Post,
   Put,
   Query,
@@ -127,6 +128,20 @@ type UpdateCategoryBody = Partial<CreateCategoryBody> & {
   isActive?: boolean;
 };
 
+type CreateSubcategoryBody = {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  order?: number;
+};
+
+type UpdateSubcategoryBody = Partial<CreateSubcategoryBody> & {
+  id: string;
+  isActive?: boolean;
+};
+
 type ReviewVerificationDocBody = {
   providerId: string;
   docId: string;
@@ -207,6 +222,16 @@ const createCategoryBodyPipe = new LazyZodValidationPipe(async () => {
 const updateCategoryBodyPipe = new LazyZodValidationPipe(async () => {
   const { UpdateCategoryDto } = await import("@kayu/schemas");
   return UpdateCategoryDto;
+});
+
+const createSubcategoryBodyPipe = new LazyZodValidationPipe(async () => {
+  const { CreateSubcategoryDto } = await import("@kayu/schemas");
+  return CreateSubcategoryDto;
+});
+
+const updateSubcategoryBodyPipe = new LazyZodValidationPipe(async () => {
+  const { UpdateSubcategoryDto } = await import("@kayu/schemas");
+  return UpdateSubcategoryDto;
 });
 
 const reviewsQueryPipe = new LazyZodValidationPipe(async () => {
@@ -320,6 +345,38 @@ export class AdminController {
     @Req() request: Request,
   ) {
     return this.admin.deleteCategory(actor, categoryId ?? id ?? "", request.ip);
+  }
+
+  @Post("categories/subcategories")
+  createSubcategory(
+    @CurrentActor() actor: Actor,
+    @Body(createSubcategoryBodyPipe) body: CreateSubcategoryBody,
+    @Req() request: Request,
+  ) {
+    return this.admin.createSubcategory(actor, body, request.ip);
+  }
+
+  @Put("categories/subcategories")
+  updateSubcategory(
+    @CurrentActor() actor: Actor,
+    @Body(updateSubcategoryBodyPipe) body: UpdateSubcategoryBody,
+    @Req() request: Request,
+  ) {
+    return this.admin.updateSubcategory(actor, body, request.ip);
+  }
+
+  @Delete("categories/subcategories")
+  deleteSubcategory(
+    @CurrentActor() actor: Actor,
+    @Query("id") id: string | undefined,
+    @Req() request: Request,
+  ) {
+    return this.admin.deleteSubcategory(actor, id ?? "", request.ip);
+  }
+
+  @Get("categories/:id")
+  getCategory(@Param("id") id: string) {
+    return this.admin.getCategory(id);
   }
 
   @Get("reviews")

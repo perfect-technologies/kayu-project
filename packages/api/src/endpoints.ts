@@ -14,6 +14,8 @@ import type {
   AdminUpdateProviderDto,
   CreateCategoryDto,
   UpdateCategoryDto,
+  CreateSubcategoryDto,
+  UpdateSubcategoryDto,
   AdminModerateReviewDto,
   FavoriteProviderDto,
   // Search params
@@ -106,6 +108,44 @@ type ReviewMutationResponse = { success: boolean; review: Review };
 type ClientReviewMutationResponse = {
   success: boolean;
   clientReview: ClientReview;
+};
+
+export type AdminCategoryDetail = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  image: string | null;
+  color: string | null;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  subcategories: Array<{
+    id: string;
+    categoryId: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    icon: string | null;
+    order: number;
+    isActive: boolean;
+    createdAt: string;
+  }>;
+  stats: {
+    providerCount: number;
+    subcategoryCount: number;
+  };
+};
+
+type AdminCategoryDetailResponse = {
+  success: boolean;
+  category: AdminCategoryDetail;
+};
+
+type AdminCategoryCreateResponse = {
+  success: boolean;
+  category: { id: string };
 };
 
 // ---------- Identity ----------
@@ -383,12 +423,20 @@ export const adminApi = (client: ApiClient) => ({
   // Categories
   getCategories: (params?: Partial<AdminCategorySearchParams>) =>
     client.get<{ categories: unknown[] }>("/admin/categories", params as Record<string, string | number | boolean | undefined>),
+  getCategory: (id: string) =>
+    client.get<AdminCategoryDetailResponse>(`/admin/categories/${id}`),
   createCategory: (data: CreateCategoryDto) =>
-    client.post<{ success: boolean }>("/admin/categories", data),
+    client.post<AdminCategoryCreateResponse>("/admin/categories", data),
   updateCategory: (data: UpdateCategoryDto) =>
     client.put<{ success: boolean }>("/admin/categories", data),
   deleteCategory: (id: string) =>
     client.delete<{ success: boolean }>("/admin/categories", { id }),
+  createSubcategory: (data: CreateSubcategoryDto) =>
+    client.post<{ success: boolean }>("/admin/categories/subcategories", data),
+  updateSubcategory: (data: UpdateSubcategoryDto) =>
+    client.put<{ success: boolean }>("/admin/categories/subcategories", data),
+  deleteSubcategory: (id: string) =>
+    client.delete<{ success: boolean }>("/admin/categories/subcategories", { id }),
 
   // Reviews
   getReviews: (params?: Partial<AdminReviewSearchParams>) =>

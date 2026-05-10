@@ -120,6 +120,26 @@ type UpdateCategoryBody = Partial<CreateCategoryBody> & {
   isActive?: boolean;
 };
 
+type CreateSubcategoryBody = {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  order?: number;
+};
+
+type UpdateSubcategoryBody = {
+  id: string;
+  categoryId?: string;
+  name?: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  order?: number;
+  isActive?: boolean;
+};
+
 type ReviewVerificationDocBody = {
   providerId: string;
   docId: string;
@@ -813,6 +833,58 @@ export class AdminService {
     };
   }
 
+  async getCategory(id: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+      include: {
+        subcategories: {
+          orderBy: [{ order: "asc" }, { name: "asc" }],
+        },
+        _count: {
+          select: {
+            providers: true,
+            subcategories: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException("Category not found");
+    }
+
+    return {
+      success: true as const,
+      category: {
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        icon: category.icon,
+        image: category.image,
+        color: category.color,
+        order: category.order,
+        isActive: category.isActive,
+        createdAt: category.createdAt,
+        subcategories: category.subcategories.map((subcategory) => ({
+          id: subcategory.id,
+          categoryId: subcategory.categoryId,
+          name: subcategory.name,
+          slug: subcategory.slug,
+          description: subcategory.description,
+          icon: subcategory.icon,
+          order: subcategory.order,
+          isActive: subcategory.isActive,
+          createdAt: subcategory.createdAt,
+        })),
+        stats: {
+          providerCount: category._count.providers,
+          subcategoryCount: category._count.subcategories,
+        },
+      },
+    };
+  }
+
   async listCategories(query: AdminCategoryQuery) {
     const categories = await this.prisma.category.findMany({
       where: query.includeInactive ? {} : { isActive: true },
@@ -1034,6 +1106,128 @@ export class AdminService {
     return {
       success: true as const,
       message: "Category deleted successfully",
+    };
+  }
+
+  async createSubcategory(
+    actor: User,
+    body: CreateSubcategoryBody,
+    ipAddress?: string,
+  ) {
+    const parent = await this.prisma.category.findUnique({
+      where: { id: body.categoryId },
+    });
+    if (!parent) {
+      throw new NotFoundException("Category not found");
+    }
+
+    await this.ensureSubcategorySlugUnique(body.slug);
+
+    const subcategory = await this.prisma.subcategory.create({
+      data: {
+        categoryId: body.categoryId,
+        name: body.name,
+        slug: body.slug,
+        description: body.description,
+        icon: body.icon,
+        order: body.order ?? 0,
+      },
+    });
+
+    await this.logActivity({
+      userId: actor.id,
+      action: "CREATE_SUBCATEGORY",
+      entityType: "Subcategory",
+      entityId: subcategory.id,
+      metadata: {
+        categoryId: body.categoryId,
+        name: body.name,
+        slug: body.slug,
+      },
+      ipAddress,
+    });
+
+    return {
+      success: true as const,
+      subcategory,
+      message: "Subcategory created successfully",
+    };
+  }
+
+  async updateSubcategory(
+    actor: User,
+    body: UpdateSubcategoryBody,
+    ipAddress?: string,
+  ) {
+    const existing = await this.prisma.subcategory.findUnique({
+      where: { id: body.id },
+    });
+    if (!existing) {
+      throw new NotFoundException("Subcategory not found");
+    }
+
+    if (body.slug && body.slug !== existing.slug) {
+      await this.ensureSubcategorySlugUnique(body.slug, body.id);
+    }
+
+    const updated = await this.prisma.subcategory.update({
+      where: { id: body.id },
+      data: {
+        name: body.name,
+        slug: body.slug,
+        description: body.description,
+        icon: body.icon,
+        order: body.order,
+        isActive: body.isActive,
+      },
+    });
+
+    await this.logActivity({
+      userId: actor.id,
+      action: "UPDATE_SUBCATEGORY",
+      entityType: "Subcategory",
+      entityId: body.id,
+      metadata: {
+        name: body.name,
+        slug: body.slug,
+        isActive: body.isActive,
+      },
+      ipAddress,
+    });
+
+    return {
+      success: true as const,
+      subcategory: updated,
+      message: "Subcategory updated successfully",
+    };
+  }
+
+  async deleteSubcategory(actor: User, id: string, ipAddress?: string) {
+    const providersCount = await this.prisma.providerSubcategory.count({
+      where: { subcategoryId: id },
+    });
+
+    if (providersCount > 0) {
+      throw new BadRequestException(
+        `Subcategory still has ${providersCount} provider association(s)`,
+      );
+    }
+
+    await this.prisma.subcategory.delete({
+      where: { id },
+    });
+
+    await this.logActivity({
+      userId: actor.id,
+      action: "DELETE_SUBCATEGORY",
+      entityType: "Subcategory",
+      entityId: id,
+      ipAddress,
+    });
+
+    return {
+      success: true as const,
+      message: "Subcategory deleted successfully",
     };
   }
 
@@ -2073,6 +2267,20 @@ export class AdminService {
 
     if (existing.length > 0) {
       throw new BadRequestException("One or more subcategory slugs already exist");
+    }
+  }
+
+  private async ensureSubcategorySlugUnique(slug: string, excludeId?: string) {
+    const existing = await this.prisma.subcategory.findMany({
+      where: {
+        slug,
+        ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (existing.length > 0) {
+      throw new BadRequestException("Subcategory slug already exists");
     }
   }
 

@@ -654,3 +654,403 @@ test("editing an already resolved dispute does not resend resolved notifications
   assert.equal(result.dispute.status, "RESOLVED");
   assert.equal(notifications.length, 0);
 });
+
+test("getCategory returns a category with sorted subcategories and stats", async () => {
+  const fakeCategory = {
+    id: "cat_1",
+    name: "Plomberie",
+    slug: "plomberie",
+    description: "Plombiers",
+    icon: "Wrench",
+    image: null,
+    color: "#1E40AF",
+    order: 1,
+    isActive: true,
+    createdAt: new Date("2026-04-01T00:00:00.000Z"),
+    subcategories: [
+      {
+        id: "sub_1",
+        categoryId: "cat_1",
+        name: "Dépannage",
+        slug: "depannage",
+        description: null,
+        icon: null,
+        order: 0,
+        isActive: true,
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      },
+      {
+        id: "sub_2",
+        categoryId: "cat_1",
+        name: "Installation",
+        slug: "installation",
+        description: null,
+        icon: null,
+        order: 1,
+        isActive: true,
+        createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      },
+    ],
+    _count: { providers: 5, subcategories: 2 },
+  };
+
+  let findUniqueArgs: unknown;
+  const prisma = {
+    category: {
+      findUnique: async (args: unknown) => {
+        findUniqueArgs = args;
+        return fakeCategory;
+      },
+    },
+  };
+
+  const service = new AdminService(prisma as never, {} as never);
+  const result = await service.getCategory("cat_1");
+
+  assert.equal(result.success, true);
+  assert.equal(result.category.id, "cat_1");
+  assert.equal(result.category.subcategories[0].slug, "depannage");
+  assert.equal(result.category.subcategories[1].slug, "installation");
+  assert.deepEqual(result.category.stats, {
+    providerCount: 5,
+    subcategoryCount: 2,
+  });
+  assert.deepEqual(findUniqueArgs, {
+    where: { id: "cat_1" },
+    include: {
+      subcategories: {
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+      },
+      _count: {
+        select: {
+          providers: true,
+          subcategories: true,
+        },
+      },
+    },
+  });
+});
+
+test("getCategory throws NotFoundException when the category is missing", async () => {
+  const prisma = {
+    category: {
+      findUnique: async () => null,
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () => service.getCategory("missing"),
+    (err: Error) => err.message.includes("Category not found"),
+  );
+});
+
+test("createSubcategory inserts and writes activity log", async () => {
+  const calls: Record<string, unknown> = {};
+  const prisma = {
+    category: {
+      findUnique: async (args: { where: { id: string } }) => {
+        calls.categoryFindUnique = args;
+        return { id: args.where.id };
+      },
+    },
+    subcategory: {
+      findMany: async () => [],
+      create: async (args: { data: Record<string, unknown> }) => {
+        calls.subcategoryCreate = args;
+        return {
+          id: "sub_new",
+          categoryId: args.data.categoryId,
+          name: args.data.name,
+          slug: args.data.slug,
+          description: args.data.description ?? null,
+          icon: args.data.icon ?? null,
+          order: args.data.order ?? 0,
+          isActive: true,
+          createdAt: new Date("2026-05-10T00:00:00.000Z"),
+        };
+      },
+    },
+    activityLog: {
+      create: async (args: unknown) => {
+        calls.activityLog = args;
+      },
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  const result = await service.createSubcategory(
+    makeAdminActor() as never,
+    {
+      categoryId: "cat_1",
+      name: "Vidange",
+      slug: "vidange",
+      description: "Vidange chauffe-eau",
+      order: 2,
+    },
+    "127.0.0.1",
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.subcategory.slug, "vidange");
+  assert.deepEqual(calls.categoryFindUnique, { where: { id: "cat_1" } });
+  assert.equal(
+    (calls.activityLog as { data: { action: string } }).data.action,
+    "CREATE_SUBCATEGORY",
+  );
+});
+
+test("createSubcategory throws when the parent category is missing", async () => {
+  const prisma = {
+    category: {
+      findUnique: async () => null,
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.createSubcategory(
+        makeAdminActor() as never,
+        {
+          categoryId: "missing",
+          name: "X",
+          slug: "x",
+        },
+        "127.0.0.1",
+      ),
+    (err: Error) => err.message.includes("Category not found"),
+  );
+});
+
+test("createSubcategory throws when the slug already exists", async () => {
+  const prisma = {
+    category: {
+      findUnique: async () => ({ id: "cat_1" }),
+    },
+    subcategory: {
+      findMany: async () => [{ id: "sub_existing" }],
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.createSubcategory(
+        makeAdminActor() as never,
+        {
+          categoryId: "cat_1",
+          name: "Vidange",
+          slug: "vidange",
+        },
+        "127.0.0.1",
+      ),
+    (err: Error) => err.message.toLowerCase().includes("slug"),
+  );
+});
+
+test("updateSubcategory updates fields and writes activity log", async () => {
+  const calls: Record<string, unknown> = {};
+  const prisma = {
+    subcategory: {
+      findUnique: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        slug: "depannage",
+      }),
+      findMany: async () => [],
+      update: async (args: { data: Record<string, unknown> }) => {
+        calls.subcategoryUpdate = args;
+        return {
+          id: "sub_1",
+          categoryId: "cat_1",
+          name: (args.data.name as string) ?? "Dépannage",
+          slug: (args.data.slug as string) ?? "depannage",
+          description: (args.data.description as string) ?? null,
+          icon: (args.data.icon as string) ?? null,
+          order: (args.data.order as number) ?? 0,
+          isActive: (args.data.isActive as boolean) ?? true,
+          createdAt: new Date(),
+        };
+      },
+    },
+    activityLog: {
+      create: async (args: unknown) => {
+        calls.activityLog = args;
+      },
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  const result = await service.updateSubcategory(
+    makeAdminActor() as never,
+    {
+      id: "sub_1",
+      name: "Dépannage urgent",
+      isActive: false,
+    },
+    "127.0.0.1",
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(
+    (calls.activityLog as { data: { action: string } }).data.action,
+    "UPDATE_SUBCATEGORY",
+  );
+});
+
+test("updateSubcategory skips the slug uniqueness check when the slug is unchanged", async () => {
+  let findManyCalled = false;
+  const prisma = {
+    subcategory: {
+      findUnique: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        slug: "depannage",
+      }),
+      findMany: async () => {
+        findManyCalled = true;
+        return [];
+      },
+      update: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        name: "x",
+        slug: "depannage",
+        description: null,
+        icon: null,
+        order: 0,
+        isActive: true,
+        createdAt: new Date(),
+      }),
+    },
+    activityLog: { create: async () => {} },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await service.updateSubcategory(
+    makeAdminActor() as never,
+    { id: "sub_1", slug: "depannage" },
+    "127.0.0.1",
+  );
+
+  assert.equal(findManyCalled, false);
+});
+
+test("updateSubcategory excludes the current id when checking slug uniqueness on a slug change", async () => {
+  let findManyArgs: unknown;
+  const prisma = {
+    subcategory: {
+      findUnique: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        slug: "old-slug",
+      }),
+      findMany: async (args: unknown) => {
+        findManyArgs = args;
+        return [];
+      },
+      update: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        name: "x",
+        slug: "new-slug",
+        description: null,
+        icon: null,
+        order: 0,
+        isActive: true,
+        createdAt: new Date(),
+      }),
+    },
+    activityLog: { create: async () => {} },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await service.updateSubcategory(
+    makeAdminActor() as never,
+    { id: "sub_1", slug: "new-slug" },
+    "127.0.0.1",
+  );
+
+  assert.deepEqual(findManyArgs, {
+    where: { slug: "new-slug", NOT: { id: "sub_1" } },
+    select: { id: true },
+  });
+});
+
+test("updateSubcategory throws when the subcategory is missing", async () => {
+  const prisma = {
+    subcategory: {
+      findUnique: async () => null,
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.updateSubcategory(
+        makeAdminActor() as never,
+        { id: "missing", name: "X" },
+        "127.0.0.1",
+      ),
+    (err: Error) => err.message.includes("Subcategory not found"),
+  );
+});
+
+test("deleteSubcategory deletes when no providers are using it", async () => {
+  const calls: Record<string, unknown> = {};
+  const prisma = {
+    providerSubcategory: {
+      count: async (args: unknown) => {
+        calls.count = args;
+        return 0;
+      },
+    },
+    subcategory: {
+      delete: async (args: unknown) => {
+        calls.delete = args;
+        return { id: "sub_1" };
+      },
+    },
+    activityLog: {
+      create: async (args: unknown) => {
+        calls.activityLog = args;
+      },
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  const result = await service.deleteSubcategory(
+    makeAdminActor() as never,
+    "sub_1",
+    "127.0.0.1",
+  );
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls.count, { where: { subcategoryId: "sub_1" } });
+  assert.deepEqual(calls.delete, { where: { id: "sub_1" } });
+  assert.equal(
+    (calls.activityLog as { data: { action: string } }).data.action,
+    "DELETE_SUBCATEGORY",
+  );
+});
+
+test("deleteSubcategory rejects when providers are using it", async () => {
+  const prisma = {
+    providerSubcategory: {
+      count: async () => 3,
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.deleteSubcategory(
+        makeAdminActor() as never,
+        "sub_1",
+        "127.0.0.1",
+      ),
+    (err: Error) =>
+      err.message.includes("provider association") || err.message.includes("3"),
+  );
+});

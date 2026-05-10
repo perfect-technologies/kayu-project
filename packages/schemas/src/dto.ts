@@ -257,6 +257,20 @@ export const UpdateCategoryDto = CreateCategoryDto.partial().extend({
   isActive: z.boolean().optional(),
 });
 
+export const CreateSubcategoryDto = z.object({
+  categoryId: IdSchema,
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  order: z.number().int().min(0).optional(),
+});
+
+export const UpdateSubcategoryDto = CreateSubcategoryDto.partial().extend({
+  id: IdSchema,
+  isActive: z.boolean().optional(),
+});
+
 export const AdminModerateReviewDto = z.object({
   reviewId: IdSchema,
   isPublic: z.boolean().optional(),
@@ -1048,6 +1062,8 @@ export type AdminUpdateProviderDto = z.infer<typeof AdminUpdateProviderDto>;
 export type CategorySubcategoryInput = z.infer<typeof CategorySubcategoryInputSchema>;
 export type CreateCategoryDto = z.infer<typeof CreateCategoryDto>;
 export type UpdateCategoryDto = z.infer<typeof UpdateCategoryDto>;
+export type CreateSubcategoryDto = z.infer<typeof CreateSubcategoryDto>;
+export type UpdateSubcategoryDto = z.infer<typeof UpdateSubcategoryDto>;
 export type AdminModerateReviewDto = z.infer<typeof AdminModerateReviewDto>;
 export type FavoriteProviderDto = z.infer<typeof FavoriteProviderDto>;
 export type ProviderSearchParams = z.infer<typeof ProviderSearchParams>;
