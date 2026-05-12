@@ -4,8 +4,8 @@ Marketplace connecting clients to verified service providers in RDC and Congo-Br
 
 ## Required reading before frontend / design work
 
-- **`docs/design-direction/index.html`** — current visual direction, card patterns, hard rules (no gradients, monochrome categories, plain text counts, photo-first), and a list of patterns we explicitly rejected. Open in a browser. Always consult before proposing any new homepage or marketplace UI.
-- **`docs/DESIGN_SYSTEM.md`** — design system contract.
+- **`docs/design-direction/index.html`** — current visual direction for marketplace surfaces: card patterns, hard rules (no gradients, monochrome categories, plain text counts), homepage composition, and a list of patterns we explicitly rejected. Open in a browser. Always consult before proposing any homepage, search, or provider-card UI.
+- **`docs/DESIGN_SYSTEM.md`** — foundations only (brand identity, color tokens, typography, spacing, radius, elevation, motion). Sections §1 item #2 ("photo-forward discovery") and §8.4 ("ProviderCard photo-forward") are explicitly superseded by the design-direction doc above.
 - **`packages/ui/src/tokens.ts`** — canonical tokens (colors, spacing, radii, fonts). Source of truth.
 
 ## Where things live

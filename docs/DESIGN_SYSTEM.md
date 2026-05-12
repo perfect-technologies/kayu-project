@@ -2,7 +2,9 @@
 
 > Trust travels light.
 
-This document is the source of truth for how KAYOU looks, feels, and behaves. It serves both the web app and the mobile app, and every token here maps directly to `@kayu/ui`.
+This document holds the **foundations** — brand identity, color tokens, typography, spacing, radius, elevation, motion, and the philosophy that hasn't changed. Every token here maps directly to `@kayu/ui`.
+
+> **Direction update (2026-05):** the homepage, marketplace card patterns, and trending/discovery behavior moved away from the original Airbnb-heavy photo-forward direction toward a flatter, restrained system. **The current source of truth for those patterns is [`docs/design-direction/index.html`](./design-direction/index.html).** Two sections below — §1 "What Airbnb teaches us" item #2 and §8.4 "ProviderCard — photo-forward" — are explicitly superseded; the rest of this document still applies.
 
 ---
 
@@ -19,6 +21,9 @@ The feel we're after: **optimistic, confident, human, modern** — the kind of p
 - **Stripe marketing** — generous scale, expressive display typography (web hero only)
 
 ### What Airbnb teaches us, explicitly
+
+> Items 1 and 2 below are **superseded** by `docs/design-direction/`. We now lean toward 1px borders with soft hover lift (not shadow-only), flat avatars with categories in chips (not photo-forward overlay cards with hearts/specialty tags/avatar overlap). Items 3–10 still apply.
+
 1. **Shadows over borders.** Cards feel lifted, not stamped out. A two-layer soft shadow (outer spread + inner tight) replaces most 1px borders.
 2. **Photo-forward discovery.** The card *is* the image. Metadata comes below. A heart button overlays the photo top-right. Status (top-rated, verified) lives on the photo, not in a text chip elsewhere.
 3. **Sticky shrinking search.** The top search bar stays visible while scrolling but shrinks — the brand row fades out, the search pill compacts.
@@ -366,6 +371,8 @@ The fundamental container.
 - Active (press on mobile): scale 0.98, 120ms
 
 ### 8.4 ProviderCard — the canonical component (photo-forward)
+
+> **Superseded.** This section describes the original photo-forward provider card with overlays (specialty tag, heart, top-rated pill, bottom-right avatar overlap). It is **no longer the canonical**. The current provider card is a flat 1px-bordered card with a clean avatar tile (image / initials on beige / User icon) and categories rendered as chips. See `docs/design-direction/index.html` → "Provider cards" and the implementation in `packages/ui/src/web/ProviderShowcaseCard.tsx` and `ProviderHorizontalCard.tsx`. Section retained below for history.
 
 This is KAYOU's hero component. The entire marketplace experience is basically lists of these. Get this right and 60% of the UI is done.
 
