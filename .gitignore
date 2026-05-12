@@ -31,3 +31,6 @@ build/
 .expo/
 ios/
 android/
+
+# Brainstorming companion
+.superpowers/

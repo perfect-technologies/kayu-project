@@ -24,6 +24,9 @@ export type { StarRatingProps } from "./StarRating.js";
 export { TrustChip } from "./TrustChip.js";
 export type { TrustChipProps, TrustLevel } from "./TrustChip.js";
 
+export { TrustStrip } from "./TrustStrip.js";
+export type { TrustStripProps } from "./TrustStrip.js";
+
 export { TopRatedRibbon } from "./TopRatedRibbon.js";
 
 export { Shimmer, ShimmerStyles } from "./Shimmer.js";
@@ -61,8 +64,14 @@ export type {
 export { NearbyCard, NearbyRow } from "./NearbyCard.js";
 export type { NearbyCardProps, NearbyRowProps } from "./NearbyCard.js";
 
+export { ProviderHorizontalCard } from "./ProviderHorizontalCard.js";
+export type { ProviderHorizontalCardProps } from "./ProviderHorizontalCard.js";
+
 export { CategoryTile } from "./CategoryTile.js";
 export type { CategoryTileProps, CategoryTileSize } from "./CategoryTile.js";
+
+export { TrendingServiceCard } from "./TrendingServiceCard.js";
+export type { TrendingServiceCardProps } from "./TrendingServiceCard.js";
 
 export {
   FeaturedProviderCardSkeleton,
@@ -118,3 +127,14 @@ export type {
 
 export { ToastProvider, useToast } from "./Toast.js";
 export type { Toast, ToastVariant, ToastProviderProps } from "./Toast.js";
+
+export { HowItWorksStep } from "./HowItWorksStep.js";
+export type { HowItWorksStepProps } from "./HowItWorksStep.js";
+
+export { TestimonialCard } from "./TestimonialCard.js";
+export type { Testimonial, TestimonialCardProps } from "./TestimonialCard.js";
+
+export { ProviderDashboardPreview } from "./ProviderDashboardPreview.js";
+
+export { AppPhoneMockup } from "./AppPhoneMockup.js";
+export type { AppPhoneMockupProps, AppPhoneMockupVariant } from "./AppPhoneMockup.js";

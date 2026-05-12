@@ -797,6 +797,33 @@ export const PublicStatsResponseSchema = z.object({
   ),
 });
 
+export const TrendingBadgeSchema = z.union([
+  z.object({
+    kind: z.literal("growth"),
+    pct: z.number().int(),
+  }),
+  z.object({
+    kind: z.literal("top"),
+    rank: z.number().int().min(1),
+  }),
+]);
+
+export const TrendingServiceItemSchema = z.object({
+  categoryId: IdSchema,
+  categorySlug: z.string(),
+  categoryName: z.string(),
+  categoryImage: z.string(),
+  categoryColor: z.string().nullable(),
+  description: z.string().nullable(),
+  startingPrice: z.number().int().nullable(),
+  trendBadge: TrendingBadgeSchema.nullable(),
+});
+
+export const TrendingServicesResponseSchema = z.object({
+  mode: z.enum(["trending", "discovery"]),
+  items: z.array(TrendingServiceItemSchema),
+});
+
 export const CategoriesResponseSchema = z.object({
   categories: z.array(
     CategorySchema.extend({
@@ -1113,6 +1140,9 @@ export type DashboardAdminResponse = z.infer<typeof DashboardAdminResponseSchema
 export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
 export type GeocodeResponse = z.infer<typeof GeocodeResponseSchema>;
 export type PublicStatsResponse = z.infer<typeof PublicStatsResponseSchema>;
+export type TrendingBadge = z.infer<typeof TrendingBadgeSchema>;
+export type TrendingServiceItem = z.infer<typeof TrendingServiceItemSchema>;
+export type TrendingServicesResponse = z.infer<typeof TrendingServicesResponseSchema>;
 export type CategoriesResponse = z.infer<typeof CategoriesResponseSchema>;
 export type CategoryHierarchyResponse = z.infer<typeof CategoryHierarchyResponseSchema>;
 export type ProvidersResponse = z.infer<typeof ProvidersResponseSchema>;

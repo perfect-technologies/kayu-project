@@ -25,6 +25,9 @@
     "lint": "echo 'no linter configured'",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@kayu/schemas": "workspace:*"
+  },
   "peerDependencies": {
     "lucide-react": ">=0.400.0",
     "lucide-react-native": ">=0.400.0",

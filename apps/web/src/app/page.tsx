@@ -3,6 +3,7 @@ import { statsApi, categoriesApi, providersApi } from "@kayu/api";
 import HomePageClient from "./HomePageClient";
 import { buildCategoryLookup, toProviderCardData } from "@/lib/provider-card";
 import type { ProviderCardData } from "@kayu/ui";
+import type { TrendingServicesResponse } from "@kayu/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +21,14 @@ export default async function HomePage() {
     providersCount: number;
   }> = [];
   let featured: ProviderCardData[] = [];
+  let trending: TrendingServicesResponse = { mode: "discovery", items: [] };
 
   try {
-    const [statsRes, catRes, providersRes] = await Promise.all([
+    const [statsRes, catRes, providersRes, trendingRes] = await Promise.all([
       statsApi(client).getGlobal(),
       categoriesApi(client).getHierarchy(),
       providersApi(client).search({ limit: 6 } as Record<string, string | number | boolean | undefined>),
+      statsApi(client).getTrending().catch(() => ({ mode: "discovery" as const, items: [] })),
     ]);
     stats = statsRes;
     const rawCategories = Array.isArray(catRes) ? catRes : (catRes as { categories?: unknown[] })?.categories ?? [];
@@ -43,6 +46,7 @@ export default async function HomePage() {
     featured = (rawProviders as Array<Record<string, unknown>>).map((p) =>
       toProviderCardData(p, categoryLookup),
     );
+    trending = trendingRes;
   } catch {
     // SSR fallback: backend unavailable
   }
@@ -52,6 +56,7 @@ export default async function HomePage() {
       initialStats={stats}
       initialCategories={categories}
       featuredProviders={featured}
+      trending={trending}
     />
   );
 }

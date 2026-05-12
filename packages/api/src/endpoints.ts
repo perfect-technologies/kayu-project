@@ -64,6 +64,7 @@ import type {
   DashboardClientResponse,
   DashboardAdminResponse,
   PublicStatsResponse,
+  TrendingServicesResponse,
   DistanceResponse,
   GeocodeResponse,
   CreateJobRequestDtoType,
@@ -293,6 +294,8 @@ export const dashboardApi = (client: ApiClient) => ({
 
 export const statsApi = (client: ApiClient) => ({
   getGlobal: () => client.get<PublicStatsResponse>("/stats"),
+  getTrending: () =>
+    client.get<TrendingServicesResponse>("/stats/trending-services"),
 });
 
 // ---------- Geo ----------

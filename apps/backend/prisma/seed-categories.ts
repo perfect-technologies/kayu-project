@@ -8,6 +8,7 @@ type CategorySeed = {
   description: string;
   icon: string;
   color: string;
+  image: string;
   order: number;
   subcategories: Array<{
     name: string;
@@ -16,6 +17,9 @@ type CategorySeed = {
   }>;
 };
 
+const unsplashImage = (id: string) =>
+  `https://images.unsplash.com/${id}?w=800&h=480&fit=crop&q=80`;
+
 export const categoriesData = [
   {
     name: 'Bâtiment & Construction',
@@ -23,6 +27,7 @@ export const categoriesData = [
     description: 'Services de construction, rénovation et entretien',
     icon: 'Building',
     color: '#ef4444',
+    image: unsplashImage('photo-1503387762-592deb58ef4e'),
     order: 1,
     subcategories: [
       {
@@ -58,6 +63,7 @@ export const categoriesData = [
     description: 'Installation et réparation de plomberie',
     icon: 'Droplets',
     color: '#3b82f6',
+    image: unsplashImage('photo-1585704032915-c3400ca199e7'),
     order: 2,
     subcategories: [
       {
@@ -78,6 +84,7 @@ export const categoriesData = [
     description: 'Installations électriques et dépannage',
     icon: 'Zap',
     color: '#f59e0b',
+    image: unsplashImage('photo-1621905251189-08b45d6a269e'),
     order: 3,
     subcategories: [
       {
@@ -103,6 +110,7 @@ export const categoriesData = [
     description: 'Travail du bois et aménagement',
     icon: 'Hammer',
     color: '#8b5cf6',
+    image: unsplashImage('photo-1452860606245-08befc0ff44b'),
     order: 4,
     subcategories: [
       {
@@ -128,6 +136,7 @@ export const categoriesData = [
     description: 'Travail du métal et sécurité',
     icon: 'Key',
     color: '#6b7280',
+    image: unsplashImage('photo-1504917595217-d4dc5ebe6122'),
     order: 5,
     subcategories: [
       {
@@ -148,6 +157,7 @@ export const categoriesData = [
     description: 'Réparation et entretien automobile',
     icon: 'Car',
     color: '#ec4899',
+    image: unsplashImage('photo-1486006920555-c77dcf18193c'),
     order: 6,
     subcategories: [
       {
@@ -173,6 +183,7 @@ export const categoriesData = [
     description: 'Services de beauté et soins',
     icon: 'Sparkles',
     color: '#f472b6',
+    image: unsplashImage('photo-1560066984-138dadb4c035'),
     order: 7,
     subcategories: [
       {
@@ -198,6 +209,7 @@ export const categoriesData = [
     description: 'Création et réparation de vêtements',
     icon: 'Shirt',
     color: '#a855f7',
+    image: unsplashImage('photo-1558769132-cb1aea458c5e'),
     order: 8,
     subcategories: [
       {
@@ -218,6 +230,7 @@ export const categoriesData = [
     description: 'Services domestiques et entretien',
     icon: 'Home',
     color: '#14b8a6',
+    image: unsplashImage('photo-1581578731548-c64695cc6952'),
     order: 9,
     subcategories: [
       {
@@ -243,6 +256,7 @@ export const categoriesData = [
     description: 'Services de garde et éducation',
     icon: 'Baby',
     color: '#fbbf24',
+    image: unsplashImage('photo-1503454537195-1dcabb73ffb9'),
     order: 10,
     subcategories: [
       {
@@ -263,6 +277,7 @@ export const categoriesData = [
     description: 'Services de santé et coaching sportif',
     icon: 'Heart',
     color: '#ef4444',
+    image: unsplashImage('photo-1571019613454-1cb2f99b2d8b'),
     order: 11,
     subcategories: [
       {
@@ -283,6 +298,7 @@ export const categoriesData = [
     description: 'Services numériques et informatiques',
     icon: 'Monitor',
     color: '#0ea5e9',
+    image: unsplashImage('photo-1517694712202-14dd9538aa97'),
     order: 12,
     subcategories: [
       {
@@ -308,6 +324,7 @@ export const categoriesData = [
     description: 'Services de transport et livraison',
     icon: 'Truck',
     color: '#84cc16',
+    image: unsplashImage('photo-1494976388531-d1058494cdd8'),
     order: 13,
     subcategories: [
       {
@@ -328,6 +345,7 @@ export const categoriesData = [
     description: 'Organisation d\'événements',
     icon: 'Calendar',
     color: '#f97316',
+    image: unsplashImage('photo-1530103862676-de8c9debad1d'),
     order: 14,
     subcategories: [
       {
@@ -353,6 +371,7 @@ export const categoriesData = [
     description: 'Services de sécurité',
     icon: 'Shield',
     color: '#1e3a5f',
+    image: unsplashImage('photo-1557597774-9d273605dfa9'),
     order: 15,
     subcategories: [
       {
@@ -380,6 +399,7 @@ export async function seedCategories(prisma: SeedPrismaClient) {
         description: categoryData.description,
         icon: categoryData.icon,
         color: categoryData.color,
+        image: categoryData.image,
         order: categoryData.order,
         isActive: true,
       },

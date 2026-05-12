@@ -12,6 +12,8 @@ import {
 
 export type CategoryTileSize = "md" | "lg";
 
+export type CategoryTileVariant = "default" | "centered-mono";
+
 export type CategoryTileProps = {
   slug?: CategorySlug;
   label?: string;
@@ -19,6 +21,7 @@ export type CategoryTileProps = {
   iconName?: IconName | string;
   color?: string;
   size?: CategoryTileSize;
+  variant?: CategoryTileVariant;
   onClick?: () => void;
   className?: string;
   style?: React.CSSProperties;
@@ -31,6 +34,7 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
   iconName,
   color,
   size = "lg",
+  variant = "default",
   onClick,
   className,
   style,
@@ -44,12 +48,89 @@ export const CategoryTile: React.FC<CategoryTileProps> = ({
     (portfolio ? (I[portfolio.iconName as IconName] as React.FC<IconProps>) : null) ??
     FallbackCategoryIcon;
 
+  const [hovered, setHovered] = React.useState(false);
+
+  if (variant === "centered-mono") {
+    return (
+      <button
+        onClick={onClick ? () => onClick() : undefined}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={className}
+        style={{
+          position: "relative",
+          background: tokens.color.surface,
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: tokens.radius.md,
+          padding: "30px 14px 22px",
+          textAlign: "center",
+          cursor: onClick ? "pointer" : "default",
+          width: "100%",
+          minWidth: 0,
+          boxShadow: hovered ? tokens.shadow.e2 : tokens.shadow.e1,
+          transform: hovered && onClick ? "translateY(-2px)" : undefined,
+          transition: `transform 160ms ${tokens.ease.standard}, box-shadow 160ms ${tokens.ease.standard}`,
+          font: "inherit",
+          color: "inherit",
+          ...style,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 14,
+            color: hovered ? tokens.color.textMuted : "transparent",
+            transition: "color 160ms",
+          }}
+        >
+          <I.arrowUpRight size={16} />
+        </span>
+        <div
+          style={{
+            color: tokens.color.textPrimary,
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Icon size={38} strokeWidth={1.6} />
+        </div>
+        <div
+          style={{
+            fontFamily: tokens.font.display,
+            fontWeight: 600,
+            fontSize: 14,
+            lineHeight: 1.25,
+            color: tokens.color.textPrimary,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {resolvedLabel}
+        </div>
+        {count != null ? (
+          <div
+            style={{
+              fontFamily: tokens.font.mono,
+              fontSize: 12,
+              fontWeight: 500,
+              color: tokens.color.textMuted,
+              marginTop: 4,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {count} pros
+          </div>
+        ) : null}
+      </button>
+    );
+  }
+
   const tileBg = color
     ? hexWithAlpha(color, 0.16)
     : tint?.bg ?? tokens.color.surfaceMuted;
   const tileFg = color ?? tint?.fg ?? tokens.color.textBody;
-
-  const [hovered, setHovered] = React.useState(false);
 
   return (
     <button
