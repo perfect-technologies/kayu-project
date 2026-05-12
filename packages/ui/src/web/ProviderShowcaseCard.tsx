@@ -1,35 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { portfolioSlug, type ProviderCardData } from "../cards.js";
+import { User } from "lucide-react";
+import type { ProviderCardData } from "../cards.js";
 import { tokens } from "../tokens.js";
-import {
-  FallbackCategoryIcon,
-  I,
-  resolveLucideIcon,
-  type IconName,
-  type IconProps,
-} from "./Icon.js";
+import { FallbackCategoryIcon, I, resolveLucideIcon } from "./Icon.js";
 
 export type ProviderShowcaseCardProps = {
   provider: ProviderCardData;
-  /** Render the thin top accent line (used for premium/featured cards). */
   highlight?: boolean;
-  /** Compact mode: hide the testimonial and shrink padding. */
   compact?: boolean;
-  /** Bottom-right CTA label. Defaults to `Voir le profil`. */
   ctaLabel?: string;
   onClick?: (id: string) => void;
   className?: string;
   style?: React.CSSProperties;
 };
 
-// Faithful port of the KAYOU standalone prototype's ProviderCard
-// (file 052e06e1-4809-46c9-b44e-a37e517fa61a.js, function ProviderCard).
-// Square category icon tile (radial-gradient bg) on the left, name + verified
-// + StarRating header on the right, profession line, response line, trust
-// chips strip, optional testimonial, and a footer with `À partir de … FC`
-// plus a CTA pill.
 export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
   provider,
   highlight = false,
@@ -39,21 +25,12 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
   className,
   style,
 }) => {
-  const slug = portfolioSlug(provider.categories);
-  const portfolio = tokens.portfolio[slug];
-  const tileBg = provider.categoryColor
-    ? hexWithAlpha(provider.categoryColor, 0.16)
-    : portfolio.bg;
-  const tileAccent = provider.categoryColor ?? portfolio.accent;
-  const SpecialtyIcon =
-    resolveLucideIcon(provider.categoryIconName) ??
-    ((I as Record<IconName, React.FC<IconProps>>)[
-      portfolio.iconName as IconName
-    ] ??
-      FallbackCategoryIcon);
   const [hovered, setHovered] = React.useState(false);
   const handleClick = onClick ? () => onClick(provider.id) : undefined;
   const isFastResponse = provider.response.includes("min");
+  const initials =
+    provider.initials ?? initialsFrom(provider.firstName, provider.lastName);
+  const hasInitials = initials !== "?";
 
   return (
     <article
@@ -88,64 +65,38 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
             height: 64,
             borderRadius: 14,
             flexShrink: 0,
-            position: "relative",
-            background: tileBg,
-            backgroundImage: `radial-gradient(circle at 25% 25%, ${tileAccent}2a 0%, transparent 60%)`,
-            color: tileAccent,
+            background: "#F5F2E9",
             overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          {SpecialtyIcon ? (
-            <span
-              aria-hidden
+          {provider.avatarUrl ? (
+            <img
+              src={provider.avatarUrl}
+              alt=""
               style={{
-                position: "absolute",
-                top: 6,
-                left: 6,
-                display: "inline-flex",
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : hasInitials ? (
+            <span
+              style={{
+                fontFamily: tokens.font.mono,
+                fontWeight: 700,
+                fontSize: 22,
+                color: tokens.color.textMuted,
               }}
             >
-              <SpecialtyIcon size={20} />
+              {initials}
             </span>
-          ) : null}
-
-          <span
-            aria-hidden
-            style={{
-              position: "absolute",
-              bottom: 4,
-              right: 4,
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              overflow: "hidden",
-              border: `2px solid ${tokens.color.surface}`,
-              background: tileAccent,
-              color: tokens.color.textInverse,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: tokens.font.body,
-              fontWeight: 600,
-              fontSize: 11,
-              letterSpacing: 0.2,
-            }}
-          >
-            {provider.avatarUrl ? (
-              <img
-                src={provider.avatarUrl}
-                alt=""
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            ) : (
-              provider.initials ?? initialsFrom(provider.firstName, provider.lastName)
-            )}
-          </span>
+          ) : (
+            <User size={28} color={tokens.color.textMuted} strokeWidth={1.6} />
+          )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -236,6 +187,31 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
           marginBottom: 16,
         }}
       >
+        {provider.categoryName ? (
+          (() => {
+            const PrimaryIcon =
+              resolveLucideIcon(provider.categoryIconName) ?? FallbackCategoryIcon;
+            return (
+              <span className="k-chip k-chip-sm">
+                <span style={{ color: provider.categoryColor ?? "currentColor", display: "inline-flex" }}>
+                  <PrimaryIcon size={12} />
+                </span>
+                {provider.categoryName}
+              </span>
+            );
+          })()
+        ) : null}
+        {provider.secondaryCategories?.map((cat) => {
+          const ChipIcon = resolveLucideIcon(cat.iconName) ?? FallbackCategoryIcon;
+          return (
+            <span key={cat.name} className="k-chip k-chip-sm">
+              <span style={{ color: cat.color ?? "currentColor", display: "inline-flex" }}>
+                <ChipIcon size={12} />
+              </span>
+              {cat.name}
+            </span>
+          );
+        })}
         {provider.verified ? (
           <TrustChip topRated={!!provider.topRated} />
         ) : null}
@@ -247,24 +223,6 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
         {typeof provider.distance === "number" ? (
           <span className="k-chip k-chip-sm">
             <I.mapPin size={12} /> {provider.distance.toFixed(1)} km
-          </span>
-        ) : null}
-        {provider.secondaryCategories?.slice(0, 2).map((cat) => {
-          const ChipIcon =
-            resolveLucideIcon(cat.iconName) ?? FallbackCategoryIcon;
-          return (
-            <span key={cat.name} className="k-chip k-chip-sm">
-              <span style={{ color: cat.color ?? "currentColor", display: "inline-flex" }}>
-                <ChipIcon size={12} />
-              </span>
-              {cat.name}
-            </span>
-          );
-        })}
-        {provider.secondaryCategories &&
-        provider.secondaryCategories.length > 2 ? (
-          <span className="k-chip k-chip-sm">
-            +{provider.secondaryCategories.length - 2}
           </span>
         ) : null}
       </div>
@@ -341,8 +299,6 @@ export const ProviderShowcaseCard: React.FC<ProviderShowcaseCardProps> = ({
   );
 };
 
-// Inlined to keep the component self-contained and to render the prototype's
-// borderless filled star.
 const StarRating: React.FC<{ value: number; count?: number; size?: number }> = ({
   value,
   count,
@@ -389,15 +345,6 @@ function initialsFrom(firstName: string, lastName: string): string {
   const l = lastName.trim()[0] ?? "";
   const combo = `${f}${l}`.toUpperCase();
   return combo || "?";
-}
-
-function hexWithAlpha(hex: string, alpha: number): string {
-  const match = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!match) return hex;
-  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
-    .toString(16)
-    .padStart(2, "0");
-  return `#${match[1]}${a}`;
 }
 
 const TrustChip: React.FC<{ topRated: boolean }> = ({ topRated }) =>
