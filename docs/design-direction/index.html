@@ -217,7 +217,7 @@
   <li>Image header on top (height 160px, full-width). No gradient overlay on the photo.</li>
   <li>Flat white body below the image.</li>
   <li>Content order: name (700, 16px) → 1-line description (13px muted, <code>minHeight: 38px</code> so cards align when descriptions vary) → footer.</li>
-  <li>Footer: "À PARTIR DE" overline + price in mono on the left; text-only "Réserver →" link in the category accent color on the right.</li>
+  <li>Footer: "À PARTIR DE" overline + price in mono on the left; text-only "Réserver →" link in primary blue (<code>tokens.color.primary</code>) on the right. CTA is always the same blue regardless of category — only the trend badge and image carry category-specific color.</li>
   <li>Trend badge top-right of the image: white background, colored border (orange for growth, blue for "Top 3"). Discovery mode omits the badge entirely.</li>
 </ul>
 
@@ -238,7 +238,7 @@
           <div style="font-size:10px; color: var(--text-muted); letter-spacing:.05em; font-weight:600;">À PARTIR DE</div>
           <div style="font-family: var(--mono); font-weight: 700; font-size: 16px; color: var(--text-primary); margin-top: 2px;">25 000 <span style="font-size:11px; color: var(--text-muted); font-family: inherit;">FC</span></div>
         </div>
-        <span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; font-size:13px; color: var(--primary);">
+        <span style="display:inline-flex; align-items:center; gap:4px; font-weight:600; font-size:13px; color: var(--primary);" title="always primary blue, regardless of category">
           Réserver
           <svg class="lucide" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </span>

@@ -13,7 +13,6 @@ export type TrendingServiceCardProps = {
 const formatPrice = (n: number) => new Intl.NumberFormat("fr-FR").format(n);
 
 export const TrendingServiceCard: React.FC<TrendingServiceCardProps> = ({ item, onClick }) => {
-  const accent = item.categoryColor ?? tokens.color.primary;
   const [hovered, setHovered] = React.useState(false);
 
   return (
@@ -107,7 +106,7 @@ export const TrendingServiceCard: React.FC<TrendingServiceCardProps> = ({ item, 
               fontSize: 13,
               cursor: "pointer",
               padding: "6px 0",
-              color: accent,
+              color: tokens.color.primary,
             }}
           >
             Réserver <ArrowRight size={13} strokeWidth={2.5} />
