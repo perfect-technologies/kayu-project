@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   ProviderHeader,
@@ -12,16 +11,10 @@ import {
   ProviderAboutSkeleton,
   ProviderSkills,
   ProviderSkillsSkeleton,
-  ProviderPortfolio,
-  ProviderPortfolioSkeleton,
+  ProviderRecentWork,
   ProviderReviews,
   ProviderReviewsSkeleton,
-  ProviderCategories,
-  ProviderCategoriesSkeleton,
-  ProviderCertifications,
-  ProviderCertificationsSkeleton,
-  ProviderDiplomas,
-  ProviderDiplomasSkeleton,
+  ProviderCredentials,
   BookingForm,
   ContactDialog,
 } from "@/components/provider-profile";
@@ -29,15 +22,13 @@ import {
   ChevronLeft,
   Heart,
   Share2,
-  MessageCircle,
   Lock,
   LogIn,
   EyeOff,
-  ShieldCheck,
-  MapPin,
-  Phone,
 } from "lucide-react";
 import Link from "next/link";
+import { BookingRail } from "@/components/provider-profile/BookingRail";
+import { MobileStickyBar } from "@/components/provider-profile/MobileStickyBar";
 import { apiClient } from "@/lib/api";
 import { favoritesApi } from "@kayu/api";
 
@@ -314,6 +305,7 @@ export function ProviderProfileClient({
         : {
             ...provider.stats,
             totalReviews: 0,
+            totalBookings: 0,
             ratingBreakdown: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
             ratingAverages: {
               overall: 0,
@@ -413,13 +405,7 @@ export function ProviderProfileClient({
             <div className="space-y-4">
               <ProviderAboutSkeleton />
               <ProviderSkillsSkeleton />
-              <ProviderCertificationsSkeleton />
-              <ProviderDiplomasSkeleton />
-              <ProviderPortfolioSkeleton />
               <ProviderReviewsSkeleton />
-            </div>
-            <div className="space-y-4">
-              <ProviderCategoriesSkeleton />
             </div>
           </div>
         </div>
@@ -480,8 +466,6 @@ export function ProviderProfileClient({
 
       <ProviderHeader
         provider={visibleProvider}
-        onContact={() => setContactOpen(true)}
-        onBook={() => setBookingOpen(true)}
         onFavorite={handleFavorite}
         isFavorited={isFavorited}
       />
@@ -490,236 +474,58 @@ export function ProviderProfileClient({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
             <ProviderAbout provider={visibleProvider} />
-            {provider.skills.length > 0 && (
-              <ProviderSkills skills={provider.skills} />
-            )}
-            {visibleProvider.certifications.length > 0 && (
-              <ProviderCertifications certifications={visibleProvider.certifications} />
-            )}
-            {visibleProvider.diplomas.length > 0 && (
-              <ProviderDiplomas diplomas={visibleProvider.diplomas} />
-            )}
-            {(visibleProvider.portfolio.length > 0 ||
-              visibleProvider.portfolioProjects.length > 0) && (
-              <ProviderPortfolio
-                portfolio={visibleProvider.portfolio}
-                projects={visibleProvider.portfolioProjects}
-              />
-            )}
+            <ProviderRecentWork
+              portfolio={visibleProvider.portfolio}
+              projects={visibleProvider.portfolioProjects}
+            />
             {visibility.showReviews && (
               <ProviderReviews
                 providerId={provider.id}
+                firstName={provider.user.firstName}
                 initialReviews={visibleProvider.recentReviews}
                 stats={visibleProvider.stats}
+              />
+            )}
+            {provider.skills.length > 0 && (
+              <ProviderSkills skills={provider.skills} />
+            )}
+            {visibility.showCertifications && (
+              <ProviderCredentials
+                diplomas={visibleProvider.diplomas}
+                certifications={visibleProvider.certifications}
               />
             )}
           </div>
 
           {/* Sticky booking rail */}
-          <aside className="hidden self-start lg:sticky lg:top-[104px] lg:block">
-            <div
-              style={{
-                background: "var(--k-surface)",
-                border: "1px solid var(--k-border)",
-                borderRadius: "var(--k-r-lg)",
-                boxShadow: "var(--k-e2)",
-                padding: 24,
-              }}
-            >
-              {hourlyFormatted ? (
-                <>
-                  <div className="k-caption mb-1">À partir de</div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span
-                      className="k-price"
-                      style={{ fontSize: 32, letterSpacing: "-0.02em" }}
-                    >
-                      {hourlyFormatted}
-                    </span>
-                    <span
-                      className="k-body"
-                      style={{ color: "var(--k-text-muted)" }}
-                    >
-                      FC
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <div className="k-caption">Prix de départ</div>
-                  <div className="k-display-m" style={{ margin: "4px 0 0" }}>
-                    À convenir
-                  </div>
-                </div>
-              )}
-              <div className="k-caption mt-2">
-                Paiement en espèces à la fin de la mission. Le prix final est convenu avec le prestataire.
-              </div>
-
-              <div
-                className="mt-4 grid gap-2.5 p-3.5"
-                style={{
-                  background: "var(--k-surface-muted)",
-                  borderRadius: "var(--k-r-md)",
-                }}
-              >
-                <MiniRow
-                  icon={<MapPin className="h-4 w-4" />}
-                  label="Zone"
-                  value={visibleProvider.user.city ?? "Kinshasa"}
-                />
-              </div>
-
-              {!isOwnProfile && (
-                <>
-                  <button
-                    className="k-btn k-btn-primary k-btn-lg mt-4 w-full"
-                    onClick={() => router.push(`/book/${provider.id}`)}
-                  >
-                    Demander une réservation
-                  </button>
-                  {visibleProvider.user.phone && (
-                    <a
-                      className="k-btn k-btn-secondary mt-2 w-full"
-                      href={`tel:${visibleProvider.user.phone}`}
-                    >
-                      <Phone className="h-4 w-4" />
-                      Appeler
-                    </a>
-                  )}
-                  {visibility.allowMessages && (
-                    <button
-                      className="k-btn k-btn-secondary mt-2 w-full"
-                      onClick={() => setContactOpen(true)}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      Envoyer un message
-                    </button>
-                  )}
-                </>
-              )}
-
-              <div
-                className="mt-4 flex items-center gap-2 border-t pt-4"
-                style={{ borderColor: "var(--k-border-subtle)" }}
-              >
-                <ShieldCheck
-                  className="h-4 w-4"
-                  style={{ color: "var(--k-success)" }}
-                />
-                <span
-                  className="k-caption"
-                  style={{ color: "var(--k-text-body)" }}
-                >
-                  Paiement en espèces à la fin de la mission.
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <ProviderCategories
-                categories={provider.categories}
-                serviceZones={provider.serviceZones}
-              />
-            </div>
-          </aside>
-
-          {/* Categories card on mobile (non-sticky) */}
-          <div className="lg:hidden">
-            <ProviderCategories
-              categories={provider.categories}
-              serviceZones={provider.serviceZones}
-            />
-          </div>
+          <BookingRail
+            providerId={provider.id}
+            firstName={provider.user.firstName}
+            hourlyRate={visibleProvider.hourlyRate ?? null}
+            rating={provider.rating}
+            totalReviews={provider.totalReviews}
+            totalJobs={provider.totalJobs}
+            responseTime={provider.responseTime ?? null}
+            verificationStatus={provider.verificationStatus}
+            phone={visibleProvider.user.phone ?? null}
+            allowMessages={visibility.allowMessages}
+            isOwnProfile={isOwnProfile}
+            onBook={() => router.push(`/book/${provider.id}`)}
+            onContact={() => setContactOpen(true)}
+            onDashboard={() => router.push("/dashboard")}
+          />
         </div>
       </div>
 
-      {/* Mobile sticky bottom bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 md:hidden"
-        style={{
-          background: "var(--k-surface)",
-          borderTop: "1px solid var(--k-border)",
-          boxShadow: "0 -4px 20px -8px rgba(15,23,42,0.1)",
-        }}
-      >
-        <div className="min-w-0 flex-shrink">
-          {hourlyFormatted ? (
-            <>
-              <div className="k-caption mt-0.5">À partir de</div>
-              <div>
-                <span
-                  className="k-price"
-                  style={{
-                    fontSize: 17,
-                    textDecoration: "underline",
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {hourlyFormatted} FC
-                </span>
-              </div>
-              <div className="k-caption mt-0.5">
-                ★ {provider.rating ? provider.rating.toFixed(1) : "—"} ·{" "}
-                {provider.totalReviews} avis
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="k-body-m" style={{ fontWeight: 600 }}>
-                À convenir
-              </div>
-              <div className="k-caption mt-0.5">Discussion puis offre finale</div>
-            </>
-          )}
-        </div>
-        <div className="flex-1" />
-        {visibility.allowMessages && !isOwnProfile && (
-          <button
-            className="flex h-11 w-11 items-center justify-center rounded-full"
-            aria-label="Contacter"
-            style={{
-              background: "var(--k-surface)",
-              border: "1px solid var(--k-border)",
-              color: "var(--k-text-primary)",
-            }}
-            onClick={() => setContactOpen(true)}
-          >
-            <MessageCircle className="h-[18px] w-[18px]" />
-          </button>
-        )}
-        {visibleProvider.user.phone && !isOwnProfile && (
-          <a
-            className="flex h-11 w-11 items-center justify-center rounded-full"
-            aria-label="Appeler"
-            href={`tel:${visibleProvider.user.phone}`}
-            style={{
-              background: "var(--k-surface)",
-              border: "1px solid var(--k-border)",
-              color: "var(--k-text-primary)",
-            }}
-          >
-            <Phone className="h-[18px] w-[18px]" />
-          </a>
-        )}
-        {!isOwnProfile ? (
-          <button
-            className="k-btn k-btn-primary"
-            style={{ height: 46, padding: "0 22px" }}
-            onClick={() => router.push(`/book/${provider.id}`)}
-          >
-            Réserver
-          </button>
-        ) : (
-          <Button
-            variant="outline"
-            className="h-11"
-            onClick={() => router.push("/dashboard")}
-          >
-            Tableau de bord
-          </Button>
-        )}
-      </div>
+      <MobileStickyBar
+        hourlyFormatted={hourlyFormatted}
+        phone={visibleProvider.user.phone ?? null}
+        allowMessages={visibility.allowMessages}
+        isOwnProfile={isOwnProfile}
+        onBook={() => router.push(`/book/${provider.id}`)}
+        onContact={() => setContactOpen(true)}
+        onDashboard={() => router.push("/dashboard")}
+      />
 
       <BookingForm
         open={bookingOpen}
@@ -736,31 +542,6 @@ export function ProviderProfileClient({
         isAuthenticated={isAuthenticated}
         onLoginRequired={handleLoginRequired}
       />
-    </div>
-  );
-}
-
-function MiniRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span style={{ color: "var(--k-text-muted)" }}>{icon}</span>
-      <span
-        className="k-body-m flex-1"
-        style={{ color: "var(--k-text-muted)" }}
-      >
-        {label}
-      </span>
-      <span className="k-body-m" style={{ fontWeight: 600 }}>
-        {value}
-      </span>
     </div>
   );
 }

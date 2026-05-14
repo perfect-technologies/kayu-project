@@ -2,51 +2,46 @@
 
 import { ProviderSection } from "./ProviderSection";
 
-interface Skill {
-  id: string;
-  name: string;
-  level: number; // 1-5
-}
-
 interface ProviderSkillsProps {
-  skills: Skill[];
+  skills: Array<{ id: string; name: string; level: number }>;
 }
 
-const LEVEL_LABELS = ["Débutant", "Basique", "Intermédiaire", "Avancé", "Expert"];
+const LEVEL_LABELS: Record<number, string> = {
+  1: "débutant",
+  2: "intermédiaire",
+  3: "avancé",
+  4: "expert",
+  5: "maître",
+};
 
 export function ProviderSkills({ skills }: ProviderSkillsProps) {
-  if (skills.length === 0) {
-    return null;
-  }
+  if (skills.length === 0) return null;
 
   return (
-    <ProviderSection
-      title="Compétences"
-      subtitle="Niveaux déclarés par le prestataire"
-    >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    <ProviderSection title="Compétences">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {skills.map((skill) => {
-          const levelIdx = Math.max(0, Math.min(skill.level - 1, LEVEL_LABELS.length - 1));
-          const isExpert = skill.level >= 5;
-          const isAdvanced = skill.level === 4;
-          const chipClass = isExpert
-            ? "k-chip k-chip-sm k-chip-success"
-            : isAdvanced
-              ? "k-chip k-chip-sm k-chip-primary"
-              : "k-chip k-chip-sm";
+          const levelLabel = LEVEL_LABELS[skill.level] ?? null;
           return (
-            <span key={skill.id} className={chipClass}>
+            <span
+              key={skill.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 12,
+                padding: "5px 10px",
+                borderRadius: 999,
+                background: "#F1F5F9",
+                color: "var(--k-text-body)",
+              }}
+            >
               {skill.name}
-              <span
-                style={{
-                  color: "var(--k-text-muted)",
-                  fontSize: 11,
-                  fontWeight: 500,
-                  marginLeft: 4,
-                }}
-              >
-                · {LEVEL_LABELS[levelIdx]}
-              </span>
+              {levelLabel && (
+                <span style={{ fontFamily: "var(--k-font-mono)", color: "var(--k-text-muted)", fontSize: 10 }}>
+                  {levelLabel}
+                </span>
+              )}
             </span>
           );
         })}

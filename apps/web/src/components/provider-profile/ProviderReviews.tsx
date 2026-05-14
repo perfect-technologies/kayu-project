@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
@@ -9,15 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Star,
-  MessageSquare,
-  Loader2,
-  Clock,
-  Wrench,
-  MessageCircle,
-  Coins,
-} from "lucide-react";
+import { Star, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { reviewsApi, queryKeys } from "@kayu/api";
 import { useQuery } from "@tanstack/react-query";
@@ -46,9 +38,11 @@ interface Review {
 
 interface ProviderReviewsProps {
   providerId: string;
+  firstName: string;
   initialReviews: Review[];
   stats: {
     totalReviews: number;
+    totalBookings: number;
     ratingBreakdown: { 5: number; 4: number; 3: number; 2: number; 1: number };
     ratingAverages: {
       overall: number;
@@ -58,24 +52,6 @@ interface ProviderReviewsProps {
       value: number;
     };
   };
-}
-
-const DIMENSIONS: Array<{
-  key: keyof ProviderReviewsProps["stats"]["ratingAverages"];
-  label: string;
-  icon: React.ElementType;
-}> = [
-  { key: "punctuality", label: "Ponctualité", icon: Clock },
-  { key: "quality", label: "Qualité", icon: Wrench },
-  { key: "communication", label: "Communication", icon: MessageCircle },
-  { key: "value", label: "Rapport qualité/prix", icon: Coins },
-];
-
-function scoreColor(score: number) {
-  if (score >= 4) return "var(--k-success)";
-  if (score >= 3) return "var(--k-warning)";
-  if (score > 0) return "var(--k-danger)";
-  return "var(--k-text-muted)";
 }
 
 function StarRow({ value }: { value: number }) {
@@ -108,11 +84,13 @@ function formatDate(dateString: string) {
 
 export function ProviderReviews({
   providerId,
+  firstName,
   initialReviews,
   stats,
 }: ProviderReviewsProps) {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<"recent" | "highest" | "lowest">("recent");
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const { data, isFetching } = useQuery({
     queryKey: queryKeys.reviews.byProvider(providerId, { page, sortBy, limit: 5 }),
@@ -129,195 +107,133 @@ export function ProviderReviews({
   const pagination = data?.pagination;
   const hasMore = pagination ? pagination.page < pagination.totalPages : false;
 
-  const totalReviews = stats.totalReviews || 0;
-  const breakdown = stats.ratingBreakdown;
-  const overall = stats.ratingAverages.overall;
+  const recommendPct = useMemo(() => {
+    if (stats.totalReviews < 5) return null;
+    const positive = (stats.ratingBreakdown[5] ?? 0) + (stats.ratingBreakdown[4] ?? 0);
+    return Math.round((positive / stats.totalReviews) * 100);
+  }, [stats.totalReviews, stats.ratingBreakdown]);
+
+  const ratingFormatted =
+    stats.ratingAverages.overall > 0
+      ? stats.ratingAverages.overall.toFixed(1).replace(".", ",")
+      : "—";
+  const filledStars = Math.round(stats.ratingAverages.overall);
+
+  if (stats.totalReviews === 0) {
+    return (
+      <ProviderSection title="Ce que disent les clients">
+        <p style={{ fontSize: 14, color: "var(--k-text-muted)", margin: 0 }}>
+          Pas encore d&apos;avis. Soyez le premier à recommander {firstName}.
+        </p>
+      </ProviderSection>
+    );
+  }
 
   return (
-    <ProviderSection
-      title="Avis"
-      subtitle={
-        totalReviews > 0
-          ? `${totalReviews} avis · note moyenne ${overall.toFixed(1)}/5`
-          : "Aucun avis pour le moment"
-      }
-    >
-      {totalReviews > 0 && (
-        <>
-          <div
-            style={{
-              display: "grid",
-              gap: 24,
-              gridTemplateColumns: "minmax(140px, 200px) 1fr",
-              alignItems: "center",
-              paddingBottom: 20,
-              borderBottom: "1px solid var(--k-border-subtle)",
-            }}
-            className="k-reviews-overview"
-          >
-            <div style={{ textAlign: "center" }}>
-              <div
-                className="k-num"
-                style={{
-                  fontFamily: "var(--k-font-display)",
-                  fontWeight: 700,
-                  fontSize: 44,
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1,
-                  color: "var(--k-text-primary)",
-                }}
-              >
-                {overall > 0 ? overall.toFixed(1) : "—"}
-              </div>
-              <div style={{ marginTop: 6 }}>
-                <StarRow value={overall} />
-              </div>
-              <div className="k-caption" style={{ marginTop: 4 }}>
-                {totalReviews} avis
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gap: 6 }}>
-              {[5, 4, 3, 2, 1].map((rating) => {
-                const count = breakdown[rating as keyof typeof breakdown] || 0;
-                const percentage =
-                  totalReviews > 0 ? (count / totalReviews) * 100 : 0;
-                return (
-                  <div
-                    key={rating}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "16px 12px 1fr 28px",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <span
-                      className="k-caption"
-                      style={{ color: "var(--k-text-body)", fontWeight: 600 }}
-                    >
-                      {rating}
-                    </span>
-                    <Star
-                      className="h-3 w-3"
-                      style={{
-                        color: "var(--k-warning)",
-                        fill: "var(--k-warning)",
-                      }}
-                    />
-                    <div
-                      style={{
-                        height: 6,
-                        borderRadius: 3,
-                        background: "var(--k-border-subtle)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${percentage}%`,
-                          height: "100%",
-                          background: "var(--k-warning)",
-                          borderRadius: 3,
-                        }}
-                      />
-                    </div>
-                    <span
-                      className="k-caption"
-                      style={{ textAlign: "right", color: "var(--k-text-muted)" }}
-                    >
-                      {count}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {DIMENSIONS.some((d) => stats.ratingAverages[d.key] > 0) && (
+    <ProviderSection title="Ce que disent les clients">
+      <div
+        style={{
+          background: "#FFFBF5",
+          border: "1px solid #FDE68A",
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
             <div
               style={{
-                display: "grid",
-                gap: 14,
-                paddingTop: 20,
-                paddingBottom: 20,
-                borderBottom: "1px solid var(--k-border-subtle)",
+                fontFamily: "var(--k-font-display)",
+                fontWeight: 800,
+                fontSize: 44,
+                lineHeight: 1,
+                letterSpacing: "-0.02em",
+                color: "var(--k-text-primary)",
               }}
             >
-              <div
-                className="k-overline"
-                style={{ color: "var(--k-text-muted)" }}
-              >
-                Évaluations détaillées
-              </div>
-              {DIMENSIONS.map((dim) => {
-                const value = stats.ratingAverages[dim.key];
-                if (value <= 0) return null;
-                const color = scoreColor(value);
-                const Icon = dim.icon;
-                return (
-                  <div
-                    key={dim.key}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "20px 1fr auto 110px",
-                      gap: 12,
-                      alignItems: "center",
-                    }}
-                  >
-                    <span style={{ color }}>
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span
-                      className="k-body-m"
-                      style={{ fontWeight: 500, color: "var(--k-text-body)" }}
-                    >
-                      {dim.label}
-                    </span>
-                    <span
-                      className="k-num"
-                      style={{
-                        fontFamily: "var(--k-font-display)",
-                        fontWeight: 600,
-                        fontSize: 15,
-                        color,
-                      }}
-                    >
-                      {value.toFixed(1)}
-                    </span>
-                    <div
-                      style={{
-                        height: 6,
-                        borderRadius: 3,
-                        background: "var(--k-border-subtle)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${(value / 5) * 100}%`,
-                          height: "100%",
-                          background: color,
-                          borderRadius: 3,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {ratingFormatted}
             </div>
-          )}
-
-          <div
+            <div>
+              <div style={{ color: "var(--k-warning)", fontSize: 14 }}>
+                {"★".repeat(filledStars)}
+                {"☆".repeat(5 - filledStars)}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--k-text-muted)", marginTop: 4 }}>
+                {stats.totalReviews} avis
+                {stats.totalBookings > 0 ? ` · ${stats.totalBookings} missions terminées` : ""}
+              </div>
+              {recommendPct !== null && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#15803D",
+                    fontWeight: 600,
+                    marginTop: 6,
+                  }}
+                >
+                  ✓ {recommendPct}% des clients recommandent {firstName}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBreakdownOpen((v) => !v)}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              paddingTop: 18,
-              flexWrap: "wrap",
+              gap: 4,
+              fontSize: 12,
+              fontWeight: 600,
+              color: "var(--k-primary-hover)",
+              background: "var(--k-surface)",
+              border: "1px solid var(--k-border)",
+              padding: "5px 10px",
+              borderRadius: 99,
+              cursor: "pointer",
             }}
           >
+            {breakdownOpen ? "Masquer ▴" : "Voir le détail ▾"}
+          </button>
+        </div>
+
+        {breakdownOpen && (
+          <div
+            style={{
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: "1px solid #FDE68A",
+            }}
+          >
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 md:gap-x-6">
+              <BreakdownRow label="Ponctualité" value={stats.ratingAverages.punctuality} />
+              <BreakdownRow label="Qualité" value={stats.ratingAverages.quality} />
+              <BreakdownRow label="Communication" value={stats.ratingAverages.communication} />
+              <BreakdownRow label="Rapport qualité/prix" value={stats.ratingAverages.value} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          paddingTop: 18,
+          flexWrap: "wrap",
+        }}
+      >
             <div
               className="k-body-m"
               style={{ fontWeight: 600, color: "var(--k-text-primary)" }}
@@ -445,36 +361,38 @@ export function ProviderReviews({
             ))}
           </div>
 
-          {hasMore && (
-            <div style={{ textAlign: "center", marginTop: 18 }}>
-              <button
-                type="button"
-                className="k-btn k-btn-secondary"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={isFetching}
-              >
-                {isFetching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                Voir plus d&apos;avis
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {totalReviews === 0 && (
-        <div style={{ textAlign: "center", padding: "32px 8px" }}>
-          <MessageSquare
-            className="h-10 w-10 mx-auto mb-3"
-            style={{ color: "var(--k-text-muted)" }}
-          />
-          <p className="k-body" style={{ color: "var(--k-text-muted)" }}>
-            Ce prestataire n&apos;a pas encore reçu d&apos;avis
-          </p>
+      {hasMore && (
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button
+            type="button"
+            className="k-btn k-btn-secondary"
+            onClick={() => setPage((p) => p + 1)}
+            disabled={isFetching}
+          >
+            {isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : null}
+            Voir plus d&apos;avis
+          </button>
         </div>
       )}
     </ProviderSection>
+  );
+}
+
+function BreakdownRow({ label, value }: { label: string; value: number }) {
+  if (!value || value <= 0) return null;
+  const pct = Math.min(100, (value / 5) * 100);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 30px", gap: 8, alignItems: "center", fontSize: 12 }}>
+      <span style={{ color: "var(--k-text-muted)" }}>{label}</span>
+      <div style={{ height: 5, background: "#F1F5F9", borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: "var(--k-success)", borderRadius: 99 }} />
+      </div>
+      <span style={{ fontFamily: "var(--k-font-mono)", fontWeight: 700, fontSize: 11, color: "var(--k-text-primary)", textAlign: "right" }}>
+        {value.toFixed(1).replace(".", ",")}
+      </span>
+    </div>
   );
 }
 

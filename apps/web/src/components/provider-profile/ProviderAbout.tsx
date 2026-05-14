@@ -1,83 +1,110 @@
 "use client";
 
-import { Briefcase, Calendar } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ProviderSection } from "./ProviderSection";
 
 interface ProviderAboutProps {
   provider: {
     description?: string | null;
     experience?: number | null;
-    profession: string;
-    subcategories?: Array<{
-      id: string;
-      name: string;
-      isPrimary?: boolean;
-    }>;
+    serviceZones: Array<{ id: string; city: string; commune?: string | null }>;
   };
 }
 
 export function ProviderAbout({ provider }: ProviderAboutProps) {
-  const subcategories = provider.subcategories?.slice(0, 6) ?? [];
+  const [expanded, setExpanded] = useState(false);
+  const [isClipped, setIsClipped] = useState(false);
+  const pRef = useRef<HTMLParagraphElement | null>(null);
+
+  useEffect(() => {
+    const el = pRef.current;
+    if (!el) return;
+    setIsClipped(el.scrollHeight > el.clientHeight + 1);
+  }, [provider.description]);
+
+  if (!provider.description || provider.description.trim().length === 0) {
+    return null;
+  }
+
+  const zoneSummary = (() => {
+    if (provider.serviceZones.length === 0) return null;
+    const names = provider.serviceZones.map((z) => z.commune ?? z.city).filter(Boolean);
+    if (names.length === 0) return null;
+    if (names.length <= 4) return names.join(", ");
+    return `${names.slice(0, 4).join(", ")} +${names.length - 4} autres`;
+  })();
+
+  const experienceLabel =
+    provider.experience && provider.experience > 0 ? `${provider.experience} ans` : null;
+
+  const languagesLabel = "Français, Lingala";
+
+  const hasMeta = experienceLabel || zoneSummary || languagesLabel;
 
   return (
     <ProviderSection title="À propos">
-      {provider.description ? (
-        <p
-          className="k-body-l"
-          style={{
-            color: "var(--k-text-body)",
-            margin: "0 0 18px",
-            whiteSpace: "pre-line",
-            lineHeight: 1.55,
-          }}
+      <p
+        ref={pRef}
+        style={{
+          fontSize: 14,
+          color: "var(--k-text-body)",
+          lineHeight: 1.6,
+          margin: 0,
+          display: expanded ? "block" : "-webkit-box",
+          WebkitLineClamp: expanded ? "unset" : 5,
+          WebkitBoxOrient: "vertical",
+          overflow: expanded ? "visible" : "hidden",
+        }}
+      >
+        {provider.description}
+      </p>
+      {isClipped && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="k-btn k-btn-ghost"
+          style={{ marginTop: 8, padding: "4px 0", fontSize: 13, fontWeight: 600, color: "var(--k-primary)" }}
         >
-          {provider.description}
-        </p>
-      ) : (
-        <p
-          className="k-body"
-          style={{
-            margin: "0 0 18px",
-            color: "var(--k-text-muted)",
-            fontStyle: "italic",
-          }}
-        >
-          Aucune description disponible
-        </p>
+          {expanded ? "Réduire" : "Lire plus"}
+        </button>
       )}
 
-      <div
-        className="k-overline"
-        style={{ marginTop: 6, marginBottom: 10, color: "var(--k-text-muted)" }}
-      >
-        Activité
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <span className="k-chip k-chip-sm">
-          <Briefcase className="h-3 w-3" />
-          {provider.profession}
-        </span>
-        {provider.experience ? (
-          <span className="k-chip k-chip-sm">
-            <Calendar className="h-3 w-3" />
-            {provider.experience} ans d&apos;expérience
-          </span>
-        ) : null}
-        {subcategories.map((subcategory) => (
-          <span
-            key={subcategory.id}
-            className={
-              subcategory.isPrimary
-                ? "k-chip k-chip-sm k-chip-primary"
-                : "k-chip k-chip-sm"
-            }
-          >
-            {subcategory.name}
-            {subcategory.isPrimary ? " · principale" : ""}
-          </span>
-        ))}
-      </div>
+      {hasMeta && (
+        <div
+          className="grid gap-4 md:grid-cols-3"
+          style={{
+            borderTop: "1px solid var(--k-border-subtle)",
+            paddingTop: 14,
+            marginTop: 14,
+          }}
+        >
+          {experienceLabel && <AboutMeta label="Expérience" value={experienceLabel} />}
+          {zoneSummary && <AboutMeta label="Zones desservies" value={zoneSummary} />}
+          <AboutMeta label="Langues" value={languagesLabel} />
+        </div>
+      )}
     </ProviderSection>
+  );
+}
+
+function AboutMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 10,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          color: "var(--k-text-muted)",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 14, color: "var(--k-text-primary)", fontWeight: 600, marginTop: 2 }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
