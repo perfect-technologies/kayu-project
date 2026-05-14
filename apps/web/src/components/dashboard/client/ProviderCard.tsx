@@ -62,7 +62,7 @@ export function ProviderCard({ provider }: { provider: ClientDashboardProviderRo
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          router.push(`/services?provider=${provider.id}`);
+          router.push(`/providers/${provider.id}`);
         }}
         style={{
           display: "block",

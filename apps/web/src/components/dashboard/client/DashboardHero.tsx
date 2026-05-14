@@ -148,14 +148,14 @@ function BookingHero({ variant, booking }: { variant: HeroVariant; booking: Clie
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <Link
           href={`/messages?provider=${booking.provider.id}`}
-          className="k-btn k-btn-secondary k-btn-sm"
+          className="k-btn k-btn-secondary"
           style={{ flex: 1, textAlign: "center" }}
         >
           Message
         </Link>
         <Link
           href={`/bookings/${booking.id}`}
-          className="k-btn k-btn-primary k-btn-sm"
+          className="k-btn k-btn-primary"
           style={{ flex: 1.4, textAlign: "center" }}
         >
           Voir la réservation →
@@ -249,11 +249,11 @@ function CalmHero({
       </p>
       <CalmProviderPills providers={providers} />
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-        <Link href="/" className="k-btn k-btn-primary k-btn-sm">
+        <Link href="/" className="k-btn k-btn-primary">
           Réserver un nouveau service →
         </Link>
         {providers.length > 0 && (
-          <Link href="#tes-prestataires" className="k-btn k-btn-ghost k-btn-sm">
+          <Link href="#tes-prestataires" className="k-btn k-btn-ghost">
             Voir mes prestataires
           </Link>
         )}
@@ -274,7 +274,7 @@ function EmptyHero() {
       </p>
       <CategoryTilesRow />
       <div style={{ marginTop: 16 }}>
-        <Link href="/" className="k-btn k-btn-primary k-btn-sm">
+        <Link href="/" className="k-btn k-btn-primary">
           Découvrir les prestataires →
         </Link>
       </div>

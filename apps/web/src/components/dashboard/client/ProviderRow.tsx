@@ -59,7 +59,7 @@ export function ProviderRow({ provider, isFirst }: { provider: ClientDashboardPr
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          router.push(`/services?provider=${provider.id}`);
+          router.push(`/providers/${provider.id}`);
         }}
         style={{
           fontSize: 11,
