@@ -98,6 +98,44 @@ const clientBookingsInclude = {
   },
 } satisfies Prisma.BookingInclude;
 
+const clientUpcomingBookingInclude = {
+  finalOffers: { select: { id: true, acceptedAt: true } },
+  provider: {
+    select: {
+      id: true,
+      profession: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          isVerified: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.BookingInclude;
+
+const clientCompletedBookingInclude = {
+  provider: {
+    select: {
+      id: true,
+      profession: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          avatar: true,
+          isVerified: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.BookingInclude;
+
+
 const providerReviewInclude = {
   client: {
     select: {
@@ -407,61 +445,227 @@ export class DashboardService {
       throw new ForbiddenException("Only clients can access this dashboard");
     }
 
-    const [stats, recentBookings, favorites, notifications] = await Promise.all([
+    const now = new Date();
+    const upcomingTakeLimit = 5;
+    const completedTakeLimit = 5;
+    const providerCandidatePoolSize = 8;
+    const reviewTodoCandidatePoolSize = 10;
+    const messageTodoCandidatePoolSize = 10;
+
+    const [
+      legacyStats,
+      legacyRecentBookings,
+      legacyFavorites,
+      legacyNotifications,
+      upcomingRaw,
+      completedRaw,
+      favoritesForProviders,
+      bookedCountsRaw,
+      candidateReviewsRaw,
+      conversationsRaw,
+      totalBookingCount,
+    ] = await Promise.all([
       this.getClientDashboardStats(actor.id),
       this.prisma.booking.findMany({
-        where: {
-          clientId: actor.id,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+        where: { clientId: actor.id },
+        orderBy: { createdAt: "desc" },
         take: 5,
         include: clientBookingsInclude,
       }),
       this.prisma.favorite.findMany({
-        where: {
-          userId: actor.id,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+        where: { userId: actor.id },
+        orderBy: { createdAt: "desc" },
         take: 4,
         include: favoriteProviderInclude,
       }),
       this.prisma.notification.findMany({
-        where: {
-          userId: actor.id,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+        where: { userId: actor.id },
+        orderBy: { createdAt: "desc" },
         take: 5,
       }),
+      this.prisma.booking.findMany({
+        where: {
+          clientId: actor.id,
+          status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
+          scheduledDate: { gte: now },
+        },
+        orderBy: { scheduledDate: "asc" },
+        take: upcomingTakeLimit,
+        include: clientUpcomingBookingInclude,
+      }),
+      this.prisma.booking.findMany({
+        where: { clientId: actor.id, status: "COMPLETED" },
+        orderBy: { completedAt: "desc" },
+        take: completedTakeLimit,
+        include: clientCompletedBookingInclude,
+      }),
+      this.prisma.favorite.findMany({
+        where: { userId: actor.id },
+        orderBy: { createdAt: "desc" },
+        select: { providerId: true, createdAt: true },
+      }),
+      this.prisma.booking.groupBy({
+        by: ["providerId"],
+        where: { clientId: actor.id, status: "COMPLETED" },
+        _count: { providerId: true },
+        orderBy: { _count: { providerId: "desc" } },
+        take: providerCandidatePoolSize,
+      }),
+      this.prisma.booking.findMany({
+        where: { clientId: actor.id, status: "COMPLETED" },
+        orderBy: { completedAt: "desc" },
+        take: reviewTodoCandidatePoolSize,
+        select: {
+          id: true,
+          title: true,
+          completedAt: true,
+          price: true,
+          provider: { select: { user: { select: { firstName: true } } } },
+        },
+      }),
+      this.prisma.conversation.findMany({
+        where: { OR: [{ user1Id: actor.id }, { user2Id: actor.id }] },
+        orderBy: { lastMessageAt: "desc" },
+        take: messageTodoCandidatePoolSize,
+        include: {
+          user1: { select: { id: true, firstName: true, lastName: true } },
+          user2: { select: { id: true, firstName: true, lastName: true } },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: "desc" as const },
+            select: { id: true, senderId: true, content: true, createdAt: true },
+          },
+          _count: {
+            select: { messages: { where: { isRead: false, senderId: { not: actor.id } } } },
+          },
+        },
+      }),
+      this.prisma.booking.count({ where: { clientId: actor.id } }),
     ]);
 
-    const providerIds = favorites.map((favorite) => favorite.providerId);
-    const [ratingByProviderId, certifiedProviderIds] = await Promise.all([
-      this.getRatingByProviderIds(providerIds),
-      this.getCertifiedProviderIds(providerIds),
+    // Build providers list (merged: favorites + booked-not-favorited)
+    const favoriteProviderIds = favoritesForProviders.map((f) => f.providerId);
+    const favoriteIdSet = new Set(favoriteProviderIds);
+    const bookedNotFavorited = bookedCountsRaw
+      .filter((b) => !favoriteIdSet.has(b.providerId))
+      .map((b) => ({ id: b.providerId, bookingCount: b._count.providerId }));
+    const mergedProviderIds = [
+      ...favoriteProviderIds,
+      ...bookedNotFavorited.map((b) => b.id),
+    ].slice(0, 4);
+
+    const bookingCountByProviderId = new Map<string, number>(
+      bookedCountsRaw.map((b) => [b.providerId, b._count.providerId]),
+    );
+
+    const [providerRecords, ratingsByProviderId] = await Promise.all([
+      mergedProviderIds.length > 0
+        ? this.prisma.provider.findMany({
+            where: { id: { in: mergedProviderIds } },
+            select: {
+              id: true,
+              profession: true,
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                  isVerified: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve([] as Array<{ id: string; profession: string; user: { id: string; firstName: string | null; lastName: string | null; avatar: string | null; isVerified: boolean } }>),
+      this.getRatingByProviderIds(mergedProviderIds),
+    ]);
+    const providerById = new Map(providerRecords.map((p) => [p.id, p]));
+
+    const providers = mergedProviderIds
+      .map((id) => {
+        const p = providerById.get(id);
+        if (!p) return null;
+        return this.mapClientDashboardProviderRow(
+          p,
+          ratingsByProviderId.get(id) ?? 0,
+          favoriteIdSet.has(id),
+          bookingCountByProviderId.get(id) ?? 0,
+        );
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    // Build completed + review todos
+    const completedIds = completedRaw.map((b) => b.id);
+    const reviewsForCompleted = completedIds.length
+      ? await this.prisma.review.findMany({
+          where: { bookingId: { in: completedIds }, clientId: actor.id },
+          select: { bookingId: true, overallScore: true },
+        })
+      : [];
+    const reviewByBookingId = new Map<string, { overallScore: number }>(
+      reviewsForCompleted.map((r) => [r.bookingId, { overallScore: r.overallScore }]),
+    );
+
+    const completed = completedRaw.map((b) =>
+      this.mapClientDashboardCompletedBooking(b, reviewByBookingId.get(b.id) ?? null),
+    );
+
+    // Review todos: completed bookings without a review (independent take=10 query so we surface older ones too)
+    const candidateReviewIds = candidateReviewsRaw.map((b) => b.id);
+    const reviewedCandidateIds = candidateReviewIds.length
+      ? await this.prisma.review.findMany({
+          where: { bookingId: { in: candidateReviewIds }, clientId: actor.id },
+          select: { bookingId: true },
+        })
+      : [];
+    const reviewedCandidateSet = new Set(reviewedCandidateIds.map((r) => r.bookingId));
+    const reviewTodos = candidateReviewsRaw
+      .filter((b) => !reviewedCandidateSet.has(b.id))
+      .slice(0, 5)
+      .map((b) => this.mapClientReviewTodo(b));
+
+    // Unread message todos
+    const unreadMessageTodos = conversationsRaw
+      .filter((c) => c._count.messages > 0)
+      .filter((c) => c.messages.length > 0 && c.messages[0].senderId !== actor.id)
+      .slice(0, 5)
+      .map((c) => this.mapClientMessageTodo(c, actor.id));
+
+    // Upcoming
+    const upcoming = upcomingRaw.map((b) => this.mapClientUpcomingBooking(b));
+
+    // Legacy favorites rating (kept for backward compat)
+    const legacyProviderIds = legacyFavorites.map((favorite) => favorite.providerId);
+    const [legacyRatingByProviderId, legacyCertifiedProviderIds] = await Promise.all([
+      this.getRatingByProviderIds(legacyProviderIds),
+      this.getCertifiedProviderIds(legacyProviderIds),
     ]);
 
     return {
       success: true as const,
-      stats,
-      recentBookings: recentBookings.map((booking) => this.mapClientDashboardBooking(booking)),
-      favoriteProviders: favorites.map((favorite) =>
+      stats: legacyStats,
+      recentBookings: legacyRecentBookings.map((b) => this.mapClientDashboardBooking(b)),
+      favoriteProviders: legacyFavorites.map((favorite) =>
         this.mapFavoriteProvider(
           favorite,
-          ratingByProviderId.get(favorite.providerId) ?? 0,
-          certifiedProviderIds.has(favorite.providerId),
+          legacyRatingByProviderId.get(favorite.providerId) ?? 0,
+          legacyCertifiedProviderIds.has(favorite.providerId),
         ),
       ),
-      notifications: notifications.map((notification) => this.mapNotification(notification)),
+      notifications: legacyNotifications.map((notification) => this.mapNotification(notification)),
       user: {
         firstName: actor.firstName,
         lastName: actor.lastName,
       },
+
+      upcoming,
+      completed,
+      providers,
+      todos: {
+        reviews: reviewTodos,
+        unreadMessages: unreadMessageTodos,
+      },
+      hasAnyBookingEver: totalBookingCount > 0,
     };
   }
 
@@ -1139,6 +1343,115 @@ export class DashboardService {
       isRead: notification.isRead,
       readAt: notification.readAt,
       createdAt: notification.createdAt,
+    };
+  }
+
+  private mapClientUpcomingBooking(
+    booking: Prisma.BookingGetPayload<{ include: typeof clientUpcomingBookingInclude }>,
+  ) {
+    const user = booking.provider?.user;
+    return {
+      id: booking.id,
+      status: booking.status as "PENDING" | "CONFIRMED" | "IN_PROGRESS",
+      title: booking.title,
+      scheduledDate: (booking.scheduledDate ?? new Date()).toISOString(),
+      durationMinutes: booking.duration ?? null,
+      price: booking.price ?? 0,
+      hasOffer: booking.finalOffers.length > 0,
+      commune: booking.commune ?? null,
+      ref: booking.id.slice(-6).toUpperCase(),
+      provider: {
+        id: booking.provider?.id ?? "",
+        firstName: user?.firstName ?? "",
+        lastName: user?.lastName ?? "",
+        profession: booking.provider?.profession ?? "",
+        avatar: user?.avatar ?? null,
+        // Rating isn't fetched per upcoming-booking. The hero hides the rating when 0; if a
+        // future surface needs the real value, plumb it via getRatingByProviderIds.
+        rating: 0,
+        verified: user?.isVerified ?? false,
+      },
+    };
+  }
+
+  private mapClientDashboardCompletedBooking(
+    booking: Prisma.BookingGetPayload<{ include: typeof clientCompletedBookingInclude }>,
+    review: { overallScore: number } | null,
+  ) {
+    const user = booking.provider?.user;
+    return {
+      id: booking.id,
+      title: booking.title,
+      completedAt: (booking.completedAt ?? booking.updatedAt).toISOString(),
+      price: booking.price ?? 0,
+      provider: {
+        id: booking.provider?.id ?? "",
+        firstName: user?.firstName ?? "",
+        lastName: user?.lastName ?? "",
+      },
+      hasReview: review !== null,
+      reviewScore: review?.overallScore ?? null,
+    };
+  }
+
+  private mapClientDashboardProviderRow(
+    provider: { id: string; profession: string; user: { id: string; firstName: string | null; lastName: string | null; avatar: string | null; isVerified: boolean } },
+    rating: number,
+    isFavorite: boolean,
+    bookingCount: number,
+  ) {
+    return {
+      id: provider.id,
+      firstName: provider.user.firstName ?? "",
+      lastName: provider.user.lastName ?? "",
+      profession: provider.profession,
+      avatar: provider.user.avatar,
+      rating,
+      verified: provider.user.isVerified,
+      isFavorite,
+      bookingCount,
+    };
+  }
+
+  private mapClientReviewTodo(booking: {
+    id: string;
+    title: string;
+    completedAt: Date | null;
+    price: number | null;
+    provider: { user: { firstName: string | null } } | null;
+  }) {
+    return {
+      bookingId: booking.id,
+      title: booking.title,
+      completedAt: (booking.completedAt ?? new Date()).toISOString(),
+      price: booking.price ?? 0,
+      provider: { firstName: booking.provider?.user.firstName ?? "" },
+    };
+  }
+
+  private mapClientMessageTodo(
+    conversation: {
+      id: string;
+      lastMessageAt: Date;
+      user1: { id: string; firstName: string | null; lastName: string | null };
+      user2: { id: string; firstName: string | null; lastName: string | null };
+      messages: { senderId: string; content: string }[];
+      _count: { messages: number };
+    },
+    actorId: string,
+  ) {
+    const other = conversation.user1.id === actorId ? conversation.user2 : conversation.user1;
+    const lastMessage = conversation.messages[0] ?? null;
+    return {
+      conversationId: conversation.id,
+      unreadCount: conversation._count.messages,
+      lastMessageAt: conversation.lastMessageAt.toISOString(),
+      lastMessagePreview: lastMessage ? lastMessage.content.slice(0, 80) : null,
+      provider: {
+        id: other.id,
+        firstName: other.firstName ?? "",
+        lastName: other.lastName ?? "",
+      },
     };
   }
 

@@ -709,7 +709,77 @@ export const UpdateProviderAvailabilityDto = z.object({
   isAvailable: z.boolean(),
 });
 
+const ClientDashboardProviderShortSchema = z.object({
+  id: IdSchema,
+  firstName: z.string(),
+  lastName: z.string(),
+  profession: z.string(),
+  avatar: z.string().nullable(),
+  rating: z.number().min(0).max(5),
+  verified: z.boolean(),
+});
+
+export const ClientDashboardUpcomingBookingSchema = z.object({
+  id: IdSchema,
+  status: z.enum(["PENDING", "CONFIRMED", "IN_PROGRESS"]),
+  title: z.string(),
+  scheduledDate: z.string(),
+  durationMinutes: z.number().int().min(0).nullable(),
+  price: z.number().min(0),
+  hasOffer: z.boolean(),
+  commune: z.string().nullable(),
+  ref: z.string(),
+  provider: ClientDashboardProviderShortSchema,
+});
+
+export const ClientDashboardCompletedBookingSchema = z.object({
+  id: IdSchema,
+  title: z.string(),
+  completedAt: z.string(),
+  price: z.number().min(0),
+  provider: z.object({
+    id: IdSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+  }),
+  hasReview: z.boolean(),
+  reviewScore: z.number().int().min(1).max(5).nullable(),
+});
+
+export const ClientDashboardProviderRowSchema = z.object({
+  id: IdSchema,
+  firstName: z.string(),
+  lastName: z.string(),
+  profession: z.string(),
+  avatar: z.string().nullable(),
+  rating: z.number().min(0).max(5),
+  verified: z.boolean(),
+  isFavorite: z.boolean(),
+  bookingCount: z.number().int().min(0),
+});
+
+export const ClientDashboardReviewTodoSchema = z.object({
+  bookingId: IdSchema,
+  title: z.string(),
+  completedAt: z.string(),
+  price: z.number().min(0),
+  provider: z.object({ firstName: z.string() }),
+});
+
+export const ClientDashboardMessageTodoSchema = z.object({
+  conversationId: IdSchema,
+  unreadCount: z.number().int().min(1),
+  lastMessageAt: z.string(),
+  lastMessagePreview: z.string().nullable(),
+  provider: z.object({
+    id: IdSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+  }),
+});
+
 export const DashboardClientResponseSchema = z.object({
+  // Legacy fields — kept for backward-compat with non-web callers
   stats: z.object({
     totalBookings: z.number().int().min(0),
     completedBookings: z.number().int().min(0),
@@ -722,6 +792,16 @@ export const DashboardClientResponseSchema = z.object({
   favorites: z.array(ProviderSchema.partial()).optional(),
   notifications: z.array(NotificationSchema),
   user: UserSchema.pick({ firstName: true, lastName: true }).optional(),
+
+  // New fields consumed by the redesigned client dashboard
+  upcoming: z.array(ClientDashboardUpcomingBookingSchema),
+  completed: z.array(ClientDashboardCompletedBookingSchema),
+  providers: z.array(ClientDashboardProviderRowSchema),
+  todos: z.object({
+    reviews: z.array(ClientDashboardReviewTodoSchema),
+    unreadMessages: z.array(ClientDashboardMessageTodoSchema),
+  }),
+  hasAnyBookingEver: z.boolean(),
 });
 
 export const DashboardAdminResponseSchema = z.object({
@@ -1138,6 +1218,11 @@ export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
 export type AvailabilityStatus = z.infer<typeof AvailabilityStatusSchema>;
 export type ProviderDashboardStats = z.infer<typeof ProviderDashboardStatsSchema>;
 export type UpdateProviderAvailabilityDto = z.infer<typeof UpdateProviderAvailabilityDto>;
+export type ClientDashboardUpcomingBooking = z.infer<typeof ClientDashboardUpcomingBookingSchema>;
+export type ClientDashboardCompletedBooking = z.infer<typeof ClientDashboardCompletedBookingSchema>;
+export type ClientDashboardProviderRow = z.infer<typeof ClientDashboardProviderRowSchema>;
+export type ClientDashboardReviewTodo = z.infer<typeof ClientDashboardReviewTodoSchema>;
+export type ClientDashboardMessageTodo = z.infer<typeof ClientDashboardMessageTodoSchema>;
 export type DashboardClientResponse = z.infer<typeof DashboardClientResponseSchema>;
 export type DashboardAdminResponse = z.infer<typeof DashboardAdminResponseSchema>;
 export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
