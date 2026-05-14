@@ -120,15 +120,8 @@ export function RefuseReasonSheet(props: RefuseReasonSheetProps) {
             type="button"
             onClick={props.onClose}
             disabled={props.pending}
-            style={{
-              flex: 1,
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid var(--k-border)",
-              background: "var(--k-surface)",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
+            className="k-btn k-btn-secondary"
+            style={{ flex: 1 }}
           >
             Annuler
           </button>
@@ -136,17 +129,8 @@ export function RefuseReasonSheet(props: RefuseReasonSheetProps) {
             type="button"
             onClick={onSubmit}
             disabled={props.pending}
-            style={{
-              flex: 1.4,
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: 0,
-              background: "var(--k-text-primary)",
-              color: "white",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: props.pending ? "wait" : "pointer",
-            }}
+            className="k-btn k-btn-primary"
+            style={{ flex: 1.4 }}
           >
             {props.pending ? "Envoi…" : "Confirmer le refus"}
           </button>

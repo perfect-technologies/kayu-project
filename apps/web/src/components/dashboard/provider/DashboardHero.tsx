@@ -98,17 +98,8 @@ function OnboardingHero({ data }: { data: ProviderDashboardData }) {
       <button
         type="button"
         onClick={() => router.push("/pro/onboarding")}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: 8,
-          border: 0,
-          background: "var(--k-text-primary)",
-          color: "white",
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
+        className="k-btn k-btn-primary"
+        style={{ width: "100%" }}
       >
         Continuer l&apos;inscription →
       </button>
@@ -225,15 +216,8 @@ function PendingHero({ data, bookingId }: { data: ProviderDashboardData; booking
                 )
               : router.push("/messages")
           }
-          style={{
-            flex: 1,
-            padding: "9px 12px",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            borderRadius: 8,
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
         >
           Message
         </button>
@@ -241,15 +225,8 @@ function PendingHero({ data, bookingId }: { data: ProviderDashboardData; booking
           type="button"
           onClick={() => setRefuseOpen(true)}
           disabled={mutation.isPending}
-          style={{
-            flex: 1,
-            padding: "9px 12px",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            borderRadius: 8,
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
         >
           Refuser
         </button>
@@ -257,17 +234,8 @@ function PendingHero({ data, bookingId }: { data: ProviderDashboardData; booking
           type="button"
           onClick={() => mutation.mutate({ status: "CONFIRMED" })}
           disabled={mutation.isPending}
-          style={{
-            flex: 1.4,
-            padding: "9px 12px",
-            background: "var(--k-success)",
-            color: "white",
-            border: 0,
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: mutation.isPending ? "wait" : "pointer",
-          }}
+          className="k-btn k-btn-primary"
+          style={{ flex: 1.4 }}
         >
           {mutation.isPending && mutation.variables?.status === "CONFIRMED" ? "Envoi…" : "Accepter ✓"}
         </button>
@@ -368,32 +336,16 @@ function InProgressHero({ data, bookingId }: { data: ProviderDashboardData; book
                 )
               : router.push("/messages")
           }
-          style={{
-            flex: 1,
-            padding: "9px 12px",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            borderRadius: 8,
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
         >
           Message
         </button>
         <button
           type="button"
           onClick={() => router.push(`/bookings/${booking.id}`)}
-          style={{
-            flex: 1.4,
-            padding: "9px 12px",
-            background: "var(--k-text-primary)",
-            color: "white",
-            border: 0,
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-primary"
+          style={{ flex: 1.4 }}
         >
           Terminer la mission →
         </button>
@@ -503,32 +455,16 @@ function NextHero({
                 )
               : router.push("/messages")
           }
-          style={{
-            flex: 1,
-            padding: "9px 12px",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            borderRadius: 8,
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
         >
           Message
         </button>
         <button
           type="button"
           onClick={() => router.push(`/bookings/${booking.id}`)}
-          style={{
-            flex: 1.4,
-            padding: "9px 12px",
-            background: "var(--k-text-primary)",
-            color: "white",
-            border: 0,
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-primary"
+          style={{ flex: 1.4 }}
         >
           Voir la mission →
         </button>
@@ -587,18 +523,8 @@ function UnavailableHero({ data }: { data: ProviderDashboardData }) {
         type="button"
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
-        style={{
-          width: "100%",
-          marginTop: 14,
-          padding: "10px 14px",
-          background: "var(--k-success)",
-          color: "white",
-          border: 0,
-          borderRadius: 8,
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: mutation.isPending ? "wait" : "pointer",
-        }}
+        className="k-btn k-btn-primary"
+        style={{ width: "100%", marginTop: 14 }}
       >
         {mutation.isPending ? "Mise à jour…" : "Redevenir disponible"}
       </button>
@@ -651,32 +577,16 @@ function CalmHero({ data }: { data: ProviderDashboardData }) {
         <button
           type="button"
           onClick={() => router.push("/pro/earnings")}
-          style={{
-            flex: 1,
-            padding: "9px 12px",
-            border: "1px solid var(--k-border)",
-            background: "var(--k-surface)",
-            borderRadius: 8,
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-secondary"
+          style={{ flex: 1 }}
         >
           Voir mes revenus
         </button>
         <button
           type="button"
           onClick={onShare}
-          style={{
-            flex: 1.2,
-            padding: "9px 12px",
-            background: "var(--k-text-primary)",
-            color: "white",
-            border: 0,
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          className="k-btn k-btn-primary"
+          style={{ flex: 1.2 }}
         >
           Partager mon profil →
         </button>
@@ -739,18 +649,8 @@ function EmptyHero({ data }: { data: ProviderDashboardData }) {
       <button
         type="button"
         onClick={onShare}
-        style={{
-          width: "100%",
-          marginTop: 14,
-          padding: "10px 14px",
-          background: "var(--k-text-primary)",
-          color: "white",
-          border: 0,
-          borderRadius: 8,
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
+        className="k-btn k-btn-primary"
+        style={{ width: "100%", marginTop: 14 }}
       >
         Partager mon profil
       </button>

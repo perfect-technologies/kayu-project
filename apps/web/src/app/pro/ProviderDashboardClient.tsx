@@ -291,17 +291,7 @@ function ErrorBlock({ firstName, onRetry }: { firstName: string; onRetry: () => 
           type="button"
           onClick={onRetry}
           className="k-btn k-btn-primary"
-          style={{
-            marginTop: 8,
-            padding: "10px 16px",
-            background: "var(--k-text-primary)",
-            color: "white",
-            border: 0,
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          style={{ marginTop: 8 }}
         >
           Réessayer
         </button>
