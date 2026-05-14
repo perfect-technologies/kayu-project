@@ -1,27 +1,26 @@
+// apps/web/src/components/bookings/BookingDetail.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bookingsApi, finalOffersApi, queryKeys } from "@kayu/api";
 import type { FinalOffer } from "@kayu/schemas";
-import { formatMoneyFc } from "@kayu/ui";
-import { apiClient } from "@/lib/api";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { I } from "@kayu/ui/web";
-import { FinalOfferDialog } from "@/components/bookings/FinalOfferDialog";
+import { apiClient } from "@/lib/api";
+import { toV2Status } from "@/lib/booking-v2";
+import { BookingHero } from "./BookingHero";
+import { StepStrip } from "./StepStrip";
+import { AccordCard } from "./AccordCard";
+import { AddressRow } from "./AddressRow";
+import { MobileStickyBar } from "./MobileStickyBar";
+import { ActionsCard } from "./ActionsCard";
+import { DetailsCard } from "./DetailsCard";
+import { FinalOfferDialog } from "./FinalOfferDialog";
 import {
-  formatRelativeFR,
-  formatWhen,
-  fullAddress,
-  initialsFromName,
-  paymentStatusLabel,
-  priceLabelFor,
-  toV2Status,
-  type V2Status,
-} from "@/lib/booking-v2";
-
-// ─── Types ────────────────────────────────────────────────────────────────
+  deriveBookingActions,
+  type BookingAction,
+} from "./bookingActions";
 
 export interface BookingDetailData {
   id: string;
@@ -32,6 +31,7 @@ export interface BookingDetailData {
   city?: string | null;
   scheduledDate?: string | Date | null;
   createdAt?: string | Date | null;
+  paidAt?: string | Date | null;
   price?: number | null;
   commissionPct?: number | null;
   commissionAmt?: number | null;
@@ -44,6 +44,7 @@ export interface BookingDetailData {
   cancelReason?: string | null;
   clientNotes?: string | null;
   providerNotes?: string | null;
+  duration?: number | null;
   provider?: {
     id?: string | null;
     userId?: string | null;
@@ -61,17 +62,18 @@ export interface BookingDetailData {
     lastName?: string | null;
     avatar?: string | null;
   } | null;
-  // visual overlays synthesized by caller
   progress?: string | null;
   reviewed?: boolean | null;
   rating?: number | null;
   reviewCount?: number | null;
-  quote?: {
-    lines: { label: string; qty: number; unit: string; unitPrice: number }[];
-  } | null;
 }
 
-type BackendStatus = "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+type BackendStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED";
 
 type BookingMutationInput = {
   status?: BackendStatus;
@@ -79,37 +81,17 @@ type BookingMutationInput = {
   paymentMethod?: "cash";
 };
 
-// ─── Timeline metadata ────────────────────────────────────────────────────
-
-const TIMELINE_STEPS: Record<V2Status, string[]> = {
-  upcoming: ["booked", "confirmed", "done"],
-  active: ["booked", "confirmed", "done"],
-  completed: ["booked", "confirmed", "done", "paid"],
-  cancelled: ["booked", "cancelled"],
-};
-
-type StepMeta = { label: string; icon: keyof typeof I };
-const STEP_META: Record<string, StepMeta> = {
-  booked: { label: "Réservation créée", icon: "calendar" },
-  confirmed: { label: "Accord confirmé", icon: "check" },
-  done: { label: "Terminée", icon: "badgeCheck" },
-  paid: { label: "Payée", icon: "coins" },
-  cancelled: { label: "Annulée", icon: "x" },
-};
-
-const currentStepIndex = (
-  backend: string,
-  v2: V2Status,
-  isPaid?: boolean | null,
-): number => {
-  if (v2 === "upcoming") return backend === "PENDING" ? 0 : 1;
-  if (v2 === "active") return 2;
-  if (v2 === "completed") return isPaid ? 3 : 2;
-  if (v2 === "cancelled") return 1;
-  return 0;
-};
-
-// ─── Main component ───────────────────────────────────────────────────────
+function useIsDesktop() {
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const apply = () => setV(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return v;
+}
 
 export function BookingDetail({
   booking,
@@ -120,20 +102,21 @@ export function BookingDetail({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const v2Status = toV2Status(booking.status);
+  const isDesktop = useIsDesktop();
   const isClient = perspective === "client";
-  const steps = TIMELINE_STEPS[v2Status];
-  const step = currentStepIndex(booking.status, v2Status, booking.isPaid);
+  const v2 = toV2Status(booking.status);
 
   const counterparty = isClient
     ? {
         first: booking.provider?.user?.firstName ?? "",
         last: booking.provider?.user?.lastName ?? "",
         id: booking.provider?.userId ?? null,
-        role: booking.provider?.profession ?? "Votre pro",
+        role: booking.provider?.profession
+          ? `Votre ${booking.provider.profession}`
+          : "Votre pro",
         verified: !!booking.provider?.user?.isVerified,
-        rating: booking.rating,
-        reviews: booking.reviewCount,
+        rating: booking.rating ?? null,
+        reviews: booking.reviewCount ?? null,
       }
     : {
         first: booking.client?.firstName ?? "",
@@ -145,8 +128,9 @@ export function BookingDetail({
         reviews: null,
       };
 
-  const onBack = () => router.push("/bookings");
-  const onMessageCounterparty = () => {
+  const clientFirstName = booking.client?.firstName ?? "";
+
+  const onMessage = () => {
     const name = `${counterparty.first} ${counterparty.last}`.trim();
     if (counterparty.id) {
       router.push(
@@ -161,7 +145,9 @@ export function BookingDetail({
     mutationFn: () => bookingsApi(apiClient).cancel(booking.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(booking.id),
+      });
     },
   });
   const updateMutation = useMutation({
@@ -169,11 +155,12 @@ export function BookingDetail({
       bookingsApi(apiClient).update(booking.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(booking.id),
+      });
     },
   });
 
-  const [offerOpen, setOfferOpen] = useState(false);
   const offerQueryParams = useMemo(() => ({ bookingId: booking.id }), [booking.id]);
   const { data: offersData } = useQuery({
     queryKey: queryKeys.finalOffers.all(offerQueryParams),
@@ -181,27 +168,36 @@ export function BookingDetail({
     enabled: !!booking.id,
   });
   const bookingOffers = offersData?.finalOffers ?? [];
-  const activeOffer = useMemo(() => {
+  const activeOffer: FinalOffer | null = useMemo(() => {
     const accepted = bookingOffers.find((o) => o.status === "ACCEPTED");
     if (accepted) return accepted;
     return bookingOffers.find((o) => o.status === "PENDING") ?? null;
   }, [bookingOffers]);
+
   const createOffer = useMutation({
     mutationFn: (data: Parameters<ReturnType<typeof finalOffersApi>["create"]>[0]) =>
       finalOffersApi(apiClient).create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bookings.detail(booking.id),
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.finalOffers.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.messages.conversations() });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.conversations(),
+      });
     },
   });
+
   const providerRecordId = booking.provider?.id ?? null;
   const clientUserId = booking.client?.id ?? booking.clientId ?? null;
   const isLockedStatus =
     booking.status === "COMPLETED" || booking.status === "CANCELLED";
   const canRecordOffer =
     !isClient && !isLockedStatus && !!providerRecordId && !!clientUserId;
+
+  const [offerOpen, setOfferOpen] = useState(false);
+
   const scheduledForOffer = (() => {
     const source = activeOffer?.scheduledDate ?? booking.scheduledDate;
     if (!source) return undefined;
@@ -214,16 +210,13 @@ export function BookingDetail({
     durationHours:
       activeOffer?.duration != null
         ? String(Math.max(0.25, activeOffer.duration / 60))
-        : undefined,
+        : booking.duration != null
+          ? String(Math.max(0.25, booking.duration / 60))
+          : undefined,
     scheduledDate: scheduledForOffer,
     address: activeOffer?.address ?? booking.address ?? "",
     city: activeOffer?.city ?? booking.city ?? "Kinshasa",
     notes: activeOffer?.notes ?? "",
-  };
-  const adjustingOffer = !!activeOffer;
-
-  const onConfirmPayment = () => {
-    updateMutation.mutate({ isPaid: true, paymentMethod: "cash" });
   };
 
   const onCompleteBooking = async () => {
@@ -233,253 +226,157 @@ export function BookingDetail({
     updateMutation.mutate({ status: "COMPLETED" });
   };
 
-  return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", padding: "8px 0 32px" }}>
-        <button
-          onClick={onBack}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "transparent",
-            border: 0,
-            cursor: "pointer",
-            color: "var(--k-text-muted)",
-            fontSize: 13,
-            padding: "6px 2px",
-            marginBottom: 12,
-          }}
-        >
-          <I.arrowLeft size={14} /> Mes réservations
-        </button>
+  const busy = cancelMutation.isPending || updateMutation.isPending;
 
-        {/* Header row: id + title + price */}
+  const actions = deriveBookingActions({
+    v2Status: v2,
+    backendStatus: booking.status,
+    isPaid: !!booking.isPaid,
+    isClient,
+    hasOffer: !!activeOffer,
+    reviewed: !!booking.reviewed,
+    counterpartyFirstName: counterparty.first,
+  });
+
+  const onAction = (id: BookingAction["id"]) => {
+    switch (id) {
+      case "message":
+      case "messageNamed":
+        return onMessage();
+      case "cancel":
+        return cancelMutation.mutate();
+      case "rebook":
+        if (booking.providerId)
+          router.push(`/providers/${booking.providerId}`);
+        return;
+      case "review":
+        if (booking.providerId)
+          router.push(
+            `/review/${booking.providerId}?bookingId=${booking.id}`,
+          );
+        return;
+      case "confirmBooking":
+        return updateMutation.mutate({ status: "CONFIRMED" });
+      case "completeBooking":
+        return void onCompleteBooking();
+      case "confirmPayment":
+        return updateMutation.mutate({ isPaid: true, paymentMethod: "cash" });
+      case "createAccord":
+      case "adjustAccord":
+        setOfferOpen(true);
+        return;
+    }
+  };
+
+  const accordDuration = activeOffer?.duration ?? booking.duration ?? null;
+  const heroBooking = {
+    id: booking.id,
+    title: activeOffer?.title ?? booking.title,
+    status: booking.status,
+    scheduledDate: activeOffer?.scheduledDate ?? booking.scheduledDate,
+    price: activeOffer?.price ?? booking.price,
+    isPaid: booking.isPaid ?? false,
+    cancelledBy: booking.cancelledBy,
+    cancelReason: booking.cancelReason,
+    progress: booking.progress,
+  };
+
+  return (
+    <div
+      style={{
+        maxWidth: 1080,
+        margin: "0 auto",
+        padding: isDesktop ? "16px 24px 40px" : "12px 16px 96px",
+      }}
+    >
+      <button
+        onClick={() => router.push("/bookings")}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "transparent",
+          border: 0,
+          cursor: "pointer",
+          color: "var(--k-text-muted)",
+          fontSize: 11,
+          padding: "6px 2px",
+          marginBottom: 12,
+          fontFamily: "var(--k-font-mono)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        <I.arrowLeft size={13} /> Mes réservations
+      </button>
+
+      <BookingHero
+        booking={heroBooking}
+        duration={accordDuration}
+        counterparty={counterparty}
+        isClient={isClient}
+        isDesktop={isDesktop}
+        onMessage={onMessage}
+      />
+
+      <div style={{ marginTop: 12 }}>
+        <StepStrip
+          v2Status={v2}
+          backendStatus={booking.status}
+          isPaid={!!booking.isPaid}
+        />
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          display: "grid",
+          gap: isDesktop ? 18 : 12,
+          gridTemplateColumns: isDesktop ? "1fr 300px" : "1fr",
+          alignItems: "start",
+        }}
+      >
         <div
           style={{
             display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 24,
-            marginBottom: 24,
+            flexDirection: "column",
+            gap: isDesktop ? 14 : 12,
           }}
         >
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <span
-                className="k-caption"
-                style={{
-                  color: "var(--k-text-muted)",
-                  fontSize: 11,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  fontFamily: "var(--k-font-mono)",
-                }}
-              >
-                #{booking.id.slice(0, 8).toUpperCase()}
-              </span>
-              <BdStatusChip status={v2Status} />
-            </div>
-            <h1 className="k-display-m" style={{ margin: "0 0 6px" }}>
-              {booking.title}
-            </h1>
-            <div className="k-body" style={{ color: "var(--k-text-muted)" }}>
-              {formatWhen(booking.scheduledDate)} · {fullAddress(booking)}
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div
-              className="k-caption"
-              style={{
-                color: "var(--k-text-muted)",
-                fontSize: 11,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                marginBottom: 4,
-              }}
-            >
-              {priceLabelFor(booking)}
-            </div>
-            <div
-              className="k-price"
-              style={{
-                fontFamily: "var(--k-font-display)",
-                fontWeight: 700,
-                fontSize: 28,
-                letterSpacing: "-0.02em",
-                color: "var(--k-text-primary)",
-              }}
-            >
-              {(booking.price ?? 0).toLocaleString("fr-FR")} FC
-            </div>
-          </div>
+          <AccordCard
+            booking={booking}
+            offer={activeOffer}
+            perspective={perspective}
+            isDesktop={isDesktop}
+            paidAt={booking.paidAt}
+            onCreate={() => setOfferOpen(true)}
+            onAdjust={() => setOfferOpen(true)}
+            clientFirstName={clientFirstName}
+          />
+          <AddressRow booking={booking} perspective={perspective} />
         </div>
 
-        {/* 2-col layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 28 }}>
-          {/* Main column */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <WebCard title="Suivi" count={`${step + 1}/${steps.length}`}>
-              <Timeline steps={steps} step={step} progress={booking.progress ?? null} />
-            </WebCard>
-
-            <WebCard
-              title="Accord"
-              subtitle={
-                activeOffer
-                  ? "Accord final confirmé"
-                  : booking.quote
-                    ? "Accord final confirmé"
-                    : "Demande directe"
-              }
-            >
-              {activeOffer ? (
-                <BookingFinalOfferCard
-                  offer={activeOffer}
-                  isClient={isClient}
-                  canAdjust={canRecordOffer}
-                  onAdjust={() => setOfferOpen(true)}
-                />
-              ) : (
-                <>
-                  <QuoteBreakdown booking={booking} isClient={isClient} />
-                  {canRecordOffer && booking.status === "PENDING" && (
-                    <button
-                      onClick={() => setOfferOpen(true)}
-                      className="k-btn k-btn-primary"
-                      style={{ marginTop: 16, width: "100%" }}
-                    >
-                      <I.coins size={14} /> Enregistrer l'accord final
-                    </button>
-                  )}
-                </>
-              )}
-            </WebCard>
-
-            <WebCard title={isClient ? "Adresse d'intervention" : "Adresse client"}>
-              <AddressCard booking={booking} isClient={isClient} />
-            </WebCard>
-
-            <WebCard title="Conversation">
-              <ChatPreview isClient={isClient} onOpen={onMessageCounterparty} />
-              <button
-                onClick={onMessageCounterparty}
-                className="k-btn k-btn-secondary"
-                style={{ marginTop: 10, width: "100%" }}
-              >
-                Ouvrir la conversation <I.arrowRight size={13} />
-              </button>
-            </WebCard>
-          </div>
-
-          {/* Sidebar */}
+        {isDesktop && (
           <aside
             style={{
               position: "sticky",
-              top: 24,
+              top: 20,
               alignSelf: "start",
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 12,
             }}
           >
-            <div
-              style={{
-                background: "var(--k-surface)",
-                border: "1px solid var(--k-border)",
-                borderRadius: "var(--k-r-lg)",
-                padding: 20,
-                boxShadow: "var(--k-e1)",
-              }}
-            >
-              <div style={{ marginBottom: 16 }}>
-                <CounterpartyCard
-                  counterparty={counterparty}
-                  onMessage={onMessageCounterparty}
-                />
-              </div>
-              <ActionButtons
-                backendStatus={booking.status as BackendStatus}
-                v2Status={v2Status}
-                isClient={isClient}
-                booking={booking}
-                busy={cancelMutation.isPending || updateMutation.isPending}
-                onMessage={onMessageCounterparty}
-                onReview={() =>
-                  booking.providerId &&
-                  router.push(
-                    `/review/${booking.providerId}?bookingId=${booking.id}`,
-                  )
-                }
-                onRebook={() =>
-                  booking.providerId && router.push(`/providers/${booking.providerId}`)
-                }
-                onCancel={() => cancelMutation.mutate()}
-                onConfirm={() => updateMutation.mutate({ status: "CONFIRMED" })}
-                onComplete={onCompleteBooking}
-                onConfirmPayment={onConfirmPayment}
-              />
-            </div>
-
-            <div
-              style={{
-                background: "var(--k-surface)",
-                border: "1px solid var(--k-border)",
-                borderRadius: "var(--k-r-lg)",
-                padding: 20,
-                boxShadow: "var(--k-e1)",
-              }}
-            >
-              <h4
-                style={{
-                  fontFamily: "var(--k-font-display)",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  margin: "0 0 10px",
-                  color: "var(--k-text-muted)",
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Détails
-              </h4>
-              <MetaRow
-                label="Réservation"
-                value={`#${booking.id.slice(0, 8).toUpperCase()}`}
-                mono
-              />
-              <MetaRow label="Créée" value={formatRelativeFR(booking.createdAt)} />
-              <MetaRow
-                label={isClient ? "Paiement" : "Etat du paiement"}
-                value={paymentStatusLabel(booking)}
-              />
-              {!isClient && <MetaRow label="Zone" value={booking.city ?? "—"} />}
-            </div>
-
-            <div
-              style={{
-                padding: 14,
-                background: "var(--k-surface-primary)",
-                borderRadius: "var(--k-r-md)",
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-start",
-              }}
-            >
-              <I.coins
-                size={16}
-                strokeColor="var(--k-primary)"
-                style={{ marginTop: 2, flexShrink: 0 }}
-              />
-              <div style={{ fontSize: 12, color: "var(--k-text-body)", lineHeight: 1.5 }}>
-                <strong>Paiement en espèces</strong>
-                <div style={{ color: "var(--k-text-muted)", marginTop: 3 }}>
-                  KAYOU n'encaisse pas encore le client. Le prestataire confirme le
-                  règlement en espèces après la mission pour débloquer ses gains.
-                </div>
-              </div>
-            </div>
+            <ActionsCard actions={actions} busy={busy} onAction={onAction} />
+            <DetailsCard booking={booking} isClient={isClient} />
           </aside>
-        </div>
+        )}
+      </div>
+
+      {!isDesktop && (
+        <MobileStickyBar actions={actions} busy={busy} onAction={onAction} />
+      )}
+
       {canRecordOffer && providerRecordId && clientUserId && (
         <FinalOfferDialog
           open={offerOpen}
@@ -488,1002 +385,12 @@ export function BookingDetail({
           clientId={clientUserId}
           bookingId={booking.id}
           initialValues={offerInitialValues}
-          heading={adjustingOffer ? "Ajuster l'accord final" : "Enregistrer l'accord final"}
-          subheading={
-            adjustingOffer
-              ? "L'accord précédent sera remplacé par cette mise à jour."
-              : "Résumez l'accord déjà convenu avec le client. La réservation est confirmée immédiatement."
-          }
-          submitLabel={adjustingOffer ? "Mettre à jour l'accord" : "Confirmer l'accord"}
           onSubmit={(data) => createOffer.mutateAsync(data)}
           busy={createOffer.isPending}
+          commissionPct={booking.commissionPct ?? 10}
+          clientFirstName={clientFirstName}
         />
       )}
     </div>
   );
 }
-
-// ─── Subcomponents ────────────────────────────────────────────────────────
-
-function WebCard({
-  title,
-  subtitle,
-  count,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  count?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      style={{
-        background: "var(--k-surface)",
-        border: "1px solid var(--k-border)",
-        borderRadius: "var(--k-r-lg)",
-        padding: 24,
-        boxShadow: "var(--k-e1)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginBottom: 16,
-          gap: 12,
-        }}
-      >
-        <div>
-          <h3 className="k-heading" style={{ margin: 0 }}>
-            {title}
-          </h3>
-          {subtitle && (
-            <div
-              className="k-caption"
-              style={{ color: "var(--k-text-muted)", marginTop: 3, fontSize: 12 }}
-            >
-              {subtitle}
-            </div>
-          )}
-        </div>
-        {count && (
-          <span
-            className="k-caption"
-            style={{
-              color: "var(--k-text-muted)",
-              fontFamily: "var(--k-font-mono)",
-              fontSize: 12,
-            }}
-          >
-            {count}
-          </span>
-        )}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "8px 0",
-        borderBottom: "1px solid var(--k-border-subtle)",
-        fontSize: 13,
-      }}
-    >
-      <span style={{ color: "var(--k-text-muted)" }}>{label}</span>
-      <span
-        style={{
-          color: "var(--k-text-primary)",
-          fontWeight: 500,
-          fontFamily: mono ? "var(--k-font-mono)" : "var(--k-font-body)",
-          fontSize: mono ? 12 : 13,
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function BdStatusChip({ status }: { status: V2Status }) {
-  const map: Record<V2Status, { label: string; cls: string }> = {
-    upcoming: { label: "À venir", cls: "k-chip-primary" },
-    active: { label: "Confirmée", cls: "k-chip-success" },
-    completed: { label: "Terminée", cls: "" },
-    cancelled: { label: "Annulée", cls: "" },
-  };
-  const c = map[status];
-  const style =
-    status === "cancelled"
-      ? { background: "var(--k-danger-subtle)", color: "#BE123C" }
-      : undefined;
-  return (
-    <span className={`k-chip k-chip-sm ${c.cls}`} style={style}>
-      {c.label}
-    </span>
-  );
-}
-
-function Timeline({
-  steps,
-  step,
-  progress,
-}: {
-  steps: string[];
-  step: number;
-  progress: string | null;
-}) {
-  return (
-    <div style={{ position: "relative", padding: "4px 0" }}>
-      {steps.map((s, i) => {
-        const meta = STEP_META[s];
-        const done = i < step;
-        const current = i === step;
-        const Icon = I[meta.icon] ?? I.check;
-        const isLast = i === steps.length - 1;
-        return (
-          <div
-            key={s}
-            style={{
-              display: "flex",
-              gap: 12,
-              paddingBottom: isLast ? 0 : 16,
-              position: "relative",
-            }}
-          >
-            {!isLast && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 15,
-                  top: 28,
-                  bottom: 0,
-                  width: 2,
-                  background: done ? "var(--k-success)" : "var(--k-border)",
-                }}
-              />
-            )}
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: done
-                  ? "var(--k-success)"
-                  : current
-                    ? "var(--k-primary)"
-                    : "var(--k-surface)",
-                color: done || current ? "white" : "var(--k-text-muted)",
-                border: `2px solid ${
-                  done
-                    ? "var(--k-success)"
-                    : current
-                      ? "var(--k-primary)"
-                      : "var(--k-border)"
-                }`,
-                boxShadow: current ? "0 0 0 4px var(--k-primary-subtle)" : "none",
-                position: "relative",
-                zIndex: 1,
-              }}
-            >
-              <Icon size={14} stroke={2} />
-            </div>
-            <div style={{ flex: 1, paddingTop: 4 }}>
-              <div
-                style={{
-                  fontWeight: current ? 600 : 500,
-                  fontSize: 13.5,
-                  color: done || current ? "var(--k-text-primary)" : "var(--k-text-muted)",
-                }}
-              >
-                {meta.label}
-              </div>
-              {current && (
-                <div
-                  className="k-caption"
-                  style={{
-                    color: "var(--k-text-muted)",
-                    marginTop: 2,
-                    fontSize: 12,
-                  }}
-                >
-                  {progress || "À confirmer avec le pro"}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function BookingFinalOfferCard({
-  offer,
-  isClient,
-  canAdjust,
-  onAdjust,
-}: {
-  offer: FinalOffer;
-  isClient: boolean;
-  canAdjust: boolean;
-  onAdjust: () => void;
-}) {
-  const scheduled = offer.scheduledDate
-    ? offer.scheduledDate instanceof Date
-      ? offer.scheduledDate
-      : new Date(offer.scheduledDate)
-    : null;
-  const dateLabel =
-    scheduled && !Number.isNaN(scheduled.getTime())
-      ? scheduled.toLocaleString("fr-FR", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "Date à confirmer";
-  const durationLabel = (() => {
-    const minutes = offer.duration ?? 0;
-    if (!minutes || minutes <= 0) return "À confirmer";
-    const hours = Math.floor(minutes / 60);
-    const remainder = minutes % 60;
-    if (hours > 0 && remainder > 0) return `${hours}h${String(remainder).padStart(2, "0")}`;
-    if (hours > 0) return `${hours} h`;
-    return `${remainder} min`;
-  })();
-  const addressLabel = [offer.address, offer.city].filter(Boolean).join(", ") || "À confirmer";
-  const isAccepted = offer.status === "ACCEPTED";
-
-  return (
-    <div
-      style={{
-        border: "1px solid var(--k-border)",
-        borderRadius: "var(--k-r-md)",
-        padding: 18,
-        background: "linear-gradient(180deg, var(--k-surface-primary) 0%, var(--k-surface) 65%)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div
-            className="k-overline"
-            style={{ color: "var(--k-primary)", letterSpacing: "0.08em" }}
-          >
-            Accord final
-          </div>
-          <div
-            style={{
-              marginTop: 4,
-              fontFamily: "var(--k-font-display)",
-              fontSize: 17,
-              fontWeight: 700,
-              color: "var(--k-text-primary)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {offer.title}
-          </div>
-        </div>
-        <span className={`k-chip k-chip-sm ${isAccepted ? "k-chip-success" : ""}`}>
-          {isAccepted ? "Confirmé" : "Enregistré"}
-        </span>
-      </div>
-      <div
-        className="k-price"
-        style={{
-          marginTop: 12,
-          color: "var(--k-text-primary)",
-          fontFamily: "var(--k-font-display)",
-          fontWeight: 700,
-          fontSize: 28,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {formatMoneyFc(offer.price)}
-      </div>
-      {offer.description && (
-        <p
-          className="k-body-m"
-          style={{ margin: "8px 0 0", color: "var(--k-text-body)", fontSize: 13.5 }}
-        >
-          {offer.description}
-        </p>
-      )}
-      <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-        <OfferDetailRow icon="calendar" label="Date et heure" value={dateLabel} />
-        <OfferDetailRow icon="clock" label="Durée" value={durationLabel} />
-        <OfferDetailRow icon="mapPin" label="Adresse" value={addressLabel} />
-        {offer.notes && (
-          <OfferDetailRow icon="info" label="Précision" value={offer.notes} />
-        )}
-      </div>
-      {!isClient && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: 8,
-            marginTop: 14,
-            paddingTop: 12,
-            borderTop: "1px dashed var(--k-border)",
-            fontSize: 12.5,
-          }}
-        >
-          <span style={{ color: "var(--k-text-muted)" }}>
-            Commission KAYOU{offer.commissionPct ? ` (${offer.commissionPct}%)` : ""}
-          </span>
-          <span className="k-price" style={{ color: "var(--k-text-muted)" }}>
-            −{(offer.commissionAmt ?? 0).toLocaleString("fr-FR")} FC
-          </span>
-        </div>
-      )}
-      {!isClient && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: 8,
-            marginTop: 4,
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          <span style={{ color: "var(--k-text-body)" }}>Gain net estimé</span>
-          <span className="k-price" style={{ color: "var(--k-primary)", fontWeight: 700 }}>
-            {(offer.providerNetAmt ?? 0).toLocaleString("fr-FR")} FC
-          </span>
-        </div>
-      )}
-      <div
-        className="k-caption"
-        style={{
-          marginTop: 12,
-          padding: "10px 12px",
-          borderRadius: 10,
-          background: "var(--k-surface)",
-          border: "1px solid var(--k-border-subtle)",
-          color: "var(--k-text-body)",
-          fontSize: 12,
-        }}
-      >
-        Paiement en espèces à la fin de la mission.
-      </div>
-      {canAdjust && (
-        <button
-          onClick={onAdjust}
-          className="k-btn k-btn-secondary"
-          style={{ width: "100%", marginTop: 12 }}
-        >
-          <I.pencil size={14} /> Ajuster l'accord
-        </button>
-      )}
-    </div>
-  );
-}
-
-function OfferDetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: keyof typeof I;
-  label: string;
-  value: string;
-}) {
-  const Icon = I[icon] ?? I.check;
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "16px 1fr auto",
-        alignItems: "baseline",
-        gap: 10,
-        fontSize: 13,
-      }}
-    >
-      <Icon size={14} strokeColor="var(--k-text-muted)" />
-      <span style={{ color: "var(--k-text-muted)" }}>{label}</span>
-      <span style={{ color: "var(--k-text-primary)", fontWeight: 600, textAlign: "right" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function QuoteBreakdown({
-  booking,
-  isClient,
-}: {
-  booking: BookingDetailData;
-  isClient: boolean;
-}) {
-  const lines = booking.quote?.lines ?? null;
-  const total = booking.price ?? 0;
-  const commissionPct = booking.commissionPct ?? 10;
-  const commission = booking.commissionAmt ?? Math.round((total * commissionPct) / 100);
-  const providerNet = booking.providerNetAmt ?? total - commission;
-  return (
-    <div>
-      {lines && lines.length > 0 ? (
-        lines.map((l, i) => (
-          <div
-            key={i}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto auto",
-              gap: 12,
-              padding: "10px 0",
-              borderBottom: "1px solid var(--k-border-subtle)",
-              alignItems: "baseline",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 13.5, color: "var(--k-text-primary)", fontWeight: 500 }}>
-                {l.label}
-              </div>
-              <div
-                className="k-caption"
-                style={{ color: "var(--k-text-muted)", fontSize: 11 }}
-              >
-                {l.qty} × {l.unit}
-              </div>
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--k-font-mono)",
-                fontSize: 12,
-                color: "var(--k-text-muted)",
-              }}
-            >
-              {l.unitPrice.toLocaleString("fr-FR")} FC
-            </div>
-            <div
-              className="k-price"
-              style={{
-                fontSize: 13,
-                color: "var(--k-text-primary)",
-                fontFamily: "var(--k-font-mono)",
-              }}
-            >
-              {(l.qty * l.unitPrice).toLocaleString("fr-FR")} FC
-            </div>
-          </div>
-        ))
-      ) : (
-        <div
-          className="k-body"
-          style={{
-            padding: "10px 0",
-            color: "var(--k-text-muted)",
-            fontSize: 13,
-          }}
-        >
-          {booking.status === "PENDING"
-            ? "Montant estimé à la réservation. Le prestataire enregistre l'accord final après discussion pour confirmer la réservation."
-            : "Prix convenu avec le prestataire. Réglement en espèces à la fin de la mission."}
-        </div>
-      )}
-      <div
-        style={{
-          marginTop: 10,
-          paddingTop: 12,
-          borderTop: "2px solid var(--k-text-primary)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-        }}
-      >
-        <span style={{ fontFamily: "var(--k-font-display)", fontWeight: 700, fontSize: 14 }}>
-          {lines && lines.length > 0
-            ? "Total"
-            : booking.status === "PENDING"
-              ? "Estimation"
-              : "Prix convenu"}
-        </span>
-        <span
-          className="k-price"
-          style={{
-            fontFamily: "var(--k-font-display)",
-            fontWeight: 700,
-            fontSize: 20,
-            letterSpacing: "-0.02em",
-            color: "var(--k-text-primary)",
-          }}
-        >
-          {total.toLocaleString("fr-FR")} FC
-        </span>
-      </div>
-      {!isClient && (
-        <>
-          <div
-            style={{
-              marginTop: 6,
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 12,
-            }}
-          >
-            <span style={{ color: "var(--k-text-muted)" }}>
-              Commission KAYOU ({commissionPct}%)
-            </span>
-            <span
-              className="k-price"
-              style={{ color: "var(--k-text-muted)", fontSize: 12 }}
-            >
-              −{commission.toLocaleString("fr-FR")} FC
-            </span>
-          </div>
-          <div
-            style={{
-              marginTop: 4,
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            <span style={{ color: "var(--k-text-body)" }}>Gain net estimé</span>
-            <span className="k-price" style={{ color: "var(--k-primary)", fontWeight: 700 }}>
-              {providerNet.toLocaleString("fr-FR")} FC
-            </span>
-          </div>
-          <div
-            className="k-caption"
-            style={{
-              color: "var(--k-text-muted)",
-              marginTop: 6,
-              fontSize: 11.5,
-            }}
-          >
-            Le gain n'est crédité qu'après confirmation du paiement reçu en espèces.
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function CounterpartyCard({
-  counterparty,
-  onMessage,
-}: {
-  counterparty: {
-    first: string;
-    last: string;
-    id: string | null;
-    role: string;
-    verified: boolean;
-    rating: number | null | undefined;
-    reviews: number | null | undefined;
-  };
-  onMessage: () => void;
-}) {
-  const name = `${counterparty.first} ${counterparty.last}`.trim() || "—";
-  return (
-    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <Avatar style={{ width: 52, height: 52 }}>
-        <AvatarFallback
-          style={{
-            background: "var(--k-primary)",
-            color: "#fff",
-            fontWeight: 600,
-          }}
-        >
-          {initialsFromName(counterparty.first, counterparty.last)}
-        </AvatarFallback>
-      </Avatar>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          className="k-caption"
-          style={{
-            color: "var(--k-text-muted)",
-            fontSize: 11,
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            marginBottom: 2,
-          }}
-        >
-          {counterparty.role}
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--k-font-display)",
-            fontWeight: 600,
-            fontSize: 15.5,
-            color: "var(--k-text-primary)",
-            marginBottom: 2,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          {name}
-          {counterparty.verified && (
-            <I.badgeCheck size={14} strokeColor="var(--k-success)" />
-          )}
-        </div>
-        {counterparty.rating != null ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-            <I.star size={12} strokeColor="var(--k-warning)" />
-            <strong style={{ color: "var(--k-text-primary)" }}>
-              {counterparty.rating.toFixed(1)}
-            </strong>
-            {counterparty.reviews != null && (
-              <span style={{ color: "var(--k-text-muted)" }}>
-                ({counterparty.reviews} avis)
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="k-caption" style={{ color: "var(--k-text-muted)", fontSize: 12 }}>
-            Nouveau
-          </div>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={onMessage} style={iconBtn} title="Message">
-          <I.messageCircle size={15} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ActionButtons({
-  backendStatus,
-  v2Status,
-  isClient,
-  booking,
-  busy,
-  onMessage,
-  onReview,
-  onRebook,
-  onCancel,
-  onConfirm,
-  onComplete,
-  onConfirmPayment,
-}: {
-  backendStatus: BackendStatus;
-  v2Status: V2Status;
-  isClient: boolean;
-  booking: BookingDetailData;
-  busy: boolean;
-  onMessage: () => void;
-  onReview: () => void;
-  onRebook: () => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-  onComplete: () => void;
-  onConfirmPayment: () => void;
-}) {
-  if (v2Status === "upcoming") {
-    return (
-      <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
-        {!isClient && backendStatus === "PENDING" && (
-          <button
-            onClick={onConfirm}
-            className="k-btn k-btn-primary k-btn-lg"
-            style={{ width: "100%" }}
-            disabled={busy}
-          >
-            <I.check size={15} /> Confirmer la réservation
-          </button>
-        )}
-        {!isClient && backendStatus === "CONFIRMED" && (
-          <button
-            onClick={onComplete}
-            className="k-btn k-btn-primary k-btn-lg"
-            style={{ width: "100%" }}
-            disabled={busy}
-          >
-            <I.check size={15} /> Marquer comme terminée
-          </button>
-        )}
-        <button
-          onClick={onMessage}
-          className="k-btn k-btn-secondary"
-          style={{ width: "100%" }}
-        >
-          <I.messageCircle size={15} />
-          {isClient ? "Contacter le pro" : "Contacter le client"}
-        </button>
-        <button
-          onClick={onCancel}
-          className="k-btn k-btn-secondary"
-          style={{ width: "100%" }}
-          disabled={busy}
-        >
-          {isClient ? "Annuler" : "Se désister"}
-        </button>
-      </div>
-    );
-  }
-  if (v2Status === "active") {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {!isClient && (
-          <button
-            onClick={onComplete}
-            className="k-btn k-btn-primary k-btn-lg"
-            style={{ width: "100%" }}
-            disabled={busy}
-          >
-            <I.check size={15} /> Marquer comme terminée
-          </button>
-        )}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={onMessage}
-            className="k-btn k-btn-secondary"
-            style={{ flex: 1 }}
-          >
-            <I.messageCircle size={14} /> Message
-          </button>
-        </div>
-      </div>
-    );
-  }
-  if (v2Status === "completed") {
-    return (
-      <div style={{ display: "flex", gap: 8, flexDirection: "column" }}>
-        {!isClient && !booking.isPaid && (
-          <button
-            onClick={onConfirmPayment}
-            className="k-btn k-btn-primary"
-            style={{ width: "100%" }}
-            disabled={busy}
-          >
-            <I.coins size={14} /> Confirmer le paiement reçu
-          </button>
-        )}
-        <div style={{ display: "flex", gap: 8 }}>
-          {isClient && !booking.reviewed && (
-            <button onClick={onReview} className="k-btn k-btn-primary" style={{ flex: 1 }}>
-              <I.star size={14} /> Laisser un avis
-            </button>
-          )}
-          {isClient && booking.reviewed && (
-            <button onClick={onRebook} className="k-btn k-btn-primary" style={{ flex: 1 }}>
-              Réserver à nouveau
-            </button>
-          )}
-          <button
-            onClick={onMessage}
-            className="k-btn k-btn-secondary"
-            style={{ flex: 1 }}
-          >
-            <I.messageCircle size={14} /> Message
-          </button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <button
-      onClick={onMessage}
-      className="k-btn k-btn-secondary"
-      style={{ width: "100%" }}
-    >
-      Contacter
-    </button>
-  );
-}
-
-function AddressCard({
-  booking,
-  isClient,
-}: {
-  booking: BookingDetailData;
-  isClient: boolean;
-}) {
-  const address = fullAddress(booking);
-  const pinLabel = (booking.city ?? address.split(",").slice(-1)[0] ?? "Kinshasa").trim();
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
-        <I.mapPin
-          size={16}
-          strokeColor="var(--k-text-muted)"
-          style={{ marginTop: 2, flexShrink: 0 }}
-        />
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: 13.5,
-              color: "var(--k-text-primary)",
-              fontWeight: 500,
-              lineHeight: 1.4,
-            }}
-          >
-            {address}
-          </div>
-          <div
-            className="k-caption"
-            style={{ color: "var(--k-text-muted)", fontSize: 11, marginTop: 2 }}
-          >
-            {isClient ? "Adresse d'intervention" : "Adresse client"}
-          </div>
-        </div>
-      </div>
-      <MiniMap label={pinLabel} />
-    </div>
-  );
-}
-
-export function MiniMap({ label }: { label: string }) {
-  return (
-    <div
-      style={{
-        height: 110,
-        borderRadius: 10,
-        background: "linear-gradient(135deg, #ECFDF5 0%, #DBEAFE 100%)",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <svg
-        width="100%"
-        height="100%"
-        viewBox="0 0 400 110"
-        preserveAspectRatio="none"
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <path
-          d="M0 70 Q 100 30 200 60 T 400 50"
-          stroke="#9CA3AF"
-          strokeWidth="1.5"
-          fill="none"
-          strokeDasharray="3 3"
-        />
-        <path d="M0 90 L 400 90" stroke="#D1D5DB" strokeWidth="0.8" fill="none" />
-        <circle cx="80" cy="55" r="3" fill="#9CA3AF" />
-        <circle cx="250" cy="65" r="3" fill="#9CA3AF" />
-        <circle cx="350" cy="40" r="3" fill="#9CA3AF" />
-      </svg>
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "var(--k-primary)",
-          color: "white",
-          padding: "6px 10px",
-          borderRadius: 999,
-          fontSize: 11,
-          fontWeight: 600,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        }}
-      >
-        <I.mapPin size={11} /> {label}
-      </div>
-      <button
-        style={{
-          position: "absolute",
-          bottom: 8,
-          right: 8,
-          background: "white",
-          border: "1px solid var(--k-border)",
-          borderRadius: 8,
-          padding: "5px 10px",
-          fontSize: 11,
-          fontWeight: 600,
-          color: "var(--k-text-primary)",
-          cursor: "pointer",
-        }}
-      >
-        Itinéraire ↗
-      </button>
-    </div>
-  );
-}
-
-function ChatPreview({
-  isClient,
-  onOpen,
-}: {
-  isClient: boolean;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      onClick={onOpen}
-      style={{
-        width: "100%",
-        textAlign: "left",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        background: "var(--k-surface-muted)",
-        border: 0,
-        padding: 12,
-        borderRadius: 10,
-        cursor: "pointer",
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: "var(--k-primary)",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <I.messageCircle size={16} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--k-text-primary)",
-            marginBottom: 2,
-          }}
-        >
-          Conversation
-        </div>
-        <div
-          className="k-caption"
-          style={{
-            color: "var(--k-text-muted)",
-            fontSize: 12,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {isClient
-            ? "Pro : « Je serai là dans 15 min, merci de patienter »"
-            : "Client : « Merci, à tout à l'heure ! »"}
-        </div>
-      </div>
-      <I.chevronRight size={14} strokeColor="var(--k-text-muted)" />
-    </button>
-  );
-}
-
-const iconBtn: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 10,
-  border: "1px solid var(--k-border)",
-  background: "white",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "var(--k-text-body)",
-  cursor: "pointer",
-  flexShrink: 0,
-};
