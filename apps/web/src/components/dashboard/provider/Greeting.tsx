@@ -19,13 +19,14 @@ export function Greeting(props: GreetingProps) {
       className="k-pd-greet"
       style={{
         display: "flex",
-        alignItems: "center",
-        gap: 14,
-        flexWrap: "wrap",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 10,
+        textAlign: "left",
         marginBottom: 14,
       }}
     >
-      <div style={{ flex: "1 1 auto", minWidth: 200 }}>
+      <div>
         <h1
           style={{
             margin: 0,
@@ -35,6 +36,7 @@ export function Greeting(props: GreetingProps) {
             letterSpacing: "-0.015em",
             color: "var(--k-text-primary)",
             lineHeight: 1.15,
+            textAlign: "left",
           }}
         >
           Bonjour {props.firstName}
@@ -48,6 +50,7 @@ export function Greeting(props: GreetingProps) {
             fontSize: 12,
             color: "var(--k-text-muted)",
             flexWrap: "wrap",
+            textAlign: "left",
           }}
         >
           <span style={{ color: "#F59E0B", fontWeight: 700 }}>★</span>
@@ -59,27 +62,25 @@ export function Greeting(props: GreetingProps) {
           <TrustChip trust={props.trust} />
         </div>
       </div>
-      <div style={{ marginLeft: "auto" }}>
-        <AvailabilityChip
-          isAvailable={props.isAvailable}
-          zoneCity={props.zoneCity}
-          zoneRadiusKm={props.zoneRadiusKm}
-        />
-      </div>
+      <AvailabilityChip
+        isAvailable={props.isAvailable}
+        zoneCity={props.zoneCity}
+        zoneRadiusKm={props.zoneRadiusKm}
+      />
 
       <style jsx>{`
         @media (min-width: 768px) {
+          :global(.k-pd-greet) {
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 14px !important;
+          }
+          :global(.k-pd-greet > div:first-child) {
+            flex: 1 1 auto;
+            min-width: 0;
+          }
           :global(.k-pd-greet h1) {
             font-size: 26px;
-          }
-        }
-        @media (max-width: 480px) {
-          :global(.k-pd-greet) {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          :global(.k-pd-greet > div:last-child) {
-            margin-left: 0 !important;
           }
         }
       `}</style>
