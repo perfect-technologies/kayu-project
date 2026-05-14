@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KIN_COMMUNES_TUPLE } from "./communes.js";
 import {
   BooleanQueryParamSchema,
   DateTimeSchema,
@@ -130,6 +131,8 @@ export const CreateBookingDto = z.object({
   duration: z.number().int().positive().optional(),
   price: z.number().min(0).optional(),
   clientNotes: z.string().optional(),
+  subcategoryId: IdSchema.optional(),
+  commune: z.enum(KIN_COMMUNES_TUPLE).optional(),
 });
 
 export const UpdateBookingDto = z.object({
@@ -1171,3 +1174,33 @@ export type ProviderDraftSkill = z.infer<typeof ProviderDraftSkillSchema>;
 export type ProviderDraftDto = z.infer<typeof ProviderDraftDto>;
 export type DraftResponse = z.infer<typeof DraftResponseSchema>;
 export type ProviderPublishResponse = z.infer<typeof ProviderPublishResponseSchema>;
+
+export const AvailabilityQuery = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "from must be YYYY-MM-DD"),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "to must be YYYY-MM-DD"),
+});
+
+export const AvailabilityDay = z.object({
+  date: z.string(),
+  status: z.enum(["available", "off", "full", "past"]),
+  slots: z.array(z.string()),
+});
+
+export const AvailabilityResponse = z.object({
+  days: z.array(AvailabilityDay),
+  workWindow: z.object({ start: z.string(), end: z.string() }).nullable(),
+});
+
+export const RecentAddressItem = z.object({
+  commune: z.string().nullable(),
+  street: z.string().nullable(),
+  raw: z.string(),
+  lastUsedAt: z.string(),
+});
+
+export const RecentAddressesResponse = z.array(RecentAddressItem);
+
+export type AvailabilityQuery = z.infer<typeof AvailabilityQuery>;
+export type AvailabilityDay = z.infer<typeof AvailabilityDay>;
+export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>;
+export type RecentAddressItem = z.infer<typeof RecentAddressItem>;

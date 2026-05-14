@@ -36,6 +36,12 @@ export default async function BookingPage({
     avatarUrl: provider.user?.avatar ?? null,
     city: provider.user?.city ?? "Kinshasa",
     verified: provider.user?.isVerified ?? false,
+    subcategories: (provider.subcategories ?? []).map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      isPrimary: s.isPrimary,
+    })),
   };
 
   return <BookingFlowClient provider={data} />;

@@ -101,6 +101,8 @@ import type {
   AdminReviewVerificationDocDtoType,
   AdminReviewVerificationDocResponse,
   AdminVerificationQueueResponse,
+  AvailabilityResponse,
+  RecentAddressItem,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -153,6 +155,8 @@ type AdminCategoryCreateResponse = {
 
 export const identityApi = (client: ApiClient) => ({
   me: () => client.get<MeResponse>("/me"),
+  recentAddresses: (params?: { limit?: number }) =>
+    client.get<RecentAddressItem[]>("/me/recent-addresses", params),
   completeProfile: (data: CompleteProfileDto) =>
     client.patch<MeResponse>("/me/profile", data),
   setRole: (data: { role: string }) =>
@@ -177,6 +181,8 @@ export const providersApi = (client: ApiClient) => ({
     client.get<ProvidersResponse>("/providers", params as Record<string, string | number | boolean | undefined>),
   getById: (id: string) =>
     client.get<ProviderProfileResponse>(`/providers/${id}`),
+  availability: (id: string, params: { from: string; to: string }) =>
+    client.get<AvailabilityResponse>(`/providers/${encodeURIComponent(id)}/availability`, params),
   updateMe: (data: UpdateProviderDto) =>
     client.patch<{ success: boolean }>("/providers/me", data),
   updateAvailability: (data: { isAvailable: boolean }) =>

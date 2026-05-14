@@ -1,0 +1,48 @@
+export const SUBCATEGORY_TASKS: Record<string, readonly string[]> = {
+  "maconnerie":              ["Travaux neufs", "Réparation", "Rénovation", "Devis sur place"],
+  "platrerie":               ["Pose", "Réparation", "Devis sur place"],
+  "carrelage":               ["Pose", "Réparation", "Devis sur place"],
+  "peinture":                ["Intérieur", "Extérieur", "Retouche", "Devis sur place"],
+  "toiture":                 ["Réparation urgente", "Étanchéité", "Inspection", "Refonte"],
+  "plomberie-generale":      ["Dépannage urgent", "Installation", "Diagnostic", "Devis"],
+  "sanitaires":              ["Pose WC / lavabo", "Réparation fuite", "Détartrage", "Devis"],
+  "electricite-generale":    ["Dépannage urgent", "Installation", "Diagnostic", "Mise aux normes"],
+  "electricite-automobile":  ["Diagnostic", "Réparation", "Pose accessoires"],
+  "climatisation":           ["Installation", "Entretien", "Réparation", "Recharge gaz"],
+  "menuiserie-bois":         ["Sur mesure", "Pose porte / fenêtre", "Réparation", "Devis"],
+  "menuiserie-aluminium":    ["Pose porte / fenêtre", "Réparation", "Devis"],
+  "agencement":              ["Cuisine", "Dressing", "Bureau", "Devis"],
+  "serrurerie":              ["Dépannage urgent", "Changement serrure", "Pose blindage", "Devis"],
+  "metallerie":              ["Portail / grille", "Réparation", "Sur mesure", "Devis"],
+  "mecanique-auto":          ["Vidange", "Diagnostic", "Réparation", "Révision"],
+  "carrosserie":             ["Bosse / rayure", "Peinture", "Devis"],
+  "pneumatiques":            ["Changement", "Équilibrage", "Réparation crevaison"],
+  "coiffure":                ["Coupe", "Tresses", "Coloration", "Soin"],
+  "esthetique":              ["Manucure", "Pédicure", "Soin visage", "Maquillage"],
+  "bien-etre":               ["Massage", "Spa"],
+  "couture":                 ["Sur mesure", "Retouches", "Réparation"],
+  "nettoyage-textile":       ["Lavage", "Pressing", "Détachage"],
+  "nettoyage":               ["Ménage standard", "Grand nettoyage", "Vitres", "Après chantier"],
+  "jardinage":               ["Tonte", "Taille", "Entretien régulier", "Aménagement"],
+  "demenagement":            ["Petit volume", "Grand volume", "Démontage / montage"],
+  "garde-enfants":           ["Ponctuel", "Régulier", "Soir / week-end"],
+  "education":               ["Soutien scolaire", "Cours particuliers", "Aide aux devoirs"],
+  "soins-domicile":          ["Soin infirmier", "Visite médicale", "Suivi régulier"],
+  "sport":                   ["Coaching personnel", "Programme régulier", "Cours d'essai"],
+  "developpement":           ["Site web", "Application", "Maintenance", "Devis"],
+  "support-informatique":    ["Dépannage urgent", "Installation", "Formation"],
+  "reseaux":                 ["Installation", "Dépannage", "Diagnostic"],
+  "transport-personnes":     ["Course unique", "Aller-retour", "Trajet long"],
+  "livraison":               ["Course express", "Standard", "Volumineux"],
+  "organisation-evenements": ["Mariage", "Anniversaire", "Événement pro"],
+  "animation":               ["DJ", "MC", "Spectacle"],
+  "traiteur":                ["Cocktail", "Buffet", "Service complet"],
+  "gardiennage":             ["Ponctuel", "Régulier", "Événement"],
+  "protection":              ["Garde rapprochée", "Surveillance", "Conseil"],
+};
+
+export const CUSTOM_TASK_KEY = "__custom__";
+
+export function getTasksForSubcategory(slug: string): readonly string[] {
+  return SUBCATEGORY_TASKS[slug] ?? [];
+}

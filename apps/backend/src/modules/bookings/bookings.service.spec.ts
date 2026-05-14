@@ -902,3 +902,29 @@ test("client declines a pending final offer", async () => {
   assert.ok(calls.finalOfferUpdateData?.declinedAt instanceof Date);
   assert.equal(calls.notifications.length, 1);
 });
+
+test("create throws ConflictException when a slot conflict exists", async () => {
+  const prisma: any = {
+    provider: { findUnique: async () => ({ id: "prov_1", userId: "user_pro_1", isAvailable: true }) },
+    booking: {
+      findMany: async () => [{ scheduledDate: new Date("2026-05-21T09:00:00Z"), duration: 120 }],
+    },
+    $transaction: async (fn: (tx: any) => unknown) => fn(prisma),
+  };
+  const notifications = { create: async () => undefined };
+  const service = new BookingsService(prisma as any, notifications as any);
+
+  const actor = makeActor({ id: "client_1", role: "CLIENT" });
+
+  await assert.rejects(
+    () =>
+      service.create(actor, {
+        providerId: "prov_1",
+        title: "Coupe",
+        scheduledDate: new Date("2026-05-21T10:00:00Z"),
+        duration: 60,
+        price: 0,
+      } as any),
+    (err: any) => err?.constructor?.name === "ConflictException" && /SLOT_TAKEN/.test(err.message),
+  );
+});

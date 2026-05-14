@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -26,6 +27,8 @@ type CreateBookingBody = {
   duration?: number;
   price?: number;
   clientNotes?: string;
+  subcategoryId?: string;
+  commune?: string;
 };
 
 type FinalOfferQuery = {
@@ -250,6 +253,35 @@ export class BookingsService {
       throw new BadRequestException("Provider is not available");
     }
 
+    const slotStart = body.scheduledDate;
+    const slotDuration = body.duration ?? 60;
+    const slotEnd = new Date(slotStart.getTime() + slotDuration * 60_000);
+
+    const dayStart = new Date(slotStart);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+    const sameDay = await this.prisma.booking.findMany({
+      where: {
+        providerId: body.providerId,
+        status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
+        scheduledDate: { gte: dayStart, lt: dayEnd },
+      },
+      select: { scheduledDate: true, duration: true },
+    });
+
+    const conflict = sameDay.some((b) => {
+      if (!b.scheduledDate) return false;
+      const bStart = b.scheduledDate.getTime();
+      const bEnd = bStart + ((b.duration ?? 60) * 60_000);
+      return slotStart.getTime() < bEnd && slotEnd.getTime() > bStart;
+    });
+
+    if (conflict) {
+      throw new ConflictException("SLOT_TAKEN: this slot is no longer available");
+    }
+
     const booking = await this.prisma.$transaction(async (tx) => {
       const economics = calculateCommissionEconomics(body.price);
       const created = await tx.booking.create({
@@ -267,6 +299,8 @@ export class BookingsService {
           commissionAmt: economics.commissionAmt,
           providerNetAmt: economics.providerNetAmt,
           clientNotes: body.clientNotes ?? null,
+          subcategoryId: body.subcategoryId ?? null,
+          commune: body.commune ?? null,
           status: "PENDING",
         },
         include: bookingInclude,

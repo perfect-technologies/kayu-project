@@ -5,6 +5,7 @@ import {
   Patch,
   PipeTransform,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import type { ZodType } from "zod";
@@ -21,6 +22,7 @@ import {
   type ProfileBody,
   type ProviderOnboardingBody,
 } from "./identity.service";
+import { RecentAddressesService } from "./recent-addresses.service";
 
 class LazyZodValidationPipe implements PipeTransform {
   private schema?: Promise<ZodType>;
@@ -58,12 +60,25 @@ const providerOnboardingPipe = new LazyZodValidationPipe(async () => {
 
 @Controller("me")
 export class IdentityController {
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    private readonly recentAddresses: RecentAddressesService,
+  ) {}
 
   @Get()
   @UseGuards(SupabaseGuard)
   getMe(@CurrentUser() authUser: AuthContextUser) {
     return this.identity.getMe(authUser);
+  }
+
+  @Get("recent-addresses")
+  @UseGuards(SupabaseGuard, ActorGuard)
+  getRecentAddresses(
+    @CurrentActor() actor: Actor,
+    @Query("limit") limitStr?: string,
+  ) {
+    const limit = Math.min(Math.max(Number(limitStr) || 3, 1), 10);
+    return this.recentAddresses.findForClient(actor.id, limit);
   }
 
   @Patch("profile")

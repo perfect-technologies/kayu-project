@@ -15,6 +15,7 @@ import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import type { Actor } from "../../common/auth/types";
 import { ProvidersService } from "./providers.service";
+import { ProvidersAvailabilityService } from "./providers-availability.service";
 
 type ProviderSearchQuery = {
   q?: string;
@@ -55,6 +56,11 @@ const providersQueryPipe = new LazyZodValidationPipe(async () => {
   return ProviderSearchParams;
 });
 
+const availabilityQueryPipe = new LazyZodValidationPipe(async () => {
+  const { AvailabilityQuery } = await import("@kayu/schemas");
+  return AvailabilityQuery;
+});
+
 const updateProviderBodyPipe = new LazyZodValidationPipe(async () => {
   const { UpdateProviderDto } = await import("@kayu/schemas");
   return UpdateProviderDto;
@@ -67,7 +73,10 @@ const updateAvailabilityBodyPipe = new LazyZodValidationPipe(async () => {
 
 @Controller("providers")
 export class ProvidersController {
-  constructor(private readonly providers: ProvidersService) {}
+  constructor(
+    private readonly providers: ProvidersService,
+    private readonly availabilityService: ProvidersAvailabilityService,
+  ) {}
 
   @Get()
   search(@Query(providersQueryPipe) query: ProviderSearchQuery) {
@@ -99,5 +108,13 @@ export class ProvidersController {
   async findById(@Param("id") id: string, @Req() request: Request) {
     const viewer = await this.providers.resolveViewer(request);
     return this.providers.findById(id, viewer);
+  }
+
+  @Get(":id/availability")
+  availability(
+    @Param("id") id: string,
+    @Query(availabilityQueryPipe) query: { from: string; to: string },
+  ) {
+    return this.availabilityService.computeRange(id, query.from, query.to);
   }
 }

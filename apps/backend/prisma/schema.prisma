@@ -280,6 +280,7 @@ model Subcategory {
   // Relations
   providers   ProviderSubcategory[]
   jobRequests JobRequest[]
+  bookings    Booking[]
 
   @@index([categoryId])
   @@index([slug])
@@ -529,6 +530,9 @@ model Booking {
   // Détails
   title           String
   description     String?
+  subcategoryId   String?
+  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
+  commune         String?
   address         String?
   city            String?
   clientLatitude  Float?
@@ -577,6 +581,7 @@ model Booking {
   @@index([providerId, status])
   @@index([clientId, status])
   @@index([scheduledDate, status])
+  @@index([subcategoryId])
 }
 
 enum BookingStatus {

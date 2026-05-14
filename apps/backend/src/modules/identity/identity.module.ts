@@ -4,6 +4,7 @@ import { ActorGuard } from "../../common/guards/actor.guard";
 import { IdentityController } from "./identity.controller";
 import { IdentityRepository } from "./identity.repository";
 import { IdentityService } from "./identity.service";
+import { RecentAddressesService } from "./recent-addresses.service";
 
 @Global()
 @Module({
@@ -11,6 +12,7 @@ import { IdentityService } from "./identity.service";
   providers: [
     IdentityRepository,
     IdentityService,
+    RecentAddressesService,
     ActorGuard,
     {
       provide: ACTOR_RESOLVER,

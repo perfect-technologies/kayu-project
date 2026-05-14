@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BadgeCheck,
-  Check,
-  ShieldCheck,
-  Star,
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Layout } from "@/components/layout";
 import { useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api";
 import { bookingsApi } from "@kayu/api";
+import { CUSTOM_TASK_KEY } from "@kayu/schemas";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { KayouMoment } from "@kayu/ui/web";
+import { Layout } from "@/components/layout";
+
+import { BookingShell } from "@/components/booking/BookingShell";
+import { SidebarRail } from "@/components/booking/SidebarRail";
+import { MobileStickyBar } from "@/components/booking/MobileStickyBar";
+import { Step1Service } from "@/components/booking/Step1Service";
+import { Step2DateTime } from "@/components/booking/Step2DateTime";
+import { Step3Address } from "@/components/booking/Step3Address";
+import { Step4Recap } from "@/components/booking/Step4Recap";
+import { useBookingDraft } from "@/components/booking/booking-state";
 
 interface ProviderMini {
   id: string;
@@ -29,645 +30,193 @@ interface ProviderMini {
   avatarUrl: string | null;
   city: string;
   verified: boolean;
+  subcategories: Array<{ id: string; slug: string; name: string; isPrimary?: boolean }>;
 }
+
+const STEPS = [
+  { label: "Service",         shortLabel: "Service" },
+  { label: "Date & heure",    shortLabel: "Date" },
+  { label: "Adresse",         shortLabel: "Adresse" },
+  { label: "Récapitulatif",   shortLabel: "Récap" },
+];
 
 export function BookingFlowClient({ provider }: { provider: ProviderMini }) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-
-  const [step, setStep] = useState(0); // 0..2 content, 3 celebrate
+  const { state, dispatch, clear } = useBookingDraft(provider.id);
+  const step = state.step;
+  const setStep = (next: number | ((prev: number) => number)) =>
+    dispatch({ type: "SET_STEP", step: typeof next === "function" ? next(state.step) : next });
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
-  const [service, setService] = useState("Dépannage urgent");
-  const [duration, setDuration] = useState(2);
-  const [scheduledDate, setScheduledDate] = useState(() => {
-    const next = new Date();
-    next.setDate(next.getDate() + 1);
-    next.setHours(10, 0, 0, 0);
-    return next;
-  });
-  const [time, setTime] = useState("10:00");
-  const [address, setAddress] = useState("Kinshasa, Gombe");
-  const [note, setNote] = useState("");
+  const [conflictBanner, setConflictBanner] = useState(false);
 
-  // Provider starting price; not multiplied by duration. Stored as the initial
-  // estimated booking price; the provider-issued final offer becomes the
-  // agreed price.
   const startingPrice = provider.hourlyRate || 0;
-  const estimatedPrice = startingPrice;
   const fullName = `${provider.firstName} ${provider.lastName}`.trim();
-  const initials =
-    `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
 
   const createBooking = useMutation({
-    mutationFn: (payload: Parameters<ReturnType<typeof bookingsApi>["create"]>[0]) =>
-      bookingsApi(apiClient).create(payload),
+    mutationFn: (payload: Parameters<ReturnType<typeof bookingsApi>["create"]>[0]) => bookingsApi(apiClient).create(payload),
     onSuccess: (result) => {
       setCreatedBookingId(result.booking.id);
-      setStep(3);
+      clear();
+      setStep(4);
     },
-    onError: (err: Error) => {
-      alert(err.message || "Erreur lors de la réservation");
+    onError: (err: any) => {
+      if (typeof err?.message === "string" && /SLOT_TAKEN/.test(err.message)) {
+        setConflictBanner(true);
+        setStep(1);
+        dispatch({ type: "SET_TIME", time: "" });
+        return;
+      }
+      alert(err?.message || "Erreur lors de la réservation");
     },
   });
 
-  const handleConfirm = () => {
+  function handleConfirm() {
     if (!isAuthenticated) {
       router.push("/auth");
       return;
     }
-    const scheduled = new Date(scheduledDate);
-    const [h, m] = time.split(":").map(Number);
-    scheduled.setHours(h, m, 0, 0);
+    if (!state.scheduledDate || !state.scheduledTime) return;
+    const [h, m] = state.scheduledTime.split(":").map(Number);
+    const [yy, mm, dd] = state.scheduledDate.split("-").map(Number);
+    const scheduled = new Date(yy, mm - 1, dd, h, m, 0, 0);
+
+    const taskLabel = state.taskKey === CUSTOM_TASK_KEY ? (state.taskLabelOverride ?? "Autre") : (state.taskKey ?? "Service");
+    const addressParts = [state.street.trim(), state.commune ?? "", "Kinshasa"].filter(Boolean);
+    const address = addressParts.join(", ");
+    const clientNotes = [state.description.trim(), state.locationNote.trim() ? `Repère: ${state.locationNote.trim()}` : ""].filter(Boolean).join("\n");
+
     createBooking.mutate({
       providerId: provider.id,
-      title: service,
-      description: note,
+      title: taskLabel,
+      description: state.description || undefined,
       address,
-      city: provider.city,
+      city: "Kinshasa",
       scheduledDate: scheduled,
-      duration: duration * 60,
-      price: estimatedPrice,
-      clientNotes: note,
+      duration: state.durationMin ?? undefined,
+      price: startingPrice,
+      clientNotes: clientNotes || undefined,
+      subcategoryId: state.subcategoryId ?? undefined,
+      commune: state.commune ?? undefined,
     });
-  };
+  }
 
-  if (step === 3) {
-    const providerInitials =
-      `${(provider.firstName[0] ?? "?").toUpperCase()}${(provider.lastName[0] ?? "").toUpperCase()}`;
-    const scheduled = new Date(scheduledDate);
-    const [h, m] = time.split(":").map(Number);
-    scheduled.setHours(h, m, 0, 0);
-    const dateLabel = new Intl.DateTimeFormat("fr-FR", {
-      weekday: "short",
-      day: "numeric",
-      month: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(scheduled);
+  if (createdBookingId) {
+    const dateLabel = state.scheduledDate && state.scheduledTime
+      ? new Date(`${state.scheduledDate}T${state.scheduledTime}:00`).toLocaleDateString("fr-FR", {
+          weekday: "short", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
+        })
+      : "";
     return (
       <Layout>
         <KayouMoment
-          provider={{
-            firstName: provider.firstName,
-            initials: providerInitials,
-            response: "15 min",
-          }}
+          provider={{ firstName: provider.firstName, initials: `${provider.firstName[0]}${provider.lastName[0]}`.toUpperCase(), response: "15 min" }}
           dateLabel={dateLabel.replace(",", " ·")}
           onMessage={() => router.push("/messages")}
-          onViewBooking={() =>
-            router.replace(createdBookingId ? `/bookings/${createdBookingId}` : "/bookings")
-          }
+          onViewBooking={() => router.replace(`/bookings/${createdBookingId}`)}
         />
       </Layout>
     );
   }
 
-  const steps = [
-    { label: "Service" },
-    { label: "Date & heure" },
-    { label: "Confirmation" },
+  const canAdvance =
+    step === 0
+      ? !!state.taskKey && (state.taskKey !== CUSTOM_TASK_KEY || (state.taskLabelOverride ?? "").trim().length >= 3)
+      : step === 1
+        ? !!state.scheduledDate && !!state.scheduledTime
+        : step === 2
+          ? !!state.commune
+          : true;
+
+  const summary = [
+    {
+      label: "Service",
+      value: state.taskKey
+        ? `${state.taskKey === CUSTOM_TASK_KEY ? state.taskLabelOverride ?? "Autre" : state.taskKey}${state.durationMin ? ` · ${state.durationMin === 60 ? "1 h" : state.durationMin === 120 ? "2 h" : state.durationMin === 240 ? "Demi-j." : "Journée"}` : ""}`
+        : null,
+    },
+    {
+      label: "Date",
+      value: state.scheduledDate && state.scheduledTime
+        ? `${new Date(state.scheduledDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })} · ${state.scheduledTime}`
+        : null,
+    },
+    {
+      label: "Adresse",
+      value: state.commune ? `${state.street ? state.street + ", " : ""}${state.commune}` : null,
+    },
   ];
 
+  const isStep4 = step === 3;
+  const primaryLabel = isStep4 ? "Confirmer la réservation" : "Continuer";
+  const primaryAction = isStep4 ? handleConfirm : () => setStep((s) => s + 1);
+
   return (
-    <Layout>
-      <div className="py-6" style={{ background: "var(--k-bg)", minHeight: "100%" }}>
-        <div className="mx-auto max-w-[560px] px-5">
-          <div className="mb-6 flex items-center gap-2.5">
-            <button
-              onClick={() =>
-                step === 0 ? router.push(`/providers/${provider.id}`) : setStep((s) => s - 1)
-              }
-              aria-label="Retour"
-              className="flex h-10 w-10 items-center justify-center rounded-full"
-              style={{
-                border: "1px solid var(--k-border)",
-                background: "var(--k-surface)",
-                color: "var(--k-text-primary)",
-                cursor: "pointer",
-              }}
-            >
-              <ArrowLeft className="h-[18px] w-[18px]" />
-            </button>
-            <h1 className="k-display-m" style={{ margin: 0 }}>
-              Réserver avec {provider.firstName}
-            </h1>
-          </div>
-
-          <div className="mb-6 flex gap-1.5">
-            {steps.map((s, i) => (
-              <div key={i} className="flex-1">
-                <div
-                  style={{
-                    height: 4,
-                    borderRadius: 2,
-                    background:
-                      i <= step ? "var(--k-primary)" : "var(--k-border)",
-                    transition: "background 240ms",
-                  }}
-                />
-                <div
-                  className="k-caption mt-1.5"
-                  style={{
-                    color:
-                      i === step ? "var(--k-text-primary)" : "var(--k-text-muted)",
-                    fontWeight: i === step ? 600 : 500,
-                  }}
-                >
-                  {i + 1}. {s.label}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div
-            className="mb-4 flex items-center gap-3 p-3.5"
-            style={{
-              background: "var(--k-surface)",
-              border: "1px solid var(--k-border)",
-              borderRadius: "var(--k-r-md)",
-            }}
-          >
-            <Avatar className="h-11 w-11">
-              <AvatarImage src={provider.avatarUrl ?? undefined} alt={fullName} />
-              <AvatarFallback
-                style={{
-                  background: "var(--k-primary-subtle)",
-                  color: "var(--k-primary-hover)",
-                  fontWeight: 700,
-                  fontSize: 14,
-                }}
-              >
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold">{fullName}</span>
-                {provider.verified && (
-                  <BadgeCheck
-                    className="h-3.5 w-3.5"
-                    style={{ color: "var(--k-success)" }}
-                  />
-                )}
-              </div>
-              <div className="k-caption">{provider.profession}</div>
-            </div>
+    <BookingShell
+      title={`Réserver avec ${provider.firstName}`}
+      steps={STEPS}
+      currentStep={step}
+      onBack={() => (step === 0 ? router.push(`/providers/${provider.id}`) : setStep((s) => s - 1))}
+      main={
+        <>
+          {conflictBanner && (
             <div
-              className="inline-flex items-center gap-1 text-[13px]"
-              style={{ color: "var(--k-warning)" }}
+              role="alert"
+              className="mb-3 p-3"
+              style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: "var(--k-r-md)", color: "#92400E", fontSize: 13 }}
             >
-              <Star className="h-3.5 w-3.5" />
-              <span
-                className="k-num"
-                style={{ color: "var(--k-text-primary)", fontWeight: 600 }}
-              >
-                {provider.rating ? provider.rating.toFixed(1) : "—"}
-              </span>
+              Ce créneau vient d'être pris. Choisis un autre horaire.
+            </div>
+          )}
+          <div className="mb-4 md:hidden">
+            <div className="flex items-center gap-3 p-3.5" style={{ background: "var(--k-surface)", border: "1px solid var(--k-border)", borderRadius: "var(--k-r-md)" }}>
+              <div className="h-11 w-11 rounded-full" style={{ background: "#F5F2E9", color: "#7a5e2b", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                {provider.firstName[0]}{provider.lastName[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold">{fullName}</div>
+                <div className="k-caption">{provider.profession}</div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>★ {provider.rating ? provider.rating.toFixed(1) : "—"}</div>
             </div>
           </div>
 
-          {step === 0 && (
-            <>
-              <h2 className="k-heading" style={{ marginTop: 0 }}>
-                Quel service ?
-              </h2>
-              <div className="mt-3 grid gap-2">
-                {[
-                  "Dépannage urgent",
-                  "Installation nouvelle",
-                  "Diagnostic après discussion",
-                  "Rénovation complète",
-                ].map((s) => (
-                  <label
-                    key={s}
-                    className="flex cursor-pointer items-center gap-3"
-                    style={{
-                      padding: 16,
-                      background: "var(--k-surface)",
-                      border: `1px solid ${service === s ? "var(--k-primary)" : "var(--k-border)"}`,
-                      borderRadius: "var(--k-r-md)",
-                      boxShadow:
-                        service === s ? "0 0 0 3px rgba(14,165,233,0.12)" : "none",
-                      transition: "box-shadow 160ms, border-color 160ms",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="service"
-                      checked={service === s}
-                      onChange={() => setService(s)}
-                      className="accent-[var(--k-primary)]"
-                    />
-                    <span
-                      className="flex-1"
-                      style={{ fontWeight: 500, fontSize: 15 }}
-                    >
-                      {s}
-                    </span>
-                    {service === s && (
-                      <Check
-                        className="h-[18px] w-[18px]"
-                        style={{ color: "var(--k-primary)" }}
-                      />
-                    )}
-                  </label>
-                ))}
-              </div>
-
-              <div className="mt-6">
-                <div className="k-overline" style={{ marginBottom: 8 }}>
-                  Durée estimée
-                </div>
-                <div className="flex gap-2">
-                  {[1, 2, 4, 8].map((h) => {
-                    const active = duration === h;
-                    return (
-                      <button
-                        key={h}
-                        onClick={() => setDuration(h)}
-                        className="flex-1"
-                        style={{
-                          height: 44,
-                          borderRadius: "var(--k-r-md)",
-                          border: `1px solid ${active ? "var(--k-primary)" : "var(--k-border)"}`,
-                          background: active
-                            ? "var(--k-primary-subtle)"
-                            : "var(--k-surface)",
-                          color: active
-                            ? "var(--k-primary-hover)"
-                            : "var(--k-text-body)",
-                          fontWeight: 600,
-                          fontSize: 14,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {h}h
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="k-overline" style={{ marginBottom: 8 }}>
-                  Décris ton besoin
-                </div>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={3}
-                  placeholder="Précise le problème, l'urgence, les détails…"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    background: "var(--k-surface)",
-                    border: "1px solid var(--k-border)",
-                    borderRadius: "var(--k-r-md)",
-                    fontFamily: "inherit",
-                    fontSize: 14,
-                    resize: "vertical",
-                    outline: 0,
-                  }}
-                />
-              </div>
-
-              <button
-                className="k-btn k-btn-primary k-btn-lg mt-6 w-full"
-                onClick={() => setStep(1)}
-              >
-                Continuer <ArrowRight className="h-4 w-4" />
-              </button>
-            </>
+          {step === 0 && <Step1Service subcategories={provider.subcategories} state={state} dispatch={dispatch} />}
+          {step === 1 && <Step2DateTime providerId={provider.id} providerFirstName={provider.firstName} state={state} dispatch={dispatch} />}
+          {step === 2 && <Step3Address state={state} dispatch={dispatch} />}
+          {step === 3 && (
+            <Step4Recap
+              state={state}
+              subcategoryName={provider.subcategories.find((s) => s.id === state.subcategoryId)?.name ?? provider.profession}
+              startingPriceFC={startingPrice}
+              providerFirstName={provider.firstName}
+              goToStep={(s) => setStep(s)}
+            />
           )}
-
-          {step === 1 && (
-            <>
-              <h2 className="k-heading" style={{ marginTop: 0 }}>
-                Quand ?
-              </h2>
-              <MiniCalendar selected={scheduledDate} onSelect={setScheduledDate} />
-
-              <div className="mt-6">
-                <div className="k-overline" style={{ marginBottom: 8 }}>
-                  Créneaux disponibles
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {["08:00", "10:00", "14:00", "16:00", "18:00"].map((t) => {
-                    const active = time === t;
-                    return (
-                      <button
-                        key={t}
-                        onClick={() => setTime(t)}
-                        style={{
-                          height: 42,
-                          borderRadius: "var(--k-r-md)",
-                          border: `1px solid ${active ? "var(--k-primary)" : "var(--k-border)"}`,
-                          background: active
-                            ? "var(--k-primary-subtle)"
-                            : "var(--k-surface)",
-                          color: active
-                            ? "var(--k-primary-hover)"
-                            : "var(--k-text-body)",
-                          fontWeight: 600,
-                          fontFamily: "var(--k-font-mono)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {t}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="k-overline" style={{ marginBottom: 8 }}>
-                  Adresse d&apos;intervention
-                </div>
-                <input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="k-input"
-                />
-              </div>
-
-              <button
-                className="k-btn k-btn-primary k-btn-lg mt-6 w-full"
-                onClick={() => setStep(2)}
-              >
-                Continuer <ArrowRight className="h-4 w-4" />
-              </button>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <h2 className="k-heading" style={{ marginTop: 0 }}>
-                Récapitulatif
-              </h2>
-              <div
-                className="mt-3 p-4"
-                style={{
-                  background: "var(--k-surface)",
-                  border: "1px solid var(--k-border)",
-                  borderRadius: "var(--k-r-md)",
-                }}
-              >
-                <SumRow label="Service" value={service} />
-                <SumRow label="Durée estimée" value={`${duration}h`} />
-                <SumRow
-                  label="Date"
-                  value={`${scheduledDate.toLocaleDateString("fr-FR", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "long",
-                  })} · ${time}`}
-                />
-                <SumRow label="Adresse" value={address} multiline />
-                <SumRow label="Note" value={note || "—"} multiline last />
-              </div>
-
-              <div
-                className="mt-3 p-4"
-                style={{
-                  background: "var(--k-surface-primary)",
-                  border: "1px solid #BAE6FD",
-                  borderRadius: "var(--k-r-md)",
-                }}
-              >
-                <div className="flex justify-between text-[14px]">
-                  <span style={{ color: "var(--k-text-body)" }}>
-                    Prix de départ
-                  </span>
-                  <span className="k-price">
-                    {startingPrice.toLocaleString("fr-FR")} FC
-                  </span>
-                </div>
-                <div className="mt-1.5 flex justify-between text-[14px]">
-                  <span style={{ color: "var(--k-text-muted)" }}>
-                    Paiement
-                  </span>
-                  <span
-                    className="k-price"
-                    style={{ color: "var(--k-text-body)" }}
-                  >
-                    Espèces à la fin
-                  </span>
-                </div>
-                <div
-                  style={{ height: 1, background: "#BAE6FD", margin: "12px 0" }}
-                />
-                <div className="flex items-baseline justify-between">
-                  <span className="k-heading" style={{ margin: 0 }}>
-                    Prix indicatif
-                  </span>
-                  <span
-                    className="k-price"
-                    style={{ fontSize: 22, color: "var(--k-primary-hover)" }}
-                  >
-                    À partir de {startingPrice.toLocaleString("fr-FR")} FC
-                  </span>
-                </div>
-                <div
-                  className="k-caption mt-2 inline-flex items-center gap-1.5"
-                >
-                  <ShieldCheck
-                    className="h-3 w-3"
-                    style={{ color: "var(--k-success)" }}
-                  />
-                  Paiement en espèces à la fin de la mission. Le prix final est convenu avec le prestataire avant l'intervention.
-                </div>
-              </div>
-
-              <button
-                className="k-btn k-btn-primary k-btn-lg mt-4 w-full"
-                disabled={createBooking.isPending}
-                onClick={handleConfirm}
-              >
-                {createBooking.isPending
-                  ? "Envoi…"
-                  : "Confirmer la réservation"}
-              </button>
-              <div
-                className="k-caption mt-2.5 text-center"
-              >
-                En confirmant, tu acceptes les{" "}
-                <a style={{ color: "var(--k-primary-hover)" }}>
-                  conditions générales
-                </a>
-                .
-              </div>
-            </>
-          )}
-        </div>
-
-      </div>
-    </Layout>
-  );
-}
-
-function SumRow({
-  label,
-  value,
-  multiline,
-  last,
-}: {
-  label: string;
-  value: string;
-  multiline?: boolean;
-  last?: boolean;
-}) {
-  return (
-    <div
-      className="grid gap-3"
-      style={{
-        padding: "12px 0",
-        borderBottom: last ? 0 : "1px solid var(--k-border-subtle)",
-        gridTemplateColumns: multiline ? "1fr" : "140px 1fr",
-      }}
-    >
-      <div className="k-caption">{label}</div>
-      <div className="k-body-m" style={{ fontWeight: 500 }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function MiniCalendar({
-  selected,
-  onSelect,
-}: {
-  selected: Date;
-  onSelect: (d: Date) => void;
-}) {
-  const days = ["L", "M", "M", "J", "V", "S", "D"];
-  const [visibleMonth, setVisibleMonth] = useState(
-    () => new Date(selected.getFullYear(), selected.getMonth(), 1),
-  );
-
-  useEffect(() => {
-    setVisibleMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
-  }, [selected]);
-
-  const monthStart = visibleMonth;
-  const firstWeekday = (monthStart.getDay() + 6) % 7;
-  const daysInMonth = new Date(
-    visibleMonth.getFullYear(),
-    visibleMonth.getMonth() + 1,
-    0,
-  ).getDate();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const gridSize = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
-  const grid = Array.from({ length: gridSize }, (_, i) => i - firstWeekday + 1);
-  const changeMonth = (offset: number) => {
-    setVisibleMonth(
-      (current) => new Date(current.getFullYear(), current.getMonth() + offset, 1),
-    );
-  };
-  return (
-    <div
-      className="mt-3 p-4"
-      style={{
-        background: "var(--k-surface)",
-        border: "1px solid var(--k-border)",
-        borderRadius: "var(--k-r-md)",
-      }}
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          aria-label="Mois précédent"
-          className="flex h-9 w-9 items-center justify-center rounded-full"
-          onClick={() => changeMonth(-1)}
-          style={{ background: "var(--k-surface-muted)" }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <span
-          style={{
-            fontFamily: "var(--k-font-display)",
-            fontWeight: 600,
-            fontSize: 16,
-          }}
-        >
-          {visibleMonth.toLocaleDateString("fr-FR", {
-            month: "long",
-            year: "numeric",
-          })}
-        </span>
-        <button
-          aria-label="Mois suivant"
-          className="flex h-9 w-9 items-center justify-center rounded-full"
-          onClick={() => changeMonth(1)}
-          style={{ background: "var(--k-surface-muted)" }}
-        >
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="mb-1.5 grid grid-cols-7 gap-0.5">
-        {days.map((d, i) => (
-          <div key={i} className="k-caption text-center">
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {grid.map((d, i) => {
-          const valid = d >= 1 && d <= daysInMonth;
-          const dayDate = new Date(
-            visibleMonth.getFullYear(),
-            visibleMonth.getMonth(),
-            d,
-          );
-          const isAvail = valid && dayDate >= today;
-          const isSel =
-            valid &&
-            selected.getFullYear() === dayDate.getFullYear() &&
-            selected.getMonth() === dayDate.getMonth() &&
-            selected.getDate() === dayDate.getDate();
-          return (
-            <button
-              key={`${d}-${i}`}
-              disabled={!isAvail}
-              onClick={() => isAvail && onSelect(dayDate)}
-              style={{
-                aspectRatio: "1 / 1",
-                borderRadius: 8,
-                background: isSel ? "var(--k-primary)" : "transparent",
-                color: isSel
-                  ? "white"
-                  : isAvail
-                    ? "var(--k-text-primary)"
-                    : "var(--k-text-subtle)",
-                border: 0,
-                fontSize: 13,
-                fontWeight: isSel ? 700 : 500,
-                position: "relative",
-                opacity: valid ? 1 : 0,
-                cursor: isAvail ? "pointer" : "default",
-              }}
-            >
-              {valid ? d : ""}
-              {isAvail && !isSel && (
-                <span
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    bottom: 6,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    width: 3,
-                    height: 3,
-                    borderRadius: "50%",
-                    background: "var(--k-success)",
-                  }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+        </>
+      }
+      aside={
+        <SidebarRail
+          provider={{ firstName: provider.firstName, lastName: provider.lastName, profession: provider.profession, avatarUrl: provider.avatarUrl, rating: provider.rating }}
+          summary={summary}
+          startingPriceFC={startingPrice}
+          primaryLabel={primaryLabel}
+          primaryDisabled={!canAdvance || createBooking.isPending}
+          onPrimary={primaryAction}
+          onBack={step === 0 ? undefined : () => setStep((s) => s - 1)}
+          variant={isStep4 ? "confirm" : "summary"}
+        />
+      }
+      bottomBar={
+        <MobileStickyBar
+          canGoBack={step > 0}
+          onBack={() => setStep((s) => s - 1)}
+          onPrimary={primaryAction}
+          primaryDisabled={!canAdvance || createBooking.isPending}
+          primaryLabel={createBooking.isPending ? "Envoi…" : primaryLabel}
+          variant={isStep4 ? "confirm" : "continue"}
+        />
+      }
+    />
   );
 }
