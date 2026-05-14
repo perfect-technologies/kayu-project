@@ -665,6 +665,33 @@ export const ProviderDashboardStatsSchema = z.object({
   avgRating: StatAvgRatingSchema,
 });
 
+export const ProviderDashboardMessageTodoSchema = z.object({
+  conversationId: IdSchema,
+  unreadCount: z.number().int().min(1),
+  lastMessageAt: z.string(),
+  lastMessagePreview: z.string().nullable(),
+  client: z.object({
+    id: IdSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+  }),
+});
+
+export const ProviderDashboardCloseTodoSchema = z.object({
+  bookingId: IdSchema,
+  title: z.string(),
+  scheduledDate: z.string(),
+  price: z.number().min(0),
+  client: z.object({
+    firstName: z.string(),
+  }),
+});
+
+export const ProviderDashboardTodosSchema = z.object({
+  unreadMessages: z.array(ProviderDashboardMessageTodoSchema),
+  bookingsToClose: z.array(ProviderDashboardCloseTodoSchema),
+});
+
 export const DashboardProviderResponseSchema = z.object({
   provider: ProviderSchema.partial().extend({
     id: IdSchema,
@@ -688,6 +715,8 @@ export const DashboardProviderResponseSchema = z.object({
   notifications: z.object({
     unreadCount: z.number().int().min(0),
   }),
+  todos: ProviderDashboardTodosSchema,
+  hasAnyBookingEver: z.boolean(),
 
   // Legacy compatibility fields (still consumed by the v1 `/dashboard/provider`
   // page until its retirement). Optional so new consumers can ignore them.

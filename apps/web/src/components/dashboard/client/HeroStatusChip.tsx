@@ -13,27 +13,30 @@ const STYLES: Record<HeroStatusVariant, { bg: string; fg: string; dot: string | 
 export function HeroStatusChip({
   variant,
   label,
+  compact,
 }: {
   variant: HeroStatusVariant;
   label: string;
+  compact?: boolean;
 }) {
   const s = STYLES[variant];
   const chipStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
-    fontSize: 10.5,
+    fontSize: compact ? 9.5 : 10.5,
     fontWeight: 600,
-    padding: "4px 10px",
+    padding: compact ? "2px 6px" : "4px 10px",
     borderRadius: 999,
     background: s.bg,
     color: s.fg,
     letterSpacing: "0.02em",
   };
+  const dotSize = compact ? 5 : 6;
   const dotStyle: CSSProperties | null = s.dot
     ? {
-        width: 6,
-        height: 6,
+        width: dotSize,
+        height: dotSize,
         borderRadius: 999,
         background: s.dot,
         animation: s.pulse ? "kPulse 1.5s ease-in-out infinite" : undefined,

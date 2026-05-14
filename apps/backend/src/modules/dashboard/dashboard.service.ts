@@ -8,6 +8,8 @@ import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
 import { JobRequestsService } from "../job-requests/job-requests.service";
 
+const PROVIDER_CLOSE_OVERDUE_MS = 2 * 60 * 60 * 1000;
+
 const participantUserSelect = {
   id: true,
   firstName: true,
@@ -231,6 +233,8 @@ export class DashboardService {
     }
 
     const todayBounds = this.todayRange();
+    const now = new Date();
+    const twoHoursAgo = new Date(now.getTime() - PROVIDER_CLOSE_OVERDUE_MS);
 
     const [
       todayBookings,
@@ -242,6 +246,9 @@ export class DashboardService {
       certifiedProviderIds,
       statsSummary,
       currentRating,
+      conversationsRaw,
+      bookingsToCloseRows,
+      totalBookingsEver,
     ] = await Promise.all([
       this.prisma.booking.findMany({
         where: {
@@ -316,7 +323,55 @@ export class DashboardService {
       this.getCertifiedProviderIds([provider.id]),
       this.computeProviderStatsSummary(provider.id),
       this.getProviderAverageRating(provider.id),
+      this.prisma.conversation.findMany({
+        where: { OR: [{ user1Id: actor.id }, { user2Id: actor.id }] },
+        orderBy: { lastMessageAt: "desc" },
+        take: 10,
+        include: {
+          user1: { select: { id: true, firstName: true, lastName: true } },
+          user2: { select: { id: true, firstName: true, lastName: true } },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: "desc" as const },
+            select: { id: true, senderId: true, content: true, createdAt: true },
+          },
+          _count: {
+            select: { messages: { where: { isRead: false, senderId: { not: actor.id } } } },
+          },
+        },
+      }),
+      this.prisma.booking.findMany({
+        where: {
+          providerId: provider.id,
+          status: "CONFIRMED",
+          scheduledDate: { lt: twoHoursAgo },
+        },
+        orderBy: { scheduledDate: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          scheduledDate: true,
+          price: true,
+          client: { select: { firstName: true } },
+        },
+      }),
+      this.prisma.booking.count({ where: { providerId: provider.id } }),
     ]);
+
+    const unreadMessageTodos = conversationsRaw
+      .filter((c) => c._count.messages > 0)
+      .filter((c) => c.messages.length > 0 && c.messages[0].senderId !== actor.id)
+      .slice(0, 5)
+      .map((c) => this.mapProviderMessageTodo(c, actor.id));
+
+    const bookingsToClose = bookingsToCloseRows.map((b) => ({
+      bookingId: b.id,
+      title: b.title,
+      scheduledDate: (b.scheduledDate ?? new Date()).toISOString(),
+      price: b.price ?? 0,
+      client: { firstName: b.client.firstName ?? "Client" },
+    }));
 
     const todayJobs = todayBookings.map((booking) => this.mapTodayJob(booking, provider));
     const estimatedRecette = todayJobs.reduce((acc, job) => acc + job.fee, 0);
@@ -426,6 +481,11 @@ export class DashboardService {
       notifications: {
         unreadCount: unreadNotifications,
       },
+      todos: {
+        unreadMessages: unreadMessageTodos,
+        bookingsToClose,
+      },
+      hasAnyBookingEver: totalBookingsEver > 0,
       // Legacy fields for `/dashboard/provider` (v1) — retained for backward compat.
       user: {
         firstName: actor.firstName,
@@ -1426,6 +1486,32 @@ export class DashboardService {
       completedAt: (booking.completedAt ?? new Date()).toISOString(),
       price: booking.price ?? 0,
       provider: { firstName: booking.provider?.user.firstName ?? "" },
+    };
+  }
+
+  private mapProviderMessageTodo(
+    conversation: {
+      id: string;
+      lastMessageAt: Date | null;
+      user1: { id: string; firstName: string | null; lastName: string | null };
+      user2: { id: string; firstName: string | null; lastName: string | null };
+      messages: { senderId: string; content: string }[];
+      _count: { messages: number };
+    },
+    actorId: string,
+  ) {
+    const other = conversation.user1.id === actorId ? conversation.user2 : conversation.user1;
+    const lastMessage = conversation.messages[0] ?? null;
+    return {
+      conversationId: conversation.id,
+      unreadCount: conversation._count.messages,
+      lastMessageAt: (conversation.lastMessageAt ?? new Date()).toISOString(),
+      lastMessagePreview: lastMessage ? lastMessage.content.slice(0, 80) : null,
+      client: {
+        id: other.id,
+        firstName: other.firstName ?? "",
+        lastName: other.lastName ?? "",
+      },
     };
   }
 
