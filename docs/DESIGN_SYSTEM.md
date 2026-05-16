@@ -635,7 +635,7 @@ Every list view has an empty state.
 ### 9.1 Homepage
 
 #### Web (1024+)
-1. **Sticky translucent header** (backdrop blur, 1px border-bottom on scroll) — logo, nav links (Trouver un pro · Catégories · Comment ça marche · Devenir pro), Se connecter / S'inscrire
+1. **Sticky translucent header** (backdrop blur, 1px border-bottom on scroll) — logo (image wordmark only, no separate text), centered nav links (Accueil · Trouver un pro · Comment ça marche · Devenir pro — `Devenir pro` hidden for logged-in providers; the active page's link shows a 2px Sky underline on desktop, a Sky-highlighted row in the mobile drawer), Se connecter / S'inscrire for guests / avatar menu when logged in
 2. **Hero** — two-column visual balance:
    - **Left:** `NOUVEAU` overline badge, Display-XL headline ("Le bon pro, près de toi."), Body-L subline, **oversized combined search card** (two fields: `Quel service ?` + `Où ?`, divided by 1px, with a 56px Sky-primary "Rechercher" button on the right), trust strip (`2 400 pros · 4.8 · réponse ~1h`)
    - Headline's second line uses gradient text (Sky 500 → Coral 500) — this is the **only** place gradient text is permitted in the product

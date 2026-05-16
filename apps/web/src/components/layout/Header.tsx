@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Menu,
   X,
@@ -25,17 +25,23 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-const navigation = [
-  { name: "Trouver un pro", href: "/services" },
-  { name: "Catégories", href: "/services" },
-  { name: "Comment ça marche", href: "/#how-it-works" },
-  { name: "Devenir pro", href: "/services" },
-];
-
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname() ?? "";
+  const isProvider = user?.role === "PROVIDER";
+  const navigation = [
+    { name: "Accueil", href: "/" },
+    { name: "Trouver un pro", href: "/services" },
+    { name: "Comment ça marche", href: "/#how-it-works" },
+    ...(isProvider ? [] : [{ name: "Devenir pro", href: "/auth?mode=signup" }]),
+  ];
+  const isNavActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    if (href.includes("#") || href.includes("?")) return false;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -65,35 +71,29 @@ export function Header() {
         }}
       >
         <div className="mx-auto flex max-w-[1240px] items-center gap-6 px-5 py-3.5 md:px-10">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Link href="/" className="flex shrink-0 items-center">
             <Image
               src="/kayou-logo-transparent.png"
               alt="KAYOU"
-              width={30}
-              height={30}
-              className="h-[30px] w-auto"
+              width={216}
+              height={90}
+              className="h-9 w-auto"
               priority
             />
-            <span
-              style={{
-                fontFamily: "var(--k-font-display)",
-                fontWeight: 800,
-                fontSize: 22,
-                letterSpacing: "-0.02em",
-                color: "var(--k-text-primary)",
-              }}
-            >
-              KAYOU
-            </span>
           </Link>
 
-          <nav className="hidden flex-1 items-center gap-7 lg:flex">
+          <nav className="hidden flex-1 items-center justify-center gap-7 lg:flex">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
                 className="text-[14px] font-medium transition-colors"
-                style={{ color: "var(--k-text-body)" }}
+                style={{
+                  color: "var(--k-text-body)",
+                  borderBottom: "2px solid",
+                  borderBottomColor: isNavActive(item.href) ? "var(--k-primary)" : "transparent",
+                  paddingBottom: 2,
+                }}
               >
                 {item.name}
               </Link>
@@ -204,8 +204,14 @@ export function Header() {
                   key={item.name}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center justify-between rounded-[var(--k-r-md)] px-3 py-3 text-[15px] font-medium"
-                  style={{ color: "var(--k-text-primary)" }}
+                  className={cn(
+                    "flex items-center justify-between rounded-[var(--k-r-md)] px-3 py-3 text-[15px]",
+                    isNavActive(item.href) ? "font-semibold" : "font-medium",
+                  )}
+                  style={{
+                    color: isNavActive(item.href) ? "var(--k-primary)" : "var(--k-text-primary)",
+                    background: isNavActive(item.href) ? "var(--k-primary-subtle)" : "transparent",
+                  }}
                 >
                   <span>{item.name}</span>
                   <ChevronDown className="h-4 w-4 -rotate-90 opacity-40" />

@@ -122,15 +122,14 @@ function SidebarContent({
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-4 border-b">
+      <div className="flex items-center px-4 py-4 border-b">
         <Image
-          src="/kayou-logo.png"
+          src="/kayou-logo-transparent.png"
           alt="KAYOU"
-          width={32}
-          height={32}
+          width={216}
+          height={90}
           className="h-8 w-auto"
         />
-        <span className="text-xl font-bold text-primary">KAYOU</span>
       </div>
 
       {/* Navigation */}
