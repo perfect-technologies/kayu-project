@@ -765,7 +765,7 @@ function ProfileSection({ role }: { role: Role }) {
         </FieldRow>
       </CardSection>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2" style={{ marginBottom: 24 }}>
         <button
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
