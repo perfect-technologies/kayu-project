@@ -90,14 +90,18 @@ export class ApiClient {
     if (!response.ok) {
       let message = response.statusText;
       let error: string | undefined;
+      let parsedBody: unknown;
       try {
-        const body = await response.json();
-        message = body.message ?? body.error ?? message;
-        error = body.error;
+        parsedBody = await response.json();
+        const b = parsedBody as Record<string, unknown>;
+        message = (b.message as string) ?? (b.error as string) ?? message;
+        error = b.error as string | undefined;
       } catch {
         // response body wasn't JSON — keep statusText
       }
-      throw new ApiError(response.status, message, error);
+      const err = new ApiError(response.status, message, error);
+      err.body = parsedBody;
+      throw err;
     }
 
     if (response.status === 204) {

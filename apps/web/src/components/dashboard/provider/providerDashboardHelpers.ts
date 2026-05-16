@@ -12,13 +12,6 @@ export type HeroVariant =
   | "calm"
   | "empty";
 
-export type ProfileGap =
-  | { key: "photo"; label: string; meta: string; href: string }
-  | { key: "description"; label: string; meta: string; href: string }
-  | { key: "portfolio"; label: string; meta: string; href: string }
-  | { key: "skills"; label: string; meta: string; href: string }
-  | { key: "zones"; label: string; meta: string; href: string };
-
 function endOfTodayLocal(now: Date = new Date()): Date {
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
@@ -131,61 +124,3 @@ export function timeOfDayFR(value: Date | string): string {
   return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
-const PROFILE_GAP_DEFS: ReadonlyArray<{
-  key: ProfileGap["key"];
-  itemKey: string;
-  label: string;
-  meta: string;
-  href: string;
-}> = [
-  {
-    key: "photo",
-    itemKey: "hasPhoto",
-    label: "Ajoute une photo de profil",
-    meta: "+18 % de clics sur les profils avec photo",
-    href: "/pro/onboarding?step=photo",
-  },
-  {
-    key: "description",
-    itemKey: "hasDescription",
-    label: "Écris une description",
-    meta: "Aide les clients à comprendre ce que tu proposes",
-    href: "/pro/onboarding?step=description",
-  },
-  {
-    key: "portfolio",
-    itemKey: "hasPortfolio",
-    label: "Ajoute un portfolio",
-    meta: "Les profils avec portfolio convertissent mieux",
-    href: "/pro/onboarding?step=portfolio",
-  },
-  {
-    key: "skills",
-    itemKey: "hasSkills",
-    label: "Ajoute tes compétences",
-    meta: "Améliore ta visibilité dans les recherches",
-    href: "/pro/onboarding?step=skills",
-  },
-  {
-    key: "zones",
-    itemKey: "hasServiceZones",
-    label: "Définis tes zones de service",
-    meta: "Reçois des demandes dans les bonnes communes",
-    href: "/pro/onboarding?step=zones",
-  },
-];
-
-export function deriveProfileGaps(
-  completionItems: Record<string, boolean> | undefined,
-  cap = 2,
-): ProfileGap[] {
-  if (!completionItems) return [];
-  const gaps: ProfileGap[] = [];
-  for (const def of PROFILE_GAP_DEFS) {
-    if (gaps.length >= cap) break;
-    if (completionItems[def.itemKey] === false) {
-      gaps.push({ key: def.key, label: def.label, meta: def.meta, href: def.href });
-    }
-  }
-  return gaps;
-}

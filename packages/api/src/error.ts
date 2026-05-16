@@ -1,4 +1,6 @@
 export class ApiError extends Error {
+  body?: unknown;
+
   constructor(
     public readonly status: number,
     message: string,

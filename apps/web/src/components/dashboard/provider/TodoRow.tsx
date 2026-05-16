@@ -26,15 +26,6 @@ export type TodoRowItem =
       meta: string;
       href: string;
       cta: string;
-    }
-  | {
-      key: string;
-      kind: "profile_gap";
-      iconName: keyof typeof I;
-      title: string;
-      meta: string;
-      href: string;
-      cta: string;
     };
 
 const KIND_STYLE: Record<
@@ -44,13 +35,11 @@ const KIND_STYLE: Record<
   close_overdue: { bg: "#FEE2E2", color: "#B91C1C", icon: "alertTriangle" },
   extra_pending: { bg: "#FEF3C7", color: "#92400E", icon: "clock" },
   unread_message: { bg: "#E0E7FF", color: "#4338CA", icon: "messageCircle" },
-  profile_gap: { bg: "#F0FDF4", color: "#15803D", icon: "check" },
 };
 
 export function TodoRow({ item, isFirst }: { item: TodoRowItem; isFirst: boolean }) {
   const palette = KIND_STYLE[item.kind];
-  const iconKey = item.kind === "profile_gap" ? item.iconName : palette.icon;
-  const Icon = (I as Record<string, React.ComponentType<{ size?: number }>>)[iconKey as string] ?? I.check;
+  const Icon = (I as Record<string, React.ComponentType<{ size?: number }>>)[palette.icon] ?? I.check;
 
   return (
     <a
