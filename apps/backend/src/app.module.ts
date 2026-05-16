@@ -21,6 +21,7 @@ import { GeoModule } from "./modules/geo/geo.module";
 import { JobRequestsModule } from "./modules/job-requests/job-requests.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
+import { StorageModule } from "./modules/storage/storage.module";
 import { VerificationModule } from "./modules/verification/verification.module";
 
 @Module({
@@ -34,6 +35,7 @@ import { VerificationModule } from "./modules/verification/verification.module";
     }),
     DatabaseModule,
     CommonModule,
+    StorageModule,
     IdentityModule,
     CategoriesModule,
     ProvidersModule,

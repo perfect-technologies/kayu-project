@@ -20,8 +20,6 @@ export type ProviderDraftInput = {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  idFrontUploaded?: boolean;
-  idBackUploaded?: boolean;
 
   primaryCategoryId?: string;
   categoryIds?: string[];
@@ -32,37 +30,24 @@ export type ProviderDraftInput = {
   description?: string;
 
   serviceZones?: Array<{ city: string; commune?: string | null }>;
-  zoneRadiusKm?: number;
 
   hourlyRate?: number;
-  visitFee?: number;
 
   avatar?: string;
-  bio?: string;
   languages?: string[];
 };
 
 type OverflowDraft = {
-  idFrontUploaded?: boolean;
-  idBackUploaded?: boolean;
   primaryCategoryId?: string;
   categoryIds?: string[];
   subcategoryIds?: string[];
-  zoneRadiusKm?: number;
-  visitFee?: number;
-  bio?: string;
   languages?: string[];
 };
 
 const OVERFLOW_KEYS: (keyof OverflowDraft)[] = [
-  "idFrontUploaded",
-  "idBackUploaded",
   "primaryCategoryId",
   "categoryIds",
   "subcategoryIds",
-  "zoneRadiusKm",
-  "visitFee",
-  "bio",
   "languages",
 ];
 
@@ -369,14 +354,9 @@ export class OnboardingService {
       lastName: state.user.lastName ?? undefined,
       phone: state.user.phone ?? undefined,
       avatar: state.user.avatar ?? undefined,
-      idFrontUploaded: overflow.idFrontUploaded,
-      idBackUploaded: overflow.idBackUploaded,
       primaryCategoryId: overflow.primaryCategoryId,
       categoryIds: overflow.categoryIds,
       subcategoryIds: overflow.subcategoryIds,
-      zoneRadiusKm: overflow.zoneRadiusKm,
-      visitFee: overflow.visitFee,
-      bio: overflow.bio,
       languages: overflow.languages,
     };
 
@@ -407,10 +387,7 @@ export class OnboardingService {
           (item) => item.subcategoryId,
         );
       }
-      if (!draft.profession && overflow.bio && state.provider.description) {
-        draft.profession = state.provider.description;
-        draft.description = overflow.bio;
-      }
+
     }
 
     return draft;

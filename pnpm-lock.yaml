@@ -38,6 +38,9 @@ importers:
       '@prisma/client':
         specifier: ^6.19.2
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@supabase/supabase-js':
+        specifier: ^2.103.0
+        version: 2.103.0
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7

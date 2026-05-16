@@ -26,6 +26,8 @@ export const queryKeys = {
     search: (params?: Partial<ProviderSearchParams>) =>
       ["providers", "search", params] as const,
     detail: (id: string) => ["providers", "detail", id] as const,
+    strength: ["providers", "strength"] as const,
+    portfolio: ["providers", "portfolio"] as const,
   },
   bookings: {
     all: (params?: Partial<BookingSearchParams>) =>

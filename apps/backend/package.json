@@ -37,6 +37,7 @@
     "@nestjs/core": "^11.1.17",
     "@nestjs/platform-express": "^11.1.17",
     "@prisma/client": "^6.19.2",
+    "@supabase/supabase-js": "^2.103.0",
     "cookie-parser": "^1.4.7",
     "jose": "^6.1.2",
     "reflect-metadata": "^0.2.2",

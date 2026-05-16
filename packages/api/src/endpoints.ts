@@ -90,6 +90,15 @@ import type {
   ProviderDraftDto,
   DraftResponse,
   ProviderPublishResponse,
+  ProviderStrengthResponse,
+  // Storage (I09)
+  UploadSignRequestDtoType,
+  UploadSignResponse,
+  ConfirmAvatarDtoType,
+  // Portfolio (I06)
+  PortfolioProjectInputDtoType,
+  PortfolioListResponse,
+  PortfolioMutationResponse,
   // Verification (I08)
   UploadVerificationDocDtoType,
   UploadVerificationDocResponse,
@@ -190,6 +199,16 @@ export const providersApi = (client: ApiClient) => ({
       "/providers/me/availability",
       data,
     ),
+  getStrength: () =>
+    client.get<ProviderStrengthResponse>("/providers/me/strength"),
+  listPortfolio: () =>
+    client.get<PortfolioListResponse>("/providers/me/portfolio"),
+  createPortfolio: (data: PortfolioProjectInputDtoType) =>
+    client.post<PortfolioMutationResponse>("/providers/me/portfolio", data),
+  updatePortfolio: (id: string, data: PortfolioProjectInputDtoType) =>
+    client.patch<PortfolioMutationResponse>(`/providers/me/portfolio/${id}`, data),
+  deletePortfolio: (id: string) =>
+    client.delete<{ success: boolean }>(`/providers/me/portfolio/${id}`),
 });
 
 // ---------- Bookings ----------
@@ -377,6 +396,15 @@ export const onboardingApi = (client: ApiClient) => ({
   patchDraft: (data: ProviderDraftDto) =>
     client.patch<DraftResponse>("/me/provider-draft", data),
   publish: () => client.post<ProviderPublishResponse>("/me/provider-publish"),
+});
+
+// ---------- Storage / Media (I09) ----------
+
+export const mediaApi = (client: ApiClient) => ({
+  sign: (data: UploadSignRequestDtoType) =>
+    client.post<UploadSignResponse>("/me/uploads/sign", data),
+  setAvatar: (data: ConfirmAvatarDtoType) =>
+    client.post<{ success: boolean; avatarUrl: string }>("/me/avatar", data),
 });
 
 // ---------- Verification (I08) ----------

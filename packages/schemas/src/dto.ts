@@ -630,9 +630,94 @@ export const RequestPreviewSchema = z.object({
 
 export const OnboardingStatusSchema = z.object({
   isComplete: z.boolean(),
-  currentStep: z.number().int().min(0).max(5).nullable(),
-  totalSteps: z.number().int().min(1).default(6),
+  currentStep: z.number().int().min(0).max(2).nullable(),
+  totalSteps: z.number().int().min(1).default(3),
   missingForPublish: z.array(z.string()).default([]),
+});
+
+// Mirrors ProviderStrengthResult in apps/backend/src/modules/providers/provider-strength.ts
+// (parallel definition: CJS backend can't statically import this ESM schema — keep in sync).
+export const ProviderStrengthItemSchema = z.object({
+  key: z.enum(["photo", "portfolio", "description", "verification", "depth"]),
+  label: z.string(),
+  done: z.boolean(),
+  points: z.number().int(),
+  earned: z.number().int(),
+});
+
+export const ProviderStrengthResponseSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  tier: z.enum(["base", "solide", "remarquable"]),
+  items: z.array(ProviderStrengthItemSchema),
+});
+
+export const UploadPurposeSchema = z.enum(["avatar", "portfolio", "verification"]);
+
+export const UploadSignRequestDto = z.object({
+  purpose: UploadPurposeSchema,
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(120),
+});
+
+export const UploadSignResponseSchema = z.object({
+  bucket: z.string(),
+  path: z.string(),
+  token: z.string(),
+  signedUrl: z.string(),
+});
+
+export const ConfirmAvatarDto = z.object({
+  path: z
+    .string()
+    .min(1)
+    .max(512)
+    .regex(/^avatar\/[^/]+\/[A-Za-z0-9._-]+$/, "Invalid upload path"),
+});
+
+export const PortfolioImageInputSchema = z.object({
+  imageType: z.enum(["BEFORE", "DURING", "AFTER", "GENERAL", "DETAIL", "PLAN"]).default("GENERAL"),
+  path: z.string().min(1),
+  caption: z.string().max(200).optional(),
+  displayOrder: z.number().int().min(0).default(0),
+});
+
+export const PortfolioProjectInputDto = z.object({
+  title: z.string().min(2).max(120),
+  description: z.string().max(1000).optional(),
+  categoryId: IdSchema.optional(),
+  duration: z.number().int().min(0).optional(),
+  price: z.number().min(0).optional(),
+  images: z.array(PortfolioImageInputSchema).min(1).max(12),
+});
+
+const PortfolioImageResSchema = z.object({
+  id: z.string(),
+  imageType: z.enum(["BEFORE", "DURING", "AFTER", "GENERAL", "DETAIL", "PLAN"]),
+  imageUrl: z.string(),
+  caption: z.string().nullable(),
+  displayOrder: z.number().int(),
+});
+
+const PortfolioProjectResSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  categoryId: z.string().nullable(),
+  duration: z.number().int().nullable(),
+  price: z.number().nullable(),
+  isFeatured: z.boolean(),
+  isPublished: z.boolean(),
+  images: z.array(PortfolioImageResSchema),
+  createdAt: z.string(),
+});
+
+export const PortfolioListResponseSchema = z.object({
+  projects: z.array(PortfolioProjectResSchema),
+});
+
+export const PortfolioMutationResponseSchema = z.object({
+  success: z.boolean(),
+  project: PortfolioProjectResSchema,
 });
 
 export const AvailabilityStatusSchema = z.object({
@@ -1135,16 +1220,13 @@ export const ProviderDraftSkillSchema = z.object({
 });
 
 export const ProviderDraftDto = z.object({
-  onboardingStep: z.number().int().min(0).max(5).optional(),
+  onboardingStep: z.number().int().min(0).max(2).optional(),
 
-  // Step 1 — Identité
+  // Step 1 — Toi & ton métier
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
-  idFrontUploaded: z.boolean().optional(),
-  idBackUploaded: z.boolean().optional(),
 
-  // Step 2 — Activité
   primaryCategoryId: IdSchema.optional(),
   categoryIds: z.array(IdSchema).max(3).optional(),
   subcategoryIds: z.array(IdSchema).optional(),
@@ -1153,23 +1235,21 @@ export const ProviderDraftDto = z.object({
   yearsOfExperience: z.number().int().min(0).max(60).optional(),
   description: z.string().max(1000).optional(),
 
-  // Step 3 — Zones
+  // Step 2 — Où tu interviens
   serviceZones: z.array(ServiceZoneInputSchema).optional(),
-  zoneRadiusKm: z.number().min(1).max(50).optional(),
 
-  // Step 4 — Tarifs
+  // Step 3 — Ton prix de départ
   hourlyRate: z.number().int().positive().optional(),
-  visitFee: z.number().int().nonnegative().optional(),
 
-  // Step 5 — Profil
+  // Profile media (set post-publish via dedicated endpoints, kept here so the
+  // draft response can echo the current avatar)
   avatar: z.string().optional(),
-  bio: z.string().max(500).optional(),
   languages: z.array(z.string()).optional(),
 });
 
 export const DraftResponseSchema = z.object({
   draft: ProviderDraftDto,
-  step: z.number().int().min(0).max(5).nullable(),
+  step: z.number().int().min(0).max(2).nullable(),
   isComplete: z.boolean(),
   missingForPublish: z.array(z.string()).default([]),
 });
@@ -1288,6 +1368,14 @@ export type ProviderDraftSkill = z.infer<typeof ProviderDraftSkillSchema>;
 export type ProviderDraftDto = z.infer<typeof ProviderDraftDto>;
 export type DraftResponse = z.infer<typeof DraftResponseSchema>;
 export type ProviderPublishResponse = z.infer<typeof ProviderPublishResponseSchema>;
+export type ProviderStrengthResponse = z.infer<typeof ProviderStrengthResponseSchema>;
+export type UploadPurpose = z.infer<typeof UploadPurposeSchema>;
+export type UploadSignRequestDtoType = z.infer<typeof UploadSignRequestDto>;
+export type UploadSignResponse = z.infer<typeof UploadSignResponseSchema>;
+export type ConfirmAvatarDtoType = z.infer<typeof ConfirmAvatarDto>;
+export type PortfolioProjectInputDtoType = z.infer<typeof PortfolioProjectInputDto>;
+export type PortfolioListResponse = z.infer<typeof PortfolioListResponseSchema>;
+export type PortfolioMutationResponse = z.infer<typeof PortfolioMutationResponseSchema>;
 
 export const AvailabilityQuery = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "from must be YYYY-MM-DD"),

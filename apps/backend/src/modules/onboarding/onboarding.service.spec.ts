@@ -340,3 +340,35 @@ test("provider publish requires explicit years of experience", async () => {
   );
   assert.equal(transactionRan, false);
 });
+
+test("patchDraft no longer persists removed overflow keys", async () => {
+  const calls: Record<string, unknown> = {};
+  const prisma = {
+    user: {
+      findUnique: async () => ({
+        ...makeUser({ onboardingDraft: { bio: "legacy bio", categoryIds: ["cat_1"] } }),
+        provider: null,
+      }),
+      update: async (args: unknown) => {
+        calls.userUpdate = args;
+      },
+    },
+    $transaction: async (cb: (tx: unknown) => Promise<void>) =>
+      cb({
+        user: { update: async (args: unknown) => { calls.userUpdate = args; } },
+      }),
+  };
+  const service = new OnboardingService(prisma as never, {} as never);
+
+  await service.patchDraft(makeActor(), {
+    idFrontUploaded: true,
+    zoneRadiusKm: 12,
+    firstName: "Jean",
+  } as never);
+
+  const data = (calls.userUpdate as { data?: { onboardingDraft?: unknown } } | undefined)?.data;
+  const draftJson = JSON.stringify(data?.onboardingDraft ?? {});
+  assert.equal(draftJson.includes("idFrontUploaded"), false);
+  assert.equal(draftJson.includes("zoneRadiusKm"), false);
+  assert.equal(draftJson.includes("legacy bio"), false);
+});

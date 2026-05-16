@@ -17,7 +17,7 @@ function makeActor(overrides: Partial<Actor> = {}): Actor {
   } as Actor;
 }
 
-test("verification upload stores launch stub metadata and resets rejected providers to pending", async () => {
+test("uploadDoc resets a REJECTED provider to PENDING and persists a Supabase-backed URL", async () => {
   const calls: Record<string, unknown> = {};
 
   const tx = {
@@ -77,9 +77,15 @@ test("verification upload stores launch stub metadata and resets rejected provid
     ) => callback(tx),
   };
 
-  const service = new VerificationService(prisma as never);
+  const storage = {
+    assertOwnedPath: () => true as const,
+    resolveStoredUrl: (_p: string, path: string) =>
+      `storage://verification-docs/${path}`,
+  };
+  const service = new VerificationService(prisma as never, storage as never);
   const result = await service.uploadDoc(makeActor(), {
     kind: "SELFIE",
+    path: "verification/user_provider_1/selfie-face.jpg",
     fileName: "selfie face.jpg",
     fileSize: 123456,
     mimeType: "image/jpeg",
@@ -87,12 +93,12 @@ test("verification upload stores launch stub metadata and resets rejected provid
 
   const created = calls.createDoc as { data: Record<string, unknown> };
   assert.equal(created.data.fileName, "selfie-face.jpg");
-  assert.match(String(created.data.url), /^launch-stub:\/\/verification\//);
+  assert.match(String(created.data.url), /^storage:\/\/verification-docs\//);
   assert.deepEqual(calls.providerUpdate, {
     where: { id: "provider_1" },
     data: { verificationStatus: "PENDING" },
   });
-  assert.equal(result.doc.storagePolicy, "LAUNCH_STUB_METADATA_ONLY");
+  assert.equal(result.doc.storagePolicy, "SUPABASE_PRIVATE");
   assert.equal(result.doc.fileName, "selfie-face.jpg");
 });
 
@@ -170,7 +176,7 @@ test("removing a required verification document downgrades a verified provider b
     ) => callback(tx),
   };
 
-  const service = new VerificationService(prisma as never);
+  const service = new VerificationService(prisma as never, {} as never);
   await service.removeDoc(makeActor(), "doc_selfie");
 
   assert.deepEqual(calls.deletedDoc, { where: { id: "doc_selfie" } });
@@ -237,9 +243,57 @@ test("verification state does not stay verified when required documents are miss
     },
   };
 
-  const service = new VerificationService(prisma as never);
+  const service = new VerificationService(prisma as never, {} as never);
   const state = await service.getState(makeActor());
 
   assert.equal(state.state, "IN_PROGRESS");
   assert.deepEqual(state.missingKinds, ["SELFIE"]);
+});
+
+test("uploadDoc stores the resolved Supabase storage URL, not a launch stub", async () => {
+  const calls: Record<string, unknown> = {};
+  const tx = {
+    provider: {
+      findUniqueOrThrow: async () => ({ verificationStatus: "PENDING" }),
+    },
+    verificationDoc: {
+      findFirst: async () => null,
+      create: async (args: { data: { url: string } }) => {
+        calls.create = args;
+        return {
+          id: "doc_1",
+          kind: "ID_FRONT",
+          url: args.data.url,
+          fileName: "id.jpg",
+          fileSize: null,
+          mimeType: null,
+          uploadedAt: new Date("2026-05-16T00:00:00.000Z"),
+          reviewedAt: null,
+          reviewedBy: null,
+          decision: null,
+          rejectionReason: null,
+        };
+      },
+      findMany: async () => [{ kind: "ID_FRONT", decision: null }],
+    },
+  };
+  const prisma = {
+    provider: { findUnique: async () => ({ id: "provider_1" }) },
+    $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
+  };
+  const storage = {
+    assertOwnedPath: () => true,
+    resolveStoredUrl: (_p: string, path: string) => `storage://verification-docs/${path}`,
+  };
+  const service = new VerificationService(prisma as never, storage as never);
+
+  const result = await service.uploadDoc({ id: "user_1", role: "PROVIDER" } as never, {
+    kind: "ID_FRONT",
+    path: "verification/user_1/abc-id.jpg",
+  });
+
+  const created = (calls.create as { data: { url: string } }).data.url;
+  assert.equal(created.startsWith("storage://verification-docs/"), true);
+  assert.equal(created.includes("launch-stub://"), false);
+  assert.equal(result.success, true);
 });

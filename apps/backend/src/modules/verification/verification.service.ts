@@ -13,9 +13,11 @@ import type {
 } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { PrismaService } from "../../database/prisma.service";
+import { StorageService } from "../storage/storage.service";
 
 type UploadDocInput = {
   kind: VerificationDocKind;
+  path: string;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
@@ -34,10 +36,10 @@ const REQUIRED_KINDS: VerificationDocKind[] = [
 ];
 
 const VERIFICATION_STORAGE = {
-  mode: "LAUNCH_STUB_METADATA_ONLY" as const,
-  title: "Stockage de lancement explicite",
+  mode: "SUPABASE_PRIVATE" as const,
+  title: "Stockage privé Supabase",
   description:
-    "Cette version enregistre les metadonnees KYC et un emplacement stub auditable. Les binaires sont verifies par l'equipe ops hors application jusqu'au branchement du stockage chiffre.",
+    "Les pièces KYC sont stockées dans un bucket privé Supabase. Seule l'équipe de vérification y accède.",
 };
 
 type VerificationStateLabel =
@@ -71,7 +73,10 @@ type DisputeRecord = Prisma.DisputeGetPayload<{ include: typeof disputeInclude }
 
 @Injectable()
 export class VerificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   async getState(actor: Actor) {
     const providerId = await this.requireProviderId(actor);
@@ -91,8 +96,9 @@ export class VerificationService {
 
   async uploadDoc(actor: Actor, body: UploadDocInput) {
     const providerId = await this.requireProviderId(actor);
+    this.storage.assertOwnedPath("verification", actor.id, body.path);
     const normalizedFileName = this.normalizeFileName(body.kind, body.fileName);
-    const generatedUrl = this.buildStubUrl(providerId, body.kind, normalizedFileName);
+    const generatedUrl = this.storage.resolveStoredUrl("verification", body.path);
 
     const doc = await this.prisma.$transaction(async (tx) => {
       const provider = await tx.provider.findUniqueOrThrow({
@@ -412,17 +418,6 @@ export class VerificationService {
 
     const sanitized = raw.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-");
     return sanitized.slice(0, 255) || `${kind.toLowerCase()}-${Date.now()}.bin`;
-  }
-
-  private buildStubUrl(
-    providerId: string,
-    kind: VerificationDocKind,
-    fileName: string,
-  ) {
-    const suffix = `${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
-    return `launch-stub://verification/${providerId}/${kind.toLowerCase()}/${suffix}/${fileName}`;
   }
 
   private mapDispute(dispute: DisputeRecord) {

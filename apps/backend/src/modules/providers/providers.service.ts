@@ -13,6 +13,8 @@ import type { Request } from "express";
 import { IdentityService } from "../identity/identity.service";
 import { SupabaseJwtService } from "../../common/auth/supabase-jwt.service";
 import { PrismaService } from "../../database/prisma.service";
+import { StorageService } from "../storage/storage.service";
+import { computeProviderStrength } from "./provider-strength";
 
 type ProviderSearchQuery = {
   q?: string;
@@ -193,6 +195,7 @@ export class ProvidersService {
     private readonly prisma: PrismaService,
     private readonly jwt: SupabaseJwtService,
     private readonly identity: IdentityService,
+    private readonly storage: StorageService,
   ) {}
 
   async search(query: ProviderSearchQuery) {
@@ -458,6 +461,203 @@ export class ProvidersService {
       provider: updatedProvider,
       hasAccess: updatedProvider.hasAccess,
       accessDeniedReason: updatedProvider.accessDeniedReason,
+    };
+  }
+
+  async getStrength(actor: User) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId: actor.id },
+      select: {
+        description: true,
+        verificationStatus: true,
+        languages: true,
+        user: { select: { avatar: true } },
+        _count: {
+          select: {
+            portfolioProjects: true,
+            skills: true,
+            serviceZones: true,
+          },
+        },
+      },
+    });
+    if (!provider) {
+      throw new NotFoundException("Provider profile not found");
+    }
+    return computeProviderStrength({
+      hasAvatar: Boolean(provider.user?.avatar),
+      portfolioProjectCount: provider._count.portfolioProjects,
+      hasDescription: Boolean(provider.description && provider.description.trim().length > 0),
+      verificationStatus: provider.verificationStatus,
+      languagesCount: provider.languages.length,
+      skillsCount: provider._count.skills,
+      serviceZonesCount: provider._count.serviceZones,
+    });
+  }
+
+  private async requireOwnProviderId(actor: User): Promise<string> {
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId: actor.id },
+      select: { id: true },
+    });
+    if (!provider) {
+      throw new NotFoundException("Provider profile not found");
+    }
+    return provider.id;
+  }
+
+  async listPortfolio(actor: User) {
+    const providerId = await this.requireOwnProviderId(actor);
+    const projects = await this.prisma.portfolioProject.findMany({
+      where: { providerId },
+      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+      include: { images: { orderBy: { displayOrder: "asc" } } },
+    });
+    return { projects: projects.map((p) => this.mapPortfolioProject(p)) };
+  }
+
+  async createPortfolioProject(
+    actor: User,
+    body: {
+      title: string;
+      description?: string;
+      categoryId?: string;
+      duration?: number;
+      price?: number;
+      images: Array<{
+        imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
+        path: string;
+        caption?: string;
+        displayOrder?: number;
+      }>;
+    },
+  ) {
+    const providerId = await this.requireOwnProviderId(actor);
+    const images = body.images.map((img, index) => {
+      this.storage.assertOwnedPath("portfolio", actor.id, img.path);
+      return {
+        imageType: img.imageType ?? "GENERAL",
+        imageUrl: this.storage.resolveStoredUrl("portfolio", img.path),
+        caption: img.caption ?? null,
+        displayOrder: img.displayOrder ?? index,
+      };
+    });
+    const project = await this.prisma.portfolioProject.create({
+      data: {
+        providerId,
+        title: body.title,
+        description: body.description ?? null,
+        categoryId: body.categoryId ?? null,
+        duration: body.duration ?? null,
+        price: body.price ?? null,
+        images: { create: images },
+      },
+      include: { images: { orderBy: { displayOrder: "asc" } } },
+    });
+    return { success: true as const, project: this.mapPortfolioProject(project) };
+  }
+
+  async updatePortfolioProject(
+    actor: User,
+    id: string,
+    body: {
+      title: string;
+      description?: string;
+      categoryId?: string;
+      duration?: number;
+      price?: number;
+      images: Array<{
+        imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
+        path: string;
+        caption?: string;
+        displayOrder?: number;
+      }>;
+    },
+  ) {
+    const providerId = await this.requireOwnProviderId(actor);
+    const existing = await this.prisma.portfolioProject.findUnique({
+      where: { id },
+      select: { id: true, providerId: true },
+    });
+    if (!existing || existing.providerId !== providerId) {
+      throw new NotFoundException("Portfolio project not found");
+    }
+    const images = body.images.map((img, index) => {
+      this.storage.assertOwnedPath("portfolio", actor.id, img.path);
+      return {
+        imageType: img.imageType ?? "GENERAL",
+        imageUrl: this.storage.resolveStoredUrl("portfolio", img.path),
+        caption: img.caption ?? null,
+        displayOrder: img.displayOrder ?? index,
+      };
+    });
+    const project = await this.prisma.$transaction(async (tx) => {
+      await tx.portfolioImage.deleteMany({ where: { projectId: id } });
+      return tx.portfolioProject.update({
+        where: { id },
+        data: {
+          title: body.title,
+          description: body.description ?? null,
+          categoryId: body.categoryId ?? null,
+          duration: body.duration ?? null,
+          price: body.price ?? null,
+          images: { create: images },
+        },
+        include: { images: { orderBy: { displayOrder: "asc" } } },
+      });
+    });
+    return { success: true as const, project: this.mapPortfolioProject(project) };
+  }
+
+  async deletePortfolioProject(actor: User, id: string) {
+    const providerId = await this.requireOwnProviderId(actor);
+    const existing = await this.prisma.portfolioProject.findUnique({
+      where: { id },
+      select: { id: true, providerId: true },
+    });
+    if (!existing || existing.providerId !== providerId) {
+      throw new NotFoundException("Portfolio project not found");
+    }
+    await this.prisma.portfolioProject.delete({ where: { id } });
+    return { success: true as const };
+  }
+
+  private mapPortfolioProject(project: {
+    id: string;
+    title: string;
+    description: string | null;
+    categoryId: string | null;
+    duration: number | null;
+    price: number | null;
+    isFeatured: boolean;
+    isPublished: boolean;
+    createdAt: Date;
+    images: Array<{
+      id: string;
+      imageType: string;
+      imageUrl: string;
+      caption: string | null;
+      displayOrder: number;
+    }>;
+  }) {
+    return {
+      id: project.id,
+      title: project.title,
+      description: project.description,
+      categoryId: project.categoryId,
+      duration: project.duration,
+      price: project.price,
+      isFeatured: project.isFeatured,
+      isPublished: project.isPublished,
+      createdAt: project.createdAt.toISOString(),
+      images: project.images.map((img) => ({
+        id: img.id,
+        imageType: img.imageType as
+          | "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN",
+        imageUrl: img.imageUrl,
+        caption: img.caption,
+        displayOrder: img.displayOrder,
+      })),
     };
   }
 

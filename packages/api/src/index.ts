@@ -6,6 +6,7 @@ export {
   providersApi,
   bookingsApi,
   reviewsApi,
+  mediaApi,
   messagesApi,
   notificationsApi,
   favoritesApi,

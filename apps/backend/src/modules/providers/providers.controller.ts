@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
+  Post,
   Query,
   Req,
   Param,
@@ -71,6 +73,25 @@ const updateAvailabilityBodyPipe = new LazyZodValidationPipe(async () => {
   return UpdateProviderAvailabilityDto;
 });
 
+const portfolioBodyPipe = new LazyZodValidationPipe(async () => {
+  const { PortfolioProjectInputDto } = await import("@kayu/schemas");
+  return PortfolioProjectInputDto;
+});
+
+type PortfolioBody = {
+  title: string;
+  description?: string;
+  categoryId?: string;
+  duration?: number;
+  price?: number;
+  images: Array<{
+    imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
+    path: string;
+    caption?: string;
+    displayOrder?: number;
+  }>;
+};
+
 @Controller("providers")
 export class ProvidersController {
   constructor(
@@ -102,6 +123,49 @@ export class ProvidersController {
   ) {
     await this.providers.updateMe(actor, { isAvailable: body.isAvailable });
     return { success: true as const, isAvailable: body.isAvailable };
+  }
+
+  // NOTE: must stay declared above @Get(":id") so Nest does not route "me/strength" into findById.
+  @Get("me/strength")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  getStrength(@CurrentActor() actor: Actor) {
+    return this.providers.getStrength(actor);
+  }
+
+  @Get("me/portfolio")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  listPortfolio(@CurrentActor() actor: Actor) {
+    return this.providers.listPortfolio(actor);
+  }
+
+  @Post("me/portfolio")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  createPortfolio(
+    @CurrentActor() actor: Actor,
+    @Body(portfolioBodyPipe) body: PortfolioBody,
+  ) {
+    return this.providers.createPortfolioProject(actor, body);
+  }
+
+  @Patch("me/portfolio/:id")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  updatePortfolio(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Body(portfolioBodyPipe) body: PortfolioBody,
+  ) {
+    return this.providers.updatePortfolioProject(actor, id, body);
+  }
+
+  @Delete("me/portfolio/:id")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  deletePortfolio(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.providers.deletePortfolioProject(actor, id);
   }
 
   @Get(":id")

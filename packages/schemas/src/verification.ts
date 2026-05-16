@@ -22,6 +22,7 @@ export type VerificationDecision = z.infer<typeof VerificationDecision>;
 
 export const VerificationStoragePolicy = z.enum([
   "LAUNCH_STUB_METADATA_ONLY",
+  "SUPABASE_PRIVATE",
 ]);
 export type VerificationStoragePolicy = z.infer<
   typeof VerificationStoragePolicy
@@ -77,6 +78,7 @@ export type VerificationStateResponse = z.infer<
 
 export const UploadVerificationDocDto = z.object({
   kind: VerificationDocKind,
+  path: z.string().min(1),
   fileName: z.string().max(255).optional(),
   fileSize: z.number().int().positive().optional(),
   mimeType: z.string().max(120).optional(),
