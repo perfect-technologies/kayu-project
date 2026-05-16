@@ -1,26 +1,30 @@
 "use client";
 
+import { useState } from "react";
 import { I } from "@kayu/ui/web";
 import { tokens, type CategorySlug } from "@kayu/ui";
 import {
   CITIES,
+  HOURLY_PRESETS,
   LANGUAGES,
+  PRICE_GUIDANCE,
   SKILL_SUGGESTIONS,
+  TITLE_SUGGESTIONS,
   YEARS_OPTIONS,
   type OnboardingData,
 } from "./types";
-
-type StepProps = {
-  data: OnboardingData;
-  setData: (next: Partial<OnboardingData>) => void;
-  categoryOptions?: CategoryOption[];
-};
 
 type CategoryOption = {
   id: string;
   slug: string;
   name: string;
   subcategories?: Array<{ id: string; name: string; slug?: string; categoryId?: string }>;
+};
+
+type StepProps = {
+  data: OnboardingData;
+  setData: (next: Partial<OnboardingData>) => void;
+  categoryOptions?: CategoryOption[];
 };
 
 const CATEGORY_SLUGS: CategorySlug[] = [
@@ -48,10 +52,7 @@ const CATEGORY_KEYWORDS: Array<[CategorySlug, string[]]> = [
 ];
 
 function normalizeCategoryText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return value.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 function isCategorySlug(value: string): value is CategorySlug {
@@ -62,7 +63,7 @@ function categoryToTokenSlug(category: CategoryOption): CategorySlug {
   if (isCategorySlug(category.slug)) return category.slug;
   const normalized = normalizeCategoryText(
     `${category.slug} ${category.name} ${(category.subcategories ?? [])
-      .map((subcategory) => `${subcategory.id} ${subcategory.name}`)
+      .map((s) => `${s.id} ${s.name}`)
       .join(" ")}`,
   );
   return (
@@ -81,17 +82,17 @@ function resolveCategoryIds(values: string[], categories: CategoryOption[]) {
   const ids: string[] = [];
   for (const value of values) {
     const match =
-      categories.find((category) => category.id === value) ??
-      categories.find((category) => category.slug === value) ??
-      categories.find((category) =>
-        (category.subcategories ?? []).some(
-          (subcategory) =>
-            subcategory.id === value ||
-            subcategory.slug === value ||
-            subcategory.name.toLowerCase() === value.toLowerCase(),
+      categories.find((c) => c.id === value) ??
+      categories.find((c) => c.slug === value) ??
+      categories.find((c) =>
+        (c.subcategories ?? []).some(
+          (s) =>
+            s.id === value ||
+            s.slug === value ||
+            s.name.toLowerCase() === value.toLowerCase(),
         ),
       ) ??
-      categories.find((category) => categoryToTokenSlug(category) === value);
+      categories.find((c) => categoryToTokenSlug(c) === value);
     if (match && !seen.has(match.id)) {
       ids.push(match.id);
       seen.add(match.id);
@@ -100,7 +101,7 @@ function resolveCategoryIds(values: string[], categories: CategoryOption[]) {
   return ids.slice(0, 3);
 }
 
-export function FieldLabel({
+function FieldLabel({
   label,
   hint,
   optional,
@@ -121,13 +122,7 @@ export function FieldLabel({
       >
         {label}{" "}
         {optional && (
-          <span
-            style={{
-              fontWeight: 400,
-              fontSize: 12,
-              color: tokens.color.textMuted,
-            }}
-          >
+          <span style={{ fontWeight: 400, fontSize: 12, color: tokens.color.textMuted }}>
             (optionnel)
           </span>
         )}
@@ -148,65 +143,115 @@ export function FieldLabel({
   );
 }
 
-// ─── Step 1 — Identité ────────────────────────────────────────────────────
+function pillStyle(selected: boolean): React.CSSProperties {
+  return {
+    padding: "8px 13px",
+    borderRadius: 999,
+    border: selected
+      ? `1px solid ${tokens.color.primary}`
+      : `1px solid ${tokens.color.border}`,
+    background: selected ? tokens.color.primarySubtle : tokens.color.surface,
+    color: selected ? tokens.color.primaryHover : tokens.color.textBody,
+    fontSize: 13,
+    fontWeight: selected ? 700 : 500,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+}
 
-export function StepIdentity({ data, setData }: StepProps) {
+// ─── Step 1 — Toi & ton métier ────────────────────────────────────────────
+
+export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
+  const [titleOther, setTitleOther] = useState(false);
+  const selectedCategoryIds = resolveCategoryIds(data.categories, categoryOptions);
+  const selectedSet = new Set(selectedCategoryIds);
+  const limitReached = selectedCategoryIds.length >= 3;
+
+  const titleSuggestions = Array.from(
+    new Set(
+      selectedCategoryIds.flatMap((id) => {
+        const c = categoryOptions.find((o) => o.id === id);
+        return c ? (TITLE_SUGGESTIONS[categoryToTokenSlug(c)] ?? []) : [];
+      }),
+    ),
+  );
+  const isCustomTitle = data.title.trim().length > 0 && !titleSuggestions.includes(data.title);
+  const skillSuggestions = Array.from(
+    new Set(
+      selectedCategoryIds.flatMap((id) => {
+        const c = categoryOptions.find((o) => o.id === id);
+        return c ? (SKILL_SUGGESTIONS[categoryToTokenSlug(c)] ?? []) : [];
+      }),
+    ),
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div
         style={{
-          padding: 16,
-          borderRadius: tokens.radius.md,
-          background: tokens.color.surfacePrimary,
           display: "flex",
+          alignItems: "center",
           gap: 12,
-          alignItems: "flex-start",
-          border: "1px solid #BAE6FD",
+          padding: 12,
+          borderRadius: tokens.radius.md,
+          background: tokens.color.surfaceMuted,
+          border: `1px solid ${tokens.color.border}`,
         }}
       >
-        <I.shieldCheck size={20} strokeColor={tokens.color.primaryHover} />
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontWeight: 600,
-              color: tokens.color.primaryHover,
-              fontSize: 14,
-            }}
-          >
-            Vérification progressive
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            background: "#F5F2E9",
+            color: tokens.color.textMuted,
+            fontFamily: tokens.font.mono,
+            fontWeight: 700,
+            fontSize: 13,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {(data.firstName?.[0] || "").toUpperCase()}
+          {(data.lastName?.[0] || "").toUpperCase() || "?"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: tokens.color.textPrimary }}>
+            {data.firstName || data.lastName
+              ? `${data.firstName} ${data.lastName}`.trim()
+              : "Tes informations"}
           </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.color.textBody,
-              marginTop: 4,
-              lineHeight: 1.5,
-            }}
-          >
-            Le lancement ne bloque pas sur un dossier complet. Ajoute tes
-            documents maintenant si tu les as, ou termine ton profil d'abord.
+          <div style={{ fontSize: 12, color: tokens.color.textMuted }}>
+            {data.phone ? `+243 ${data.phone}` : "Confirme ton identité ci-dessous"}
           </div>
         </div>
       </div>
 
-      <div>
-        <FieldLabel label="Prénom" />
-        <input
-          className="k-input"
-          value={data.firstName}
-          onChange={(e) => setData({ firstName: e.target.value })}
-          placeholder="Jean"
-        />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="k-ob-id">
+        <div>
+          <FieldLabel label="Prénom" />
+          <input
+            className="k-input"
+            value={data.firstName}
+            onChange={(e) => setData({ firstName: e.target.value })}
+            placeholder="Jean"
+          />
+        </div>
+        <div>
+          <FieldLabel label="Nom" />
+          <input
+            className="k-input"
+            value={data.lastName}
+            onChange={(e) => setData({ lastName: e.target.value })}
+            placeholder="Mubake"
+          />
+        </div>
       </div>
-      <div>
-        <FieldLabel label="Nom" />
-        <input
-          className="k-input"
-          value={data.lastName}
-          onChange={(e) => setData({ lastName: e.target.value })}
-          placeholder="Mubake"
-        />
-      </div>
+
       <div>
         <FieldLabel
           label="Numéro de téléphone"
@@ -216,7 +261,7 @@ export function StepIdentity({ data, setData }: StepProps) {
           <div
             className="k-input"
             style={{
-              width: 84,
+              width: 80,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -241,268 +286,120 @@ export function StepIdentity({ data, setData }: StepProps) {
 
       <div>
         <FieldLabel
-          label="Pièce d'identité"
-          optional
-          hint="Carte d'électeur, passeport ou permis. La vérification se fait après publication, depuis « Mon profil pro › Vérification »."
+          label="Ton métier"
+          hint={`${selectedCategoryIds.length}/3 — choisis jusqu'à trois métiers.`}
         />
-        <div
-          style={{
-            padding: 14,
-            borderRadius: tokens.radius.md,
-            background: tokens.color.surfaceMuted,
-            border: `1px dashed ${tokens.color.borderStrong}`,
-            display: "flex",
-            gap: 12,
-            alignItems: "flex-start",
-          }}
-        >
-          <I.shieldCheck size={18} strokeColor={tokens.color.textMuted} />
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.color.textMuted,
-              lineHeight: 1.5,
-            }}
-          >
-            Les téléversements sont gérés dans l'écran Vérification après publication.
-            L'équipe KAYOU revoit ton dossier sous 24h pour activer le badge « Vérifié ».
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 2 — Activité ──────────────────────────────────────────────────────
-
-export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
-  const selectedCategoryIds = resolveCategoryIds(data.categories, categoryOptions);
-  const selectedCategorySet = new Set(selectedCategoryIds);
-  const suggestions = Array.from(
-    new Set(
-      selectedCategoryIds.flatMap((categoryId) => {
-        const category = categoryOptions.find((option) => option.id === categoryId);
-        if (!category) return [];
-        return SKILL_SUGGESTIONS[categoryToTokenSlug(category)] ?? [];
-      }),
-    ),
-  );
-  const categoryLimitReached = selectedCategoryIds.length >= 3;
-  const selectedSubcategories = categoryOptions
-    .filter((category) => selectedCategorySet.has(category.id))
-    .flatMap((category) => category.subcategories ?? []);
-  const toggleSubcategory = (id: string) => {
-    setData({
-      subcategoryIds: data.subcategoryIds.includes(id)
-        ? data.subcategoryIds.filter((x) => x !== id)
-        : [...data.subcategoryIds, id],
-    });
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div>
-        <FieldLabel
-          label="Catégories de service"
-          hint={`${selectedCategoryIds.length}/3 sélectionnée${selectedCategoryIds.length > 1 ? "s" : ""}. Choisis jusqu'à trois catégories.`}
-        />
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 10,
-          }}
-        >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {categoryOptions.map((category) => {
-            const p = categoryVisual(category);
-            const IconC =
-              (I as Record<string, React.FC<{ size?: number }>>)[p.iconName] ??
-              I.wrench;
-            const isSel = selectedCategorySet.has(category.id);
+            const isSel = selectedSet.has(category.id);
             return (
               <button
                 key={category.id}
                 type="button"
                 onClick={() => {
                   if (isSel) {
-                    const removedSubcategoryIds = new Set(
-                      category.subcategories?.map((subcategory) => subcategory.id) ??
-                        [],
+                    const removed = new Set(
+                      category.subcategories?.map((s) => s.id) ?? [],
                     );
                     setData({
                       categories: selectedCategoryIds.filter((id) => id !== category.id),
                       subcategoryIds: data.subcategoryIds.filter(
-                        (id) => !removedSubcategoryIds.has(id),
+                        (id) => !removed.has(id),
                       ),
                     });
                     return;
                   }
-                  if (categoryLimitReached) return;
+                  if (limitReached) return;
                   setData({ categories: [...selectedCategoryIds, category.id] });
                 }}
                 style={{
-                  padding: 14,
-                  borderRadius: tokens.radius.md,
-                  border: isSel
-                    ? `2px solid ${p.accent}`
-                    : `2px solid ${tokens.color.border}`,
-                  background: isSel ? p.bg : tokens.color.surface,
-                  cursor: !isSel && categoryLimitReached ? "not-allowed" : "pointer",
-                  textAlign: "left",
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                  opacity: !isSel && categoryLimitReached ? 0.55 : 1,
-                  transition: "all 140ms cubic-bezier(0.2, 0, 0, 1)",
+                  ...pillStyle(isSel),
+                  cursor: !isSel && limitReached ? "not-allowed" : "pointer",
+                  opacity: !isSel && limitReached ? 0.5 : 1,
                 }}
               >
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 8,
-                    background: p.bg,
-                    color: p.accent,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <IconC size={18} />
-                </div>
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    color: tokens.color.textPrimary,
-                  }}
-                >
-                  {category.name}
-                </span>
-                {isSel && (
-                  <I.check
-                    size={16}
-                    strokeColor={p.accent}
-                    style={{ marginLeft: "auto" }}
-                  />
-                )}
-                {!isSel && categoryLimitReached && (
-                  <I.lock
-                    size={14}
-                    strokeColor={tokens.color.textSubtle}
-                    style={{ marginLeft: "auto" }}
-                  />
-                )}
+                {isSel && <I.check size={13} />}
+                {category.name}
               </button>
             );
           })}
         </div>
       </div>
 
-      {selectedSubcategories.length > 0 && (
+      {selectedCategoryIds.length > 0 && (
         <div>
           <FieldLabel
-            label="Sous-catégories"
-            optional
-            hint="Sélectionne toutes les spécialités pertinentes. Pas de limite."
+            label="Comment tu te présentes"
+            hint="Choisis un intitulé, ou écris le tien."
           />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {selectedSubcategories.map((subcategory) => {
-              const isSel = data.subcategoryIds.includes(subcategory.id);
+            {titleSuggestions.map((t) => {
+              const isSel = !titleOther && !isCustomTitle && data.title === t;
               return (
                 <button
-                  key={subcategory.id}
+                  key={t}
                   type="button"
-                  onClick={() => toggleSubcategory(subcategory.id)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: isSel
-                      ? `1px solid ${tokens.color.primary}`
-                      : `1px solid ${tokens.color.border}`,
-                    background: isSel
-                      ? tokens.color.primarySubtle
-                      : tokens.color.surface,
-                    color: isSel
-                      ? tokens.color.primaryHover
-                      : tokens.color.textBody,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
+                  onClick={() => {
+                    setTitleOther(false);
+                    setData({ title: t });
                   }}
+                  style={pillStyle(isSel)}
                 >
-                  {isSel && <I.check size={12} />}
-                  {subcategory.name}
+                  {isSel && <I.check size={13} />}
+                  {t}
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => {
+                setTitleOther(true);
+                if (titleSuggestions.includes(data.title)) setData({ title: "" });
+              }}
+              style={pillStyle(titleOther || isCustomTitle)}
+            >
+              Autre…
+            </button>
           </div>
+          {(titleOther || isCustomTitle) && (
+            <input
+              className="k-input"
+              value={data.title}
+              onChange={(e) => setData({ title: e.target.value })}
+              placeholder="Ton intitulé d'activité"
+              style={{ marginTop: 10 }}
+              autoFocus
+            />
+          )}
         </div>
       )}
 
       <div>
-        <FieldLabel
-          label="Intitulé d’activité"
-          hint="Ex : Plombier certifié, Électricienne agréée SNEL…"
-        />
-        <input
-          className="k-input"
-          value={data.title}
-          onChange={(e) => setData({ title: e.target.value })}
-          placeholder="Plombier certifié"
-        />
-      </div>
-
-      <div>
         <FieldLabel label="Années d'expérience" />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {YEARS_OPTIONS.map((r) => {
-            const isSel = data.years === r;
-            return (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setData({ years: r })}
-                style={{
-                  padding: "10px 16px",
-                  borderRadius: 999,
-                  border: isSel
-                    ? `1px solid ${tokens.color.primary}`
-                    : `1px solid ${tokens.color.border}`,
-                  background: isSel
-                    ? tokens.color.primarySubtle
-                    : tokens.color.surface,
-                  color: isSel
-                    ? tokens.color.primaryHover
-                    : tokens.color.textBody,
-                  fontWeight: 500,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                }}
-              >
-                {r}
-              </button>
-            );
-          })}
+          {YEARS_OPTIONS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setData({ years: r })}
+              style={pillStyle(data.years === r)}
+            >
+              {data.years === r && <I.check size={13} />}
+              {r}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div>
-        <FieldLabel
-          label="Compétences"
-          optional
-          hint={
-            selectedCategoryIds.length > 0
-              ? "Ajoute autant de spécialités que nécessaire. Les clients filtrent par compétence."
-              : "Choisis d'abord une catégorie pour voir les suggestions."
-          }
-        />
-        {suggestions.length > 0 && (
+      {selectedCategoryIds.length > 0 && skillSuggestions.length > 0 && (
+        <div>
+          <FieldLabel
+            label="Compétences"
+            optional
+            hint="Les clients filtrent par compétence. Ajoute ce qui te correspond."
+          />
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {suggestions.map((s) => {
+            {skillSuggestions.map((s) => {
               const isSel = data.skills.includes(s);
               return (
                 <button
@@ -515,25 +412,16 @@ export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
                         : [...data.skills, s],
                     })
                   }
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    border: isSel
-                      ? `1px solid ${tokens.color.textPrimary}`
-                      : `1px solid ${tokens.color.border}`,
-                    background: isSel
-                      ? tokens.color.textPrimary
-                      : tokens.color.surface,
-                    color: isSel
-                      ? tokens.color.textInverse
-                      : tokens.color.textBody,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
+                  style={
+                    isSel
+                      ? {
+                          ...pillStyle(true),
+                          background: tokens.color.textPrimary,
+                          color: tokens.color.textInverse,
+                          border: `1px solid ${tokens.color.textPrimary}`,
+                        }
+                      : pillStyle(false)
+                  }
                 >
                   {isSel && <I.check size={12} />}
                   {s}
@@ -541,50 +429,21 @@ export function StepCraft({ data, setData, categoryOptions = [] }: StepProps) {
               );
             })}
           </div>
-        )}
-      </div>
-
-      <div>
-        <FieldLabel
-          label="Décrivez brièvement votre savoir-faire"
-          optional
-          hint="Un court paragraphe visible sur ton profil public."
-        />
-        <textarea
-          value={data.bio}
-          onChange={(e) => setData({ bio: e.target.value.slice(0, 500) })}
-          placeholder="Plombier indépendant depuis 2018, spécialisé en chauffe-eau et fuites sous évier."
-          style={{
-            width: "100%",
-            minHeight: 96,
-            padding: 14,
-            borderRadius: tokens.radius.md,
-            border: `1px solid ${tokens.color.border}`,
-            background: tokens.color.surface,
-            fontFamily: "inherit",
-            fontSize: 14.5,
-            lineHeight: 1.5,
-            outline: "none",
-            resize: "vertical",
-          }}
-        />
-        <div
-          style={{
-            fontSize: 11,
-            color: tokens.color.textMuted,
-            marginTop: 4,
-            textAlign: "right",
-            fontFamily: tokens.font.mono,
-          }}
-        >
-          {data.bio.length} / 500
         </div>
-      </div>
+      )}
+
+      <style jsx>{`
+        @media (max-width: 520px) {
+          :global(.k-ob-id) {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-// ─── Step 3 — Zones ───────────────────────────────────────────────────────
+// ─── Step 2 — Où tu interviens ────────────────────────────────────────────
 
 export function StepZones({ data, setData }: StepProps) {
   const toggleCommune = (city: string, commune: string) => {
@@ -595,45 +454,14 @@ export function StepZones({ data, setData }: StepProps) {
         : [...data.zones, key],
     });
   };
-
   const selectedCities = new Set(data.zones.map((z) => z.split("|")[0]));
-  const clampedRadius = Math.min(20, Math.max(1, data.radius));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div>
         <FieldLabel
-          label="Rayon d'intervention"
-          hint={`Actuel : ${clampedRadius} km autour de tes communes.`}
-        />
-        <input
-          type="range"
-          min={1}
-          max={20}
-          value={clampedRadius}
-          onChange={(e) => setData({ radius: +e.target.value })}
-          style={{ width: "100%", accentColor: tokens.color.primary }}
-        />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: 11,
-            color: tokens.color.textMuted,
-            marginTop: 2,
-            fontFamily: tokens.font.mono,
-          }}
-        >
-          <span>1 km</span>
-          <span>{clampedRadius} km</span>
-          <span>20 km</span>
-        </div>
-      </div>
-
-      <div>
-        <FieldLabel
           label="Communes desservies"
-          hint="Choisis au moins une commune. Sélectionne plusieurs villes si tu te déplaces."
+          hint="Choisis au moins une commune. Plus de communes = plus de demandes."
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {CITIES.map((city) => (
@@ -646,7 +474,6 @@ export function StepZones({ data, setData }: StepProps) {
                 background: selectedCities.has(city.name)
                   ? tokens.color.primarySubtle
                   : tokens.color.surface,
-                transition: "background 140ms cubic-bezier(0.2, 0, 0, 1)",
               }}
             >
               <div
@@ -657,10 +484,7 @@ export function StepZones({ data, setData }: StepProps) {
                   marginBottom: 10,
                 }}
               >
-                <I.mapPin
-                  size={15}
-                  strokeColor={tokens.color.primaryHover}
-                />
+                <I.mapPin size={15} strokeColor={tokens.color.primaryHover} />
                 <div
                   style={{
                     fontWeight: 600,
@@ -673,29 +497,21 @@ export function StepZones({ data, setData }: StepProps) {
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {city.communes.map((c) => {
-                  const key = `${city.name}|${c}`;
-                  const isSel = data.zones.includes(key);
+                  const isSel = data.zones.includes(`${city.name}|${c}`);
                   return (
                     <button
                       key={c}
                       type="button"
                       onClick={() => toggleCommune(city.name, c)}
-                      style={{
-                        padding: "7px 11px",
-                        borderRadius: 999,
-                        border: isSel
-                          ? `1px solid ${tokens.color.primary}`
-                          : `1px solid ${tokens.color.border}`,
-                        background: isSel
-                          ? tokens.color.primary
-                          : tokens.color.surface,
-                        color: isSel
-                          ? tokens.color.textInverse
-                          : tokens.color.textBody,
-                        fontSize: 12.5,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                      }}
+                      style={
+                        isSel
+                          ? {
+                              ...pillStyle(true),
+                              background: tokens.color.primary,
+                              color: tokens.color.textInverse,
+                            }
+                          : pillStyle(false)
+                      }
                     >
                       {c}
                     </button>
@@ -719,13 +535,7 @@ export function StepZones({ data, setData }: StepProps) {
         }}
       >
         <I.info size={15} strokeColor={tokens.color.textMuted} />
-        <div
-          style={{
-            fontSize: 12.5,
-            color: tokens.color.textBody,
-            lineHeight: 1.5,
-          }}
-        >
+        <div style={{ fontSize: 12.5, color: tokens.color.textBody, lineHeight: 1.5 }}>
           Tu apparais dans les résultats quand un client cherche dans une de tes
           communes sélectionnées.
         </div>
@@ -734,79 +544,66 @@ export function StepZones({ data, setData }: StepProps) {
   );
 }
 
-// ─── Step 4 — Tarifs ──────────────────────────────────────────────────────
+// ─── Step 3 — Ton prix de départ ──────────────────────────────────────────
 
-const HOURLY_PRESETS = [5000, 8000, 12000, 15000];
+function pickGuidance(
+  data: OnboardingData,
+  categoryOptions: CategoryOption[],
+): { min: number; max: number } | null {
+  const ids = resolveCategoryIds(data.categories, categoryOptions);
+  for (const id of ids) {
+    const c = categoryOptions.find((o) => o.id === id);
+    if (!c) continue;
+    const g = PRICE_GUIDANCE[categoryToTokenSlug(c)];
+    if (g) return g;
+  }
+  return null;
+}
 
-export function StepPricing({ data, setData }: StepProps) {
+export function StepPricing({ data, setData, categoryOptions = [] }: StepProps) {
+  const guidance = pickGuidance(data, categoryOptions);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div
-        style={{
-          padding: 16,
-          borderRadius: tokens.radius.md,
-          background: tokens.color.surfaceAmber,
-          border: "1px solid #FDE68A",
-          display: "flex",
-          gap: 12,
-        }}
-      >
-        <I.coins size={20} strokeColor="#B45309" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, color: "#92400E", fontSize: 14 }}>
-            Prix de départ moyen à Kinshasa
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "#78350F",
-              marginTop: 2,
-              lineHeight: 1.5,
-            }}
-          >
-            <span style={{ fontFamily: tokens.font.mono, fontWeight: 700 }}>
-              12 000 – 18 000 FC
-            </span>{" "}
-            par intervention. Tu peux ajuster à tout moment.
-          </div>
+      {guidance && (
+        <div
+          style={{
+            padding: 14,
+            borderRadius: tokens.radius.md,
+            background: tokens.color.surfaceAmber,
+            border: "1px solid #FDE68A",
+            fontSize: 13,
+            color: "#78350F",
+            lineHeight: 1.5,
+          }}
+        >
+          À titre indicatif à Kinshasa :{" "}
+          <span style={{ fontFamily: tokens.font.mono, fontWeight: 700 }}>
+            {guidance.min.toLocaleString("fr-FR")} – {guidance.max.toLocaleString("fr-FR")} FC
+          </span>{" "}
+          par intervention. Ajustable à tout moment.
         </div>
-      </div>
+      )}
 
       <div>
         <FieldLabel
           label="Prix de départ"
-          hint="Prix indicatif affiché sur ton profil sous la forme « À partir de … FC ». Le prix final est convenu avec le client avant l'intervention."
+          hint="Affiché sur ton profil sous la forme « À partir de … FC ». Le prix final est convenu avec le client avant l'intervention."
         />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-          {HOURLY_PRESETS.map((p) => {
-            const isSel = data.hourly === p;
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setData({ hourly: p })}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  border: isSel
-                    ? `1px solid ${tokens.color.primary}`
-                    : `1px solid ${tokens.color.border}`,
-                  background: isSel
-                    ? tokens.color.primarySubtle
-                    : tokens.color.surface,
-                  color: isSel
-                    ? tokens.color.primaryHover
-                    : tokens.color.textBody,
-                  fontFamily: tokens.font.mono,
-                  fontWeight: 600,
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
-                {p.toLocaleString("fr-FR")} FC
-              </button>
-            );
-          })}
+          {HOURLY_PRESETS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setData({ hourly: p })}
+              style={{
+                ...pillStyle(data.hourly === p),
+                fontFamily: tokens.font.mono,
+                fontWeight: 600,
+              }}
+            >
+              {p.toLocaleString("fr-FR")} FC
+            </button>
+          ))}
         </div>
         <div style={{ position: "relative" }}>
           <input
@@ -814,9 +611,9 @@ export function StepPricing({ data, setData }: StepProps) {
             type="number"
             value={data.hourly || ""}
             onChange={(e) => setData({ hourly: Math.max(0, +e.target.value) })}
-            placeholder="15000"
+            placeholder="8000"
             style={{
-              paddingRight: 80,
+              paddingRight: 56,
               fontFamily: tokens.font.mono,
               fontWeight: 600,
               fontSize: 18,
@@ -839,346 +636,97 @@ export function StepPricing({ data, setData }: StepProps) {
           </div>
         </div>
       </div>
-
-      <div>
-        <FieldLabel
-          label="Déplacement"
-          hint="Simple indication pour la discussion avec le client."
-        />
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 10,
-          }}
-        >
-          {(
-            [
-              { k: "free", label: "Gratuit", sub: "Dans ma zone" },
-              { k: "fixed", label: "Forfait", sub: "5 000 FC" },
-            ] as const
-          ).map((o) => {
-            const isSel = data.travelMode === o.k;
-            return (
-              <button
-                key={o.k}
-                type="button"
-                onClick={() => setData({ travelMode: o.k })}
-                style={{
-                  padding: 14,
-                  borderRadius: tokens.radius.md,
-                  border: isSel
-                    ? `2px solid ${tokens.color.primary}`
-                    : `2px solid ${tokens.color.border}`,
-                  background: isSel
-                    ? tokens.color.primarySubtle
-                    : tokens.color.surface,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 600,
-                    fontSize: 14,
-                    color: tokens.color.textPrimary,
-                  }}
-                >
-                  {o.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: tokens.color.textMuted,
-                    marginTop: 2,
-                  }}
-                >
-                  {o.sub}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
     </div>
   );
 }
 
-// ─── Step 5 — Profil ──────────────────────────────────────────────────────
-
-export function StepProfile({ data, setData }: StepProps) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div>
-        <FieldLabel
-          label="Photo de profil"
-          optional
-          hint="Le téléversement de photo arrive avec la prochaine version. Vous pourrez ajouter votre portrait depuis votre profil après la publication."
-        />
-        <div
-          style={{
-            display: "flex",
-            gap: 14,
-            alignItems: "center",
-            padding: 14,
-            borderRadius: tokens.radius.md,
-            background: tokens.color.surfaceMuted,
-            border: `1px dashed ${tokens.color.borderStrong}`,
-          }}
-        >
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: "50%",
-              background: tokens.color.surface,
-              color: tokens.color.textSubtle,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <I.user size={24} />
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.color.textMuted,
-              lineHeight: 1.5,
-            }}
-          >
-            Votre profil se publie sans photo pour le lancement. Les clients voient
-            un avatar neutre jusqu'à ce que l'upload soit activé.
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <FieldLabel
-          label="À propos de moi"
-          hint="2–3 phrases. Qu'est-ce qui fait ta différence ?"
-        />
-        <textarea
-          value={data.bio}
-          onChange={(e) => setData({ bio: e.target.value.slice(0, 500) })}
-          placeholder="Plombier depuis 2018, formé à l'INPP Kinshasa. Je réponds en moins de 30 min et garantis mes interventions."
-          style={{
-            width: "100%",
-            minHeight: 110,
-            padding: 14,
-            borderRadius: tokens.radius.md,
-            border: `1px solid ${tokens.color.border}`,
-            background: tokens.color.surface,
-            fontFamily: "inherit",
-            fontSize: 14.5,
-            lineHeight: 1.5,
-            outline: "none",
-            resize: "vertical",
-          }}
-        />
-        <div
-          style={{
-            fontSize: 11,
-            color: tokens.color.textMuted,
-            marginTop: 4,
-            textAlign: "right",
-            fontFamily: tokens.font.mono,
-          }}
-        >
-          {data.bio.length} / 500
-        </div>
-      </div>
-
-      <div>
-        <FieldLabel
-          label="Langues parlées"
-          optional
-          hint="Indique les langues dans lesquelles tu peux échanger."
-        />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {LANGUAGES.map((l) => {
-            const isSel = data.languages.includes(l);
-            return (
-              <button
-                key={l}
-                type="button"
-                onClick={() =>
-                  setData({
-                    languages: isSel
-                      ? data.languages.filter((x) => x !== l)
-                      : [...data.languages, l],
-                  })
-                }
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  border: isSel
-                    ? `1px solid ${tokens.color.textPrimary}`
-                    : `1px solid ${tokens.color.border}`,
-                  background: isSel
-                    ? tokens.color.textPrimary
-                    : tokens.color.surface,
-                  color: isSel
-                    ? tokens.color.textInverse
-                    : tokens.color.textBody,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                {isSel && <I.check size={12} />}
-                {l}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <FieldLabel
-          label="Portfolio"
-          optional
-          hint="La galerie arrive avec l'upload photo. Tu peux préparer tes exemples et les ajouter plus tard depuis ton profil."
-        />
-        <div
-          style={{
-            padding: 14,
-            borderRadius: tokens.radius.md,
-            background: tokens.color.surfaceMuted,
-            border: `1px dashed ${tokens.color.borderStrong}`,
-            display: "flex",
-            gap: 12,
-            alignItems: "flex-start",
-          }}
-        >
-          <I.camera size={18} strokeColor={tokens.color.textMuted} />
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.color.textMuted,
-              lineHeight: 1.5,
-            }}
-          >
-            La galerie photos sera activée prochainement. Pour le lancement, ton profil
-            est publié sans portfolio.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 6 — Publish ─────────────────────────────────────────────────────
+// ─── Step 4 — Publish preview ─────────────────────────────────────────────
 
 export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) {
   const primaryId = resolveCategoryIds(data.categories, categoryOptions)[0];
-  const primaryCategory = categoryOptions.find((category) => category.id === primaryId);
-  const cat = primaryCategory ? categoryVisual(primaryCategory) : tokens.portfolio.plomberie;
-  const hourly = data.hourly || 15000;
+  const primaryCategory = categoryOptions.find((c) => c.id === primaryId);
+  const profession =
+    data.title || (primaryCategory ? primaryCategory.name : "Prestataire");
+  const hourly = data.hourly || 0;
+  const zoneCommunes = data.zones
+    .map((z) => z.split("|")[1])
+    .filter(Boolean);
+  const initials =
+    `${(data.firstName?.[0] || "").toUpperCase()}${(data.lastName?.[0] || "").toUpperCase()}` ||
+    "?";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div
         style={{
-          padding: 18,
-          borderRadius: tokens.radius.lg,
-          background: `linear-gradient(135deg, ${tokens.color.surfacePrimary}, ${tokens.color.surface})`,
-          border: "1px solid #BAE6FD",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.07em",
+          textTransform: "uppercase",
+          color: tokens.color.primaryHover,
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 0,
-            textTransform: "uppercase",
-            color: tokens.color.primaryHover,
-          }}
-        >
-          Aperçu de ton profil
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 14,
-            marginTop: 12,
-            alignItems: "flex-start",
-          }}
-        >
+        Aperçu public
+      </div>
+
+      <div
+        style={{
+          background: tokens.color.surface,
+          border: `1px solid ${tokens.color.border}`,
+          borderRadius: tokens.radius.lg,
+          padding: 16,
+          boxShadow: tokens.shadow.e1,
+        }}
+      >
+        <div style={{ display: "flex", gap: 13, alignItems: "flex-start" }}>
           <div
             style={{
-              width: 64,
-              height: 64,
+              width: 58,
+              height: 58,
               borderRadius: "50%",
-              background: `linear-gradient(135deg, ${cat.accent}, ${tokens.color.primaryHover})`,
-              color: tokens.color.textInverse,
+              background: "#F5F2E9",
+              color: tokens.color.textMuted,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontFamily: tokens.font.display,
+              fontFamily: tokens.font.mono,
               fontWeight: 700,
-              fontSize: 24,
+              fontSize: 19,
               flexShrink: 0,
             }}
           >
-            {(data.firstName?.[0] || "J").toUpperCase()}
-            {(data.lastName?.[0] || "M").toUpperCase()}
+            {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 fontFamily: tokens.font.display,
-                fontWeight: 600,
-                fontSize: 18,
+                fontWeight: 700,
+                fontSize: 17,
                 color: tokens.color.textPrimary,
               }}
             >
-              {data.firstName || "Jean"} {data.lastName || "Mubake"}
+              {data.firstName || "—"} {data.lastName || ""}
             </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: tokens.color.textMuted,
-                marginTop: 2,
-              }}
-            >
-              {data.title || cat.label}
+            <div style={{ fontSize: 13, color: tokens.color.textMuted, marginTop: 1 }}>
+              {profession} · Kinshasa
             </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginTop: 10,
-              }}
-            >
-              <span className="k-chip k-chip-sm">
-                <I.sparkles size={12} /> Nouveau prestataire
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 }}>
+              <span className="k-chip k-chip-sm k-chip-primary">
+                <I.sparkles size={12} /> Nouveau
               </span>
-              <span className="k-chip k-chip-sm">
-                <I.award size={12} /> {data.years || "—"}
-              </span>
-              <span className="k-chip k-chip-sm">
-                <I.mapPin size={12} /> {data.zones.length || 0} zones
-              </span>
+              {data.years && <span className="k-chip k-chip-sm">{data.years}</span>}
+              {zoneCommunes.length > 0 && (
+                <span className="k-chip k-chip-sm">
+                  <I.mapPin size={12} />{" "}
+                  {zoneCommunes.slice(0, 2).join(", ")}
+                  {zoneCommunes.length > 2 ? ` +${zoneCommunes.length - 2}` : ""}
+                </span>
+              )}
+              {data.languages.length > 0 && (
+                <span className="k-chip k-chip-sm">{data.languages.join(", ")}</span>
+              )}
             </div>
-            {data.bio && (
-              <p
-                style={{
-                  fontSize: 13,
-                  color: tokens.color.textBody,
-                  marginTop: 12,
-                  lineHeight: 1.5,
-                }}
-              >
-                {data.bio}
-              </p>
-            )}
             <div
               style={{
                 paddingTop: 12,
@@ -1186,31 +734,19 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                 borderTop: `1px solid ${tokens.color.borderSubtle}`,
               }}
             >
-              <span
-                style={{ color: tokens.color.textMuted, fontSize: 13 }}
-              >
+              <span style={{ color: tokens.color.textMuted, fontSize: 13 }}>
                 À partir de{" "}
               </span>
               <span
                 style={{
                   fontFamily: tokens.font.mono,
                   fontSize: 18,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: tokens.color.textPrimary,
                 }}
               >
                 {hourly.toLocaleString("fr-FR")} FC
               </span>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: tokens.color.textMuted,
-                  marginTop: 4,
-                  lineHeight: 1.4,
-                }}
-              >
-                Le prix final est convenu avec le client avant l'intervention.
-              </div>
             </div>
           </div>
         </div>
@@ -1232,19 +768,13 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
             marginBottom: 12,
           }}
         >
-          Prochaines étapes après publication
+          Juste après la publication
         </div>
         {[
-          { icon: "check" as const, label: "Profil vérifié sous 24h" },
-          {
-            icon: "sparkles" as const,
-            label: "Badge « Nouveau » pendant 30 jours",
-          },
-          {
-            icon: "award" as const,
-            label: "Débloque « De confiance » après 10 missions notées",
-          },
-        ].map((n) => {
+          { icon: "camera" as const, label: "Ajoute ta photo et ton portfolio — c'est ce qui déclenche les demandes" },
+          { icon: "shieldCheck" as const, label: "Fais-toi vérifier sous 24h pour le badge « Vérifié »" },
+          { icon: "sparkles" as const, label: "Badge « Nouveau » pendant 30 jours pour te lancer" },
+        ].map((n, i) => {
           const IconC = I[n.icon];
           return (
             <div
@@ -1253,15 +783,15 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "8px 0",
+                padding: "7px 0",
                 color: tokens.color.textBody,
-                fontSize: 13.5,
+                fontSize: 13,
               }}
             >
               <div
                 style={{
-                  width: 26,
-                  height: 26,
+                  width: 24,
+                  height: 24,
                   borderRadius: "50%",
                   background: tokens.color.surfacePrimary,
                   color: tokens.color.primaryHover,
@@ -1269,10 +799,14 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
+                  fontFamily: tokens.font.mono,
+                  fontSize: 11,
+                  fontWeight: 700,
                 }}
               >
-                <IconC size={13} />
+                {i + 1}
               </div>
+              <IconC size={15} strokeColor={tokens.color.textMuted} />
               {n.label}
             </div>
           );
@@ -1312,6 +846,47 @@ export function StepPublish({ data, setData, categoryOptions = [] }: StepProps) 
         </a>{" "}
         et le code de conduite KAYOU.
       </label>
+
+      {LANGUAGES.length > 0 && (
+        <div>
+          <FieldLabel
+            label="Langues parlées"
+            optional
+            hint="Pré-rempli pour Kinshasa. Ajuste si besoin."
+          />
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {LANGUAGES.map((l) => {
+              const isSel = data.languages.includes(l);
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() =>
+                    setData({
+                      languages: isSel
+                        ? data.languages.filter((x) => x !== l)
+                        : [...data.languages, l],
+                    })
+                  }
+                  style={
+                    isSel
+                      ? {
+                          ...pillStyle(true),
+                          background: tokens.color.textPrimary,
+                          color: tokens.color.textInverse,
+                          border: `1px solid ${tokens.color.textPrimary}`,
+                        }
+                      : pillStyle(false)
+                  }
+                >
+                  {isSel && <I.check size={12} />}
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
