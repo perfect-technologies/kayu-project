@@ -454,6 +454,15 @@ export function StepZones({ data, setData }: StepProps) {
         : [...data.zones, key],
     });
   };
+  const toggleAllCommunes = (city: string, communes: string[]) => {
+    const keys = communes.map((c) => `${city}|${c}`);
+    const allSelected = keys.every((k) => data.zones.includes(k));
+    setData({
+      zones: allSelected
+        ? data.zones.filter((z) => !keys.includes(z))
+        : [...data.zones, ...keys.filter((k) => !data.zones.includes(k))],
+    });
+  };
   const selectedCities = new Set(data.zones.map((z) => z.split("|")[0]));
 
   return (
@@ -464,7 +473,11 @@ export function StepZones({ data, setData }: StepProps) {
           hint="Choisis au moins une commune. Plus de communes = plus de demandes."
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {CITIES.map((city) => (
+          {CITIES.map((city) => {
+            const allCommunesSelected = city.communes.every((c) =>
+              data.zones.includes(`${city.name}|${c}`),
+            );
+            return (
             <div
               key={city.name}
               style={{
@@ -494,6 +507,24 @@ export function StepZones({ data, setData }: StepProps) {
                 >
                   {city.name}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => toggleAllCommunes(city.name, city.communes)}
+                  style={{
+                    marginLeft: "auto",
+                    background: "transparent",
+                    border: "none",
+                    padding: "4px 4px",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: tokens.color.primaryHover,
+                    cursor: "pointer",
+                  }}
+                >
+                  {allCommunesSelected
+                    ? "Tout désélectionner"
+                    : "Tout sélectionner"}
+                </button>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {city.communes.map((c) => {
@@ -519,7 +550,8 @@ export function StepZones({ data, setData }: StepProps) {
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
