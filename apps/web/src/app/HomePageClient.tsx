@@ -81,25 +81,25 @@ function Hero({ onSearch }: { onSearch: (query: string, where: string) => void }
               e.preventDefault();
               onSearch(query, where);
             }}
-            className="k-card flex items-center p-2"
+            className="k-card flex flex-col p-2 md:flex-row md:items-center"
             style={{ borderRadius: "var(--k-r-lg)", boxShadow: "var(--k-e2)" }}
           >
-            <label className="flex flex-1 items-center gap-3 px-5 py-3.5">
-              <Search className="h-5 w-5" style={{ color: "var(--k-text-muted)" }} />
+            <label className="flex w-full items-center gap-3 px-5 py-3.5 md:flex-1">
+              <Search className="h-5 w-5 shrink-0" style={{ color: "var(--k-text-muted)" }} />
               <span className="flex-1">
                 <span className="k-caption block" style={{ color: "var(--k-text-primary)", fontWeight: 600, marginBottom: 2 }}>Quel service ?</span>
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Plomberie, coiffure, ménage…" className="w-full bg-transparent text-[15px] outline-none" style={{ color: "var(--k-text-body)" }} />
               </span>
             </label>
-            <div style={{ width: 1, height: 40, background: "var(--k-border)" }} />
-            <label className="flex flex-1 items-center gap-3 px-5 py-3.5">
-              <MapPin className="h-5 w-5" style={{ color: "var(--k-text-muted)" }} />
+            <div className="my-1 h-px w-full md:my-0 md:h-10 md:w-px" style={{ background: "var(--k-border)" }} />
+            <label className="flex w-full items-center gap-3 px-5 py-3.5 md:flex-1">
+              <MapPin className="h-5 w-5 shrink-0" style={{ color: "var(--k-text-muted)" }} />
               <span className="flex-1">
                 <span className="k-caption block" style={{ color: "var(--k-text-primary)", fontWeight: 600, marginBottom: 2 }}>Où ?</span>
                 <input value={where} onChange={(e) => setWhere(e.target.value)} className="w-full bg-transparent text-[15px] outline-none" style={{ color: "var(--k-text-body)" }} />
               </span>
             </label>
-            <button type="submit" className="k-btn k-btn-primary" style={{ height: 56, padding: "0 28px", fontSize: 16 }}>
+            <button type="submit" className="k-btn k-btn-primary mt-2 w-full md:mt-0 md:w-auto" style={{ height: 56, padding: "0 28px", fontSize: 16 }}>
               <Search className="h-[18px] w-[18px]" />
               Rechercher
             </button>
@@ -116,7 +116,7 @@ function CategoryGridSection({ categories, onSelect }: { categories: Category[];
   const items = categories.slice(0, 12);
   return (
     <section className="mx-auto max-w-[1240px] px-5 py-12 md:px-10">
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div>
           <div className="k-overline" style={{ color: "var(--k-text-muted)" }}>EXPLORE</div>
           <h2 className="k-display-m" style={{ margin: "4px 0 0 0" }}>Trouve ton service</h2>
@@ -147,7 +147,7 @@ function TrendingSection({ trending, onSelect }: { trending: TrendingServicesRes
   const isTrending = trending.mode === "trending";
   return (
     <section className="mx-auto max-w-[1240px] px-5 py-12 md:px-10">
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div>
           <div className="k-overline" style={{ color: isTrending ? "var(--k-accent)" : "var(--k-text-muted)" }}>
             {isTrending ? "🔥 TENDANCE CETTE SEMAINE" : "✨ À DÉCOUVRIR"}
@@ -174,7 +174,7 @@ function FeaturedProvidersSection({ providers, onOpen }: { providers: ProviderCa
   if (top.length === 0) return null;
   return (
     <section className="mx-auto max-w-[1240px] px-5 py-12 md:px-10">
-      <div className="mb-6 flex items-baseline justify-between">
+      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div>
           <div className="k-overline" style={{ color: "var(--k-text-muted)" }}>⭐ TOP RATED</div>
           <h2 className="k-display-m" style={{ margin: "4px 0 0 0" }}>Pros vérifiés à Kinshasa</h2>
