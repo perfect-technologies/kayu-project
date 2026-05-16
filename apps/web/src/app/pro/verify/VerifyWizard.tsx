@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { uploadFile } from "@/lib/upload";
 import { toast } from "sonner";
 import {
   I,
@@ -72,16 +73,19 @@ export function VerifyWizard({
     }
   };
 
-  const handleUpload = async (
-    kind: VerificationDocKind,
-    file: { fileName: string; fileSize?: number; mimeType?: string },
-  ) => {
-    await onUpload({
-      kind,
-      fileName: file.fileName,
-      fileSize: file.fileSize,
-      mimeType: file.mimeType,
-    });
+  const handleUpload = async (kind: VerificationDocKind, file: File) => {
+    try {
+      const { path } = await uploadFile("verification", file);
+      await onUpload({
+        kind,
+        path,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || undefined,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Téléversement impossible");
+    }
   };
 
   return (
@@ -254,10 +258,7 @@ type UploadTargetProps = {
   kind: VerificationDocKind;
   done: boolean;
   isUploading: boolean;
-  onUpload: (
-    kind: VerificationDocKind,
-    file: { fileName: string; fileSize?: number; mimeType?: string },
-  ) => Promise<void>;
+  onUpload: (kind: VerificationDocKind, file: File) => Promise<void>;
 };
 
 function UploadTarget({
@@ -284,11 +285,7 @@ function UploadTarget({
             return;
           }
 
-          await onUpload(kind, {
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type || undefined,
-          });
+          await onUpload(kind, file);
           event.target.value = "";
         }}
       />
@@ -367,10 +364,7 @@ function UploadTarget({
 type StepProps = {
   uploadedSet: Set<VerificationDocKind>;
   isUploading: boolean;
-  onUpload: (
-    kind: VerificationDocKind,
-    file: { fileName: string; fileSize?: number; mimeType?: string },
-  ) => Promise<void>;
+  onUpload: (kind: VerificationDocKind, file: File) => Promise<void>;
 };
 
 function StepDocIdentity({ uploadedSet, isUploading, onUpload }: StepProps) {

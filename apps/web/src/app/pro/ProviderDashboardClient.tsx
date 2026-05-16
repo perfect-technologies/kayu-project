@@ -11,6 +11,7 @@ import { dashboardApi, queryKeys } from "@kayu/api";
 import { Greeting } from "@/components/dashboard/provider/Greeting";
 import { DashboardHero } from "@/components/dashboard/provider/DashboardHero";
 import { TodoStrip } from "@/components/dashboard/provider/TodoStrip";
+import { RenforceTonProfil } from "@/components/dashboard/provider/RenforceTonProfil";
 import type { TodoRowItem } from "@/components/dashboard/provider/TodoRow";
 import { TodayList } from "@/components/dashboard/provider/TodayList";
 import { UpcomingList } from "@/components/dashboard/provider/UpcomingList";
@@ -18,7 +19,6 @@ import { ReviewsList } from "@/components/dashboard/provider/ReviewsList";
 import { PulseStrip } from "@/components/dashboard/provider/PulseStrip";
 import { DashboardSkeleton } from "@/components/dashboard/provider/DashboardSkeleton";
 import {
-  deriveProfileGaps,
   formatRelativeShort,
   pickHeroBookingId,
   pickHeroVariant,
@@ -107,30 +107,6 @@ export function ProviderDashboardClient() {
       });
     }
 
-    for (const gap of deriveProfileGaps(
-      data.provider.completionItems as Record<string, boolean> | undefined,
-    )) {
-      const iconName: keyof typeof I =
-        gap.key === "photo"
-          ? "camera"
-          : gap.key === "portfolio"
-            ? "upload"
-            : gap.key === "description"
-              ? "fileText"
-              : gap.key === "zones"
-                ? "mapPin"
-                : "check";
-      items.push({
-        key: `gap-${gap.key}`,
-        kind: "profile_gap",
-        iconName,
-        title: gap.label,
-        meta: gap.meta,
-        href: gap.href,
-        cta: "Compléter",
-      });
-    }
-
     return items;
   }, [data]);
 
@@ -202,6 +178,8 @@ export function ProviderDashboardClient() {
       />
 
       <DashboardHero data={data} />
+
+      {variant !== "onboarding" && <RenforceTonProfil />}
 
       {todos.length > 0 && <TodoStrip items={todos} />}
 
