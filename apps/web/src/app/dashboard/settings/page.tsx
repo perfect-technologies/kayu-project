@@ -153,10 +153,13 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 64px)' }}>
+      <div
+        className="flex flex-col lg:flex-row lg:h-[calc(100vh-64px)] lg:overflow-hidden"
+        style={{ minHeight: 'calc(100vh - 64px)' }}
+      >
         {/* Sidebar — always visible on lg+; on mobile, hidden when a detail section is open */}
         <aside
-          className={`${mobileOpen ? 'hidden' : 'block'} lg:block lg:w-[270px] lg:border-r flex-shrink-0`}
+          className={`${mobileOpen ? 'hidden' : 'block'} lg:flex lg:flex-col lg:w-[270px] lg:h-full lg:overflow-y-auto lg:border-r flex-shrink-0`}
           style={{
             background: 'var(--k-surface)',
             borderColor: 'var(--k-border)',
@@ -298,7 +301,7 @@ export default function SettingsPage() {
 
         {/* Content — always visible on lg+; on mobile, only after picking a section */}
         <main
-          className={`${mobileOpen ? 'block' : 'hidden lg:block'} flex-1 overflow-y-auto`}
+          className={`${mobileOpen ? 'block' : 'hidden lg:block'} flex-1 overflow-y-auto lg:h-full`}
         >
           <div className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10 max-w-[760px] mx-auto lg:mx-0">
             {active === 'profile' && <ProfileSection role={role} />}
