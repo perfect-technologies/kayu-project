@@ -765,8 +765,6 @@ function ProfileSection({ role }: { role: Role }) {
         </FieldRow>
       </CardSection>
 
-      {!isClient && <PresentationPubliqueCard />}
-
       <div className="flex justify-end gap-2">
         <button
           onClick={() => mutation.mutate()}
@@ -785,6 +783,8 @@ function ProfileSection({ role }: { role: Role }) {
           {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </div>
+
+      {!isClient && <PresentationPubliqueCard />}
     </div>
   );
 }
