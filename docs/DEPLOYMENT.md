@@ -279,6 +279,32 @@ pnpm db:seed
 The seed script refuses to run when `NODE_ENV=production`. Never run it against
 a prod database. Keep `SEED_SUPABASE_USERS=false` in all non-local environments.
 
+### Seed the dev database (one-off)
+
+Render databases are created empty — `migrate deploy` builds the schema but
+inserts no data, and seeding is intentionally **not** in any deploy pipeline
+(the seed begins with a destructive `clearDatabase()`, so auto-seeding would
+wipe data on every deploy). To populate the dev Postgres with demo data, run
+the seed locally against it:
+
+1. Render → `kayou-db-dev` → **Connect** → copy the **External** connection
+   string (the internal URL only resolves inside Render).
+2. From the repo:
+
+   ```bash
+   cd apps/backend
+   DATABASE_URL="<kayou-db-dev external connection string>" NODE_ENV=development pnpm run db:seed
+   ```
+
+   `NODE_ENV=development` satisfies the production guard; `DATABASE_URL` targets
+   the dev Render Postgres. This clears that database and inserts categories +
+   demo providers/bookings/reviews. It touches **only** the dev Postgres.
+
+Keep `SEED_SUPABASE_USERS` unset/false. Setting it `true` creates demo login
+users in the **shared** Supabase Auth project — i.e. also in prod's auth pool.
+For auth testing, sign up a real test user through the app instead. Never run
+this against `kayou-db-prod`.
+
 ---
 
 ## 6. Shared Supabase caveats
