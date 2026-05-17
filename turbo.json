@@ -3,6 +3,14 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "BACKEND_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_ENABLE_JOB_REQUESTS",
+        "NEXT_PUBLIC_ENABLE_QUOTE_MARKETPLACE"
+      ],
       "outputs": ["dist/**", ".next/**", "build/**"]
     },
     "dev": {
