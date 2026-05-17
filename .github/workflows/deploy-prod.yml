@@ -18,6 +18,8 @@ jobs:
           node-version-file: ".nvmrc"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @kayu/backend run prisma:generate
       - name: Build shared packages
         run: pnpm turbo run build --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
       - name: Backend full test suite
