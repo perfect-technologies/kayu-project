@@ -14,7 +14,7 @@ envVarGroups:
 
 databases:
   - name: kayou-db-dev
-    plan: basic-256mb
+    plan: free
     region: frankfurt
   - name: kayou-db-prod
     plan: basic-1gb
@@ -75,7 +75,7 @@ services:
     name: kayou-backend-prod
     runtime: node
     region: frankfurt
-    plan: standard
+    plan: starter
     branch: main
     autoDeploy: false
     buildCommand: pnpm install --frozen-lockfile && pnpm turbo run build --filter=@kayu/backend
@@ -103,7 +103,7 @@ services:
     name: kayou-web-prod
     runtime: node
     region: frankfurt
-    plan: standard
+    plan: starter
     branch: main
     autoDeploy: false
     buildCommand: pnpm install --frozen-lockfile && pnpm turbo run build --filter=@kayu/web

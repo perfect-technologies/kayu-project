@@ -16,7 +16,7 @@ rationale behind these decisions.
 | Render web service | `kayou-web-dev` | Next.js, dev env |
 | Render web service | `kayou-backend-prod` | NestJS API, prod env |
 | Render web service | `kayou-web-prod` | Next.js, prod env |
-| Render Postgres | `kayou-db-dev` | basic-256mb, frankfurt |
+| Render Postgres | `kayou-db-dev` | free (90-day expiry), frankfurt |
 | Render Postgres | `kayou-db-prod` | basic-1gb, frankfurt |
 | Supabase | `kayou-supabase-shared` | ONE shared project for both envs |
 
@@ -241,6 +241,16 @@ npx prisma migrate status
 
 If it reports drift, reconcile the dev DB first (e.g. `pnpm db:reset` locally)
 before baselining.
+
+### Free dev database (90-day expiry)
+
+`kayou-db-dev` uses Render's free Postgres plan, which Render deletes
+automatically ~90 days after creation. When it expires, recreate it (Render
+dashboard → New → Postgres with the name `kayou-db-dev`, or re-sync the
+Blueprint) and the next `deploy-dev` run rebuilds the schema from `0_init`
+via the backend `preDeployCommand` (`prisma migrate deploy`). The dev DB holds
+no data worth keeping — it is rebuilt from migrations. Production
+(`kayou-db-prod`, Basic-1gb) is a paid plan and is unaffected.
 
 ### Rollback
 
