@@ -75,3 +75,30 @@ test("assertOwnedPath rejects path traversal and malformed paths", () => {
   // still accepts a well-formed path:
   assert.equal(s.assertOwnedPath("avatar", "user_1", "avatar/user_1/abc-x.jpg"), true);
 });
+
+test("prefixes object paths with STORAGE_ENV_PREFIX when set", () => {
+  const prev = process.env.STORAGE_ENV_PREFIX;
+  process.env.STORAGE_ENV_PREFIX = "prod";
+  try {
+    const s = new StorageService(fakeSupabase({ signedUrl: "x", token: "t", path: "p" }) as never);
+    const path = s.buildObjectPath("avatar", "user_1", "pic.png");
+    assert.match(path, /^prod\/avatar\/user_1\//);
+    assert.equal(s.assertOwnedPath("avatar", "user_1", path), true);
+    assert.throws(() => s.assertOwnedPath("avatar", "user_1", "avatar/user_1/x.png"));
+  } finally {
+    process.env.STORAGE_ENV_PREFIX = prev;
+  }
+});
+
+test("no prefix is applied when STORAGE_ENV_PREFIX is empty", () => {
+  const prev = process.env.STORAGE_ENV_PREFIX;
+  delete process.env.STORAGE_ENV_PREFIX;
+  try {
+    const s = new StorageService(fakeSupabase({ signedUrl: "x", token: "t", path: "p" }) as never);
+    assert.match(s.buildObjectPath("avatar", "user_1", "p.png"), /^avatar\/user_1\//);
+    assert.equal(s.assertOwnedPath("avatar", "user_1", "avatar/user_1/abc-x.jpg"), true);
+  } finally {
+    if (prev === undefined) delete process.env.STORAGE_ENV_PREFIX;
+    else process.env.STORAGE_ENV_PREFIX = prev;
+  }
+});

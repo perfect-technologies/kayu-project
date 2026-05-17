@@ -16,15 +16,18 @@ import { FinalOffersController } from "../../modules/bookings/final-offers.contr
 import { IdentityController } from "../../modules/identity/identity.controller";
 import { IdentityRepository, type UserWithProvider } from "../../modules/identity/identity.repository";
 import { IdentityService } from "../../modules/identity/identity.service";
+import { RecentAddressesService } from "../../modules/identity/recent-addresses.service";
 import { MessagingController } from "../../modules/messaging/messaging.controller";
 import { MessagingService } from "../../modules/messaging/messaging.service";
 import { NotificationsService } from "../../modules/notifications/notifications.service";
 import { ProvidersController } from "../../modules/providers/providers.controller";
+import { ProvidersAvailabilityService } from "../../modules/providers/providers-availability.service";
 import { ProvidersService } from "../../modules/providers/providers.service";
 import { QuotesController } from "../../modules/quotes/quotes.controller";
 import { QuotesService } from "../../modules/quotes/quotes.service";
 import { ReviewsController } from "../../modules/reviews/reviews.controller";
 import { ReviewsService } from "../../modules/reviews/reviews.service";
+import { StorageService, type UploadPurpose } from "../../modules/storage/storage.service";
 
 const now = new Date("2026-04-22T10:00:00.000Z");
 
@@ -1099,12 +1102,20 @@ function createJwt() {
   };
 }
 
+function createStorage() {
+  return {
+    assertOwnedPath: (_purpose: UploadPurpose, _actorId: string, _path: string) => true as const,
+    resolveStoredUrl: (_purpose: UploadPurpose, _path: string) => "" as string,
+  };
+}
+
 async function createHarness() {
   const state = createState();
   const prisma = createPrisma(state);
   const notifications = createNotifications(state);
   const identityRepo = createIdentityRepo(state);
   const jwt = createJwt();
+  const storage = createStorage();
 
   @Module({
     controllers: [
@@ -1122,9 +1133,11 @@ async function createHarness() {
       ActorGuard,
       RolesGuard,
       IdentityService,
+      RecentAddressesService,
       BookingsService,
       MessagingService,
       ProvidersService,
+      ProvidersAvailabilityService,
       QuotesService,
       ReviewsService,
       {
@@ -1146,6 +1159,10 @@ async function createHarness() {
       {
         provide: SupabaseJwtService,
         useValue: jwt,
+      },
+      {
+        provide: StorageService,
+        useValue: storage,
       },
     ],
   })

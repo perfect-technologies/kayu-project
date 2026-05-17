@@ -20,7 +20,7 @@ Supabase       -> Auth sessions and JWTs for web/mobile
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 22
 - pnpm 10+
 - Docker Desktop or a compatible Docker runtime
 - Supabase project credentials for login flows
@@ -33,7 +33,7 @@ pnpm dev:web
 open http://localhost:3000
 ```
 
-`pnpm run setup` installs dependencies, starts PostgreSQL, pushes the Prisma schema, and seeds demo data. Use `pnpm run setup` rather than `pnpm setup`; `pnpm setup` is a pnpm environment command.
+`pnpm run setup` installs dependencies, starts PostgreSQL, applies migrations, and seeds demo data. Use `pnpm run setup` rather than `pnpm setup`; `pnpm setup` is a pnpm environment command.
 
 For mobile development:
 
@@ -95,11 +95,12 @@ Mobile:
 | `pnpm clean` | Remove build outputs |
 | `pnpm db:up` | Start local PostgreSQL |
 | `pnpm db:down` | Stop Compose services |
-| `pnpm db:push` | Push Prisma schema to PostgreSQL |
+| `pnpm db:migrate` | Create a new Prisma migration (dev only) |
+| `pnpm db:deploy` | Apply pending migrations to the local database |
 | `pnpm db:seed` | Seed categories, subcategories, demo users, providers, bookings, reviews, messages |
 | `pnpm db:reset` | Reset database with Prisma and reseed |
 | `pnpm db:studio` | Open Prisma Studio |
-| `pnpm run setup` | Install, start database, push schema, seed data |
+| `pnpm run setup` | Install, start database, apply migrations, seed data |
 
 Optional pgAdmin:
 

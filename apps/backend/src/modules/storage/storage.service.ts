@@ -23,6 +23,11 @@ export class StorageService {
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
   ) {}
 
+  private envPrefix(): string {
+    const p = process.env.STORAGE_ENV_PREFIX?.trim();
+    return p ? `${p}/` : "";
+  }
+
   bucketFor(purpose: UploadPurpose): string {
     return BUCKETS[purpose];
   }
@@ -44,7 +49,7 @@ export class StorageService {
     const suffix = `${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 8)}`;
-    return `${purpose}/${actorId}/${suffix}-${safe}`;
+    return `${this.envPrefix()}${purpose}/${actorId}/${suffix}-${safe}`;
   }
 
   assertOwnedPath(
@@ -52,7 +57,7 @@ export class StorageService {
     actorId: string,
     path: string,
   ): true {
-    const prefix = `${purpose}/${actorId}/`;
+    const prefix = `${this.envPrefix()}${purpose}/${actorId}/`;
     const valid =
       typeof path === "string" &&
       path.startsWith(prefix) &&

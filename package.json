@@ -13,15 +13,20 @@
     "clean": "turbo run clean",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "db:push": "pnpm --filter @kayu/backend run prisma:push",
+    "db:migrate": "pnpm --filter @kayu/backend run prisma:migrate:dev",
+    "db:deploy": "pnpm --filter @kayu/backend run prisma:migrate:deploy",
     "db:seed": "pnpm --filter @kayu/backend run db:seed",
     "db:reset": "pnpm --filter @kayu/backend run prisma:reset",
     "db:studio": "pnpm --filter @kayu/backend run db:studio",
-    "setup": "pnpm install && pnpm db:up && sleep 5 && pnpm db:push && pnpm db:seed"
+    "setup": "pnpm install && pnpm db:up && sleep 5 && pnpm db:deploy && pnpm db:seed"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"
   },
-  "packageManager": "pnpm@10.18.0"
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22 <23",
+    "pnpm": ">=10.18.0"
+  }
 }

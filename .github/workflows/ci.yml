@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm turbo run build --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
+
+      - name: Backend full test suite
+        run: pnpm --filter @kayu/backend test
+
+      - name: Type-check (backend, web, shared packages; mobile is out of scope)
+        run: pnpm turbo run type-check --filter=@kayu/backend --filter=@kayu/web --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
+
+      - name: Web production build
+        run: pnpm --filter @kayu/web build
+        env:
+          BACKEND_URL: http://localhost:3001
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key

@@ -23,6 +23,8 @@ import { QuotesModule } from "./modules/quotes/quotes.module";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { VerificationModule } from "./modules/verification/verification.module";
+import { HealthModule } from "./modules/health/health.module";
+import { validateEnv } from "./config/env.validation";
 
 @Module({
   imports: [
@@ -32,8 +34,10 @@ import { VerificationModule } from "./modules/verification/verification.module";
         resolve(process.cwd(), ".env"),
         resolve(process.cwd(), "apps/backend/.env"),
       ],
+      validate: validateEnv,
     }),
     DatabaseModule,
+    HealthModule,
     CommonModule,
     StorageModule,
     IdentityModule,

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { launchFlags } from "@/lib/launch-flags";
@@ -14,5 +15,9 @@ export default function QuoteComposePage() {
     redirect("/pro");
   }
 
-  return <QuoteComposeClient />;
+  return (
+    <Suspense fallback={null}>
+      <QuoteComposeClient />
+    </Suspense>
+  );
 }

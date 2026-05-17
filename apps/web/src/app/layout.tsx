@@ -26,9 +26,13 @@ const jetBrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: "KAYOU - Un service a portee de main",
-  description: "KAYOU connecte les prestataires de services qualifies avec les clients en RDC et Congo-Brazzaville. Trouvez facilement des professionnels pour tous vos besoins: plomberie, electricite, menage, et plus encore.",
+  description:
+    "KAYOU connecte les prestataires de services qualifies avec les clients en RDC et Congo-Brazzaville. Trouvez facilement des professionnels pour tous vos besoins: plomberie, electricite, menage, et plus encore.",
   keywords: ["KAYOU", "services", "Kinshasa", "Brazzaville", "RDC", "Congo", "plomberie", "electricite", "menage", "prestataires", "Afrique"],
   authors: [{ name: "KAYOU Team" }],
   icons: {
@@ -37,7 +41,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "KAYOU - Un service a portee de main",
     description: "Trouvez des prestataires de services qualifies a Kinshasa et Brazzaville",
-    url: "https://kayou.cd",
+    url: appUrl,
     siteName: "KAYOU",
     type: "website",
     locale: "fr_CD",

@@ -5,6 +5,12 @@ import { seedDemo } from "./seed-demo";
 const prisma = new PrismaClient();
 const DEFAULT_PASSWORD = "Password123!";
 
+export function assertSeedAllowed(nodeEnv = process.env.NODE_ENV): void {
+  if (nodeEnv === "production") {
+    throw new Error("Refusing to seed: NODE_ENV=production. Seeding is destructive.");
+  }
+}
+
 async function clearDatabase() {
   console.log("Clearing existing data...");
 
@@ -144,6 +150,7 @@ async function findSupabaseUserIdByEmail(
 }
 
 async function main() {
+  assertSeedAllowed();
   console.log("KAYOU seed starting...");
 
   await clearDatabase();
@@ -169,11 +176,13 @@ async function main() {
   console.log(`Reviews: ${reviews}`);
 }
 
-main()
-  .catch((error) => {
-    console.error("Seed failed:", error);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error("Seed failed:", error);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

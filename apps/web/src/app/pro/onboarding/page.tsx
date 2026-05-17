@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ProviderOnboardingClient } from "./ProviderOnboardingClient";
 
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function ProviderOnboardingPage() {
-  return <ProviderOnboardingClient />;
+  return (
+    <Suspense fallback={null}>
+      <ProviderOnboardingClient />
+    </Suspense>
+  );
 }
