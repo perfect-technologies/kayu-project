@@ -17,7 +17,7 @@ rationale behind these decisions.
 | Render web service | `kayou-backend-prod` | NestJS API, prod env |
 | Render web service | `kayou-web-prod` | Next.js, prod env |
 | Render Postgres | `kayou-db-dev` | free (90-day expiry), frankfurt |
-| Render Postgres | `kayou-db-prod` | basic-1gb, frankfurt |
+| Render Postgres | `kayou-db-prod` | basic-256mb, frankfurt |
 | Supabase | `kayou-supabase-shared` | ONE shared project for both envs |
 
 **Locked decisions**
@@ -250,7 +250,8 @@ dashboard → New → Postgres with the name `kayou-db-dev`, or re-sync the
 Blueprint) and the next `deploy-dev` run rebuilds the schema from `0_init`
 via the backend `preDeployCommand` (`prisma migrate deploy`). The dev DB holds
 no data worth keeping — it is rebuilt from migrations. Production
-(`kayou-db-prod`, Basic-1gb) is a paid plan and is unaffected.
+(`kayou-db-prod`, Basic-256mb) is a paid plan and is unaffected; upgrade it
+later (Render dashboard → database → plan) as usage grows.
 
 ### Rollback
 

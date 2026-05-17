@@ -17,7 +17,7 @@ databases:
     plan: free
     region: frankfurt
   - name: kayou-db-prod
-    plan: basic-1gb
+    plan: basic-256mb
     region: frankfurt
 
 services:
