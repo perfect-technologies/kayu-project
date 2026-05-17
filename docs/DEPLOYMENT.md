@@ -52,16 +52,15 @@ rationale behind these decisions.
 3. Render creates all six resources (four services + two databases). The
    databases are provisioned first; the services start deploying once they exist.
 
-> **Note:** On the first Blueprint apply, `kayou-web-dev` and `kayou-web-prod`
-> may fail their initial build because `BACKEND_URL` is auto-wired from the
-> backend service via `fromService … property: hostport` and the referenced
-> backend service may not exist yet at that moment. This is expected and
-> self-healing: the Next.js build intentionally throws when `BACKEND_URL` is
-> unset (a web app that cannot reach the backend should not boot), so the
-> failure is loud and immediate. Once the backend services are live, redeploy
-> the web services (Render dashboard → service → **Manual Deploy** / "Clear
-> build cache & deploy") and the build succeeds. Subsequent deploys are
-> unaffected.
+> **Note:** The web services fail their build until **both** the
+> `kayou-supabase-shared` env group (§2b) **and** their per-service
+> `BACKEND_URL` + `NEXT_PUBLIC_APP_URL` `sync: false` vars (§2c) are set. The
+> Next.js build intentionally hard-fails when `BACKEND_URL` is unset, and
+> Render does **not** inject `fromService` links at build time — so
+> `BACKEND_URL` is operator-set to the backend's public URL (see §2e), not
+> auto-wired. After setting all of §2b and §2c, redeploy each web service
+> (Render dashboard → service → **Manual Deploy** → "Clear build cache &
+> deploy").
 
 ### 2b. Fill the `kayou-supabase-shared` env-var group
 
@@ -92,6 +91,7 @@ CORS_ORIGINS=https://kayou-web-dev.onrender.com
 
 **`kayou-web-dev`**
 ```
+BACKEND_URL=https://kayou-backend-dev.onrender.com
 NEXT_PUBLIC_APP_URL=https://kayou-web-dev.onrender.com
 ```
 
@@ -102,6 +102,7 @@ CORS_ORIGINS=https://kayou-web-prod.onrender.com
 
 **`kayou-web-prod`**
 ```
+BACKEND_URL=https://kayou-backend-prod.onrender.com
 NEXT_PUBLIC_APP_URL=https://kayou-web-prod.onrender.com
 ```
 
@@ -121,14 +122,22 @@ postgresql://<user>:<password>@<host>/<db>?connection_limit=5&pool_timeout=20
 
 Tune `connection_limit` to your plan's Postgres connection limit.
 
-### 2e. `BACKEND_URL` is auto-wired (do not set it manually)
+### 2e. `BACKEND_URL` (operator-set, per web service)
 
-`render.yaml` sets `BACKEND_URL` on each web service via
-`fromService.property: hostport` pointing at the same-env backend service.
-Render resolves this to the backend's internal host:port (e.g.
-`kayou-backend-dev:10000`). The Next.js server uses it to proxy `/api/*`
-requests to the backend. Do not add `BACKEND_URL` manually — it would shadow
-the auto-wired value.
+Render does **not** resolve `fromService` links during the **build** phase
+(only at runtime), but Next.js bakes the `/api/*` rewrite destination at
+**build** time — so `BACKEND_URL` must be a real value present at build.
+It is therefore a `sync: false` env var on each web service (set in §2c),
+pointed at the same-env backend's **public** URL:
+
+- `kayou-web-dev` → `BACKEND_URL=https://kayou-backend-dev.onrender.com`
+- `kayou-web-prod` → `BACKEND_URL=https://kayou-backend-prod.onrender.com`
+
+Use the **actual** Render-assigned backend hostname if Render appended a
+suffix (check each backend service's URL in the dashboard). The Next.js
+server proxies `/api/*` to this URL. (Earlier revisions auto-wired this via
+`fromService.property: hostport`; that fails the web build because the value
+is empty at build time.)
 
 ---
 

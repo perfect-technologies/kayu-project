@@ -64,10 +64,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: BACKEND_URL
-        fromService:
-          type: web
-          name: kayou-backend-dev
-          property: hostport
+        sync: false
       - key: NEXT_PUBLIC_APP_URL
         sync: false
 
@@ -114,9 +111,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: BACKEND_URL
-        fromService:
-          type: web
-          name: kayou-backend-prod
-          property: hostport
+        sync: false
       - key: NEXT_PUBLIC_APP_URL
         sync: false
