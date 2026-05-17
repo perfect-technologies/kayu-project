@@ -1,5 +1,4 @@
-function required(name: string): string {
-  const value = process.env[name];
+function ensure(name: string, value: string | undefined): string {
   if (!value || value.includes("<")) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -7,6 +6,12 @@ function required(name: string): string {
 }
 
 export const publicEnv = {
-  supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
-  supabaseAnonKey: required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+  supabaseUrl: ensure(
+    "NEXT_PUBLIC_SUPABASE_URL",
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+  ),
+  supabaseAnonKey: ensure(
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  ),
 };
