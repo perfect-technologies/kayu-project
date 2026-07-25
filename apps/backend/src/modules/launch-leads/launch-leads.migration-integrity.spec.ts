@@ -15,7 +15,7 @@ const protectedMigrations = [
   },
   {
     name: "20260725150000_preserve_orphaned_lead_taxonomy_snapshots",
-    sha256: "ff8bd762ec7d9df0e3afa27a4ec830df4892f03e3fe3eb474e053779d7173573",
+    sha256: "0696d9a09ba6f71e004f1eb1147a6350dbd8f1918cea74152b8b521f99fb517a",
   },
 ];
 

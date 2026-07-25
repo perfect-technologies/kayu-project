@@ -104,38 +104,29 @@ test(
         "--applied",
         "20260725120000_add_launch_leads",
       ]);
-      runPrisma(databaseUrl, [
-        "db",
-        "execute",
-        "--url",
-        databaseUrl,
-        "--file",
-        resolve(
-          migrationsDir,
-          "20260725130000_harden_launch_leads/migration.sql",
-        ),
-      ]);
-      runPrisma(databaseUrl, [
-        "migrate",
-        "resolve",
-        "--applied",
-        "20260725130000_harden_launch_leads",
-      ]);
-      // Simulate a legacy database whose immutable snapshot outlived its
-      // taxonomy row. The next migration must repair this state even though
-      // 1300 is already recorded as applied.
+      // This is the real pre-1300 state: there is no taxonomy FK yet.
       runPrisma(
         databaseUrl,
         ["db", "execute", "--url", databaseUrl, "--stdin"],
         `
-ALTER TABLE "ProviderLead" DROP CONSTRAINT "ProviderLead_primarySubcategoryId_fkey";
 INSERT INTO "Category" ("id", "name", "slug") VALUES ('orphan_upgrade_category', 'Upgrade', 'orphan-upgrade-category');
 INSERT INTO "Subcategory" ("id", "categoryId", "name", "slug") VALUES ('orphan_upgrade_valid', 'orphan_upgrade_category', 'Valid', 'orphan-upgrade-valid');
 INSERT INTO "ProviderLead" ("id", "updatedAt", "firstName", "phoneE164", "primarySubcategoryId", "additionalSubcategoryIds", "experienceBand", "homeCommune", "serviceCommunes", "consentAt", "consentVersion", "attributionSource", "campaignKey") VALUES ('orphan_upgrade_provider', CURRENT_TIMESTAMP, 'Jean', '+243810203040', 'orphan_primary_snapshot', ARRAY['orphan_upgrade_valid', 'orphan_additional_snapshot'], 'STARTING', 'Lemba', ARRAY[]::TEXT[], CURRENT_TIMESTAMP, 'privacy-v1', 'direct', '["direct",null,null,null]');
 INSERT INTO "ClientWaitlistLead" ("id", "updatedAt", "firstName", "phoneE164", "commune", "neededSubcategoryIds", "timing", "consentAt", "consentVersion", "attributionSource", "campaignKey") VALUES ('orphan_upgrade_client', CURRENT_TIMESTAMP, 'Amina', '+243820304050', 'Lemba', ARRAY['orphan_upgrade_valid', 'orphan_needed_snapshot'], 'EXPLORING', CURRENT_TIMESTAMP, 'privacy-v1', 'direct', '["direct",null,null,null]');
-ALTER TABLE "ProviderLead" ADD CONSTRAINT "ProviderLead_primarySubcategoryId_fkey" FOREIGN KEY ("primarySubcategoryId") REFERENCES "Subcategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE NOT VALID;
 `,
       );
+      runPrisma(databaseUrl, [
+        "db", "execute", "--url", databaseUrl, "--file",
+        resolve(backendDir, "prisma/launch-leads-taxonomy-preflight-capture.sql"),
+      ]);
+      runPrisma(databaseUrl, ["db", "execute", "--url", databaseUrl, "--stdin"], `
+INSERT INTO "LeadTaxonomyPreflightPrimaryResolution" ("providerLeadId", "replacementSubcategoryId", "resolutionNote")
+VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved historical taxonomy reconciliation');
+`);
+      runPrisma(databaseUrl, [
+        "db", "execute", "--url", databaseUrl, "--file",
+        resolve(backendDir, "prisma/launch-leads-taxonomy-preflight-remediate.sql"),
+      ]);
       runPrisma(databaseUrl, ["migrate", "deploy"]);
 
       prisma = new PrismaClient({
@@ -173,18 +164,9 @@ ALTER TABLE "ProviderLead" ADD CONSTRAINT "ProviderLead_primarySubcategoryId_fke
         (
           await prisma.providerLead.findUniqueOrThrow({
             where: { id: "orphan_upgrade_provider" },
-            include: { primarySubcategory: true },
-          })
-        ).primarySubcategory,
-        null,
-      );
-      assert.equal(
-        (
-          await prisma.providerLead.findUniqueOrThrow({
-            where: { id: "orphan_upgrade_provider" },
           })
         ).primarySubcategoryId,
-        "orphan_primary_snapshot",
+        "orphan_upgrade_valid",
       );
       await assert.rejects(
         () =>

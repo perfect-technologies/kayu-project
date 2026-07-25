@@ -225,14 +225,31 @@ automatically as the `preDeployCommand` before each backend service start.
 
 ### Launch-lead taxonomy snapshot reconciliation
 
-`20260725150000_preserve_orphaned_lead_taxonomy_snapshots` is a forward-only
-repair for databases where `20260725130000_harden_launch_leads` is already
-recorded as applied. It preserves original ID arrays and records each missing
-historical taxonomy ID in `LeadTaxonomySnapshotOrphan`; it does not recreate or
-silently remap taxonomy records.
+`20260725130000_harden_launch_leads` cannot be deployed automatically onto a
+pre-1300 database with missing taxonomy IDs: its own validated foreign keys
+would fail first. Do not run `prisma migrate deploy` directly in that state.
+Use the mandatory preflight gate below. `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`
+is forward-only and recognizes the audit table created by that gate; it cannot
+repair a failed 1300 deployment retroactively.
 
-After deploying this migration, the release owner must export and reconcile the
-exception rows with operations before using them in qualification or reporting:
+Supported upgrade matrix:
+
+- Fresh database: `migrate deploy` is supported.
+- 1200 applied, no orphaned taxonomy IDs: `migrate deploy` is supported.
+- 1200 applied with orphaned IDs: run the gate below, then `migrate deploy`.
+- 1300 already applied: `migrate deploy` applies 1400/1500 normally.
+
+For the pre-1300 orphan case, first run
+`apps/backend/prisma/launch-leads-taxonomy-preflight-capture.sql` with `psql`.
+Review `LeadTaxonomySnapshotOrphan`, insert an approved valid replacement and
+note into `LeadTaxonomyPreflightPrimaryResolution` for every provider-primary
+exception, then run `launch-leads-taxonomy-preflight-remediate.sql`. That script
+fails closed without every required approved mapping, preserves every removed
+ID durably in the audit table, and only then removes invalid IDs from the
+working lead fields so 1300's published foreign keys can apply.
+
+After the gate/deploy, the release owner must export and reconcile the exception
+rows with operations before using them in qualification or reporting:
 
 ```sql
 SELECT "leadType", "leadId", "relationKind", "subcategoryId", "detectedAt"
@@ -261,7 +278,7 @@ The protected launch-lead migration checksums are:
 
 - `20260725120000_add_launch_leads`: `d1f4746a201ee0bd565becca44346547084a2c71307bff0f8347893f31d3d030`
 - `20260725130000_harden_launch_leads`: `acd6e6b8ef5089759eb0ef5f47845d23e3b13a13a21b26cb69d8a3788a6552ce`
-- `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`: `ff8bd762ec7d9df0e3afa27a4ec830df4892f03e3fe3eb474e053779d7173573`
+- `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`: `0696d9a09ba6f71e004f1eb1147a6350dbd8f1918cea74152b8b521f99fb517a`
 
 `test:launch` byte-checks all three migrations. Do not edit an applied
 migration; create a later forward migration instead.

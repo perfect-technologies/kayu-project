@@ -1,8 +1,13 @@
--- CreateEnum
-CREATE TYPE "LeadTaxonomySnapshotRelation" AS ENUM ('PROVIDER_PRIMARY', 'PROVIDER_ADDITIONAL', 'CLIENT_NEEDED');
+-- The documented pre-1300 remediation gate may have created these durable
+-- audit objects already. Keep this forward migration idempotent with it.
+DO $$ BEGIN
+    CREATE TYPE "LeadTaxonomySnapshotRelation" AS ENUM ('PROVIDER_PRIMARY', 'PROVIDER_ADDITIONAL', 'CLIENT_NEEDED');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateTable
-CREATE TABLE "LeadTaxonomySnapshotOrphan" (
+CREATE TABLE IF NOT EXISTS "LeadTaxonomySnapshotOrphan" (
     "id" TEXT NOT NULL,
     "detectedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "leadType" "LeadType" NOT NULL,
@@ -61,10 +66,10 @@ INNER JOIN "Subcategory" AS taxonomy ON taxonomy."id" = selected."subcategoryId"
 ON CONFLICT DO NOTHING;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeadTaxonomySnapshotOrphan_leadType_leadId_relationKind_subcategoryId_key" ON "LeadTaxonomySnapshotOrphan"("leadType", "leadId", "relationKind", "subcategoryId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeadTaxonomySnapshotOrphan_leadType_leadId_relationKind_subcategoryId_key" ON "LeadTaxonomySnapshotOrphan"("leadType", "leadId", "relationKind", "subcategoryId");
 
 -- CreateIndex
-CREATE INDEX "LeadTaxonomySnapshotOrphan_relationKind_detectedAt_idx" ON "LeadTaxonomySnapshotOrphan"("relationKind", "detectedAt");
+CREATE INDEX IF NOT EXISTS "LeadTaxonomySnapshotOrphan_relationKind_detectedAt_idx" ON "LeadTaxonomySnapshotOrphan"("relationKind", "detectedAt");
 
 -- CreateIndex
-CREATE INDEX "LeadTaxonomySnapshotOrphan_subcategoryId_idx" ON "LeadTaxonomySnapshotOrphan"("subcategoryId");
+CREATE INDEX IF NOT EXISTS "LeadTaxonomySnapshotOrphan_subcategoryId_idx" ON "LeadTaxonomySnapshotOrphan"("subcategoryId");
