@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { I } from "@kayu/ui/web";
 import { useAuth } from "@/contexts/AuthContext";
+import { shouldCreateAuthUser } from "@/lib/campaign-routing";
 import { createClient } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
 import { identityApi } from "@kayu/api";
@@ -103,19 +104,21 @@ function supabaseErrorCopy(err: unknown): string {
   return "Impossible d'envoyer le code. Réessaie dans un instant.";
 }
 
-export function AuthFlow() {
+export function AuthFlow({ signupEnabled }: { signupEnabled: boolean }) {
   return (
     <Suspense fallback={null}>
-      <AuthFlowInner />
+      <AuthFlowInner signupEnabled={signupEnabled} />
     </Suspense>
   );
 }
 
-function AuthFlowInner() {
+function AuthFlowInner({ signupEnabled }: { signupEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mode: "signup" | "login" =
-    searchParams.get("mode") === "signup" ? "signup" : "login";
+    signupEnabled && searchParams.get("mode") === "signup"
+      ? "signup"
+      : "login";
   const { refreshUser, login } = useAuth();
   const supabase = createClient();
 
@@ -206,7 +209,10 @@ function AuthFlowInner() {
     setPhoneError(null);
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: fullPhone,
+        options: { shouldCreateUser: shouldCreateAuthUser(mode, signupEnabled) },
+      });
       if (error) throw error;
       setOtp(Array.from({ length: OTP_LENGTH }, () => ""));
       setStep(2);
@@ -222,7 +228,10 @@ function AuthFlowInner() {
     setOtpError(null);
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: fullPhone,
+        options: { shouldCreateUser: shouldCreateAuthUser(mode, signupEnabled) },
+      });
       if (error) throw error;
       setOtp(Array.from({ length: OTP_LENGTH }, () => ""));
       setResendLeft(RESEND_SECONDS);
@@ -413,7 +422,7 @@ function AuthFlowInner() {
           onClick={() => handleSelectRole("PROVIDER")}
         />
       </div>
-      <AuthSwitchFooter mode="signup" />
+      <AuthSwitchFooter mode="signup" signupEnabled={signupEnabled} />
     </div>
   );
 
@@ -587,7 +596,7 @@ function AuthFlowInner() {
         </div>
       </div>
 
-      <AuthSwitchFooter mode={mode} />
+      <AuthSwitchFooter mode={mode} signupEnabled={signupEnabled} />
 
       {SHOW_DEMO_ACCOUNTS && (
         <DemoAccountsPanel
@@ -1028,7 +1037,38 @@ function FormField({
   );
 }
 
-function AuthSwitchFooter({ mode }: { mode: "signup" | "login" }) {
+function AuthSwitchFooter({
+  mode,
+  signupEnabled,
+}: {
+  mode: "signup" | "login";
+  signupEnabled: boolean;
+}) {
+  if (mode === "login" && !signupEnabled) {
+    return (
+      <div
+        style={{
+          marginTop: 24,
+          textAlign: "center",
+          fontSize: 13.5,
+          color: "var(--k-text-muted)",
+        }}
+      >
+        Nouveau sur KAYOU ?{" "}
+        <a
+          href="/"
+          style={{
+            color: "var(--k-primary-hover)",
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          Préinscription gratuite
+        </a>
+      </div>
+    );
+  }
+
   const href = mode === "signup" ? "/auth" : "/auth?mode=signup";
   const label = mode === "signup" ? "Déjà un compte ?" : "Pas encore de compte ?";
   const action = mode === "signup" ? "Se connecter" : "S'inscrire";

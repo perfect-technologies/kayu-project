@@ -4,7 +4,7 @@
 
 Created: 2026-07-25
 
-Overall status: **Plan ready; implementation not started**
+Overall status: **Workstream 02 implementation integrated and verified locally; production activation remains gated**
 
 The public campaign captures provider and “I need a service” client-demand leads together from day one, then operations qualify them and open a controlled beta. Campaign leads do not become Supabase Auth or marketplace accounts. Approved provider leads may be invited after G3; approved client leads may be invited for marketplace access only after G4.
 
@@ -14,7 +14,7 @@ The public campaign captures provider and “I need a service” client-demand l
 | --- | --- | --- | --- |
 | 00 — Product And Operational Contract | Done | Planning | Binding phase truth documented |
 | 01 — Launch Scope, Metrics, And Gates | Not started | TBD | All active categories visible; home-services operational priority mapping fixed; choose pilot communes |
-| 02 — Campaign Conversion, Landing, And Lead Data | In progress | Backend/data contract | Backend lead-only persistence and public intake are in review; campaign web UI remains unstarted |
+| 02 — Campaign Conversion, Landing, And Lead Data | In review | Integration | Approved backend/data contract and public campaign UX are integrated and locally verified; production G1 evidence remains separate |
 | 03 — Provider Intake, Qualification, Admin | Not started | TBD | Depends on `02` provider lead schema |
 | 04 — Approved Lead Activation And Auth | Not started | TBD | May be built dormant; issuance/claim forbidden before G3 |
 | 05 — Client Demand Waitlist | Not started | TBD | Depends on `02` client lead schema; can parallelize with `03` |
@@ -33,23 +33,23 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 
 ### 02 — Backend/Data Contract
 
-Status: **In review** (backend/data-contract half only)
+Status: **In review** (integrated backend/data contract and public campaign UX, locally verified)
 
-Owner: Backend/data contract
+Owner: Integration (backend/data contract + web public UX)
 
 Date: 2026-07-25
 
 Changed:
 
 - Added `ProviderLead`, `ClientWaitlistLead`, privacy-safe `LeadSubmissionEvent` persistence, explicit created/review-required outcomes, and lifecycle/timing/contact enums in Prisma.
-- Preserved the committed checksum of `20260725120000_add_launch_leads`; added forward corrective migration `20260725130000_harden_launch_leads` for outcome backfill, restrictive primary-subcategory and lead-taxonomy junction foreign keys, and immutable taxonomy snapshot backfill. Added `20260725140000_add_campaign_funnel_events` for first-party durable conversion events.
+- Preserved the published checksum of `20260725120000_add_launch_leads`; added forward-only migrations for hardened lead records and funnel events, preserved orphaned taxonomy snapshots, and imported reviewed taxonomy preflight snapshots. The migration history is append-only and includes the capture/remediation runbooks needed before the supported upgrade path.
 - Added strict shared Zod request/response contracts, lead lifecycle enums, controlled communes, bounded free text, explicit attribution source/medium allowlists, hostname-only referrers, and typed `launchLeadsApi` methods. `@kayu/utils` now exports the canonical plausible DRC mobile normalizer/validator used by backend intake and available to web.
 - Added unauthenticated `POST /api/launch/provider-leads` and `POST /api/launch/client-leads` endpoints with the same generic response for new and duplicate submissions.
 - Added unauthenticated `POST /api/launch/funnel-events` with a durable `CampaignFunnelEvent` row, strict allowlisted event/dimension/route/device/attribution DTO, event-time window, separate kill switch/rate bucket, and generic `{ accepted: true }` response. Unknown keys and PII/free-text/auth/session/cookie/account fields are rejected.
 - Added active-taxonomy validation with no home-priority restriction, plausible RDC mobile-number validation, role-separated phone deduplication, consent/version timestamps, attribution/audit events, and form-duration buckets. The binding contract now explicitly defines anonymous duplicates as non-mutating review events; participant-field/consent refresh requires a future approved contact-control capability and phone knowledge or a browser cookie is insufficient.
 - Made first-submission creation and created-vs-review analytics atomic with serializable transactions and bounded conflict retries. Campaign keys now encode fixed attribution field positions to prevent source/medium/campaign/content collisions.
 - Added independent default-off lead/funnel kill switches, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and separate lead-IP/contact/funnel-IP limits. Limiter keys use non-reversible HMAC buckets; an expiry min-heap removes only due entries without full-map scans, cardinality fails closed, and `429` responses include the remaining-window `Retry-After`.
-- No campaign UI, auth/account creation, qualification/admin workflow, invitations, activation, payments, or beta operations were added.
+- Integrated the public campaign UI described below. No auth/account creation, qualification/admin workflow, invitations, activation, payments, or beta operations were added.
 
 Verified:
 
@@ -57,14 +57,16 @@ Verified:
 - `pnpm --filter @kayu/schemas build`
 - `pnpm --filter @kayu/api type-check`
 - `pnpm --filter @kayu/api build`
-- `pnpm --filter @kayu/utils test` — 2/2 canonical phone normalization/plausibility tests passed; utils type-check/build and web consumer type-check passed.
+- `node --test packages/utils/test/phone.test.mjs` — 2/2 canonical phone normalization/plausibility tests passed; utils type-check/build and web consumer type-check passed.
 - `pnpm --filter @kayu/backend test:launch` — 111/111 passed, including duplicate immutability/consent, heap-based limiter privacy/bounds/expiry/`Retry-After`, shared DRC phone consumption, strict funnel DTO/persistence, campaign-key collision, and taxonomy admin safety regressions.
 - Focused launch-lead/config/admin unit suite — 51/51 passed.
 - `LAUNCH_LEADS_TEST_DATABASE_URL=... pnpm --filter @kayu/backend test:launch-leads:ci` — mandatory CI mode 1/1 passed against disposable Postgres with two concurrent first submissions, atomic outcomes, restrictive taxonomy FK, durable funnel persistence, and zero `User`/`Provider` records. CI now provisions Postgres, deploys migrations, and fails instead of skipping when the database URL is absent.
 - `pnpm --filter @kayu/backend type-check`
 - `DATABASE_URL=postgresql://u:p@localhost:5432/db pnpm --filter @kayu/backend build`
-- Fresh temporary Postgres: `prisma migrate deploy` applied all four migrations and `prisma migrate diff --exit-code` reported `No difference detected`.
-- Seeded upgrade stopped after the original `20260725120000_add_launch_leads`: corrective deploy backfilled one created event, one duplicate-review event, one provider taxonomy junction, and two client taxonomy junctions; final schema diff reported `No difference detected`.
+- Final integration: `pnpm --filter @kayu/backend test:launch` — 112/112 passed, including protected migration checks and lead/funnel behavior.
+- Final integration: fresh disposable Postgres applied all six migrations; the required serializable lead/funnel test passed and confirmed one lead/event with `User=0` and `Provider=0`.
+- Final integration: the required orphan-snapshot supported-upgrade test passed, preserving historical snapshots and rejecting future invalid references.
+- Final integration: real Nest HTTP submissions to provider-lead and funnel-event endpoints both returned accepted responses; the disposable database contained `ProviderLead=1`, `CampaignFunnelEvent=1`, `User=0`, and `Provider=0`.
 - Production-like Nest smoke: the original and attacker duplicate both received the generic accepted response, while the duplicate left all lead fields and consent unchanged and recorded only a review-required event with marketing consent false. A third rate-limited request returned `429` with `Retry-After`; aggregate evidence was one lead, one created event, one safe duplicate event, `User=0`, and `Provider=0`.
 - Funnel Nest smoke: an allowlisted event returned `201 { accepted: true }` and persisted one owned event; a payload containing `phone` returned `400`; the third same-IP event returned `429` with `Retry-After`; `User=0` and `Provider=0`.
 
@@ -77,7 +79,7 @@ Data/phase checks:
 
 Remaining:
 
-- Campaign landing/forms, browser event emission, responsive/accessibility/performance/user testing, and campaign route gating are intentionally outside this backend-only change.
+- Production still requires the operational privacy version, hash/rate-limit configuration, collector enablement, retention/deletion procedure, and the release checks listed below.
 - Operations/privacy must set the real privacy-notice version and rate-limit hash key, then explicitly enable `LAUNCH_PUBLIC_INTAKE_ENABLED` and/or `LAUNCH_FUNNEL_EVENTS_ENABLED`. Define the funnel-row retention/deletion job before production enablement.
 - The bounded limiter remains process-local because the current repository has no shared rate-limit store. Its limits are per replica; introduce a shared privacy-safe store before running multiple backend replicas.
 - Pilot-commune selection and the reviewed home-priority taxonomy-ID configuration remain workstream `01`/operator decisions; neither blocks all-active-category lead capture.
@@ -125,6 +127,63 @@ These do not block documentation; resolve by the stated gate:
 | Separate production Supabase or explicitly accept/mitigate shared-auth risk | Release/privacy owner | Before first invitation/G3 |
 | Confirm privacy/terms versions, withdrawal channel, and retention procedure | Privacy owner | Before G1 |
 | Choose support channel/hours | Operations owner | Before G3 |
+
+### 02 — Campaign Conversion, Landing, And Lead Data
+
+Status: In review (integrated with the approved backend/data contract and locally verified)
+Owner: Integration (backend/data contract + web public UX)
+Date: 2026-07-25
+
+Changed:
+
+- Replaced `/` marketplace claims/data with an honest French-first forthcoming-Kinshasa-launch campaign and added direct `/launch/providers` and `/launch/clients` paths.
+- Added two-step provider/client forms with only the required triage fields, collapsed optional details, native accessible controls, French validation/retry/confirmation states, the full server-provided active category/subcategory hierarchy, and all 24 Kinshasa communes.
+- Added a thin unauthenticated web boundary for the documented provider/client lead endpoints. Requests use the documented field names, generic accepted response, bounded attribution, honeypot, `credentials: "omit"`, and no auth/account calls.
+- Added privacy-safe events for landing, role selection, form start, validation failure, and completed submission. URL attribution uses a last-touch session model: a new explicit source replaces the complete prior touch, while source-less dependent UTM fields cannot fabricate a hybrid channel.
+- Made campaign mode fail closed unless `KAYOU_PUBLIC_WEB_MODE=marketplace` is explicit. The server proxy and `/auth` page redirect all account-auth entry in campaign mode; the auth client additionally sets Supabase `shouldCreateUser` only for an explicit marketplace signup. No staff/invite bypass was added because the current web architecture has no server-authoritative exception contract.
+- Moved `/` in campaign mode and every `/launch/*` route onto a minimal shell that does not mount the Supabase `AuthProvider`, React Query provider, or marketplace toaster; campaign visitors do not initialize marketplace session state.
+- Consumes the shared `@kayu/schemas` lead/funnel DTO types and allowlisted validation dimensions, plus the canonical `@kayu/utils` `normalizePlausibleDRCMobilePhone`/`isPlausibleDRCMobilePhone` implementation. The web boundary submits `formStartedAt` and preserves safe status/code/`Retry-After` details for distinct French validation, stale-notice, rate-limit, disabled-intake, server, and network states.
+- Added a readable `/launch/confidentialite` notice whose displayed version comes from the same server config submitted with operational consent. Role switches remount a fresh form and clear every field plus operational and marketing consent.
+- Wired keyed, once-per-page funnel events to the coordinated first-party `POST /api/launch/funnel-events` contract with schema version, timestamp, allowlisted route/device/role/validation/attribution dimensions, `credentials: "omit"`, and `keepalive`. A strict `{ accepted: true }` response confirms durable backend receipt; collection remains non-blocking for lead submission. `window.dataLayer` and the DOM event are optional diagnostics bridges only.
+- Scoped both campaign surfaces with `k-campaign` and, under `prefers-reduced-motion`, forced global scroll behavior to auto, stopped the campaign submission spinner, and removed interactive control/icon transitions so neither role scrolling nor campaign loading/control feedback inherits motion.
+- Added web environment examples for campaign mode, privacy-notice version, and the visible withdrawal/correction contact. No Admin, marketplace session, invitation, activation, or matching implementation was added.
+
+Verified:
+
+- `node --test packages/utils/test/phone.test.mjs` — 2/2 pass for the canonical DRC mobile normalization representations plus non-mobile, foreign, length-boundary, sequential, repeated-digit, and zero-placeholder rejection.
+- `node --test apps/web/src/lib/campaign-copy.test.mjs apps/web/src/lib/campaign-form-state.test.mjs apps/web/src/lib/campaign-phone-contract.test.mjs apps/web/src/lib/campaign-leads.test.mjs apps/web/src/lib/campaign-routing.test.mjs` — 28/28 pass (copy/notice linkage, fresh role state and consents, last-touch attribution reset, contact-shaped attribution rejection, web↔shared/backend phone fixtures, strict durable funnel DTO/receipt/once/no-PII behavior, `formStartedAt`, credential-free lead submission, safe API error semantics, fail-closed auth/public mode, minimal shell routing, and reduced-motion proof for scrolling, campaign loading, and interactive transitions).
+- `pnpm --filter @kayu/web type-check` — pass.
+- `BACKEND_URL=http://localhost:3001 NEXT_PUBLIC_APP_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key pnpm turbo run build --filter=@kayu/web...` — 5/5 workspace build tasks pass; runner warned that local Node 24 is outside the repository's Node 22 engine.
+- Final integration: web type-check and production build passed against the shared DTO/API contract.
+- Local mock-backed browser QA completed both provider and client submissions at 320px and reached their distinct French early-access confirmation states. A non-priority `Électricité automobile` client need submitted successfully.
+- Responsive browser checks at 320, 360, 390, 430, 768, and 1440px reported no horizontal overflow. At 320px both role choices are visible before the form; focus order, native labels, select/radio/checkbox semantics, keyboard-size controls, and zero browser console errors were checked.
+- The selector rendered all 15 current categories and 40 current subcategories from the existing taxonomy source, with no synthetic home-services category and no public priority styling/filter.
+- Final 320px copy QA confirmed the site-wide “KAYOU arrive bientôt à Kinshasa” narrative, free pre-registration, audience-specific provider/client benefits, and no visible beta/test/waitlist jargon.
+- Consolidated-review browser QA at 320px confirmed exactly two non-duplicated role CTAs, no overflow, role changes clearing previously entered client fields, the readable version-matched privacy notice, `/auth?mode=signup` redirecting to `/?utm_source=ig&utm_medium=cpc`, and zero browser warnings/errors. A provider submission reached confirmation once.
+- The mock-observed provider request used plausible normalized number `+243998765432`, `source: "instagram"`, `medium: "paid_social"`, `campaign: "launch-kinshasa"`, the selected non-priority subcategory ID, the displayed privacy version, and an ISO `formStartedAt`; it contained no account/auth fields.
+- Final 320px browser contract QA recorded durable first-party receipts for landing, role selection, and form start. A paid-Instagram visit followed by `utm_source=whatsapp` produced a WhatsApp-only form-start receipt with no inherited medium/campaign, no horizontal overflow (`scrollWidth=innerWidth=320`), an effective reduced-motion CSS override, and zero browser warnings/errors.
+
+Data/phase checks:
+
+- Campaign route/components contain no Supabase/auth import and send only shared lead DTO fields to `/api/launch/provider-leads` or `/api/launch/client-leads`; the final integration flow verified real backend persistence without account creation.
+- Analytics payload construction and the owned collector DTO have no name, phone, email, summary, exact address, referrer path/query, auth/session identifier, raw token, or free-text field. The backend DTO is strict, and collector receipt does not gate form success.
+- The redirect is explicitly presentation-only. No server phase, membership, marketplace entitlement, account creation, or seeded marketplace data is read by the campaign page.
+- Backend persistence and database/auth-diff proof are integrated with this campaign surface; the final integration flow records the no-account evidence.
+
+Decisions:
+
+- Binding copy decision: keep both paths action-first and non-text-heavy. Core messages use short French headings, compact supporting lines, icons/cards, and progressive disclosure; only required consent/privacy language remains denser.
+- Public narrative decision: frame the entire campaign—not only the hero—as “KAYOU arrive bientôt à Kinshasa,” with free pre-registration and the benefit of being among the first providers or first people to seek a trusted provider. Public paths, CTAs, validation, confirmations, metadata, and microcopy avoid beta/test/waitlist jargon and do not promise access, work, income, or immediate provider availability.
+- Load taxonomy on the server and submit stable active subcategory IDs. Do not fall back to seed slugs as IDs when the taxonomy API is unavailable; instead show a retryable unavailable state.
+- Keep source attribution across validation/retry without storing form PII, and omit browser auth credentials from the public lead request.
+- Treat only the exact `marketplace` public-mode value as permission to expose account auth; missing, blank, differently cased, or invalid configuration remains in campaign mode.
+- Use the first-party durable funnel endpoint as the authoritative measurement path. Keep `dataLayer`/DOM events as optional diagnostics only; neither diagnostics nor collector availability may change lead acceptance.
+
+Remaining:
+
+- Release must set `LAUNCH_FUNNEL_EVENTS_ENABLED=true` and the reviewed rate-limit/hash configuration; the backend collector and lead intake remain independently default-off.
+- Confirm the production privacy notice value and `confidentialite@kayou.cd` withdrawal channel before G1; override the documented web environment values if privacy owners choose different approved values.
+- Complete fluent Kinshasa French review and 5–8 target-user phone tests, real slow-network/retry testing, production mobile p75 Core Web Vitals, and the named/capped first acquisition experiment.
 
 ## Shared Contract Changes
 

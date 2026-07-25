@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+
+import { resolvePublicWebMode } from "@/lib/campaign-routing";
 import { AuthFlow } from "./AuthFlow";
 
 export const metadata: Metadata = {
@@ -7,5 +10,11 @@ export const metadata: Metadata = {
 };
 
 export default function AuthPage() {
-  return <AuthFlow />;
+  const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
+
+  if (publicMode === "campaign") {
+    redirect("/");
+  }
+
+  return <AuthFlow signupEnabled={publicMode === "marketplace"} />;
 }

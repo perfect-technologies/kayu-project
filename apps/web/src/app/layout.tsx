@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { QueryProvider } from "@/components/providers/QueryProvider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { Toaster } from "sonner";
+import { AppProviders } from "@/components/providers/AppProviders";
+import { resolvePublicWebMode } from "@/lib/campaign-routing";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-k-display",
@@ -30,26 +29,35 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
-  title: "KAYOU - Un service a portee de main",
+  title: "KAYOU arrive bientôt à Kinshasa",
   description:
-    "KAYOU connecte les prestataires de services qualifies avec les clients en RDC et Congo-Brazzaville. Trouvez facilement des professionnels pour tous vos besoins: plomberie, electricite, menage, et plus encore.",
-  keywords: ["KAYOU", "services", "Kinshasa", "Brazzaville", "RDC", "Congo", "plomberie", "electricite", "menage", "prestataires", "Afrique"],
+    "Préinscrivez-vous gratuitement au lancement de KAYOU à Kinshasa : proposez vos services ou soyez averti parmi les premiers, sans créer de compte.",
+  keywords: [
+    "KAYOU",
+    "services",
+    "Kinshasa",
+    "RDC",
+    "prestataires",
+    "lancement",
+  ],
   authors: [{ name: "KAYOU Team" }],
   icons: {
     icon: "/kayou-logo.png",
   },
   openGraph: {
-    title: "KAYOU - Un service a portee de main",
-    description: "Trouvez des prestataires de services qualifies a Kinshasa et Brazzaville",
+    title: "KAYOU arrive bientôt à Kinshasa",
+    description:
+      "Préinscrivez-vous gratuitement pour faire partie des premiers prestataires KAYOU ou des premiers à chercher un prestataire de confiance à Kinshasa.",
     url: appUrl,
     siteName: "KAYOU",
     type: "website",
     locale: "fr_CD",
   },
   twitter: {
-    card: "summary_large_image",
-    title: "KAYOU - Un service a portee de main",
-    description: "Trouvez des prestataires de services qualifies a Kinshasa et Brazzaville",
+    card: "summary",
+    title: "KAYOU arrive bientôt à Kinshasa",
+    description:
+      "Préinscrivez-vous gratuitement pour faire partie des premiers à Kinshasa.",
   },
 };
 
@@ -58,18 +66,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
+
   return (
     <html lang="fr" suppressHydrationWarning>
       <body
         className={`${plusJakarta.variable} ${inter.variable} ${jetBrainsMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
-        <QueryProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </QueryProvider>
-        <Toaster richColors position="top-right" />
+        <AppProviders publicMode={publicMode}>{children}</AppProviders>
       </body>
     </html>
   );
