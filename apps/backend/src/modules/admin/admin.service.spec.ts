@@ -1006,6 +1006,9 @@ test("deleteSubcategory deletes when no providers are using it", async () => {
         return 0;
       },
     },
+    providerLead: { count: async () => 0 },
+    providerLeadAdditionalSubcategory: { count: async () => 0 },
+    clientWaitlistLeadSubcategory: { count: async () => 0 },
     subcategory: {
       delete: async (args: unknown) => {
         calls.delete = args;
@@ -1053,4 +1056,121 @@ test("deleteSubcategory rejects when providers are using it", async () => {
     (err: Error) =>
       err.message.includes("provider association") || err.message.includes("3"),
   );
+});
+
+test("updateSubcategory rejects deactivation while launch leads reference it", async () => {
+  let updateCalled = false;
+  const prisma = {
+    subcategory: {
+      findUnique: async () => ({
+        id: "sub_1",
+        categoryId: "cat_1",
+        slug: "depannage",
+        isActive: true,
+      }),
+      update: async () => {
+        updateCalled = true;
+      },
+    },
+    providerLead: { count: async () => 1 },
+    providerLeadAdditionalSubcategory: { count: async () => 1 },
+    clientWaitlistLeadSubcategory: { count: async () => 1 },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.updateSubcategory(
+        makeAdminActor() as never,
+        { id: "sub_1", isActive: false },
+        "127.0.0.1",
+      ),
+    /3 launch lead association/,
+  );
+  assert.equal(updateCalled, false);
+});
+
+test("deleteSubcategory rejects deletion while launch leads reference it", async () => {
+  let deleteCalled = false;
+  const prisma = {
+    providerSubcategory: { count: async () => 0 },
+    providerLead: { count: async () => 0 },
+    providerLeadAdditionalSubcategory: { count: async () => 1 },
+    clientWaitlistLeadSubcategory: { count: async () => 1 },
+    subcategory: {
+      delete: async () => {
+        deleteCalled = true;
+      },
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.deleteSubcategory(
+        makeAdminActor() as never,
+        "sub_1",
+        "127.0.0.1",
+      ),
+    /2 launch lead association/,
+  );
+  assert.equal(deleteCalled, false);
+});
+
+test("updateCategory rejects deactivation while child taxonomy has launch leads", async () => {
+  let updateCalled = false;
+  const prisma = {
+    category: {
+      findUnique: async () => ({
+        id: "cat_1",
+        slug: "services",
+        isActive: true,
+      }),
+      update: async () => {
+        updateCalled = true;
+      },
+    },
+    providerLead: { count: async () => 1 },
+    providerLeadAdditionalSubcategory: { count: async () => 0 },
+    clientWaitlistLeadSubcategory: { count: async () => 1 },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.updateCategory(
+        makeAdminActor() as never,
+        { id: "cat_1", isActive: false },
+        "127.0.0.1",
+      ),
+    /2 launch lead association/,
+  );
+  assert.equal(updateCalled, false);
+});
+
+test("deleteCategory rejects deletion while child taxonomy has launch leads", async () => {
+  let deleteCalled = false;
+  const prisma = {
+    providerCategory: { count: async () => 0 },
+    providerLead: { count: async () => 0 },
+    providerLeadAdditionalSubcategory: { count: async () => 0 },
+    clientWaitlistLeadSubcategory: { count: async () => 1 },
+    category: {
+      delete: async () => {
+        deleteCalled = true;
+      },
+    },
+  };
+  const service = new AdminService(prisma as never, {} as never);
+
+  await assert.rejects(
+    () =>
+      service.deleteCategory(
+        makeAdminActor() as never,
+        "cat_1",
+        "127.0.0.1",
+      ),
+    /1 launch lead association/,
+  );
+  assert.equal(deleteCalled, false);
 });

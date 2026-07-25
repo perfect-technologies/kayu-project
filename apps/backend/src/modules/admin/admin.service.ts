@@ -1035,6 +1035,15 @@ export class AdminService {
       await this.ensureCategorySlugAvailable(body.slug);
     }
 
+    if (body.isActive === false && existingCategory.isActive) {
+      const leadReferences = await this.countLeadReferencesForCategory(categoryId);
+      if (leadReferences > 0) {
+        throw new BadRequestException(
+          `Category still has ${leadReferences} launch lead association(s)`,
+        );
+      }
+    }
+
     const updatedCategory = await this.prisma.category.update({
       where: {
         id: categoryId,
@@ -1086,6 +1095,13 @@ export class AdminService {
     if (providersCount > 0) {
       throw new BadRequestException(
         `Category still has ${providersCount} provider association(s)`,
+      );
+    }
+
+    const leadReferences = await this.countLeadReferencesForCategory(id);
+    if (leadReferences > 0) {
+      throw new BadRequestException(
+        `Category still has ${leadReferences} launch lead association(s)`,
       );
     }
 
@@ -1170,6 +1186,17 @@ export class AdminService {
       await this.ensureSubcategorySlugUnique(body.slug, body.id);
     }
 
+    if (body.isActive === false && existing.isActive) {
+      const leadReferences = await this.countLeadReferencesForSubcategory(
+        body.id,
+      );
+      if (leadReferences > 0) {
+        throw new BadRequestException(
+          `Subcategory still has ${leadReferences} launch lead association(s)`,
+        );
+      }
+    }
+
     const updated = await this.prisma.subcategory.update({
       where: { id: body.id },
       data: {
@@ -1210,6 +1237,13 @@ export class AdminService {
     if (providersCount > 0) {
       throw new BadRequestException(
         `Subcategory still has ${providersCount} provider association(s)`,
+      );
+    }
+
+    const leadReferences = await this.countLeadReferencesForSubcategory(id);
+    if (leadReferences > 0) {
+      throw new BadRequestException(
+        `Subcategory still has ${leadReferences} launch lead association(s)`,
       );
     }
 
@@ -2282,6 +2316,44 @@ export class AdminService {
     if (existing.length > 0) {
       throw new BadRequestException("Subcategory slug already exists");
     }
+  }
+
+  private async countLeadReferencesForCategory(categoryId: string) {
+    const [primaryProviders, additionalProviders, clients] = await Promise.all([
+      this.prisma.providerLead.count({
+        where: {
+          primarySubcategory: { categoryId },
+        },
+      }),
+      this.prisma.providerLeadAdditionalSubcategory.count({
+        where: {
+          subcategory: { categoryId },
+        },
+      }),
+      this.prisma.clientWaitlistLeadSubcategory.count({
+        where: {
+          subcategory: { categoryId },
+        },
+      }),
+    ]);
+
+    return primaryProviders + additionalProviders + clients;
+  }
+
+  private async countLeadReferencesForSubcategory(subcategoryId: string) {
+    const [primaryProviders, additionalProviders, clients] = await Promise.all([
+      this.prisma.providerLead.count({
+        where: { primarySubcategoryId: subcategoryId },
+      }),
+      this.prisma.providerLeadAdditionalSubcategory.count({
+        where: { subcategoryId },
+      }),
+      this.prisma.clientWaitlistLeadSubcategory.count({
+        where: { subcategoryId },
+      }),
+    ]);
+
+    return primaryProviders + additionalProviders + clients;
   }
 
   private buildProviderNotification(body: UpdateProviderBody) {

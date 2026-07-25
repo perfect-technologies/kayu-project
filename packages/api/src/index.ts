@@ -3,6 +3,7 @@ export { ApiError } from "./error.js";
 export {
   identityApi,
   categoriesApi,
+  launchLeadsApi,
   providersApi,
   bookingsApi,
   reviewsApi,

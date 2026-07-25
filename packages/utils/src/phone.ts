@@ -1,6 +1,60 @@
 const DRC_CODE = "+243";
 const CONGO_CODE = "+242";
 
+export class InvalidDRCMobilePhoneError extends Error {
+  constructor() {
+    super("Phone must be a plausible DRC mobile number");
+    this.name = "InvalidDRCMobilePhoneError";
+  }
+}
+
+/**
+ * Canonical campaign/mobile validator for DRC numbers.
+ *
+ * Accepts +243, 243, 0-prefixed, or 9-digit local forms and returns E.164.
+ * It rejects foreign numbers, non-mobile prefixes, length errors, and common
+ * placeholder patterns. This function intentionally throws so callers cannot
+ * accidentally persist a best-effort normalization.
+ */
+export function normalizePlausibleDRCMobilePhone(input: string): string {
+  const compact = input.trim().replace(/[\s().-]/g, "");
+  if (!/^\+?\d+$/.test(compact)) {
+    throw new InvalidDRCMobilePhoneError();
+  }
+
+  let local = compact;
+  if (local.startsWith("+243")) {
+    local = local.slice(4);
+  } else if (local.startsWith("243")) {
+    local = local.slice(3);
+  } else if (local.startsWith("0")) {
+    local = local.slice(1);
+  } else if (local.startsWith("+")) {
+    throw new InvalidDRCMobilePhoneError();
+  }
+
+  if (
+    !/^[89]\d{8}$/.test(local) ||
+    new Set(local).size < 4 ||
+    /^(\d)\1{8}$/.test(local) ||
+    /\d{3}0{6}$/.test(local) ||
+    ["012345678", "123456789", "987654321"].includes(local)
+  ) {
+    throw new InvalidDRCMobilePhoneError();
+  }
+
+  return `${DRC_CODE}${local}`;
+}
+
+export function isPlausibleDRCMobilePhone(input: string): boolean {
+  try {
+    normalizePlausibleDRCMobilePhone(input);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Normalize a DRC phone number to E.164 format (+243XXXXXXXXX).
  * Handles inputs like "0998765432", "243998765432", "+243998765432", "998765432".

@@ -278,13 +278,290 @@ model Subcategory {
   createdAt   DateTime @default(now())
 
   // Relations
-  providers   ProviderSubcategory[]
-  jobRequests JobRequest[]
-  bookings    Booking[]
+  providers                   ProviderSubcategory[]
+  jobRequests                 JobRequest[]
+  bookings                    Booking[]
+  providerLeadsPrimary        ProviderLead[]                      @relation("ProviderLeadPrimarySubcategory")
+  providerLeadAdditionalLinks ProviderLeadAdditionalSubcategory[]
+  clientWaitlistLeadLinks     ClientWaitlistLeadSubcategory[]
 
   @@index([categoryId])
   @@index([slug])
   @@index([isActive, order])
+}
+
+// ==================== CAMPAGNE DE LANCEMENT (LEADS UNIQUEMENT) ====================
+
+enum ProviderLeadStatus {
+  SUBMITTED
+  IN_REVIEW
+  NEEDS_INFO
+  QUALIFIED
+  REJECTED
+  WITHDRAWN
+  INVITED
+  ACTIVATED
+}
+
+enum ClientLeadStatus {
+  SUBMITTED
+  ELIGIBLE
+  PAUSED
+  DECLINED
+  WITHDRAWN
+  INVITED
+  ACTIVATED
+}
+
+enum ProviderLeadExperienceBand {
+  STARTING
+  ONE_TO_THREE_YEARS
+  FOUR_PLUS_YEARS
+}
+
+enum ClientLeadTiming {
+  WITHIN_7_DAYS
+  WITHIN_30_DAYS
+  LATER
+  EXPLORING
+}
+
+enum LeadPreferredContact {
+  PHONE
+  WHATSAPP
+}
+
+enum LeadType {
+  PROVIDER
+  CLIENT
+}
+
+enum LeadSubmissionOutcome {
+  CREATED
+  DUPLICATE_REVIEW_REQUIRED
+}
+
+enum LeadFormDurationBucket {
+  UNDER_3_SECONDS
+  FROM_3_TO_30_SECONDS
+  FROM_31_TO_90_SECONDS
+  FROM_91_TO_180_SECONDS
+  OVER_180_SECONDS
+  UNKNOWN
+}
+
+enum LeadTaxonomySnapshotRelation {
+  PROVIDER_PRIMARY
+  PROVIDER_ADDITIONAL
+  CLIENT_NEEDED
+}
+
+enum LaunchFunnelEventName {
+  LANDING_VIEWED
+  ROLE_SELECTED
+  FORM_STARTED
+  FORM_VALIDATION_FAILED
+  LEAD_SUBMITTED
+}
+
+enum LaunchFunnelDeviceClass {
+  MOBILE
+  TABLET
+  DESKTOP
+  UNKNOWN
+}
+
+model ProviderLead {
+  id                       String                              @id @default(cuid())
+  createdAt                DateTime                            @default(now())
+  updatedAt                DateTime                            @updatedAt
+  submittedAt              DateTime                            @default(now())
+  lastSubmittedAt          DateTime                            @default(now())
+  firstName                String
+  phoneE164                String                              @unique
+  emailNormalized          String?
+  // The staged database FK rejects invalid future references. This remains
+  // optional in Prisma so a historical immutable snapshot with a removed
+  // taxonomy target can be read safely as `primarySubcategory: null`.
+  primarySubcategoryId     String?
+  primarySubcategory       Subcategory?                        @relation("ProviderLeadPrimarySubcategory", fields: [primarySubcategoryId], references: [id], onDelete: Restrict)
+  additionalSubcategoryIds String[]                            @default([])
+  additionalSubcategories  ProviderLeadAdditionalSubcategory[]
+  experienceBand           ProviderLeadExperienceBand
+  homeCommune              String
+  serviceCommunes          String[]                            @default([])
+  hasWhatsApp              Boolean?
+  summary                  String?
+  status                   ProviderLeadStatus                  @default(SUBMITTED)
+  consentAt                DateTime
+  consentVersion           String
+  operationalConsent       Boolean                             @default(true)
+  marketingConsent         Boolean                             @default(false)
+  marketingConsentAt       DateTime?
+  marketingConsentVersion  String?
+  attributionSource        String
+  attributionMedium        String?
+  attributionCampaign      String?
+  attributionContent       String?
+  attributionReferrerHost  String?
+  campaignKey              String
+  lastFormDurationBucket   LeadFormDurationBucket              @default(UNKNOWN)
+  isTest                   Boolean                             @default(false)
+  firstReviewedAt          DateTime?
+  lastContactedAt          DateTime?
+  qualifiedAt              DateTime?
+  rejectedAt               DateTime?
+  withdrawnAt              DateTime?
+  assignedAdminUserId      String?
+  decisionReasonCode       String?
+  privateNotes             String?
+  activatedUserId          String?
+  activatedProviderId      String?
+  activatedAt              DateTime?
+  submissionEvents         LeadSubmissionEvent[]
+
+  @@index([status, submittedAt])
+  @@index([primarySubcategoryId, status])
+  @@index([homeCommune, status])
+  @@index([attributionSource, campaignKey])
+  @@index([isTest, status])
+}
+
+model ClientWaitlistLead {
+  id                      String                          @id @default(cuid())
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
+  submittedAt             DateTime                        @default(now())
+  lastSubmittedAt         DateTime                        @default(now())
+  firstName               String
+  phoneE164               String                          @unique
+  emailNormalized         String?
+  commune                 String
+  neededSubcategoryIds    String[]                        @default([])
+  neededSubcategories     ClientWaitlistLeadSubcategory[]
+  timing                  ClientLeadTiming
+  needSummary             String?
+  preferredContact        LeadPreferredContact?
+  status                  ClientLeadStatus                @default(SUBMITTED)
+  consentAt               DateTime
+  consentVersion          String
+  operationalConsent      Boolean                         @default(true)
+  marketingConsent        Boolean                         @default(false)
+  marketingConsentAt      DateTime?
+  marketingConsentVersion String?
+  attributionSource       String
+  attributionMedium       String?
+  attributionCampaign     String?
+  attributionContent      String?
+  attributionReferrerHost String?
+  campaignKey             String
+  lastFormDurationBucket  LeadFormDurationBucket          @default(UNKNOWN)
+  isTest                  Boolean                         @default(false)
+  firstReviewedAt         DateTime?
+  lastContactedAt         DateTime?
+  eligibleAt              DateTime?
+  declinedAt              DateTime?
+  withdrawnAt             DateTime?
+  assignedAdminUserId     String?
+  decisionReasonCode      String?
+  privateNotes            String?
+  activatedUserId         String?
+  activatedAt             DateTime?
+  submissionEvents        LeadSubmissionEvent[]
+
+  @@index([status, submittedAt])
+  @@index([commune, status])
+  @@index([attributionSource, campaignKey])
+  @@index([isTest, status])
+}
+
+model LeadSubmissionEvent {
+  id                 String                 @id @default(cuid())
+  leadType           LeadType
+  providerLeadId     String?
+  providerLead       ProviderLead?          @relation(fields: [providerLeadId], references: [id], onDelete: Cascade)
+  clientLeadId       String?
+  clientLead         ClientWaitlistLead?    @relation(fields: [clientLeadId], references: [id], onDelete: Cascade)
+  submittedAt        DateTime               @default(now())
+  isRefresh          Boolean                @default(false)
+  outcome            LeadSubmissionOutcome
+  consentVersion     String
+  operationalConsent Boolean
+  marketingConsent   Boolean                @default(false)
+  attributionSource  String
+  attributionMedium  String?
+  campaign           String?
+  content            String?
+  referrerHost       String?
+  campaignKey        String
+  formDurationBucket LeadFormDurationBucket @default(UNKNOWN)
+  ipHash             String?
+  contactHash        String
+
+  @@index([providerLeadId, submittedAt])
+  @@index([clientLeadId, submittedAt])
+  @@index([contactHash, submittedAt])
+  @@index([ipHash, submittedAt])
+  @@index([leadType, attributionSource, campaignKey, submittedAt], map: "LeadSubmissionEvent_attribution_idx")
+}
+
+model CampaignFunnelEvent {
+  id                      String                  @id @default(cuid())
+  receivedAt              DateTime                @default(now())
+  occurredAt              DateTime
+  schemaVersion           Int                     @default(1)
+  eventName               LaunchFunnelEventName
+  route                   String
+  deviceClass             LaunchFunnelDeviceClass
+  leadType                LeadType?
+  validationField         String?
+  validationErrorCode     String?
+  attributionSource       String
+  attributionMedium       String?
+  attributionCampaign     String?
+  attributionContent      String?
+  attributionReferrerHost String?
+  campaignKey             String
+
+  @@index([eventName, receivedAt])
+  @@index([leadType, eventName, receivedAt])
+  @@index([attributionSource, campaignKey, receivedAt], map: "CampaignFunnelEvent_attribution_idx")
+}
+
+// Historical taxonomy IDs that no longer resolve are preserved as immutable
+// snapshots during the forward lead-taxonomy hardening migration. They are not
+// valid future taxonomy associations and require an operator reconciliation.
+model LeadTaxonomySnapshotOrphan {
+  id            String                       @id @default(cuid())
+  detectedAt    DateTime                     @default(now())
+  leadType      LeadType
+  leadId        String
+  relationKind  LeadTaxonomySnapshotRelation
+  subcategoryId String
+
+  @@unique([leadType, leadId, relationKind, subcategoryId])
+  @@index([relationKind, detectedAt])
+  @@index([subcategoryId])
+}
+
+model ProviderLeadAdditionalSubcategory {
+  providerLeadId String
+  providerLead   ProviderLead @relation(fields: [providerLeadId], references: [id], onDelete: Cascade)
+  subcategoryId  String
+  subcategory    Subcategory  @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+
+  @@id([providerLeadId, subcategoryId])
+  @@index([subcategoryId])
+}
+
+model ClientWaitlistLeadSubcategory {
+  clientLeadId  String
+  clientLead    ClientWaitlistLead @relation(fields: [clientLeadId], references: [id], onDelete: Cascade)
+  subcategoryId String
+  subcategory   Subcategory        @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+
+  @@id([clientLeadId, subcategoryId])
+  @@index([subcategoryId])
 }
 
 // ==================== RELATION PRESTATAIRE-CATÉGORIE ====================

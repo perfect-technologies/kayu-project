@@ -9,6 +9,20 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kayu_ci
+          POSTGRES_PASSWORD: kayu_ci
+          POSTGRES_DB: kayu_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kayu_ci -d kayu_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -23,11 +37,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build shared packages
+        run: pnpm turbo run build --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
+
       - name: Generate Prisma client
         run: pnpm --filter @kayu/backend run prisma:generate
 
-      - name: Build shared packages
-        run: pnpm turbo run build --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
+      - name: Apply migrations to disposable Postgres
+        run: pnpm --filter @kayu/backend run prisma:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
+
+      - name: Launch lead serializable race integration
+        run: pnpm --filter @kayu/backend run test:launch-leads:ci
+        env:
+          LAUNCH_LEADS_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
+
+      - name: Launch lead orphan-snapshot upgrade integration
+        run: pnpm --filter @kayu/backend run test:launch-leads:orphan-upgrade:ci
+        env:
+          LAUNCH_LEADS_ORPHAN_UPGRADE_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_leads_orphan_upgrade?schema=public
 
       - name: Backend full test suite
         run: pnpm --filter @kayu/backend test

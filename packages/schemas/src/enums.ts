@@ -163,3 +163,52 @@ export const PayoutStatus = z.enum([
   "ON_HOLD",
 ]);
 export type PayoutStatus = z.infer<typeof PayoutStatus>;
+
+export const ProviderLeadStatus = z.enum([
+  "SUBMITTED",
+  "IN_REVIEW",
+  "NEEDS_INFO",
+  "QUALIFIED",
+  "REJECTED",
+  "WITHDRAWN",
+  "INVITED",
+  "ACTIVATED",
+]);
+export type ProviderLeadStatus = z.infer<typeof ProviderLeadStatus>;
+
+export const ClientLeadStatus = z.enum([
+  "SUBMITTED",
+  "ELIGIBLE",
+  "PAUSED",
+  "DECLINED",
+  "WITHDRAWN",
+  "INVITED",
+  "ACTIVATED",
+]);
+export type ClientLeadStatus = z.infer<typeof ClientLeadStatus>;
+
+export const ProviderLeadExperienceBand = z.enum([
+  "STARTING",
+  "ONE_TO_THREE_YEARS",
+  "FOUR_PLUS_YEARS",
+]);
+export type ProviderLeadExperienceBand = z.infer<
+  typeof ProviderLeadExperienceBand
+>;
+
+export const ClientLeadTiming = z.enum([
+  "WITHIN_7_DAYS",
+  "WITHIN_30_DAYS",
+  "LATER",
+  "EXPLORING",
+]);
+export type ClientLeadTiming = z.infer<typeof ClientLeadTiming>;
+
+export const LeadPreferredContact = z.enum(["PHONE", "WHATSAPP"]);
+export type LeadPreferredContact = z.infer<typeof LeadPreferredContact>;
+
+export const LeadSubmissionOutcome = z.enum([
+  "CREATED",
+  "DUPLICATE_REVIEW_REQUIRED",
+]);
+export type LeadSubmissionOutcome = z.infer<typeof LeadSubmissionOutcome>;
