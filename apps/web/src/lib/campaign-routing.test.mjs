@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -26,6 +27,14 @@ test("campaign presentation redirects public marketplace routes", () => {
 test("role selection disables smooth scrolling for reduced motion", () => {
   assert.equal(campaignScrollBehavior(true), "auto");
   assert.equal(campaignScrollBehavior(false), "smooth");
+});
+
+test("global CSS cannot re-enable smooth scrolling under reduced motion", async () => {
+  const css = await readFile("apps/web/src/app/globals.css", "utf8");
+  assert.match(
+    css,
+    /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?html\s*\{[\s\S]*?scroll-behavior:\s*auto\s*!important/,
+  );
 });
 
 test("public mode fails closed unless marketplace is explicitly configured", () => {

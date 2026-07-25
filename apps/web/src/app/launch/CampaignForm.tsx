@@ -242,15 +242,23 @@ export function CampaignForm({
   const reportValidationErrors = useCallback(
     (nextErrors: FormErrors) => {
       for (const field of Object.keys(nextErrors)) {
+        const errorCode =
+          field === "operationalConsent"
+            ? "consent_required"
+            : field === "phone" || field === "email"
+              ? "invalid_format"
+              : field === "firstName" && values.firstName.trim().length > 0
+                ? "too_short"
+                : "required";
         emitCampaignEvent("launch_form_validation_failed", {
           leadType: role,
           attribution,
           field,
-          errorCode: "invalid_or_missing",
+          errorCode,
         });
       }
     },
-    [attribution, role],
+    [attribution, role, values.firstName],
   );
 
   const focusFirstError = (nextErrors: FormErrors) => {

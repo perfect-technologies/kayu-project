@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CampaignLeadSubmissionError,
   buildCampaignEvent,
+  buildLaunchFunnelEventRequest,
   campaignSubmissionErrorCopy,
   completionTimeBucket,
   deviceClassForWidth,
@@ -11,6 +12,7 @@ import {
   mergeCampaignAttribution,
   normalizeCampaignPhone,
   parseCampaignAttribution,
+  persistCampaignEvent,
   submitCampaignLead,
 } from "./campaign-leads.ts";
 
@@ -51,7 +53,16 @@ test("ordinary UTM values map to the strict shared attribution contract", () => 
   );
 });
 
-test("current campaign values override stored values without dropping prior fields", () => {
+test("campaign attribution drops contact-shaped keys before any client boundary", () => {
+  assert.deepEqual(
+    parseCampaignAttribution(
+      "?utm_source=whatsapp&utm_campaign=person%40example.com&utm_content=243998765432",
+    ),
+    { source: "whatsapp" },
+  );
+});
+
+test("a new source starts a clean last-touch attribution record", () => {
   assert.deepEqual(
     mergeCampaignAttribution(
       { source: "referral", medium: "whatsapp", campaign: "cycle-1" },
@@ -59,23 +70,53 @@ test("current campaign values override stored values without dropping prior fiel
     ),
     {
       source: "facebook",
-      medium: "referral",
-      campaign: "cycle-1",
       content: "electricite",
+    },
+  );
+});
+
+test("source-only visits cannot inherit fabricated channel dimensions", () => {
+  assert.deepEqual(
+    mergeCampaignAttribution(
+      {
+        source: "instagram",
+        medium: "paid_social",
+        campaign: "spring-campaign",
+        content: "hero-a",
+      },
+      { source: "whatsapp" },
+    ),
+    { source: "whatsapp" },
+  );
+
+  assert.deepEqual(
+    mergeCampaignAttribution(
+      {
+        source: "instagram",
+        medium: "paid_social",
+        campaign: "spring-campaign",
+      },
+      { campaign: "orphan-campaign" },
+    ),
+    {
+      source: "instagram",
+      medium: "paid_social",
+      campaign: "spring-campaign",
     },
   );
 });
 
 test("campaign phone handling matches the shared DRC normalization", () => {
   for (const input of [
-    "0999 000 000",
-    "999000000",
-    "243999000000",
-    "+243 999 000 000",
+    "0998 765 432",
+    "998765432",
+    "243998765432",
+    "+243 998 765 432",
   ]) {
-    assert.equal(normalizeCampaignPhone(input), "+243999000000", input);
+    assert.equal(normalizeCampaignPhone(input), "+243998765432", input);
   }
   assert.equal(normalizeCampaignPhone("+242 066 000 000"), null);
+  assert.equal(normalizeCampaignPhone("+243 999 999 999"), null);
   assert.equal(normalizeCampaignPhone("123"), null);
 });
 
@@ -102,10 +143,51 @@ test("campaign events contain only privacy-safe funnel dimensions", () => {
   assert.equal("referrerHost" in event, false);
 });
 
-test("the app-owned event sink receives each keyed event once without PII", () => {
+test("the durable funnel request matches the strict shared backend contract", () => {
+  assert.deepEqual(
+    buildLaunchFunnelEventRequest(
+      "launch_form_validation_failed",
+      {
+        leadType: "provider",
+        field: "subcategoryId",
+        errorCode: "required",
+        attribution: {
+          source: "instagram",
+          medium: "paid_social",
+          campaign: "kinshasa-1",
+          referrerHost: "private.example",
+        },
+      },
+      {
+        deviceWidth: 390,
+        pathname: "/launch/providers",
+        occurredAt: "2026-07-25T12:00:00.000Z",
+      },
+    ),
+    {
+      schemaVersion: 1,
+      eventName: "launch_form_validation_failed",
+      occurredAt: "2026-07-25T12:00:00.000Z",
+      route: "/launch/providers",
+      deviceClass: "mobile",
+      leadType: "PROVIDER",
+      validationField: "primarySubcategoryId",
+      validationErrorCode: "required",
+      attribution: {
+        source: "instagram",
+        medium: "paid_social",
+        campaign: "kinshasa-1",
+      },
+    },
+  );
+});
+
+test("the owned collector receives each keyed event once and returns a receipt without PII", async () => {
   const originalWindow = globalThis.window;
   const originalCustomEvent = globalThis.CustomEvent;
+  const originalFetch = globalThis.fetch;
   const received = [];
+  const collectorRequests = [];
   class TestCustomEvent {
     constructor(type, init) {
       this.type = type;
@@ -115,11 +197,19 @@ test("the app-owned event sink receives each keyed event once without PII", () =
   globalThis.CustomEvent = TestCustomEvent;
   globalThis.window = {
     innerWidth: 390,
+    location: { pathname: "/launch/clients" },
     dataLayer: [],
     dispatchEvent(event) {
       received.push(event.detail);
       return true;
     },
+  };
+  globalThis.fetch = async (url, init) => {
+    collectorRequests.push({ url, init });
+    return new Response(JSON.stringify({ accepted: true }), {
+      status: 202,
+      headers: { "Content-Type": "application/json" },
+    });
   };
 
   try {
@@ -132,34 +222,57 @@ test("the app-owned event sink receives each keyed event once without PII", () =
         {
           leadType: "client",
           attribution: { source: "whatsapp", campaign: "cycle-1" },
-          phone: "+243999000000",
+          phone: "+243998765432",
           email: "person@example.com",
         },
       );
     }
 
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(received.length, 1);
     assert.equal(globalThis.window.dataLayer.length, 1);
     assert.deepEqual(received[0], globalThis.window.dataLayer[0]);
+    assert.equal(collectorRequests.length, 1);
+    assert.equal(collectorRequests[0].url, "/api/launch/funnel-events");
+    assert.equal(collectorRequests[0].init.credentials, "omit");
+    assert.equal(collectorRequests[0].init.keepalive, true);
+    assert.deepEqual(JSON.parse(collectorRequests[0].init.body), {
+      schemaVersion: 1,
+      eventName: "launch_form_started",
+      occurredAt: JSON.parse(collectorRequests[0].init.body).occurredAt,
+      route: "/launch/clients",
+      deviceClass: "mobile",
+      leadType: "CLIENT",
+      attribution: { source: "whatsapp", campaign: "cycle-1" },
+    });
     const serialized = JSON.stringify(received[0]);
+    const durableSerialized = collectorRequests[0].init.body;
     assert.equal(serialized.includes("243999"), false);
     assert.equal(serialized.includes("person@example.com"), false);
+    assert.equal(durableSerialized.includes("243999"), false);
+    assert.equal(durableSerialized.includes("person@example.com"), false);
   } finally {
     globalThis.window = originalWindow;
     globalThis.CustomEvent = originalCustomEvent;
+    globalThis.fetch = originalFetch;
   }
 });
 
-test("the app queue still receives events when the optional DOM bridge fails", () => {
+test("the optional diagnostics bridge remains isolated from collector failures", async () => {
   const originalWindow = globalThis.window;
   const originalCustomEvent = globalThis.CustomEvent;
+  const originalFetch = globalThis.fetch;
   globalThis.CustomEvent = undefined;
   globalThis.window = {
     innerWidth: 390,
+    location: { pathname: "/" },
     dataLayer: [],
     dispatchEvent() {
       throw new Error("DOM bridge unavailable");
     },
+  };
+  globalThis.fetch = async () => {
+    throw new Error("collector unavailable");
   };
 
   try {
@@ -174,9 +287,18 @@ test("the app queue still receives events when the optional DOM bridge fails", (
       globalThis.window.dataLayer[0].event,
       "launch_role_selected",
     );
+    assert.equal(
+      await persistCampaignEvent(
+        "launch_role_selected",
+        { leadType: "provider" },
+        { pathname: "/", deviceWidth: 390 },
+      ),
+      false,
+    );
   } finally {
     globalThis.window = originalWindow;
     globalThis.CustomEvent = originalCustomEvent;
+    globalThis.fetch = originalFetch;
   }
 });
 
@@ -209,7 +331,7 @@ test("lead submission uses the explicit public endpoint without auth credentials
   try {
     await submitCampaignLead("client", {
       firstName: "Essai",
-      phone: "+243999000000",
+      phone: "+243998765432",
       commune: "Gombe",
       neededSubcategoryIds: ["subcategory-id"],
       timing: "EXPLORING",
@@ -229,7 +351,7 @@ test("lead submission uses the explicit public endpoint without auth credentials
   assert.equal(requests[0].init.cache, "no-store");
   assert.deepEqual(JSON.parse(requests[0].init.body), {
     firstName: "Essai",
-    phone: "+243999000000",
+    phone: "+243998765432",
     commune: "Gombe",
     neededSubcategoryIds: ["subcategory-id"],
     timing: "EXPLORING",
@@ -262,7 +384,7 @@ test("submission preserves safe status, code, and retry-after semantics", async 
     await assert.rejects(
       submitCampaignLead("client", {
         firstName: "Essai",
-        phone: "+243999000000",
+        phone: "+243998765432",
         commune: "Gombe",
         neededSubcategoryIds: ["subcategory-id"],
         timing: "EXPLORING",
@@ -347,7 +469,7 @@ test("submission distinguishes stale privacy, disabled intake, and network error
       await assert.rejects(
         submitCampaignLead("provider", {
           firstName: "Essai",
-          phone: "+243999000000",
+          phone: "+243998765432",
           primarySubcategoryId: "subcategory-id",
           experienceBand: "STARTING",
           homeCommune: "Gombe",
@@ -366,7 +488,7 @@ test("submission distinguishes stale privacy, disabled intake, and network error
     await assert.rejects(
       submitCampaignLead("client", {
         firstName: "Essai",
-        phone: "+243999000000",
+        phone: "+243998765432",
         commune: "Gombe",
         neededSubcategoryIds: ["subcategory-id"],
         timing: "EXPLORING",

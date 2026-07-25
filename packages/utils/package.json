@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc -b tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test test/*.test.mjs",
     "lint": "echo 'no linter configured'",
     "clean": "rm -rf dist"
   },

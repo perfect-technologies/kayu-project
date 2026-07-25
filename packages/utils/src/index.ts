@@ -1,8 +1,11 @@
 export {
   normalizeDRCPhone,
+  normalizePlausibleDRCMobilePhone,
   normalizeCongoPhone,
+  isPlausibleDRCMobilePhone,
   isValidPhone,
   formatPhone,
+  InvalidDRCMobilePhoneError,
 } from "./phone.js";
 export { formatCDF, formatNumber } from "./currency.js";
 export {

@@ -7,7 +7,7 @@ test("a role change receives fresh role fields and fresh consent choices", () =>
   const providerValues = createEmptyCampaignFormValues();
   Object.assign(providerValues, {
     firstName: "Amina",
-    phone: "+243999000000",
+    phone: "+243998765432",
     commune: "Gombe",
     subcategoryId: "provider-subcategory",
     experienceBand: "FOUR_PLUS_YEARS",

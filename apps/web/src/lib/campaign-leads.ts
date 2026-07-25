@@ -1,4 +1,4 @@
-import { isValidPhone, normalizeDRCPhone } from "@kayu/utils";
+import { normalizePlausibleDRCMobilePhone } from "@kayu/utils";
 
 export type CampaignLeadType = "provider" | "client";
 
@@ -163,6 +163,49 @@ export type CampaignEvent = {
   completionTimeBucket?: "<=30s" | "31-60s" | "61-90s" | ">90s";
 };
 
+export type LaunchFunnelEventRequest = {
+  schemaVersion: 1;
+  eventName: CampaignEventName;
+  occurredAt: string;
+  route: "/" | "/launch/providers" | "/launch/clients";
+  deviceClass: "mobile" | "tablet" | "desktop" | "unknown";
+  leadType?: "PROVIDER" | "CLIENT";
+  validationField?:
+    | "form"
+    | "firstName"
+    | "phone"
+    | "email"
+    | "primarySubcategoryId"
+    | "additionalSubcategoryIds"
+    | "experienceBand"
+    | "homeCommune"
+    | "serviceCommunes"
+    | "hasWhatsApp"
+    | "summary"
+    | "commune"
+    | "neededSubcategoryIds"
+    | "timing"
+    | "needSummary"
+    | "preferredContact"
+    | "operationalConsent"
+    | "marketingConsent"
+    | "privacyNoticeVersion"
+    | "attribution";
+  validationErrorCode?:
+    | "required"
+    | "invalid_format"
+    | "too_short"
+    | "too_long"
+    | "invalid_option"
+    | "duplicate_option"
+    | "consent_required"
+    | "rate_limited"
+    | "network"
+    | "server"
+    | "unknown";
+  attribution?: LeadAttribution;
+};
+
 const ATTRIBUTION_LIMITS = {
   campaign: 100,
   content: 100,
@@ -224,9 +267,12 @@ function normalizeAttributionKey(
 ): string | undefined {
   if (!value) return undefined;
 
-  const normalized = value
-    .normalize("NFKC")
-    .trim()
+  const safeValue = value.normalize("NFKC").trim();
+  if (/@/.test(safeValue) || /(?:\D*\d){8}/.test(safeValue)) {
+    return undefined;
+  }
+
+  const normalized = safeValue
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
@@ -281,9 +327,11 @@ export function normalizeLeadAttribution(
 }
 
 export function normalizeCampaignPhone(input: string): string | null {
-  if (!isValidPhone(input, "RDC")) return null;
-  const normalized = normalizeDRCPhone(input);
-  return /^\+243\d{9}$/.test(normalized) ? normalized : null;
+  try {
+    return normalizePlausibleDRCMobilePhone(input);
+  } catch {
+    return null;
+  }
 }
 
 export function parseCampaignAttribution(
@@ -319,7 +367,17 @@ export function mergeCampaignAttribution(
   previous: LeadAttribution,
   current: LeadAttribution,
 ): LeadAttribution {
-  return normalizeLeadAttribution({ ...previous, ...current });
+  const normalizedCurrent = normalizeLeadAttribution(current);
+
+  // Last-touch model: an explicit source starts a complete new touch. Never
+  // combine its source with medium/campaign/content from an older visit.
+  if (normalizedCurrent.source) {
+    return normalizedCurrent;
+  }
+
+  // Dependent UTM fields without a source cannot establish a trustworthy
+  // touch, so keep the last complete touch rather than fabricate a hybrid.
+  return normalizeLeadAttribution(previous);
 }
 
 export function completionTimeBucket(
@@ -373,6 +431,155 @@ export function buildCampaignEvent(
   return payload;
 }
 
+const FUNNEL_VALIDATION_FIELDS = new Set<
+  NonNullable<LaunchFunnelEventRequest["validationField"]>
+>([
+  "form",
+  "firstName",
+  "phone",
+  "email",
+  "primarySubcategoryId",
+  "additionalSubcategoryIds",
+  "experienceBand",
+  "homeCommune",
+  "serviceCommunes",
+  "hasWhatsApp",
+  "summary",
+  "commune",
+  "neededSubcategoryIds",
+  "timing",
+  "needSummary",
+  "preferredContact",
+  "operationalConsent",
+  "marketingConsent",
+  "privacyNoticeVersion",
+  "attribution",
+]);
+
+const FUNNEL_VALIDATION_ERROR_CODES = new Set<
+  NonNullable<LaunchFunnelEventRequest["validationErrorCode"]>
+>([
+  "required",
+  "invalid_format",
+  "too_short",
+  "too_long",
+  "invalid_option",
+  "duplicate_option",
+  "consent_required",
+  "rate_limited",
+  "network",
+  "server",
+  "unknown",
+]);
+
+function funnelRoute(
+  pathname: string,
+): LaunchFunnelEventRequest["route"] {
+  if (pathname === "/launch/providers" || pathname === "/launch/clients") {
+    return pathname;
+  }
+  return "/";
+}
+
+function funnelValidationField(
+  field: string | undefined,
+  leadType: CampaignLeadType | undefined,
+): LaunchFunnelEventRequest["validationField"] | undefined {
+  if (!field) return undefined;
+  if (field === "subcategoryId") {
+    return leadType === "provider"
+      ? "primarySubcategoryId"
+      : "neededSubcategoryIds";
+  }
+  if (field === "commune" && leadType === "provider") {
+    return "homeCommune";
+  }
+  if (field === "summary") {
+    return leadType === "provider" ? "summary" : "needSummary";
+  }
+  return FUNNEL_VALIDATION_FIELDS.has(
+    field as NonNullable<LaunchFunnelEventRequest["validationField"]>,
+  )
+    ? (field as NonNullable<LaunchFunnelEventRequest["validationField"]>)
+    : "form";
+}
+
+export function buildLaunchFunnelEventRequest(
+  event: CampaignEventName,
+  input: Parameters<typeof buildCampaignEvent>[1] = {},
+  context: {
+    deviceWidth?: number;
+    pathname?: string;
+    occurredAt?: string;
+  } = {},
+): LaunchFunnelEventRequest {
+  const request: LaunchFunnelEventRequest = {
+    schemaVersion: 1,
+    eventName: event,
+    occurredAt: context.occurredAt ?? new Date().toISOString(),
+    route: funnelRoute(context.pathname ?? "/"),
+    deviceClass: deviceClassForWidth(context.deviceWidth ?? 390),
+  };
+
+  if (input.leadType) {
+    request.leadType = input.leadType === "provider" ? "PROVIDER" : "CLIENT";
+  }
+
+  if (event === "launch_form_validation_failed") {
+    request.validationField = funnelValidationField(
+      input.field,
+      input.leadType,
+    );
+    request.validationErrorCode = FUNNEL_VALIDATION_ERROR_CODES.has(
+      input.errorCode as NonNullable<
+        LaunchFunnelEventRequest["validationErrorCode"]
+      >,
+    )
+      ? (input.errorCode as NonNullable<
+          LaunchFunnelEventRequest["validationErrorCode"]
+        >)
+      : "unknown";
+  }
+
+  const attribution = normalizeLeadAttribution(input.attribution ?? {});
+  // Referrer host is accepted by the server contract, but browser funnel
+  // events intentionally retain only campaign dimensions for minimization.
+  delete attribution.referrerHost;
+  if (Object.keys(attribution).length > 0) {
+    request.attribution = attribution;
+  }
+
+  return request;
+}
+
+export async function persistCampaignEvent(
+  event: CampaignEventName,
+  input: Parameters<typeof buildCampaignEvent>[1] = {},
+  context: {
+    deviceWidth?: number;
+    pathname?: string;
+    occurredAt?: string;
+  } = {},
+): Promise<boolean> {
+  const request = buildLaunchFunnelEventRequest(event, input, context);
+
+  try {
+    const response = await fetch("/api/launch/funnel-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      cache: "no-store",
+      credentials: "omit",
+      keepalive: true,
+    });
+    if (!response.ok) return false;
+    const receipt = (await response.json()) as { accepted?: unknown };
+    return receipt.accepted === true;
+  } catch {
+    return false;
+  }
+}
+
 export function emitCampaignEvent(
   event: CampaignEventName,
   input: Parameters<typeof buildCampaignEvent>[1] = {},
@@ -384,12 +591,18 @@ export function emitCampaignEvent(
     deviceWidth: window.innerWidth,
   });
 
+  // Durable, first-party receipt is best-effort and never blocks conversion.
+  void persistCampaignEvent(event, input, {
+    deviceWidth: window.innerWidth,
+    pathname: window.location?.pathname,
+  });
+
   try {
     const analyticsWindow = window as Window & {
       dataLayer?: Array<Record<string, unknown>>;
     };
-    // App-owned, provider-neutral sink. A privacy-approved collector can consume
-    // this queue without campaign code importing a third-party tracking SDK.
+    // Optional diagnostics bridge; the owned server collector above is the
+    // authoritative campaign measurement path.
     (analyticsWindow.dataLayer ??= []).push(payload);
   } catch {
     // Analytics is deliberately best-effort and cannot block lead submission.
