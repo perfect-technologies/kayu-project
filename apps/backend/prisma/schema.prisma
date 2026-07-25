@@ -350,6 +350,12 @@ enum LeadFormDurationBucket {
   UNKNOWN
 }
 
+enum LeadTaxonomySnapshotRelation {
+  PROVIDER_PRIMARY
+  PROVIDER_ADDITIONAL
+  CLIENT_NEEDED
+}
+
 enum LaunchFunnelEventName {
   LANDING_VIEWED
   ROLE_SELECTED
@@ -517,6 +523,22 @@ model CampaignFunnelEvent {
   @@index([eventName, receivedAt])
   @@index([leadType, eventName, receivedAt])
   @@index([attributionSource, campaignKey, receivedAt], map: "CampaignFunnelEvent_attribution_idx")
+}
+
+// Historical taxonomy IDs that no longer resolve are preserved as immutable
+// snapshots during the forward lead-taxonomy hardening migration. They are not
+// valid future taxonomy associations and require an operator reconciliation.
+model LeadTaxonomySnapshotOrphan {
+  id            String                       @id @default(cuid())
+  detectedAt    DateTime                     @default(now())
+  leadType      LeadType
+  leadId        String
+  relationKind  LeadTaxonomySnapshotRelation
+  subcategoryId String
+
+  @@unique([leadType, leadId, relationKind, subcategoryId])
+  @@index([relationKind, detectedAt])
+  @@index([subcategoryId])
 }
 
 model ProviderLeadAdditionalSubcategory {

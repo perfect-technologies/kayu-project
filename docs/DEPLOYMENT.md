@@ -223,6 +223,41 @@ pnpm db:deploy
 Render calls the equivalent command (`pnpm --filter @kayu/backend exec prisma migrate deploy`)
 automatically as the `preDeployCommand` before each backend service start.
 
+### Launch-lead taxonomy snapshot reconciliation
+
+`20260725130000_harden_launch_leads` is safe for historical campaign leads
+whose saved taxonomy IDs no longer exist. It preserves the original ID arrays,
+creates relational links only for currently existing subcategories, and records
+each missing historical ID in `LeadTaxonomySnapshotOrphan`. It does not recreate
+or silently remap taxonomy records.
+
+After deploying this migration, the release owner must export and reconcile the
+exception rows with operations before using them in qualification or reporting:
+
+```sql
+SELECT "leadType", "leadId", "relationKind", "subcategoryId", "detectedAt"
+FROM "LeadTaxonomySnapshotOrphan"
+ORDER BY "detectedAt", "leadType", "leadId";
+```
+
+Keep the exception rows as audit evidence. If an operator establishes a valid
+replacement for an orphaned provider primary category, make that correction
+through an approved data-reconciliation procedure, then validate the staged
+foreign key once no primary exceptions remain:
+
+```sql
+ALTER TABLE "ProviderLead"
+VALIDATE CONSTRAINT "ProviderLead_primarySubcategoryId_fkey";
+```
+
+The `NOT VALID` constraint still rejects every new invalid primary taxonomy
+reference immediately; validation only concerns historical rows. Do not delete
+or rewrite the immutable taxonomy-ID snapshot arrays to make this check pass.
+
+The original `20260725120000_add_launch_leads/migration.sql` must retain SHA-256
+`d1f4746a201ee0bd565becca44346547084a2c71307bff0f8347893f31d3d030`.
+`test:launch` includes a byte-check regression test for that baseline.
+
 ### Baseline for an existing database previously managed by `prisma db push`
 
 A fresh Render Postgres (provisioned by the Blueprint) has no migration

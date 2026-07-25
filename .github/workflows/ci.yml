@@ -53,6 +53,11 @@ jobs:
         env:
           LAUNCH_LEADS_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
 
+      - name: Launch lead orphan-snapshot upgrade integration
+        run: pnpm --filter @kayu/backend run test:launch-leads:orphan-upgrade:ci
+        env:
+          LAUNCH_LEADS_ORPHAN_UPGRADE_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_leads_orphan_upgrade?schema=public
+
       - name: Backend full test suite
         run: pnpm --filter @kayu/backend test
 
