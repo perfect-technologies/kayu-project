@@ -16,14 +16,23 @@ type IntakeRequest = {
 };
 
 type RateBucket = {
-  startedAt: number;
+  expiresAt: number;
   count: number;
 };
 
+export class LaunchRateLimitException extends HttpException {
+  constructor(readonly retryAfterSeconds: number) {
+    super(
+      "Trop de demandes. Veuillez réessayer plus tard.",
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+}
+
 @Injectable()
 export class LaunchIntakeProtectionService {
-  private readonly ipBuckets = new Map<string, RateBucket>();
-  private readonly contactBuckets = new Map<string, RateBucket>();
+  private readonly buckets = new Map<string, RateBucket>();
+  private now = () => Date.now();
 
   constructor(private readonly config: ConfigService) {}
 
@@ -46,7 +55,7 @@ export class LaunchIntakeProtectionService {
     }
 
     this.consume(
-      this.ipBuckets,
+      "ip",
       request.ip ?? request.socket?.remoteAddress ?? "unknown",
       this.getNumber("LAUNCH_INTAKE_IP_LIMIT", 20),
     );
@@ -54,7 +63,7 @@ export class LaunchIntakeProtectionService {
 
   checkContact(phoneE164: string): void {
     this.consume(
-      this.contactBuckets,
+      "contact",
       phoneE164,
       this.getNumber("LAUNCH_INTAKE_CONTACT_LIMIT", 5),
     );
@@ -83,45 +92,62 @@ export class LaunchIntakeProtectionService {
   }
 
   private consume(
-    buckets: Map<string, RateBucket>,
-    key: string,
+    scope: "ip" | "contact",
+    identifier: string,
     limit: number,
   ): void {
-    const now = Date.now();
+    const now = this.now();
     const windowMs =
       this.getNumber("LAUNCH_INTAKE_RATE_WINDOW_SECONDS", 900) * 1_000;
-    const current = buckets.get(key);
+    this.pruneExpiredBuckets(now);
 
-    if (!current || now - current.startedAt >= windowMs) {
-      buckets.set(key, { startedAt: now, count: 1 });
-      this.pruneExpiredBuckets(buckets, now, windowMs);
+    const hash = this.hashIdentifier(identifier);
+    if (!hash) {
+      throw new ServiceUnavailableException(
+        "La collecte des demandes est temporairement indisponible.",
+      );
+    }
+    const key = `${scope}:${hash}`;
+    const current = this.buckets.get(key);
+
+    if (!current) {
+      this.ensureCapacity(now);
+      this.buckets.set(key, { expiresAt: now + windowMs, count: 1 });
       return;
     }
 
     if (current.count >= limit) {
-      throw new HttpException(
-        "Trop de demandes. Veuillez réessayer plus tard.",
-        HttpStatus.TOO_MANY_REQUESTS,
+      throw new LaunchRateLimitException(
+        Math.max(1, Math.ceil((current.expiresAt - now) / 1_000)),
       );
     }
 
     current.count += 1;
   }
 
-  private pruneExpiredBuckets(
-    buckets: Map<string, RateBucket>,
-    now: number,
-    windowMs: number,
-  ): void {
-    if (buckets.size < 1_000) {
+  private pruneExpiredBuckets(now: number): void {
+    for (const [key, bucket] of this.buckets) {
+      if (bucket.expiresAt <= now) {
+        this.buckets.delete(key);
+      }
+    }
+  }
+
+  private ensureCapacity(now: number): void {
+    const capacity = this.getNumber(
+      "LAUNCH_INTAKE_RATE_BUCKET_CAPACITY",
+      10_000,
+    );
+    if (this.buckets.size < capacity) {
       return;
     }
 
-    for (const [key, bucket] of buckets) {
-      if (now - bucket.startedAt >= windowMs) {
-        buckets.delete(key);
-      }
-    }
+    const earliestExpiry = Math.min(
+      ...[...this.buckets.values()].map((bucket) => bucket.expiresAt),
+    );
+    throw new LaunchRateLimitException(
+      Math.max(1, Math.ceil((earliestExpiry - now) / 1_000)),
+    );
   }
 
   private getNumber(key: string, fallback: number): number {

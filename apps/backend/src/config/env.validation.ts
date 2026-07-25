@@ -40,6 +40,12 @@ const schema = z.object({
     .min(1_024)
     .max(65_536)
     .default(16_384),
+  LAUNCH_INTAKE_RATE_BUCKET_CAPACITY: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(100_000)
+    .default(10_000),
 }).superRefine((config, ctx) => {
   if (config.LAUNCH_PUBLIC_INTAKE_ENABLED !== "true") {
     return;

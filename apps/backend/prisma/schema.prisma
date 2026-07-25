@@ -278,9 +278,12 @@ model Subcategory {
   createdAt   DateTime @default(now())
 
   // Relations
-  providers   ProviderSubcategory[]
-  jobRequests JobRequest[]
-  bookings    Booking[]
+  providers                   ProviderSubcategory[]
+  jobRequests                 JobRequest[]
+  bookings                    Booking[]
+  providerLeadsPrimary        ProviderLead[]                      @relation("ProviderLeadPrimarySubcategory")
+  providerLeadAdditionalLinks ProviderLeadAdditionalSubcategory[]
+  clientWaitlistLeadLinks     ClientWaitlistLeadSubcategory[]
 
   @@index([categoryId])
   @@index([slug])
@@ -333,6 +336,11 @@ enum LeadType {
   CLIENT
 }
 
+enum LeadSubmissionOutcome {
+  CREATED
+  DUPLICATE_REVIEW_REQUIRED
+}
+
 enum LeadFormDurationBucket {
   UNDER_3_SECONDS
   FROM_3_TO_30_SECONDS
@@ -343,26 +351,28 @@ enum LeadFormDurationBucket {
 }
 
 model ProviderLead {
-  id                       String                     @id @default(cuid())
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
-  submittedAt              DateTime                   @default(now())
-  lastSubmittedAt          DateTime                   @default(now())
+  id                       String                              @id @default(cuid())
+  createdAt                DateTime                            @default(now())
+  updatedAt                DateTime                            @updatedAt
+  submittedAt              DateTime                            @default(now())
+  lastSubmittedAt          DateTime                            @default(now())
   firstName                String
-  phoneE164                String                     @unique
+  phoneE164                String                              @unique
   emailNormalized          String?
   primarySubcategoryId     String
-  additionalSubcategoryIds String[]                   @default([])
+  primarySubcategory       Subcategory                         @relation("ProviderLeadPrimarySubcategory", fields: [primarySubcategoryId], references: [id], onDelete: Restrict)
+  additionalSubcategoryIds String[]                            @default([])
+  additionalSubcategories  ProviderLeadAdditionalSubcategory[]
   experienceBand           ProviderLeadExperienceBand
   homeCommune              String
-  serviceCommunes          String[]                   @default([])
+  serviceCommunes          String[]                            @default([])
   hasWhatsApp              Boolean?
   summary                  String?
-  status                   ProviderLeadStatus         @default(SUBMITTED)
+  status                   ProviderLeadStatus                  @default(SUBMITTED)
   consentAt                DateTime
   consentVersion           String
-  operationalConsent       Boolean                    @default(true)
-  marketingConsent         Boolean                    @default(false)
+  operationalConsent       Boolean                             @default(true)
+  marketingConsent         Boolean                             @default(false)
   marketingConsentAt       DateTime?
   marketingConsentVersion  String?
   attributionSource        String
@@ -371,8 +381,8 @@ model ProviderLead {
   attributionContent       String?
   attributionReferrerHost  String?
   campaignKey              String
-  lastFormDurationBucket   LeadFormDurationBucket     @default(UNKNOWN)
-  isTest                   Boolean                    @default(false)
+  lastFormDurationBucket   LeadFormDurationBucket              @default(UNKNOWN)
+  isTest                   Boolean                             @default(false)
   firstReviewedAt          DateTime?
   lastContactedAt          DateTime?
   qualifiedAt              DateTime?
@@ -394,24 +404,25 @@ model ProviderLead {
 }
 
 model ClientWaitlistLead {
-  id                      String                 @id @default(cuid())
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  submittedAt             DateTime               @default(now())
-  lastSubmittedAt         DateTime               @default(now())
+  id                      String                          @id @default(cuid())
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
+  submittedAt             DateTime                        @default(now())
+  lastSubmittedAt         DateTime                        @default(now())
   firstName               String
-  phoneE164               String                 @unique
+  phoneE164               String                          @unique
   emailNormalized         String?
   commune                 String
-  neededSubcategoryIds    String[]               @default([])
+  neededSubcategoryIds    String[]                        @default([])
+  neededSubcategories     ClientWaitlistLeadSubcategory[]
   timing                  ClientLeadTiming
   needSummary             String?
   preferredContact        LeadPreferredContact?
-  status                  ClientLeadStatus       @default(SUBMITTED)
+  status                  ClientLeadStatus                @default(SUBMITTED)
   consentAt               DateTime
   consentVersion          String
-  operationalConsent      Boolean                @default(true)
-  marketingConsent        Boolean                @default(false)
+  operationalConsent      Boolean                         @default(true)
+  marketingConsent        Boolean                         @default(false)
   marketingConsentAt      DateTime?
   marketingConsentVersion String?
   attributionSource       String
@@ -420,8 +431,8 @@ model ClientWaitlistLead {
   attributionContent      String?
   attributionReferrerHost String?
   campaignKey             String
-  lastFormDurationBucket  LeadFormDurationBucket @default(UNKNOWN)
-  isTest                  Boolean                @default(false)
+  lastFormDurationBucket  LeadFormDurationBucket          @default(UNKNOWN)
+  isTest                  Boolean                         @default(false)
   firstReviewedAt         DateTime?
   lastContactedAt         DateTime?
   eligibleAt              DateTime?
@@ -449,6 +460,7 @@ model LeadSubmissionEvent {
   clientLead         ClientWaitlistLead?    @relation(fields: [clientLeadId], references: [id], onDelete: Cascade)
   submittedAt        DateTime               @default(now())
   isRefresh          Boolean                @default(false)
+  outcome            LeadSubmissionOutcome
   consentVersion     String
   operationalConsent Boolean
   marketingConsent   Boolean                @default(false)
@@ -467,6 +479,26 @@ model LeadSubmissionEvent {
   @@index([contactHash, submittedAt])
   @@index([ipHash, submittedAt])
   @@index([leadType, attributionSource, campaignKey, submittedAt], map: "LeadSubmissionEvent_attribution_idx")
+}
+
+model ProviderLeadAdditionalSubcategory {
+  providerLeadId String
+  providerLead   ProviderLead @relation(fields: [providerLeadId], references: [id], onDelete: Cascade)
+  subcategoryId  String
+  subcategory    Subcategory  @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+
+  @@id([providerLeadId, subcategoryId])
+  @@index([subcategoryId])
+}
+
+model ClientWaitlistLeadSubcategory {
+  clientLeadId  String
+  clientLead    ClientWaitlistLead @relation(fields: [clientLeadId], references: [id], onDelete: Cascade)
+  subcategoryId String
+  subcategory   Subcategory        @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+
+  @@id([clientLeadId, subcategoryId])
+  @@index([subcategoryId])
 }
 
 // ==================== RELATION PRESTATAIRE-CATÉGORIE ====================

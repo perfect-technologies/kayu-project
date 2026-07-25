@@ -41,12 +41,13 @@ Date: 2026-07-25
 
 Changed:
 
-- Added `ProviderLead`, `ClientWaitlistLead`, and privacy-safe `LeadSubmissionEvent` persistence plus lifecycle/timing/contact enums in Prisma.
-- Added forward migration `20260725120000_add_launch_leads`.
+- Added `ProviderLead`, `ClientWaitlistLead`, privacy-safe `LeadSubmissionEvent` persistence, explicit created/review-required outcomes, and lifecycle/timing/contact enums in Prisma.
+- Added forward migration `20260725120000_add_launch_leads`, including restrictive primary-subcategory and lead-taxonomy junction foreign keys. Lead taxonomy arrays remain immutable reporting snapshots; referenced taxonomy cannot be deactivated or deleted through existing admin operations.
 - Added strict shared Zod request/response contracts, lead lifecycle enums, controlled communes, bounded free text, explicit attribution source/medium allowlists, hostname-only referrers, and typed `launchLeadsApi` methods.
 - Added unauthenticated `POST /api/launch/provider-leads` and `POST /api/launch/client-leads` endpoints with the same generic response for new and duplicate submissions.
-- Added active-taxonomy validation with no home-priority restriction, RDC E.164 normalization, role-separated phone deduplication, safe participant-field refresh, lifecycle preservation, consent/version timestamps, marketing-consent upgrade preservation, attribution/audit events, and form-duration buckets.
-- Added an independent default-off intake kill switch, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and per-IP/per-normalized-contact limits. Submission event IP/contact identifiers are HMAC-hashed; request bodies and raw contact data are not logged.
+- Added active-taxonomy validation with no home-priority restriction, plausible RDC mobile-number validation, role-separated phone deduplication, consent/version timestamps, attribution/audit events, and form-duration buckets. Anonymous duplicates are non-mutating review events: they cannot change lead fields, refresh consent, or grant marketing consent.
+- Made first-submission creation and created-vs-review analytics atomic with serializable transactions and bounded conflict retries. Campaign keys now encode fixed attribution field positions to prevent source/medium/campaign/content collisions.
+- Added an independent default-off intake kill switch, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and per-IP/per-normalized-contact limits. Limiter keys use non-reversible HMAC buckets, expired buckets are pruned on every request, cardinality is hard-capped, and `429` responses include the remaining-window `Retry-After`; raw contact/IP values are not retained as limiter keys or written to submission events.
 - No campaign UI, auth/account creation, qualification/admin workflow, invitations, activation, payments, or beta operations were added.
 
 Verified:
@@ -55,11 +56,13 @@ Verified:
 - `pnpm --filter @kayu/schemas build`
 - `pnpm --filter @kayu/api type-check`
 - `pnpm --filter @kayu/api build`
-- `pnpm --filter @kayu/backend test:launch` — 97/97 passed, including 14 focused launch-lead contract/protection/persistence tests.
+- `pnpm --filter @kayu/backend test:launch` — 105/105 passed, including duplicate immutability/consent, limiter privacy/bounds/expiry/`Retry-After`, DRC phone plausibility, campaign-key collision, and taxonomy admin safety regressions.
+- Focused launch-lead/config/admin unit suite — 44/44 passed.
+- `LAUNCH_LEADS_TEST_DATABASE_URL=... pnpm --filter @kayu/backend test:launch-leads:integration` — 1/1 passed against fresh Postgres with two concurrent first submissions: one lead, exactly one `CREATED` event, one `DUPLICATE_REVIEW_REQUIRED` event, immutable duplicate data/consent, restrictive taxonomy FK, and zero `User`/`Provider` records.
 - `pnpm --filter @kayu/backend type-check`
 - `DATABASE_URL=postgresql://u:p@localhost:5432/db pnpm --filter @kayu/backend build`
-- Fresh temporary Postgres: `prisma migrate deploy` applied `0_init` and `20260725120000_add_launch_leads`; `prisma migrate status` reported the schema up to date and `prisma migrate diff --exit-code` reported `No difference detected`.
-- Production-like Nest smoke: new provider submission, normalized duplicate, and same-contact client submission all returned the generic accepted response. Aggregate database evidence was `ProviderLead=1`, `ClientWaitlistLead=1`, `LeadSubmissionEvent=3`, `User=0`, `Provider=0`; stored contact/IP identifiers were 64-character hashes.
+- Fresh temporary Postgres: `prisma migrate deploy` applied `0_init` and `20260725120000_add_launch_leads`; `prisma migrate diff --exit-code` reported `No difference detected`.
+- Production-like Nest smoke: the original and attacker duplicate both received the generic accepted response, while the duplicate left all lead fields and consent unchanged and recorded only a review-required event with marketing consent false. A third rate-limited request returned `429` with `Retry-After`; aggregate evidence was one lead, one created event, one safe duplicate event, `User=0`, and `Provider=0`.
 
 Data/phase checks:
 
@@ -72,7 +75,7 @@ Remaining:
 
 - Campaign landing/forms, browser funnel events, responsive/accessibility/performance/user testing, and campaign route gating are intentionally outside this backend-only change.
 - Operations/privacy must set the real privacy-notice version and intake hash key before enabling the kill switch.
-- The current repository has no shared rate-limit store; focused IP/contact buckets are process-local. Revisit a shared limiter before running multiple backend replicas.
+- The bounded limiter remains process-local because the current repository has no shared rate-limit store. Its limits are per replica; introduce a shared privacy-safe store before running multiple backend replicas.
 - Pilot-commune selection and the reviewed home-priority taxonomy-ID configuration remain workstream `01`/operator decisions; neither blocks all-active-category lead capture.
 
 ## Current Gates

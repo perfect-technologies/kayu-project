@@ -5,6 +5,7 @@ import { LaunchIntakeProtectionService } from "./launch-intake-protection.servic
 import {
   LaunchLeadsService,
   formDurationBucket,
+  normalizeAttribution,
   normalizeKinshasaPhone,
 } from "./launch-leads.service";
 
@@ -16,6 +17,7 @@ const configValues = {
   LAUNCH_INTAKE_CONTACT_LIMIT: 100,
   LAUNCH_INTAKE_RATE_WINDOW_SECONDS: 900,
   LAUNCH_INTAKE_MAX_BODY_BYTES: 16_384,
+  LAUNCH_INTAKE_RATE_BUCKET_CAPACITY: 10_000,
 };
 
 function makeConfig(overrides: Record<string, unknown> = {}) {
@@ -23,12 +25,6 @@ function makeConfig(overrides: Record<string, unknown> = {}) {
   return {
     get: (key: keyof typeof values) => values[key],
   } as unknown as ConfigService;
-}
-
-function withoutUndefined(value: Record<string, unknown>) {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined),
-  );
 }
 
 function makePrisma() {
@@ -49,24 +45,17 @@ function makePrisma() {
       const row = providerLeads.get(args.where.phoneE164);
       return row ? { id: row.id } : null;
     },
-    upsert: async (args: {
-      where: { phoneE164: string };
-      create: Record<string, unknown>;
-      update: Record<string, unknown>;
+    create: async (args: {
+      data: Record<string, unknown>;
     }) => {
-      const existing = providerLeads.get(args.where.phoneE164);
-      if (existing) {
-        Object.assign(existing, withoutUndefined(args.update));
-        return { id: existing.id };
-      }
       providerLeadSequence += 1;
       const row = {
         id: `provider_lead_${providerLeadSequence}`,
         status: "SUBMITTED",
         isTest: false,
-        ...args.create,
+        ...args.data,
       };
-      providerLeads.set(args.where.phoneE164, row);
+      providerLeads.set(args.data.phoneE164 as string, row);
       return { id: row.id };
     },
   };
@@ -76,24 +65,17 @@ function makePrisma() {
       const row = clientLeads.get(args.where.phoneE164);
       return row ? { id: row.id } : null;
     },
-    upsert: async (args: {
-      where: { phoneE164: string };
-      create: Record<string, unknown>;
-      update: Record<string, unknown>;
+    create: async (args: {
+      data: Record<string, unknown>;
     }) => {
-      const existing = clientLeads.get(args.where.phoneE164);
-      if (existing) {
-        Object.assign(existing, withoutUndefined(args.update));
-        return { id: existing.id };
-      }
       clientLeadSequence += 1;
       const row = {
         id: `client_lead_${clientLeadSequence}`,
         status: "SUBMITTED",
         isTest: false,
-        ...args.create,
+        ...args.data,
       };
-      clientLeads.set(args.where.phoneE164, row);
+      clientLeads.set(args.data.phoneE164 as string, row);
       return { id: row.id };
     },
   };
@@ -153,7 +135,7 @@ function makeService() {
 
 const providerInput = {
   firstName: "  Jean  ",
-  phone: "0998 765 432",
+  phone: "0810 203 040",
   email: "jean@example.com",
   primarySubcategoryId: "sub_non_priority",
   additionalSubcategoryIds: ["sub_extra"],
@@ -177,7 +159,7 @@ const providerInput = {
 
 const clientInput = {
   firstName: "Amina",
-  phone: "+243998765432",
+  phone: "+243810203040",
   commune: "Lemba",
   neededSubcategoryIds: ["sub_non_priority"],
   timing: "WITHIN_7_DAYS" as const,
@@ -203,7 +185,7 @@ test("provider submission writes a dedicated lead and audit event only", async (
   assert.equal(state.clientLeads.size, 0);
   assert.equal(state.getMarketplaceWriteCount(), 0);
 
-  const lead = state.providerLeads.get("+243998765432");
+  const lead = state.providerLeads.get("+243810203040");
   assert.ok(lead);
   assert.equal(lead.primarySubcategoryId, "sub_non_priority");
   assert.equal(lead.status, "SUBMITTED");
@@ -214,23 +196,31 @@ test("provider submission writes a dedicated lead and audit event only", async (
   assert.equal(state.events.length, 1);
   assert.equal(state.events[0]?.leadType, "PROVIDER");
   assert.equal(state.events[0]?.isRefresh, false);
-  assert.notEqual(state.events[0]?.contactHash, "+243998765432");
+  assert.equal(state.events[0]?.outcome, "CREATED");
+  assert.notEqual(state.events[0]?.contactHash, "+243810203040");
   assert.notEqual(state.events[0]?.ipHash, "203.0.113.10");
 });
 
-test("duplicate provider submission refreshes safe fields without resetting lifecycle or marketing consent", async () => {
+test("anonymous duplicate is review-only and cannot overwrite fields or grant marketing consent", async () => {
   const state = makeService();
-  await state.service.createProviderLead(providerInput);
+  await state.service.createProviderLead({
+    ...providerInput,
+    marketingConsent: false,
+  });
 
-  const lead = state.providerLeads.get("+243998765432");
+  const lead = state.providerLeads.get("+243810203040");
   assert.ok(lead);
   lead.status = "QUALIFIED";
   lead.privateNotes = "admin-only note";
+  const originalConsentAt = lead.consentAt;
+  const originalLastSubmittedAt = lead.lastSubmittedAt;
 
   const response = await state.service.createProviderLead({
     ...providerInput,
-    firstName: "Jean-Paul",
-    marketingConsent: false,
+    firstName: "Attacker",
+    email: "attacker@example.com",
+    marketingConsent: true,
+    homeCommune: "Gombe",
   });
 
   assert.deepEqual(response, {
@@ -238,12 +228,19 @@ test("duplicate provider submission refreshes safe fields without resetting life
     message: "Merci. Votre intérêt a bien été reçu.",
   });
   assert.equal(state.providerLeads.size, 1);
-  assert.equal(lead.firstName, "Jean-Paul");
+  assert.equal(lead.firstName, providerInput.firstName);
+  assert.equal(lead.emailNormalized, providerInput.email);
+  assert.equal(lead.homeCommune, providerInput.homeCommune);
   assert.equal(lead.status, "QUALIFIED");
   assert.equal(lead.privateNotes, "admin-only note");
-  assert.equal(lead.marketingConsent, true);
+  assert.equal(lead.marketingConsent, false);
+  assert.equal(lead.marketingConsentAt, null);
+  assert.equal(lead.consentAt, originalConsentAt);
+  assert.equal(lead.lastSubmittedAt, originalLastSubmittedAt);
   assert.equal(state.events.length, 2);
   assert.equal(state.events[1]?.isRefresh, true);
+  assert.equal(state.events[1]?.outcome, "DUPLICATE_REVIEW_REQUIRED");
+  assert.equal(state.events[1]?.marketingConsent, false);
 });
 
 test("the same normalized phone may exist independently in provider and client leads", async () => {
@@ -284,11 +281,41 @@ test("honeypot submissions receive the generic response without persistence", as
 });
 
 test("normalizes supported RDC phone representations and rejects foreign numbers", () => {
-  assert.equal(normalizeKinshasaPhone("0998 765 432"), "+243998765432");
-  assert.equal(normalizeKinshasaPhone("998765432"), "+243998765432");
-  assert.equal(normalizeKinshasaPhone("243998765432"), "+243998765432");
-  assert.equal(normalizeKinshasaPhone("+243 998 765 432"), "+243998765432");
+  assert.equal(normalizeKinshasaPhone("0810 203 040"), "+243810203040");
+  assert.equal(normalizeKinshasaPhone("810203040"), "+243810203040");
+  assert.equal(normalizeKinshasaPhone("243810203040"), "+243810203040");
+  assert.equal(normalizeKinshasaPhone("+243 810 203 040"), "+243810203040");
   assert.throws(() => normalizeKinshasaPhone("+242061234567"), /RDC/);
+});
+
+test("rejects phone length boundaries, non-mobile prefixes, and placeholders", () => {
+  assert.throws(() => normalizeKinshasaPhone("81020304"), /RDC/);
+  assert.throws(() => normalizeKinshasaPhone("8102030400"), /RDC/);
+  assert.throws(() => normalizeKinshasaPhone("+243710203040"), /plausible/);
+  assert.throws(() => normalizeKinshasaPhone("+243900000000"), /plausible/);
+  assert.throws(() => normalizeKinshasaPhone("+243999999999"), /plausible/);
+  assert.throws(() => normalizeKinshasaPhone("+243123456789"), /plausible/);
+});
+
+test("campaign keys preserve empty attribution positions without collisions", () => {
+  const mediumOnly = normalizeAttribution({
+    source: "facebook",
+    medium: "referral",
+  }).campaignKey;
+  const campaignOnly = normalizeAttribution({
+    source: "facebook",
+    campaign: "referral",
+  }).campaignKey;
+
+  assert.notEqual(mediumOnly, campaignOnly);
+  assert.equal(
+    mediumOnly,
+    '["facebook","referral",null,null]',
+  );
+  assert.equal(
+    campaignOnly,
+    '["facebook",null,"referral",null]',
+  );
 });
 
 test("buckets form duration without persisting raw timing intervals", () => {

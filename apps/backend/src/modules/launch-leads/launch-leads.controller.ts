@@ -3,12 +3,14 @@ import {
   Controller,
   Post,
   Req,
+  UseFilters,
   UseGuards,
 } from "@nestjs/common";
 import type { Request } from "express";
 import { LazyZodValidationPipe } from "../../common";
 import { LaunchIntakeGuard } from "./launch-intake.guard";
 import { LaunchLeadsService } from "./launch-leads.service";
+import { LaunchRateLimitFilter } from "./launch-rate-limit.filter";
 import type {
   CreateClientLeadInput,
   CreateProviderLeadInput,
@@ -26,6 +28,7 @@ const clientLeadPipe = new LazyZodValidationPipe(async () => {
 
 @Controller("launch")
 @UseGuards(LaunchIntakeGuard)
+@UseFilters(LaunchRateLimitFilter)
 export class LaunchLeadsController {
   constructor(private readonly leads: LaunchLeadsService) {}
 

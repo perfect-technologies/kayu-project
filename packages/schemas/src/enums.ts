@@ -206,3 +206,9 @@ export type ClientLeadTiming = z.infer<typeof ClientLeadTiming>;
 
 export const LeadPreferredContact = z.enum(["PHONE", "WHATSAPP"]);
 export type LeadPreferredContact = z.infer<typeof LeadPreferredContact>;
+
+export const LeadSubmissionOutcome = z.enum([
+  "CREATED",
+  "DUPLICATE_REVIEW_REQUIRED",
+]);
+export type LeadSubmissionOutcome = z.infer<typeof LeadSubmissionOutcome>;

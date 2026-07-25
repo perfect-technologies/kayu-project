@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { LeadFormDurationBucket } from "@prisma/client";
+import type { LeadFormDurationBucket, Prisma } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";
 import { LaunchIntakeProtectionService } from "./launch-intake-protection.service";
 import type {
@@ -18,6 +18,7 @@ const ACCEPTED_RESPONSE = {
   accepted: true as const,
   message: "Merci. Votre intérêt a bien été reçu." as const,
 };
+const SERIALIZABLE_RETRY_LIMIT = 5;
 
 @Injectable()
 export class LaunchLeadsService {
@@ -51,20 +52,49 @@ export class LaunchLeadsService {
     const contactHash = this.requiredHash(phoneE164);
     const ipHash = this.protection.hashIdentifier(context.ip);
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.withSerializableRetry(async (tx) => {
       const existing = await tx.providerLead.findUnique({
         where: { phoneE164 },
         select: { id: true },
       });
 
-      const lead = await tx.providerLead.upsert({
-        where: { phoneE164 },
-        create: {
+      if (existing) {
+        await tx.leadSubmissionEvent.create({
+          data: {
+            leadType: "PROVIDER",
+            providerLeadId: existing.id,
+            submittedAt: now,
+            isRefresh: true,
+            outcome: "DUPLICATE_REVIEW_REQUIRED",
+            consentVersion: input.privacyNoticeVersion,
+            operationalConsent: true,
+            marketingConsent: false,
+            attributionSource: attribution.source,
+            attributionMedium: attribution.medium,
+            campaign: attribution.campaign,
+            content: attribution.content,
+            referrerHost: attribution.referrerHost,
+            campaignKey: attribution.campaignKey,
+            formDurationBucket: durationBucket,
+            ipHash,
+            contactHash,
+          },
+        });
+        return;
+      }
+
+      const lead = await tx.providerLead.create({
+        data: {
           firstName: input.firstName,
           phoneE164,
           emailNormalized: input.email ?? null,
           primarySubcategoryId: input.primarySubcategoryId,
           additionalSubcategoryIds: input.additionalSubcategoryIds,
+          additionalSubcategories: {
+            create: input.additionalSubcategoryIds.map((subcategoryId) => ({
+              subcategoryId,
+            })),
+          },
           experienceBand: input.experienceBand,
           homeCommune: input.homeCommune,
           serviceCommunes: input.serviceCommunes,
@@ -88,33 +118,6 @@ export class LaunchLeadsService {
           campaignKey: attribution.campaignKey,
           lastFormDurationBucket: durationBucket,
         },
-        update: {
-          firstName: input.firstName,
-          emailNormalized: input.email,
-          primarySubcategoryId: input.primarySubcategoryId,
-          additionalSubcategoryIds: input.additionalSubcategoryIds,
-          experienceBand: input.experienceBand,
-          homeCommune: input.homeCommune,
-          serviceCommunes: input.serviceCommunes,
-          hasWhatsApp: input.hasWhatsApp,
-          summary: input.summary,
-          lastSubmittedAt: now,
-          consentAt: now,
-          consentVersion: input.privacyNoticeVersion,
-          operationalConsent: true,
-          marketingConsent: input.marketingConsent ? true : undefined,
-          marketingConsentAt: input.marketingConsent ? now : undefined,
-          marketingConsentVersion: input.marketingConsent
-            ? input.privacyNoticeVersion
-            : undefined,
-          attributionSource: attribution.source,
-          attributionMedium: attribution.medium,
-          attributionCampaign: attribution.campaign,
-          attributionContent: attribution.content,
-          attributionReferrerHost: attribution.referrerHost,
-          campaignKey: attribution.campaignKey,
-          lastFormDurationBucket: durationBucket,
-        },
         select: { id: true },
       });
 
@@ -123,7 +126,8 @@ export class LaunchLeadsService {
           leadType: "PROVIDER",
           providerLeadId: lead.id,
           submittedAt: now,
-          isRefresh: existing !== null,
+          isRefresh: false,
+          outcome: "CREATED",
           consentVersion: input.privacyNoticeVersion,
           operationalConsent: true,
           marketingConsent: input.marketingConsent,
@@ -162,20 +166,49 @@ export class LaunchLeadsService {
     const contactHash = this.requiredHash(phoneE164);
     const ipHash = this.protection.hashIdentifier(context.ip);
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.withSerializableRetry(async (tx) => {
       const existing = await tx.clientWaitlistLead.findUnique({
         where: { phoneE164 },
         select: { id: true },
       });
 
-      const lead = await tx.clientWaitlistLead.upsert({
-        where: { phoneE164 },
-        create: {
+      if (existing) {
+        await tx.leadSubmissionEvent.create({
+          data: {
+            leadType: "CLIENT",
+            clientLeadId: existing.id,
+            submittedAt: now,
+            isRefresh: true,
+            outcome: "DUPLICATE_REVIEW_REQUIRED",
+            consentVersion: input.privacyNoticeVersion,
+            operationalConsent: true,
+            marketingConsent: false,
+            attributionSource: attribution.source,
+            attributionMedium: attribution.medium,
+            campaign: attribution.campaign,
+            content: attribution.content,
+            referrerHost: attribution.referrerHost,
+            campaignKey: attribution.campaignKey,
+            formDurationBucket: durationBucket,
+            ipHash,
+            contactHash,
+          },
+        });
+        return;
+      }
+
+      const lead = await tx.clientWaitlistLead.create({
+        data: {
           firstName: input.firstName,
           phoneE164,
           emailNormalized: input.email ?? null,
           commune: input.commune,
           neededSubcategoryIds: input.neededSubcategoryIds,
+          neededSubcategories: {
+            create: input.neededSubcategoryIds.map((subcategoryId) => ({
+              subcategoryId,
+            })),
+          },
           timing: input.timing,
           needSummary: input.needSummary ?? null,
           preferredContact: input.preferredContact ?? null,
@@ -197,31 +230,6 @@ export class LaunchLeadsService {
           campaignKey: attribution.campaignKey,
           lastFormDurationBucket: durationBucket,
         },
-        update: {
-          firstName: input.firstName,
-          emailNormalized: input.email,
-          commune: input.commune,
-          neededSubcategoryIds: input.neededSubcategoryIds,
-          timing: input.timing,
-          needSummary: input.needSummary,
-          preferredContact: input.preferredContact,
-          lastSubmittedAt: now,
-          consentAt: now,
-          consentVersion: input.privacyNoticeVersion,
-          operationalConsent: true,
-          marketingConsent: input.marketingConsent ? true : undefined,
-          marketingConsentAt: input.marketingConsent ? now : undefined,
-          marketingConsentVersion: input.marketingConsent
-            ? input.privacyNoticeVersion
-            : undefined,
-          attributionSource: attribution.source,
-          attributionMedium: attribution.medium,
-          attributionCampaign: attribution.campaign,
-          attributionContent: attribution.content,
-          attributionReferrerHost: attribution.referrerHost,
-          campaignKey: attribution.campaignKey,
-          lastFormDurationBucket: durationBucket,
-        },
         select: { id: true },
       });
 
@@ -230,7 +238,8 @@ export class LaunchLeadsService {
           leadType: "CLIENT",
           clientLeadId: lead.id,
           submittedAt: now,
-          isRefresh: existing !== null,
+          isRefresh: false,
+          outcome: "CREATED",
           consentVersion: input.privacyNoticeVersion,
           operationalConsent: true,
           marketingConsent: input.marketingConsent,
@@ -292,6 +301,28 @@ export class LaunchLeadsService {
     }
     return hash;
   }
+
+  private async withSerializableRetry<T>(
+    operation: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: "Serializable",
+        });
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        const retryable = code === "P2002" || code === "P2034";
+        if (!retryable || attempt === SERIALIZABLE_RETRY_LIMIT) {
+          throw error;
+        }
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      "La collecte des demandes est temporairement indisponible.",
+    );
+  }
 }
 
 export function normalizeKinshasaPhone(input: string): string {
@@ -312,7 +343,23 @@ export function normalizeKinshasaPhone(input: string): string {
     );
   }
 
+  if (!/^[89]/.test(local) || isImplausiblePhoneLocalPart(local)) {
+    throw new BadRequestException(
+      "Le numéro de téléphone doit être un numéro mobile plausible de RDC.",
+    );
+  }
+
   return `+243${local}`;
+}
+
+function isImplausiblePhoneLocalPart(local: string): boolean {
+  if (new Set(local).size < 4) {
+    return true;
+  }
+  if (/^(\d)\1{8}$/.test(local) || /\d{3}0{6}$/.test(local)) {
+    return true;
+  }
+  return ["012345678", "123456789", "987654321"].includes(local);
 }
 
 export function normalizeAttribution(
@@ -323,9 +370,7 @@ export function normalizeAttribution(
   const campaign = attribution?.campaign ?? null;
   const content = attribution?.content ?? null;
   const referrerHost = attribution?.referrerHost ?? null;
-  const campaignKey = [source, medium, campaign, content]
-    .filter((value): value is string => Boolean(value))
-    .join(":");
+  const campaignKey = JSON.stringify([source, medium, campaign, content]);
 
   return {
     source,
