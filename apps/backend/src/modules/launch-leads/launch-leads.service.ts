@@ -37,7 +37,7 @@ export class LaunchLeadsService {
     }
 
     const now = new Date();
-    const phoneE164 = normalizeKinshasaPhone(input.phone);
+    const phoneE164 = await normalizeKinshasaPhone(input.phone);
     this.assertPrivacyVersion(input.privacyNoticeVersion);
     this.protection.checkContact(phoneE164);
 
@@ -156,7 +156,7 @@ export class LaunchLeadsService {
     }
 
     const now = new Date();
-    const phoneE164 = normalizeKinshasaPhone(input.phone);
+    const phoneE164 = await normalizeKinshasaPhone(input.phone);
     this.assertPrivacyVersion(input.privacyNoticeVersion);
     this.protection.checkContact(phoneE164);
     await this.assertActiveSubcategories(input.neededSubcategoryIds);
@@ -325,41 +325,21 @@ export class LaunchLeadsService {
   }
 }
 
-export function normalizeKinshasaPhone(input: string): string {
-  const compact = input.trim().replace(/[\s().-]/g, "");
-  let local: string;
-
-  if (/^\+243\d{9}$/.test(compact)) {
-    local = compact.slice(4);
-  } else if (/^243\d{9}$/.test(compact)) {
-    local = compact.slice(3);
-  } else if (/^0\d{9}$/.test(compact)) {
-    local = compact.slice(1);
-  } else if (/^\d{9}$/.test(compact)) {
-    local = compact;
-  } else {
-    throw new BadRequestException(
-      "Le numéro de téléphone doit être un numéro valide de RDC.",
-    );
-  }
-
-  if (!/^[89]/.test(local) || isImplausiblePhoneLocalPart(local)) {
+export async function normalizeKinshasaPhone(input: string): Promise<string> {
+  const {
+    InvalidDRCMobilePhoneError,
+    normalizePlausibleDRCMobilePhone,
+  } = await import("@kayu/utils");
+  try {
+    return normalizePlausibleDRCMobilePhone(input);
+  } catch (error) {
+    if (!(error instanceof InvalidDRCMobilePhoneError)) {
+      throw error;
+    }
     throw new BadRequestException(
       "Le numéro de téléphone doit être un numéro mobile plausible de RDC.",
     );
   }
-
-  return `+243${local}`;
-}
-
-function isImplausiblePhoneLocalPart(local: string): boolean {
-  if (new Set(local).size < 4) {
-    return true;
-  }
-  if (/^(\d)\1{8}$/.test(local) || /\d{3}0{6}$/.test(local)) {
-    return true;
-  }
-  return ["012345678", "123456789", "987654321"].includes(local);
 }
 
 export function normalizeAttribution(

@@ -3,7 +3,7 @@ import test from "node:test";
 
 const validProvider = {
   firstName: "Jean",
-  phone: "0998765432",
+  phone: "0810203040",
   primarySubcategoryId: "sub_primary",
   experienceBand: "STARTING",
   homeCommune: "Lemba",
@@ -13,7 +13,7 @@ const validProvider = {
 
 const validClient = {
   firstName: "Amina",
-  phone: "+243998765432",
+  phone: "+243810203040",
   commune: "Limete",
   neededSubcategoryIds: ["sub_primary"],
   timing: "EXPLORING",
@@ -97,6 +97,97 @@ test("lead summaries, category counts, and communes are bounded", async () => {
     CreateProviderLeadDto.safeParse({
       ...validProvider,
       homeCommune: "Paris",
+    }).success,
+    false,
+  );
+});
+
+test("funnel contract accepts only allowlisted non-PII dimensions", async () => {
+  const { CreateLaunchFunnelEventDto } = await import("@kayu/schemas");
+  const valid = {
+    schemaVersion: 1,
+    eventName: "launch_form_validation_failed",
+    occurredAt: new Date().toISOString(),
+    route: "/launch/providers",
+    deviceClass: "mobile",
+    leadType: "PROVIDER",
+    validationField: "phone",
+    validationErrorCode: "invalid_format",
+    attribution: {
+      source: "facebook",
+      medium: "paid_social",
+      campaign: "kin-launch",
+    },
+  };
+
+  assert.equal(CreateLaunchFunnelEventDto.safeParse(valid).success, true);
+  for (const forbidden of [
+    { phone: "+243810203040" },
+    { email: "person@example.com" },
+    { firstName: "Amina" },
+    { freeText: "typed form value" },
+    { cookie: "secret" },
+    { sessionId: "session" },
+    { userId: "user" },
+  ]) {
+    assert.equal(
+      CreateLaunchFunnelEventDto.safeParse({
+        ...valid,
+        ...forbidden,
+      }).success,
+      false,
+    );
+  }
+  assert.equal(
+    CreateLaunchFunnelEventDto.safeParse({
+      ...valid,
+      attribution: {
+        source: "facebook",
+        campaign: "person@example.com",
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    CreateLaunchFunnelEventDto.safeParse({
+      ...valid,
+      attribution: {
+        source: "referral",
+        referrerHost: "243810203040.example.org",
+      },
+    }).success,
+    false,
+  );
+});
+
+test("funnel contract enforces event-specific fields and canonical routes", async () => {
+  const { CreateLaunchFunnelEventDto } = await import("@kayu/schemas");
+  const baseEvent = {
+    schemaVersion: 1,
+    occurredAt: new Date().toISOString(),
+    route: "/",
+    deviceClass: "desktop",
+  };
+
+  assert.equal(
+    CreateLaunchFunnelEventDto.safeParse({
+      ...baseEvent,
+      eventName: "launch_landing_viewed",
+    }).success,
+    true,
+  );
+  assert.equal(
+    CreateLaunchFunnelEventDto.safeParse({
+      ...baseEvent,
+      eventName: "launch_form_started",
+    }).success,
+    false,
+  );
+  assert.equal(
+    CreateLaunchFunnelEventDto.safeParse({
+      ...baseEvent,
+      eventName: "launch_landing_viewed",
+      route: "/?phone=secret",
     }).success,
     false,
   );

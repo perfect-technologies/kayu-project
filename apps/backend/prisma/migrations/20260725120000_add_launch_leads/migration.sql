@@ -17,9 +17,6 @@ CREATE TYPE "LeadPreferredContact" AS ENUM ('PHONE', 'WHATSAPP');
 CREATE TYPE "LeadType" AS ENUM ('PROVIDER', 'CLIENT');
 
 -- CreateEnum
-CREATE TYPE "LeadSubmissionOutcome" AS ENUM ('CREATED', 'DUPLICATE_REVIEW_REQUIRED');
-
--- CreateEnum
 CREATE TYPE "LeadFormDurationBucket" AS ENUM ('UNDER_3_SECONDS', 'FROM_3_TO_30_SECONDS', 'FROM_31_TO_90_SECONDS', 'FROM_91_TO_180_SECONDS', 'OVER_180_SECONDS', 'UNKNOWN');
 
 -- CreateTable
@@ -121,7 +118,6 @@ CREATE TABLE "LeadSubmissionEvent" (
     "clientLeadId" TEXT,
     "submittedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "isRefresh" BOOLEAN NOT NULL DEFAULT false,
-    "outcome" "LeadSubmissionOutcome" NOT NULL,
     "consentVersion" TEXT NOT NULL,
     "operationalConsent" BOOLEAN NOT NULL,
     "marketingConsent" BOOLEAN NOT NULL DEFAULT false,
@@ -149,22 +145,6 @@ CREATE TABLE "LeadSubmissionEvent" (
         AND "clientLeadId" IS NOT NULL
       )
     )
-);
-
--- CreateTable
-CREATE TABLE "ProviderLeadAdditionalSubcategory" (
-    "providerLeadId" TEXT NOT NULL,
-    "subcategoryId" TEXT NOT NULL,
-
-    CONSTRAINT "ProviderLeadAdditionalSubcategory_pkey" PRIMARY KEY ("providerLeadId","subcategoryId")
-);
-
--- CreateTable
-CREATE TABLE "ClientWaitlistLeadSubcategory" (
-    "clientLeadId" TEXT NOT NULL,
-    "subcategoryId" TEXT NOT NULL,
-
-    CONSTRAINT "ClientWaitlistLeadSubcategory_pkey" PRIMARY KEY ("clientLeadId","subcategoryId")
 );
 
 -- CreateIndex
@@ -215,29 +195,8 @@ CREATE INDEX "LeadSubmissionEvent_ipHash_submittedAt_idx" ON "LeadSubmissionEven
 -- CreateIndex
 CREATE INDEX "LeadSubmissionEvent_attribution_idx" ON "LeadSubmissionEvent"("leadType", "attributionSource", "campaignKey", "submittedAt");
 
--- CreateIndex
-CREATE INDEX "ProviderLeadAdditionalSubcategory_subcategoryId_idx" ON "ProviderLeadAdditionalSubcategory"("subcategoryId");
-
--- CreateIndex
-CREATE INDEX "ClientWaitlistLeadSubcategory_subcategoryId_idx" ON "ClientWaitlistLeadSubcategory"("subcategoryId");
-
--- AddForeignKey
-ALTER TABLE "ProviderLead" ADD CONSTRAINT "ProviderLead_primarySubcategoryId_fkey" FOREIGN KEY ("primarySubcategoryId") REFERENCES "Subcategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
 -- AddForeignKey
 ALTER TABLE "LeadSubmissionEvent" ADD CONSTRAINT "LeadSubmissionEvent_providerLeadId_fkey" FOREIGN KEY ("providerLeadId") REFERENCES "ProviderLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "LeadSubmissionEvent" ADD CONSTRAINT "LeadSubmissionEvent_clientLeadId_fkey" FOREIGN KEY ("clientLeadId") REFERENCES "ClientWaitlistLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProviderLeadAdditionalSubcategory" ADD CONSTRAINT "ProviderLeadAdditionalSubcategory_providerLeadId_fkey" FOREIGN KEY ("providerLeadId") REFERENCES "ProviderLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProviderLeadAdditionalSubcategory" ADD CONSTRAINT "ProviderLeadAdditionalSubcategory_subcategoryId_fkey" FOREIGN KEY ("subcategoryId") REFERENCES "Subcategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ClientWaitlistLeadSubcategory" ADD CONSTRAINT "ClientWaitlistLeadSubcategory_clientLeadId_fkey" FOREIGN KEY ("clientLeadId") REFERENCES "ClientWaitlistLead"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ClientWaitlistLeadSubcategory" ADD CONSTRAINT "ClientWaitlistLeadSubcategory_subcategoryId_fkey" FOREIGN KEY ("subcategoryId") REFERENCES "Subcategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

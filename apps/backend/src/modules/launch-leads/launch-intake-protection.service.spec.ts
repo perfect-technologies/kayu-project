@@ -10,8 +10,10 @@ import { LaunchRateLimitFilter } from "./launch-rate-limit.filter";
 function makeProtection(overrides: Record<string, unknown> = {}) {
   const values: Record<string, unknown> = {
     LAUNCH_PUBLIC_INTAKE_ENABLED: "true",
+    LAUNCH_FUNNEL_EVENTS_ENABLED: "true",
     LAUNCH_RATE_LIMIT_HASH_KEY: "a-32-character-minimum-test-key-value",
     LAUNCH_INTAKE_IP_LIMIT: 2,
+    LAUNCH_FUNNEL_EVENT_IP_LIMIT: 2,
     LAUNCH_INTAKE_CONTACT_LIMIT: 2,
     LAUNCH_INTAKE_RATE_WINDOW_SECONDS: 900,
     LAUNCH_INTAKE_MAX_BODY_BYTES: 1_024,
@@ -112,6 +114,46 @@ test("expires buckets on every consume and enforces a hard cardinality cap", () 
   now = 901_000;
   protection.checkContact("+243840506070");
   assert.equal(buckets.size, 1);
+});
+
+test("uses an expiry heap without scanning the full bucket map per consume", () => {
+  const protection = makeProtection();
+  protection.checkContact("+243810203040");
+  const buckets = (
+    protection as unknown as { buckets: Map<string, unknown> }
+  ).buckets;
+  Object.defineProperty(buckets, Symbol.iterator, {
+    value: () => {
+      throw new Error("full map scan is forbidden");
+    },
+  });
+
+  assert.doesNotThrow(() => protection.checkContact("+243810203040"));
+  assert.equal(
+    (
+      protection as unknown as { expiryHeap: Array<unknown> }
+    ).expiryHeap.length,
+    1,
+  );
+});
+
+test("funnel events use a separate enabled IP bucket", () => {
+  const protection = makeProtection();
+  protection.checkFunnelRequest({ ip: "203.0.113.20", body: {} });
+  protection.checkFunnelRequest({ ip: "203.0.113.20", body: {} });
+  assert.throws(
+    () =>
+      protection.checkFunnelRequest({ ip: "203.0.113.20", body: {} }),
+    /Trop de demandes/,
+  );
+
+  const disabled = makeProtection({
+    LAUNCH_FUNNEL_EVENTS_ENABLED: "false",
+  });
+  assert.throws(
+    () => disabled.checkFunnelRequest({ ip: "203.0.113.21", body: {} }),
+    /événements.*indisponible/,
+  );
 });
 
 test("rate-limit responses expose the remaining window through Retry-After", () => {

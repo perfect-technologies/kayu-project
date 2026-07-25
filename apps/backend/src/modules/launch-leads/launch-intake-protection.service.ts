@@ -20,6 +20,11 @@ type RateBucket = {
   count: number;
 };
 
+type ExpiryEntry = {
+  key: string;
+  expiresAt: number;
+};
+
 export class LaunchRateLimitException extends HttpException {
   constructor(readonly retryAfterSeconds: number) {
     super(
@@ -32,6 +37,7 @@ export class LaunchRateLimitException extends HttpException {
 @Injectable()
 export class LaunchIntakeProtectionService {
   private readonly buckets = new Map<string, RateBucket>();
+  private readonly expiryHeap: ExpiryEntry[] = [];
   private now = () => Date.now();
 
   constructor(private readonly config: ConfigService) {}
@@ -43,16 +49,7 @@ export class LaunchIntakeProtectionService {
       );
     }
 
-    const maxBodyBytes = this.getNumber("LAUNCH_INTAKE_MAX_BODY_BYTES", 16_384);
-    const contentLength = this.readContentLength(request.headers?.["content-length"]);
-    const parsedBodyBytes = this.measureBody(request.body);
-
-    if (
-      (contentLength !== null && contentLength > maxBodyBytes) ||
-      parsedBodyBytes > maxBodyBytes
-    ) {
-      throw new PayloadTooLargeException("Le formulaire envoyé est trop volumineux.");
-    }
+    this.checkBodySize(request);
 
     this.consume(
       "ip",
@@ -66,6 +63,21 @@ export class LaunchIntakeProtectionService {
       "contact",
       phoneE164,
       this.getNumber("LAUNCH_INTAKE_CONTACT_LIMIT", 5),
+    );
+  }
+
+  checkFunnelRequest(request: IntakeRequest): void {
+    if (!this.isFunnelEnabled()) {
+      throw new ServiceUnavailableException(
+        "La collecte des événements est temporairement indisponible.",
+      );
+    }
+
+    this.checkBodySize(request);
+    this.consume(
+      "funnel-ip",
+      request.ip ?? request.socket?.remoteAddress ?? "unknown",
+      this.getNumber("LAUNCH_FUNNEL_EVENT_IP_LIMIT", 120),
     );
   }
 
@@ -92,7 +104,7 @@ export class LaunchIntakeProtectionService {
   }
 
   private consume(
-    scope: "ip" | "contact",
+    scope: "ip" | "contact" | "funnel-ip",
     identifier: string,
     limit: number,
   ): void {
@@ -112,7 +124,9 @@ export class LaunchIntakeProtectionService {
 
     if (!current) {
       this.ensureCapacity(now);
-      this.buckets.set(key, { expiresAt: now + windowMs, count: 1 });
+      const bucket = { expiresAt: now + windowMs, count: 1 };
+      this.buckets.set(key, bucket);
+      this.pushExpiry({ key, expiresAt: bucket.expiresAt });
       return;
     }
 
@@ -126,9 +140,12 @@ export class LaunchIntakeProtectionService {
   }
 
   private pruneExpiredBuckets(now: number): void {
-    for (const [key, bucket] of this.buckets) {
-      if (bucket.expiresAt <= now) {
-        this.buckets.delete(key);
+    while (this.expiryHeap[0]?.expiresAt <= now) {
+      const expired = this.popExpiry();
+      if (!expired) break;
+      const current = this.buckets.get(expired.key);
+      if (current?.expiresAt === expired.expiresAt) {
+        this.buckets.delete(expired.key);
       }
     }
   }
@@ -142,12 +159,72 @@ export class LaunchIntakeProtectionService {
       return;
     }
 
-    const earliestExpiry = Math.min(
-      ...[...this.buckets.values()].map((bucket) => bucket.expiresAt),
-    );
+    const earliestExpiry = this.expiryHeap[0]?.expiresAt ?? now + 1_000;
     throw new LaunchRateLimitException(
       Math.max(1, Math.ceil((earliestExpiry - now) / 1_000)),
     );
+  }
+
+  private pushExpiry(entry: ExpiryEntry): void {
+    this.expiryHeap.push(entry);
+    let index = this.expiryHeap.length - 1;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (this.expiryHeap[parent]!.expiresAt <= entry.expiresAt) break;
+      this.expiryHeap[index] = this.expiryHeap[parent]!;
+      index = parent;
+    }
+    this.expiryHeap[index] = entry;
+  }
+
+  private popExpiry(): ExpiryEntry | undefined {
+    const first = this.expiryHeap[0];
+    const last = this.expiryHeap.pop();
+    if (!first || !last || this.expiryHeap.length === 0) {
+      return first;
+    }
+
+    let index = 0;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      if (left >= this.expiryHeap.length) break;
+      const child =
+        right < this.expiryHeap.length &&
+        this.expiryHeap[right]!.expiresAt <
+          this.expiryHeap[left]!.expiresAt
+          ? right
+          : left;
+      if (this.expiryHeap[child]!.expiresAt >= last.expiresAt) break;
+      this.expiryHeap[index] = this.expiryHeap[child]!;
+      index = child;
+    }
+    this.expiryHeap[index] = last;
+    return first;
+  }
+
+  private isFunnelEnabled(): boolean {
+    const value = this.config.get<string | boolean>(
+      "LAUNCH_FUNNEL_EVENTS_ENABLED",
+    );
+    return value === true || value === "true";
+  }
+
+  private checkBodySize(request: IntakeRequest): void {
+    const maxBodyBytes = this.getNumber("LAUNCH_INTAKE_MAX_BODY_BYTES", 16_384);
+    const contentLength = this.readContentLength(
+      request.headers?.["content-length"],
+    );
+    const parsedBodyBytes = this.measureBody(request.body);
+
+    if (
+      (contentLength !== null && contentLength > maxBodyBytes) ||
+      parsedBodyBytes > maxBodyBytes
+    ) {
+      throw new PayloadTooLargeException(
+        "Le formulaire envoyé est trop volumineux.",
+      );
+    }
   }
 
   private getNumber(key: string, fallback: number): number {

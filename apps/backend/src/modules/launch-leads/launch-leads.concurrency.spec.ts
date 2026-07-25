@@ -2,15 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../../database/prisma.service";
+import { LaunchFunnelService } from "./launch-funnel.service";
 import { LaunchIntakeProtectionService } from "./launch-intake-protection.service";
 import { LaunchLeadsService } from "./launch-leads.service";
 
 const databaseUrl = process.env.LAUNCH_LEADS_TEST_DATABASE_URL;
+const requireDatabase = process.env.LAUNCH_LEADS_REQUIRE_DATABASE === "true";
 
 test(
   "concurrent first submissions produce one immutable lead and atomic outcomes",
-  { skip: !databaseUrl },
+  { skip: !databaseUrl && !requireDatabase },
   async () => {
+    assert.ok(
+      databaseUrl,
+      "LAUNCH_LEADS_TEST_DATABASE_URL is required for the CI race test",
+    );
     process.env.DATABASE_URL = databaseUrl;
     const prisma = new PrismaService();
     await prisma.onModuleInit();
@@ -36,6 +42,7 @@ test(
 
     try {
       await prisma.leadSubmissionEvent.deleteMany();
+      await prisma.campaignFunnelEvent.deleteMany();
       await prisma.providerLead.deleteMany();
       await prisma.clientWaitlistLead.deleteMany();
       await prisma.subcategory.deleteMany({
@@ -171,8 +178,28 @@ test(
       );
       assert.equal(await prisma.user.count(), 0);
       assert.equal(await prisma.provider.count(), 0);
+
+      await new LaunchFunnelService(prisma).createEvent({
+        schemaVersion: 1,
+        eventName: "launch_lead_submitted",
+        occurredAt: new Date().toISOString(),
+        route: "/launch/providers",
+        deviceClass: "mobile",
+        leadType: "PROVIDER",
+        attribution: {
+          source: "facebook",
+          medium: "paid_social",
+          campaign: "ci-race",
+        },
+      });
+      const funnelEvent = await prisma.campaignFunnelEvent.findFirstOrThrow();
+      assert.equal(funnelEvent.eventName, "LEAD_SUBMITTED");
+      assert.equal(funnelEvent.attributionSource, "facebook");
+      assert.equal(await prisma.user.count(), 0);
+      assert.equal(await prisma.provider.count(), 0);
     } finally {
       await prisma.leadSubmissionEvent.deleteMany();
+      await prisma.campaignFunnelEvent.deleteMany();
       await prisma.providerLead.deleteMany();
       await prisma.clientWaitlistLead.deleteMany();
       await prisma.subcategory.deleteMany({

@@ -31,6 +31,25 @@ test("rejects an unconfigured Supabase placeholder", () => {
 test("keeps public launch intake disabled by default", () => {
   const parsed = validateEnv({ ...base });
   assert.equal(parsed.LAUNCH_PUBLIC_INTAKE_ENABLED, "false");
+  assert.equal(parsed.LAUNCH_FUNNEL_EVENTS_ENABLED, "false");
+});
+
+test("requires hashing configuration before funnel collection can be enabled", () => {
+  assert.throws(
+    () =>
+      validateEnv({
+        ...base,
+        LAUNCH_FUNNEL_EVENTS_ENABLED: "true",
+      }),
+    /LAUNCH_RATE_LIMIT_HASH_KEY/,
+  );
+
+  const parsed = validateEnv({
+    ...base,
+    LAUNCH_FUNNEL_EVENTS_ENABLED: "true",
+    LAUNCH_RATE_LIMIT_HASH_KEY: "a-32-character-minimum-test-key-value",
+  });
+  assert.equal(parsed.LAUNCH_FUNNEL_EVENTS_ENABLED, "true");
 });
 
 test("requires privacy and hashing configuration before public intake can be enabled", () => {

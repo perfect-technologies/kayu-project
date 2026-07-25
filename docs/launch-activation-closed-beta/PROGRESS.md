@@ -42,12 +42,13 @@ Date: 2026-07-25
 Changed:
 
 - Added `ProviderLead`, `ClientWaitlistLead`, privacy-safe `LeadSubmissionEvent` persistence, explicit created/review-required outcomes, and lifecycle/timing/contact enums in Prisma.
-- Added forward migration `20260725120000_add_launch_leads`, including restrictive primary-subcategory and lead-taxonomy junction foreign keys. Lead taxonomy arrays remain immutable reporting snapshots; referenced taxonomy cannot be deactivated or deleted through existing admin operations.
-- Added strict shared Zod request/response contracts, lead lifecycle enums, controlled communes, bounded free text, explicit attribution source/medium allowlists, hostname-only referrers, and typed `launchLeadsApi` methods.
+- Preserved the committed checksum of `20260725120000_add_launch_leads`; added forward corrective migration `20260725130000_harden_launch_leads` for outcome backfill, restrictive primary-subcategory and lead-taxonomy junction foreign keys, and immutable taxonomy snapshot backfill. Added `20260725140000_add_campaign_funnel_events` for first-party durable conversion events.
+- Added strict shared Zod request/response contracts, lead lifecycle enums, controlled communes, bounded free text, explicit attribution source/medium allowlists, hostname-only referrers, and typed `launchLeadsApi` methods. `@kayu/utils` now exports the canonical plausible DRC mobile normalizer/validator used by backend intake and available to web.
 - Added unauthenticated `POST /api/launch/provider-leads` and `POST /api/launch/client-leads` endpoints with the same generic response for new and duplicate submissions.
-- Added active-taxonomy validation with no home-priority restriction, plausible RDC mobile-number validation, role-separated phone deduplication, consent/version timestamps, attribution/audit events, and form-duration buckets. Anonymous duplicates are non-mutating review events: they cannot change lead fields, refresh consent, or grant marketing consent.
+- Added unauthenticated `POST /api/launch/funnel-events` with a durable `CampaignFunnelEvent` row, strict allowlisted event/dimension/route/device/attribution DTO, event-time window, separate kill switch/rate bucket, and generic `{ accepted: true }` response. Unknown keys and PII/free-text/auth/session/cookie/account fields are rejected.
+- Added active-taxonomy validation with no home-priority restriction, plausible RDC mobile-number validation, role-separated phone deduplication, consent/version timestamps, attribution/audit events, and form-duration buckets. The binding contract now explicitly defines anonymous duplicates as non-mutating review events; participant-field/consent refresh requires a future approved contact-control capability and phone knowledge or a browser cookie is insufficient.
 - Made first-submission creation and created-vs-review analytics atomic with serializable transactions and bounded conflict retries. Campaign keys now encode fixed attribution field positions to prevent source/medium/campaign/content collisions.
-- Added an independent default-off intake kill switch, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and per-IP/per-normalized-contact limits. Limiter keys use non-reversible HMAC buckets, expired buckets are pruned on every request, cardinality is hard-capped, and `429` responses include the remaining-window `Retry-After`; raw contact/IP values are not retained as limiter keys or written to submission events.
+- Added independent default-off lead/funnel kill switches, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and separate lead-IP/contact/funnel-IP limits. Limiter keys use non-reversible HMAC buckets; an expiry min-heap removes only due entries without full-map scans, cardinality fails closed, and `429` responses include the remaining-window `Retry-After`.
 - No campaign UI, auth/account creation, qualification/admin workflow, invitations, activation, payments, or beta operations were added.
 
 Verified:
@@ -56,25 +57,28 @@ Verified:
 - `pnpm --filter @kayu/schemas build`
 - `pnpm --filter @kayu/api type-check`
 - `pnpm --filter @kayu/api build`
-- `pnpm --filter @kayu/backend test:launch` — 105/105 passed, including duplicate immutability/consent, limiter privacy/bounds/expiry/`Retry-After`, DRC phone plausibility, campaign-key collision, and taxonomy admin safety regressions.
-- Focused launch-lead/config/admin unit suite — 44/44 passed.
-- `LAUNCH_LEADS_TEST_DATABASE_URL=... pnpm --filter @kayu/backend test:launch-leads:integration` — 1/1 passed against fresh Postgres with two concurrent first submissions: one lead, exactly one `CREATED` event, one `DUPLICATE_REVIEW_REQUIRED` event, immutable duplicate data/consent, restrictive taxonomy FK, and zero `User`/`Provider` records.
+- `pnpm --filter @kayu/utils test` — 2/2 canonical phone normalization/plausibility tests passed; utils type-check/build and web consumer type-check passed.
+- `pnpm --filter @kayu/backend test:launch` — 111/111 passed, including duplicate immutability/consent, heap-based limiter privacy/bounds/expiry/`Retry-After`, shared DRC phone consumption, strict funnel DTO/persistence, campaign-key collision, and taxonomy admin safety regressions.
+- Focused launch-lead/config/admin unit suite — 51/51 passed.
+- `LAUNCH_LEADS_TEST_DATABASE_URL=... pnpm --filter @kayu/backend test:launch-leads:ci` — mandatory CI mode 1/1 passed against disposable Postgres with two concurrent first submissions, atomic outcomes, restrictive taxonomy FK, durable funnel persistence, and zero `User`/`Provider` records. CI now provisions Postgres, deploys migrations, and fails instead of skipping when the database URL is absent.
 - `pnpm --filter @kayu/backend type-check`
 - `DATABASE_URL=postgresql://u:p@localhost:5432/db pnpm --filter @kayu/backend build`
-- Fresh temporary Postgres: `prisma migrate deploy` applied `0_init` and `20260725120000_add_launch_leads`; `prisma migrate diff --exit-code` reported `No difference detected`.
+- Fresh temporary Postgres: `prisma migrate deploy` applied all four migrations and `prisma migrate diff --exit-code` reported `No difference detected`.
+- Seeded upgrade stopped after the original `20260725120000_add_launch_leads`: corrective deploy backfilled one created event, one duplicate-review event, one provider taxonomy junction, and two client taxonomy junctions; final schema diff reported `No difference detected`.
 - Production-like Nest smoke: the original and attacker duplicate both received the generic accepted response, while the duplicate left all lead fields and consent unchanged and recorded only a review-required event with marketing consent false. A third rate-limited request returned `429` with `Retry-After`; aggregate evidence was one lead, one created event, one safe duplicate event, `User=0`, and `Provider=0`.
+- Funnel Nest smoke: an allowlisted event returned `201 { accepted: true }` and persisted one owned event; a payload containing `phone` returned `400`; the third same-IP event returned `429` with `Retry-After`; `User=0` and `Provider=0`.
 
 Data/phase checks:
 
-- Provider/client intake code depends only on Prisma lead/taxonomy models and configuration; it injects no identity, Supabase admin, session, user, provider, membership, invitation, or marketplace service.
-- Public DTOs are strict and reject lifecycle state, admin notes, linked account IDs, unknown fields, unsafe attribution, inactive taxonomy IDs, and invalid communes.
+- Provider/client/funnel collection code depends only on Prisma lead/taxonomy/event models and configuration; it injects no identity, Supabase admin, session, user, provider, membership, invitation, or marketplace service.
+- Public DTOs are strict and reject lifecycle state, admin notes, linked account IDs, unknown fields, unsafe attribution, PII funnel properties, inactive taxonomy IDs, and invalid communes.
 - Every active category/subcategory remains available through the existing taxonomy interfaces; intake accepts any active subcategory, including non-priority categories.
-- Intake defaults disabled and cannot be enabled without a current privacy-notice version and a 32+ character hashing key.
+- Lead and funnel collection default disabled. Lead intake requires the current privacy-notice version; either public collector requires a 32+ character hashing key.
 
 Remaining:
 
-- Campaign landing/forms, browser funnel events, responsive/accessibility/performance/user testing, and campaign route gating are intentionally outside this backend-only change.
-- Operations/privacy must set the real privacy-notice version and intake hash key before enabling the kill switch.
+- Campaign landing/forms, browser event emission, responsive/accessibility/performance/user testing, and campaign route gating are intentionally outside this backend-only change.
+- Operations/privacy must set the real privacy-notice version and rate-limit hash key, then explicitly enable `LAUNCH_PUBLIC_INTAKE_ENABLED` and/or `LAUNCH_FUNNEL_EVENTS_ENABLED`. Define the funnel-row retention/deletion job before production enablement.
 - The bounded limiter remains process-local because the current repository has no shared rate-limit store. Its limits are per replica; introduce a shared privacy-safe store before running multiple backend replicas.
 - Pilot-commune selection and the reviewed home-priority taxonomy-ID configuration remain workstream `01`/operator decisions; neither blocks all-active-category lead capture.
 

@@ -350,6 +350,21 @@ enum LeadFormDurationBucket {
   UNKNOWN
 }
 
+enum LaunchFunnelEventName {
+  LANDING_VIEWED
+  ROLE_SELECTED
+  FORM_STARTED
+  FORM_VALIDATION_FAILED
+  LEAD_SUBMITTED
+}
+
+enum LaunchFunnelDeviceClass {
+  MOBILE
+  TABLET
+  DESKTOP
+  UNKNOWN
+}
+
 model ProviderLead {
   id                       String                              @id @default(cuid())
   createdAt                DateTime                            @default(now())
@@ -479,6 +494,29 @@ model LeadSubmissionEvent {
   @@index([contactHash, submittedAt])
   @@index([ipHash, submittedAt])
   @@index([leadType, attributionSource, campaignKey, submittedAt], map: "LeadSubmissionEvent_attribution_idx")
+}
+
+model CampaignFunnelEvent {
+  id                      String                  @id @default(cuid())
+  receivedAt              DateTime                @default(now())
+  occurredAt              DateTime
+  schemaVersion           Int                     @default(1)
+  eventName               LaunchFunnelEventName
+  route                   String
+  deviceClass             LaunchFunnelDeviceClass
+  leadType                LeadType?
+  validationField         String?
+  validationErrorCode     String?
+  attributionSource       String
+  attributionMedium       String?
+  attributionCampaign     String?
+  attributionContent      String?
+  attributionReferrerHost String?
+  campaignKey             String
+
+  @@index([eventName, receivedAt])
+  @@index([leadType, eventName, receivedAt])
+  @@index([attributionSource, campaignKey, receivedAt], map: "CampaignFunnelEvent_attribution_idx")
 }
 
 model ProviderLeadAdditionalSubcategory {

@@ -51,3 +51,20 @@ export type NormalizedAttribution = {
   referrerHost: string | null;
   campaignKey: string;
 };
+
+export type CreateLaunchFunnelEventInput = {
+  schemaVersion: 1;
+  eventName:
+    | "launch_landing_viewed"
+    | "launch_role_selected"
+    | "launch_form_started"
+    | "launch_form_validation_failed"
+    | "launch_lead_submitted";
+  occurredAt: string;
+  route: "/" | "/launch/providers" | "/launch/clients";
+  deviceClass: "mobile" | "tablet" | "desktop" | "unknown";
+  leadType?: "PROVIDER" | "CLIENT";
+  validationField?: string;
+  validationErrorCode?: string;
+  attribution?: LeadAttributionInput;
+};

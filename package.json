@@ -8,7 +8,7 @@
     "dev:backend": "turbo run dev --filter=@kayu/backend",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "test:launch": "pnpm --filter @kayu/schemas type-check && pnpm --filter @kayu/schemas build && pnpm --filter @kayu/api type-check && pnpm --filter @kayu/api build && pnpm --filter @kayu/backend test:launch && pnpm --filter @kayu/backend type-check && pnpm --filter @kayu/mobile type-check",
+    "test:launch": "pnpm --filter @kayu/utils test && pnpm --filter @kayu/utils type-check && pnpm --filter @kayu/schemas type-check && pnpm --filter @kayu/schemas build && pnpm --filter @kayu/api type-check && pnpm --filter @kayu/api build && pnpm --filter @kayu/backend test:launch && pnpm --filter @kayu/backend type-check && pnpm --filter @kayu/mobile type-check",
     "type-check": "turbo run type-check",
     "clean": "turbo run clean",
     "db:up": "docker compose up -d postgres",

@@ -2,6 +2,8 @@ import type {
   // DTOs
   CompleteProfileDto,
   CreateClientLeadDtoType,
+  CreateLaunchFunnelEventDtoType,
+  CreateLaunchFunnelEventResponse,
   ProviderOnboardingDto,
   UpdateProviderDto,
   CreateBookingDto,
@@ -193,6 +195,11 @@ export const launchLeadsApi = (client: ApiClient) => ({
     client.post<CreateLaunchLeadResponse>("/launch/provider-leads", data),
   submitClient: (data: CreateClientLeadDtoType) =>
     client.post<CreateLaunchLeadResponse>("/launch/client-leads", data),
+  trackFunnelEvent: (data: CreateLaunchFunnelEventDtoType) =>
+    client.post<CreateLaunchFunnelEventResponse>(
+      "/launch/funnel-events",
+      data,
+    ),
 });
 
 // ---------- Providers ----------

@@ -280,21 +280,21 @@ test("honeypot submissions receive the generic response without persistence", as
   assert.equal(state.events.length, 0);
 });
 
-test("normalizes supported RDC phone representations and rejects foreign numbers", () => {
-  assert.equal(normalizeKinshasaPhone("0810 203 040"), "+243810203040");
-  assert.equal(normalizeKinshasaPhone("810203040"), "+243810203040");
-  assert.equal(normalizeKinshasaPhone("243810203040"), "+243810203040");
-  assert.equal(normalizeKinshasaPhone("+243 810 203 040"), "+243810203040");
-  assert.throws(() => normalizeKinshasaPhone("+242061234567"), /RDC/);
+test("normalizes supported RDC phone representations and rejects foreign numbers", async () => {
+  assert.equal(await normalizeKinshasaPhone("0810 203 040"), "+243810203040");
+  assert.equal(await normalizeKinshasaPhone("810203040"), "+243810203040");
+  assert.equal(await normalizeKinshasaPhone("243810203040"), "+243810203040");
+  assert.equal(await normalizeKinshasaPhone("+243 810 203 040"), "+243810203040");
+  await assert.rejects(normalizeKinshasaPhone("+242061234567"), /RDC/);
 });
 
-test("rejects phone length boundaries, non-mobile prefixes, and placeholders", () => {
-  assert.throws(() => normalizeKinshasaPhone("81020304"), /RDC/);
-  assert.throws(() => normalizeKinshasaPhone("8102030400"), /RDC/);
-  assert.throws(() => normalizeKinshasaPhone("+243710203040"), /plausible/);
-  assert.throws(() => normalizeKinshasaPhone("+243900000000"), /plausible/);
-  assert.throws(() => normalizeKinshasaPhone("+243999999999"), /plausible/);
-  assert.throws(() => normalizeKinshasaPhone("+243123456789"), /plausible/);
+test("rejects phone length boundaries, non-mobile prefixes, and placeholders", async () => {
+  await assert.rejects(normalizeKinshasaPhone("81020304"), /plausible/);
+  await assert.rejects(normalizeKinshasaPhone("8102030400"), /plausible/);
+  await assert.rejects(normalizeKinshasaPhone("+243710203040"), /plausible/);
+  await assert.rejects(normalizeKinshasaPhone("+243900000000"), /plausible/);
+  await assert.rejects(normalizeKinshasaPhone("+243999999999"), /plausible/);
+  await assert.rejects(normalizeKinshasaPhone("+243123456789"), /plausible/);
 });
 
 test("campaign keys preserve empty attribution positions without collisions", () => {

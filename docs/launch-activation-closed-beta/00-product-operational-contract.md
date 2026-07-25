@@ -97,7 +97,7 @@ INVITED -> QUALIFIED  (expired/revoked invite; remains approved)
 
 Rules:
 
-- Public clients can create or refresh a submission but cannot set status.
+- Public clients can create a submission or append a review-only re-submission event but cannot set status. Refreshing participant-owned fields requires a separately verified contact-control capability; anonymous knowledge of the phone number is insufficient.
 - `QUALIFIED` means operationally suitable for the planned cohort; it is not marketplace verification.
 - `INVITED` is forbidden while the phase is `CAMPAIGN`.
 - `ACTIVATED` means a real account was created or safely claimed and linked to the lead. It does not by itself mean the provider is visible or ready to take work.

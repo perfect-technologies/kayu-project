@@ -181,6 +181,7 @@ Suggested public routes:
 - `GET /launch/clients` — client interest form, or an anchored section on `/`.
 - `POST /api/launch/provider-leads` — unauthenticated lead intake.
 - `POST /api/launch/client-leads` — unauthenticated lead intake.
+- `POST /api/launch/funnel-events` — unauthenticated, allowlisted, non-PII first-party conversion event intake.
 
 The Next.js app has no API routes today; keep NestJS as the authoritative API unless a later decision explicitly changes architecture.
 
@@ -193,7 +194,7 @@ Public responses must be enumeration-safe:
 }
 ```
 
-Return the same accepted response for a new lead and an idempotent duplicate. Do not reveal lead ID, qualification state, whether contact already exists, or account existence.
+Return the same accepted response for a new lead and an idempotent duplicate. Do not reveal lead ID, qualification state, whether contact already exists, or account existence. An anonymous duplicate appends a review-required submission event without mutating the existing lead. A future participant-field refresh must first prove control of the normalized contact through an approved verification capability; phone knowledge, a browser cookie, or campaign attribution alone is not sufficient.
 
 ## Shared DTO Contract
 
@@ -323,9 +324,10 @@ Equivalent audit/contact/consent/attribution fields plus:
 - Unique provider lead identity is normalized phone within provider leads.
 - Unique client lead identity is normalized phone within client leads.
 - A person may intentionally exist in both lead types; do not merge roles automatically.
-- Re-submission is idempotent: update safe participant-owned fields, refresh `updatedAt`, preserve the strongest lifecycle state, and append an audit/submission event.
+- Anonymous re-submission is idempotent and non-mutating: preserve all lead fields, consent, `updatedAt`, and lifecycle state, then append a review-required audit/submission event.
+- A controlled re-submission may update safe participant-owned fields and refresh `updatedAt` only after the server verifies an approved contact-control capability bound to the normalized contact and lead type. No such capability is introduced by this campaign workstream.
 - Re-submission must never reset `QUALIFIED`, `REJECTED`, `WITHDRAWN`, `INVITED`, or `ACTIVATED` without an authorized admin action.
-- A new marketing-consent `true` may be recorded with timestamp/version; never infer it from prior operational consent.
+- A new marketing-consent `true` may be recorded with timestamp/version only during initial creation or a verified controlled refresh; never infer it from prior operational consent or an anonymous duplicate.
 
 If detailed campaign history is needed, use a small `LeadSubmissionEvent`/audit record rather than duplicating lead rows.
 

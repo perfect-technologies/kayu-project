@@ -63,6 +63,10 @@ const launchAttributionKeySchema = (maxLength: number) =>
       /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
       "Use a stable attribution key containing only letters, numbers, dot, underscore, or hyphen",
     )
+    .refine(
+      (value) => !/@/.test(value) && !/(?:\D*\d){8}/.test(value),
+      "Attribution keys must not contain contact or other personal data",
+    )
     .transform((value) => value.toLowerCase());
 
 export const LEAD_ATTRIBUTION_SOURCES = [
@@ -99,6 +103,10 @@ const ReferrerHostSchema = z
         value,
       ),
     "Must be a hostname without a scheme, path, query, or port",
+  )
+  .refine(
+    (value) => !/(?:\D*\d){8}/.test(value),
+    "Referrer host must not contain contact or other personal data",
   );
 
 export const LeadAttributionDto = z
@@ -187,6 +195,120 @@ export const CreateLaunchLeadResponseSchema = z.object({
   accepted: z.literal(true),
   message: z.literal("Merci. Votre intérêt a bien été reçu."),
 });
+
+export const LAUNCH_FUNNEL_EVENT_NAMES = [
+  "launch_landing_viewed",
+  "launch_role_selected",
+  "launch_form_started",
+  "launch_form_validation_failed",
+  "launch_lead_submitted",
+] as const;
+
+export const LAUNCH_FUNNEL_DEVICE_CLASSES = [
+  "mobile",
+  "tablet",
+  "desktop",
+  "unknown",
+] as const;
+
+export const LAUNCH_FUNNEL_ROUTES = [
+  "/",
+  "/launch/providers",
+  "/launch/clients",
+] as const;
+
+export const LAUNCH_FUNNEL_VALIDATION_FIELDS = [
+  "form",
+  "firstName",
+  "phone",
+  "email",
+  "primarySubcategoryId",
+  "additionalSubcategoryIds",
+  "experienceBand",
+  "homeCommune",
+  "serviceCommunes",
+  "hasWhatsApp",
+  "summary",
+  "commune",
+  "neededSubcategoryIds",
+  "timing",
+  "needSummary",
+  "preferredContact",
+  "operationalConsent",
+  "marketingConsent",
+  "privacyNoticeVersion",
+  "attribution",
+] as const;
+
+export const LAUNCH_FUNNEL_VALIDATION_ERROR_CODES = [
+  "required",
+  "invalid_format",
+  "too_short",
+  "too_long",
+  "invalid_option",
+  "duplicate_option",
+  "consent_required",
+  "rate_limited",
+  "network",
+  "server",
+  "unknown",
+] as const;
+
+export const CreateLaunchFunnelEventDto = z
+  .object({
+    schemaVersion: z.literal(1),
+    eventName: z.enum(LAUNCH_FUNNEL_EVENT_NAMES),
+    occurredAt: z.string().datetime({ offset: true }),
+    route: z.enum(LAUNCH_FUNNEL_ROUTES),
+    deviceClass: z.enum(LAUNCH_FUNNEL_DEVICE_CLASSES),
+    leadType: z.enum(["PROVIDER", "CLIENT"]).optional(),
+    validationField: z.enum(LAUNCH_FUNNEL_VALIDATION_FIELDS).optional(),
+    validationErrorCode: z
+      .enum(LAUNCH_FUNNEL_VALIDATION_ERROR_CODES)
+      .optional(),
+    attribution: LeadAttributionDto.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const needsLeadType = value.eventName !== "launch_landing_viewed";
+    if (needsLeadType && !value.leadType) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["leadType"],
+        message: "leadType is required for this event",
+      });
+    }
+
+    const isValidationFailure =
+      value.eventName === "launch_form_validation_failed";
+    if (
+      isValidationFailure &&
+      (!value.validationField || !value.validationErrorCode)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["validationField"],
+        message:
+          "validationField and validationErrorCode are required for validation failures",
+      });
+    }
+    if (
+      !isValidationFailure &&
+      (value.validationField || value.validationErrorCode)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["validationField"],
+        message: "validation details are allowed only for validation failures",
+      });
+    }
+  });
+
+export const CreateLaunchFunnelEventResponseSchema = z
+  .object({
+    accepted: z.literal(true),
+  })
+  .strict();
 
 export const ServiceZoneInputSchema = ServiceZoneSchema.pick({
   city: true,
@@ -1549,4 +1671,10 @@ export type CreateProviderLeadDtoType = z.input<typeof CreateProviderLeadDto>;
 export type CreateClientLeadDtoType = z.input<typeof CreateClientLeadDto>;
 export type CreateLaunchLeadResponse = z.infer<
   typeof CreateLaunchLeadResponseSchema
+>;
+export type CreateLaunchFunnelEventDtoType = z.input<
+  typeof CreateLaunchFunnelEventDto
+>;
+export type CreateLaunchFunnelEventResponse = z.infer<
+  typeof CreateLaunchFunnelEventResponseSchema
 >;
