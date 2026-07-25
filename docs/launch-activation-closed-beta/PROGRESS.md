@@ -87,23 +87,29 @@ Changed:
 - Added two-step provider/client forms with only the required triage fields, collapsed optional details, native accessible controls, French validation/retry/confirmation states, the full server-provided active category/subcategory hierarchy, and all 24 Kinshasa communes.
 - Added a thin unauthenticated web boundary for the documented provider/client lead endpoints. Requests use the documented field names, generic accepted response, bounded attribution, honeypot, `credentials: "omit"`, and no auth/account calls.
 - Added privacy-safe events for landing, role selection, form start, validation failure, and completed submission. URL attribution persists through `sessionStorage`; only bounded source/medium/campaign/content and referrer hostname cross the client boundary.
-- Added presentation-only campaign redirects for public discovery/category/provider/booking/review routes, defaulting `KAYOU_PUBLIC_WEB_MODE` to `campaign`. This does not authorize beta access or replace backend phase/membership enforcement.
-- Added web environment examples for campaign mode, privacy-notice version, and the visible withdrawal/correction contact. No Prisma, backend endpoint, shared API/schema, Admin, auth, marketplace session, invitation, activation, or matching file changed.
+- Made campaign mode fail closed unless `KAYOU_PUBLIC_WEB_MODE=marketplace` is explicit. The server proxy and `/auth` page redirect all account-auth entry in campaign mode; the auth client additionally sets Supabase `shouldCreateUser` only for an explicit marketplace signup. No staff/invite bypass was added because the current web architecture has no server-authoritative exception contract.
+- Moved `/` in campaign mode and every `/launch/*` route onto a minimal shell that does not mount the Supabase `AuthProvider`, React Query provider, or marketplace toaster; campaign visitors do not initialize marketplace session state.
+- Aligned source/medium/campaign/content normalization with the strict shared lead DTO values from the backend workstream, reused `@kayu/utils` DRC phone validation/E.164 normalization, submitted `formStartedAt`, and preserved safe status/code/`Retry-After` details for distinct French validation, stale-notice, rate-limit, disabled-intake, server, and network states.
+- Added a readable `/launch/confidentialite` notice whose displayed version comes from the same server config submitted with operational consent. Role switches remount a fresh form and clear every field plus operational and marketing consent.
+- Made the app-owned `window.dataLayer` queue the provider-neutral measurement sink and isolated the optional DOM-event bridge so either integration may fail without losing the other or blocking submission. Keyed start/completion events are delivered once and remain PII-free.
+- Added web environment examples for campaign mode, privacy-notice version, and the visible withdrawal/correction contact. No Prisma, backend endpoint, shared API/schema, Admin, marketplace session, invitation, activation, or matching implementation changed.
 
 Verified:
 
-- `node --test apps/web/src/lib/campaign-copy.test.mjs apps/web/src/lib/campaign-leads.test.mjs apps/web/src/lib/campaign-routing.test.mjs` — 8/8 pass (forthcoming-launch narrative guard, attribution normalization/redaction, privacy-safe event payload, explicit credential-free client submission boundary, device/time buckets, and public-route gating).
+- `node --test apps/web/src/lib/campaign-copy.test.mjs apps/web/src/lib/campaign-form-state.test.mjs apps/web/src/lib/campaign-leads.test.mjs apps/web/src/lib/campaign-routing.test.mjs` — 21/21 pass (copy/notice linkage, fresh role state and consents, strict attribution mapping, DRC phone normalization, once-only PII-free sink receipt including DOM-bridge failure, `formStartedAt`, credential-free DTO submission, safe API error semantics, fail-closed auth/public mode, minimal shell routing, and reduced-motion scrolling).
 - `pnpm --filter @kayu/web type-check` — pass.
 - `BACKEND_URL=http://localhost:3001 NEXT_PUBLIC_APP_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key pnpm turbo run build --filter=@kayu/web...` — 5/5 workspace build tasks pass; runner warned that local Node 24 is outside the repository's Node 22 engine.
 - Local mock-backed browser QA completed both provider and client submissions at 320px and reached their distinct French early-access confirmation states. A non-priority `Électricité automobile` client need submitted successfully.
 - Responsive browser checks at 320, 360, 390, 430, 768, and 1440px reported no horizontal overflow. At 320px both role choices are visible before the form; focus order, native labels, select/radio/checkbox semantics, keyboard-size controls, and zero browser console errors were checked.
 - The selector rendered all 15 current categories and 40 current subcategories from the existing taxonomy source, with no synthetic home-services category and no public priority styling/filter.
 - Final 320px copy QA confirmed the site-wide “KAYOU arrive bientôt à Kinshasa” narrative, free pre-registration, audience-specific provider/client benefits, and no visible beta/test/waitlist jargon.
+- Consolidated-review browser QA at 320px confirmed exactly two non-duplicated role CTAs, no overflow, role changes clearing previously entered client fields, the readable version-matched privacy notice, `/auth?mode=signup` redirecting to `/?utm_source=ig&utm_medium=cpc`, and zero browser warnings/errors. A provider submission reached confirmation once.
+- The mock-observed provider request used `+243999000000`, `source: "instagram"`, `medium: "paid_social"`, `campaign: "launch-kinshasa"`, the selected non-priority subcategory ID, the displayed privacy version, and an ISO `formStartedAt`; it contained no account/auth fields.
 
 Data/phase checks:
 
-- Campaign code contains no Supabase/auth import and sends only lead DTO fields to `/api/launch/provider-leads` or `/api/launch/client-leads`; browser submissions were exercised only against a temporary no-persistence mock.
-- Analytics payload construction has no name, phone, email, summary, exact address, referrer path/query, auth metadata, or raw token field; analytics dispatch is best-effort and form success does not depend on it.
+- Campaign route/components contain no Supabase/auth import and send only lead DTO fields to `/api/launch/provider-leads` or `/api/launch/client-leads`; browser submissions were exercised only against a temporary no-persistence mock.
+- Analytics payload construction has no name, phone, email, summary, exact address, referrer path/query, auth metadata, or raw token field; the app queue and DOM bridge are independently best-effort and form success does not depend on either.
 - The redirect is explicitly presentation-only. No server phase, membership, marketplace entitlement, account creation, or seeded marketplace data is read by the campaign page.
 - Production database/auth diff proof remains owned by the backend intake implementation because this scoped branch neither defines nor modifies persistence/endpoints.
 
@@ -113,10 +119,13 @@ Decisions:
 - Public narrative decision: frame the entire campaign—not only the hero—as “KAYOU arrive bientôt à Kinshasa,” with free pre-registration and the benefit of being among the first providers or first people to seek a trusted provider. Public paths, CTAs, validation, confirmations, metadata, and microcopy avoid beta/test/waitlist jargon and do not promise access, work, income, or immediate provider availability.
 - Load taxonomy on the server and submit stable active subcategory IDs. Do not fall back to seed slugs as IDs when the taxonomy API is unavailable; instead show a retryable unavailable state.
 - Keep source attribution across validation/retry without storing form PII, and omit browser auth credentials from the public lead request.
+- Treat only the exact `marketplace` public-mode value as permission to expose account auth; missing, blank, differently cased, or invalid configuration remains in campaign mode.
+- Use an app-owned `dataLayer` queue as the privacy-constrained frontend integration boundary; collector/vendor configuration and final privacy approval remain release-owned and are not coupled to lead acceptance.
 
 Remaining:
 
 - Implement and verify the documented NestJS lead endpoints, abuse controls, idempotency, persistence, and no-auth/user/provider database diff in the backend-owned workstream 02 half.
+- When coordinating the frontend and backend commits, consume the backend branch’s new `@kayu/schemas` lead DTO and `@kayu/api` endpoint exports directly. This isolated frontend branch cannot import symbols that do not exist on the current main baseline; its strict literal unions and integration tests currently mirror backend commit `dcfe378`.
 - Confirm the production privacy notice value and `confidentialite@kayou.cd` withdrawal channel before G1; override the documented web environment values if privacy owners choose different approved values.
 - Complete fluent Kinshasa French review and 5–8 target-user phone tests, real slow-network/retry testing, production mobile p75 Core Web Vitals, and the named/capped first acquisition experiment.
 

@@ -22,6 +22,7 @@ import {
   parseCampaignAttribution,
   type CampaignLeadType,
 } from "@/lib/campaign-leads";
+import { campaignScrollBehavior } from "@/lib/campaign-routing";
 
 type CampaignLandingProps = {
   categories: CampaignCategory[];
@@ -90,9 +91,15 @@ export function CampaignLanding({
     }
 
     window.requestAnimationFrame(() => {
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
       document
         .getElementById("interest-form")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        ?.scrollIntoView({
+          behavior: campaignScrollBehavior(reducedMotion),
+          block: "start",
+        });
     });
   }, []);
 
@@ -220,6 +227,7 @@ export function CampaignLanding({
           <div>
             {role ? (
               <CampaignForm
+                key={role}
                 role={role}
                 categories={categories}
                 privacyNoticeVersion={privacyNoticeVersion}
@@ -229,31 +237,21 @@ export function CampaignLanding({
                 }
               />
             ) : (
-              <div className="rounded-[20px] border border-[var(--k-border)] bg-[var(--k-surface)] p-5 shadow-[var(--k-e2)] sm:p-7">
-                <p className="k-overline mb-2 text-[var(--k-primary-hover)]">
-                  Commencer
+              <div
+                id="interest-form"
+                role="status"
+                className="scroll-mt-6 rounded-[20px] border border-dashed border-[var(--k-border-strong)] bg-[var(--k-surface)] p-5 text-center sm:p-7"
+              >
+                <CheckCircle2
+                  aria-hidden
+                  className="mx-auto mb-3 h-7 w-7 text-[var(--k-primary-hover)]"
+                />
+                <p className="text-[14px] font-semibold text-[var(--k-text-body)]">
+                  Choisissez un parcours pour commencer.
                 </p>
-                <h2 className="k-display-m mb-3">
-                  Que voulez-vous faire avec KAYOU ?
-                </h2>
-                <p className="k-body mb-6 text-[var(--k-text-body)]">
-                  Deux courtes étapes. Seulement l’essentiel.
+                <p className="mt-1 text-[12px] text-[var(--k-text-muted)]">
+                  Deux étapes, seulement l’essentiel.
                 </p>
-                <div className="grid gap-2">
-                  {(Object.keys(ROLE_COPY) as CampaignLeadType[]).map(
-                    (itemRole) => (
-                      <button
-                        key={itemRole}
-                        type="button"
-                        onClick={() => chooseRole(itemRole)}
-                        className="k-btn k-btn-primary min-h-12 w-full justify-between whitespace-normal text-left"
-                      >
-                        {ROLE_COPY[itemRole].label}
-                        <ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
-                      </button>
-                    ),
-                  )}
-                </div>
               </div>
             )}
 

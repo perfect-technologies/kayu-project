@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { QueryProvider } from "@/components/providers/QueryProvider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { Toaster } from "sonner";
+import { AppProviders } from "@/components/providers/AppProviders";
+import { resolvePublicWebMode } from "@/lib/campaign-routing";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-k-display",
@@ -67,18 +66,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
+
   return (
     <html lang="fr" suppressHydrationWarning>
       <body
         className={`${plusJakarta.variable} ${inter.variable} ${jetBrainsMono.variable} antialiased bg-background text-foreground`}
         suppressHydrationWarning
       >
-        <QueryProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </QueryProvider>
-        <Toaster richColors position="top-right" />
+        <AppProviders publicMode={publicMode}>{children}</AppProviders>
       </body>
     </html>
   );

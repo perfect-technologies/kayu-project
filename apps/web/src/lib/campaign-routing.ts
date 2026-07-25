@@ -6,8 +6,47 @@ const CAMPAIGN_PUBLIC_PREFIXES = [
   "/review",
 ] as const;
 
+export type PublicWebMode = "campaign" | "marketplace";
+
+export function resolvePublicWebMode(
+  configuredMode: string | undefined,
+): PublicWebMode {
+  return configuredMode === "marketplace" ? "marketplace" : "campaign";
+}
+
 export function isCampaignPublicMarketplacePath(pathname: string): boolean {
   return CAMPAIGN_PUBLIC_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
+}
+
+export function isCampaignShellPath(
+  pathname: string,
+  publicMode: PublicWebMode,
+): boolean {
+  return (
+    pathname === "/launch" ||
+    pathname.startsWith("/launch/") ||
+    (publicMode === "campaign" && pathname === "/")
+  );
+}
+
+export function isCampaignAuthRequest(
+  pathname: string,
+  publicMode: PublicWebMode,
+): boolean {
+  return publicMode === "campaign" && pathname === "/auth";
+}
+
+export function shouldCreateAuthUser(
+  mode: "signup" | "login",
+  signupEnabled: boolean,
+): boolean {
+  return signupEnabled && mode === "signup";
+}
+
+export function campaignScrollBehavior(
+  prefersReducedMotion: boolean,
+): ScrollBehavior {
+  return prefersReducedMotion ? "auto" : "smooth";
 }

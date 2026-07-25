@@ -22,8 +22,16 @@ import {
 
 import type { CampaignCategory } from "./campaign-data";
 import {
+  createEmptyCampaignFormValues,
+  type CampaignFormValues,
+} from "@/lib/campaign-form-state";
+import {
+  CampaignLeadSubmissionError,
+  campaignSubmissionErrorCopy,
   emitCampaignEvent,
+  emitCampaignEventOnce,
   mergeCampaignAttribution,
+  normalizeCampaignPhone,
   parseCampaignAttribution,
   submitCampaignLead,
   type CampaignLeadType,
@@ -40,39 +48,9 @@ type CampaignFormProps = {
   onChooseOtherRole: () => void;
 };
 
-type FormValues = {
-  firstName: string;
-  phone: string;
-  commune: string;
-  subcategoryId: string;
-  experienceBand: "" | ProviderExperienceBand;
-  timing: "" | ClientTiming;
-  email: string;
-  hasWhatsApp: boolean;
-  preferredContact: "PHONE" | "WHATSAPP";
-  summary: string;
-  operationalConsent: boolean;
-  marketingConsent: boolean;
-  website: string;
-};
-
-type FormErrors = Partial<Record<keyof FormValues | "form", string>>;
-
-const INITIAL_VALUES: FormValues = {
-  firstName: "",
-  phone: "",
-  commune: "",
-  subcategoryId: "",
-  experienceBand: "",
-  timing: "",
-  email: "",
-  hasWhatsApp: false,
-  preferredContact: "PHONE",
-  summary: "",
-  operationalConsent: false,
-  marketingConsent: false,
-  website: "",
-};
+type FormErrors = Partial<
+  Record<keyof CampaignFormValues | "form", string>
+>;
 
 const ATTRIBUTION_STORAGE_KEY = "kayou:campaign-attribution";
 
@@ -174,12 +152,15 @@ export function CampaignForm({
   onChooseOtherRole,
 }: CampaignFormProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [values, setValues] = useState<FormValues>(INITIAL_VALUES);
+  const [values, setValues] = useState<CampaignFormValues>(
+    createEmptyCampaignFormValues,
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [attribution, setAttribution] = useState<LeadAttribution>({});
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const startedAt = useRef<number | null>(null);
+  const submissionInFlight = useRef(false);
   const trackedEvents = useRef(new Set<string>());
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -211,10 +192,12 @@ export function CampaignForm({
 
   useEffect(() => {
     setStep(1);
+    setValues(createEmptyCampaignFormValues());
     setErrors({});
     setAccepted(false);
     setSubmitting(false);
     startedAt.current = null;
+    submissionInFlight.current = false;
   }, [role]);
 
   const trackOnce = useCallback(
@@ -223,9 +206,7 @@ export function CampaignForm({
       event: Parameters<typeof emitCampaignEvent>[0],
       input: Parameters<typeof emitCampaignEvent>[1] = {},
     ) => {
-      if (trackedEvents.current.has(key)) return;
-      trackedEvents.current.add(key);
-      emitCampaignEvent(event, {
+      emitCampaignEventOnce(trackedEvents.current, key, event, {
         leadType: role,
         attribution,
         ...input,
@@ -248,9 +229,9 @@ export function CampaignForm({
     [categories],
   );
 
-  const updateValue = <Key extends keyof FormValues>(
+  const updateValue = <Key extends keyof CampaignFormValues>(
     key: Key,
-    value: FormValues[Key],
+    value: CampaignFormValues[Key],
   ) => {
     setValues((current) => ({ ...current, [key]: value }));
     if (errors[key]) {
@@ -286,13 +267,12 @@ export function CampaignForm({
   const validateStepOne = (): FormErrors => {
     const nextErrors: FormErrors = {};
     const trimmedName = values.firstName.trim();
-    const digits = values.phone.replace(/[^\d]/g, "");
 
     if (trimmedName.length < 2) {
       nextErrors.firstName = "Indiquez votre prénom (2 caractères minimum).";
     }
-    if (digits.length < 9 || digits.length > 15) {
-      nextErrors.phone = "Indiquez un numéro de téléphone valide.";
+    if (!normalizeCampaignPhone(values.phone)) {
+      nextErrors.phone = "Indiquez un numéro valide de RDC.";
     }
     if (!values.subcategoryId) {
       nextErrors.subcategoryId = "Choisissez le service principal.";
@@ -340,6 +320,7 @@ export function CampaignForm({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submissionInFlight.current) return;
     markStarted();
 
     if (step === 1) {
@@ -358,16 +339,32 @@ export function CampaignForm({
       return;
     }
 
+    submissionInFlight.current = true;
     setSubmitting(true);
     setErrors({});
 
+    const normalizedPhone = normalizeCampaignPhone(values.phone);
+    if (!normalizedPhone) {
+      submissionInFlight.current = false;
+      setSubmitting(false);
+      const phoneErrors = { phone: "Indiquez un numéro valide de RDC." };
+      setErrors(phoneErrors);
+      reportValidationErrors(phoneErrors);
+      focusFirstError(phoneErrors);
+      return;
+    }
+
     const shared = {
       firstName: values.firstName.trim(),
-      phone: values.phone.trim(),
+      phone: normalizedPhone,
       email: values.email.trim().toLowerCase() || undefined,
       marketingConsent: values.marketingConsent,
       operationalConsent: true as const,
       privacyNoticeVersion,
+      formStartedAt:
+        startedAt.current == null
+          ? undefined
+          : new Date(startedAt.current).toISOString(),
       attribution:
         Object.keys(attribution).length > 0 ? attribution : undefined,
       website: values.website,
@@ -394,9 +391,7 @@ export function CampaignForm({
         });
       }
 
-      emitCampaignEvent("launch_lead_submitted", {
-        leadType: role,
-        attribution,
+      trackOnce(`${role}:submitted`, "launch_lead_submitted", {
         elapsedMilliseconds:
           startedAt.current == null ? undefined : Date.now() - startedAt.current,
       });
@@ -404,10 +399,19 @@ export function CampaignForm({
       window.requestAnimationFrame(() => {
         document.getElementById("campaign-confirmation")?.focus();
       });
-    } catch {
+    } catch (error) {
+      submissionInFlight.current = false;
+      if (
+        error instanceof CampaignLeadSubmissionError &&
+        error.kind === "stale_privacy"
+      ) {
+        setValues((current) => ({
+          ...current,
+          operationalConsent: false,
+        }));
+      }
       setErrors({
-        form:
-          "Préinscription non envoyée. Vérifiez votre connexion puis réessayez.",
+        form: campaignSubmissionErrorCopy(error),
       });
     } finally {
       setSubmitting(false);
@@ -562,6 +566,10 @@ export function CampaignForm({
                   inputMode="tel"
                   value={values.phone}
                   onChange={(event) => updateValue("phone", event.target.value)}
+                  onBlur={() => {
+                    const normalized = normalizeCampaignPhone(values.phone);
+                    if (normalized) updateValue("phone", normalized);
+                  }}
                   className="k-input h-12 text-[16px]"
                   autoComplete="tel"
                   maxLength={24}
@@ -867,6 +875,18 @@ export function CampaignForm({
             </details>
 
             <div>
+              <p className="mb-2 text-[13px] leading-5 text-[var(--k-text-body)]">
+                Avant de donner votre accord, consultez la{" "}
+                <a
+                  href="/launch/confidentialite"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"
+                >
+                  notice de confidentialité
+                </a>{" "}
+                (version {privacyNoticeVersion}).
+              </p>
               <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[var(--k-border)] p-3.5 text-[13px] leading-5 text-[var(--k-text-body)]">
                 <input
                   id="operationalConsent"
@@ -884,9 +904,9 @@ export function CampaignForm({
                   className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--k-primary)]"
                 />
                 <span>
-                  J’autorise KAYOU à utiliser ces informations pour étudier ma
-                  demande et me recontacter pour le lancement. Cela ne crée pas
-                  de compte et ne garantit pas un accès anticipé.
+                  J’ai lu cette notice et j’autorise KAYOU à utiliser ces
+                  informations pour étudier ma demande et me recontacter pour
+                  le lancement. Aucun compte n’est créé.
                 </span>
               </label>
               <FieldError id="operationalConsent-error">
@@ -905,8 +925,7 @@ export function CampaignForm({
             />
 
             <p className="text-[12px] leading-5 text-[var(--k-text-muted)]">
-              Notice de confidentialité : version {privacyNoticeVersion}. Pour
-              consulter, corriger ou retirer votre demande, écrivez à{" "}
+              Pour consulter, corriger ou retirer votre demande, écrivez à{" "}
               <a
                 href={`mailto:${privacyContact}`}
                 className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"

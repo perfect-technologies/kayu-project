@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CampaignLeadSubmissionError,
   buildCampaignEvent,
+  campaignSubmissionErrorCopy,
   completionTimeBucket,
   deviceClassForWidth,
+  emitCampaignEventOnce,
   mergeCampaignAttribution,
+  normalizeCampaignPhone,
   parseCampaignAttribution,
   submitCampaignLead,
 } from "./campaign-leads.ts";
@@ -18,13 +22,33 @@ test("campaign attribution is bounded, normalized, and stores only the referrer 
 
   assert.deepEqual(attribution, {
     source: "facebook",
-    medium: "paid social",
-    campaign: "Beta Kinshasa",
+    medium: "paid_social",
+    campaign: "beta-kinshasa",
     content: "plomberie",
     referrerHost: "example.org",
   });
   assert.equal(JSON.stringify(attribution).includes("243999"), false);
   assert.equal(JSON.stringify(attribution).includes("token"), false);
+});
+
+test("ordinary UTM values map to the strict shared attribution contract", () => {
+  assert.deepEqual(
+    parseCampaignAttribution(
+      "?utm_source=LinkedIn&utm_medium=email&utm_campaign=Lancement%20Kinshasa%20%232&utm_content=Hero%20CTA",
+    ),
+    {
+      source: "other",
+      campaign: "lancement-kinshasa-2",
+      content: "hero-cta",
+    },
+  );
+  assert.deepEqual(
+    parseCampaignAttribution("?utm_source=ig&utm_medium=cpc"),
+    {
+      source: "instagram",
+      medium: "paid_social",
+    },
+  );
 });
 
 test("current campaign values override stored values without dropping prior fields", () => {
@@ -35,11 +59,24 @@ test("current campaign values override stored values without dropping prior fiel
     ),
     {
       source: "facebook",
-      medium: "whatsapp",
+      medium: "referral",
       campaign: "cycle-1",
       content: "electricite",
     },
   );
+});
+
+test("campaign phone handling matches the shared DRC normalization", () => {
+  for (const input of [
+    "0999 000 000",
+    "999000000",
+    "243999000000",
+    "+243 999 000 000",
+  ]) {
+    assert.equal(normalizeCampaignPhone(input), "+243999000000", input);
+  }
+  assert.equal(normalizeCampaignPhone("+242 066 000 000"), null);
+  assert.equal(normalizeCampaignPhone("123"), null);
 });
 
 test("campaign events contain only privacy-safe funnel dimensions", () => {
@@ -63,6 +100,84 @@ test("campaign events contain only privacy-safe funnel dimensions", () => {
     source: "whatsapp",
   });
   assert.equal("referrerHost" in event, false);
+});
+
+test("the app-owned event sink receives each keyed event once without PII", () => {
+  const originalWindow = globalThis.window;
+  const originalCustomEvent = globalThis.CustomEvent;
+  const received = [];
+  class TestCustomEvent {
+    constructor(type, init) {
+      this.type = type;
+      this.detail = init.detail;
+    }
+  }
+  globalThis.CustomEvent = TestCustomEvent;
+  globalThis.window = {
+    innerWidth: 390,
+    dataLayer: [],
+    dispatchEvent(event) {
+      received.push(event.detail);
+      return true;
+    },
+  };
+
+  try {
+    const deliveredKeys = new Set();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      emitCampaignEventOnce(
+        deliveredKeys,
+        "client:form-started",
+        "launch_form_started",
+        {
+          leadType: "client",
+          attribution: { source: "whatsapp", campaign: "cycle-1" },
+          phone: "+243999000000",
+          email: "person@example.com",
+        },
+      );
+    }
+
+    assert.equal(received.length, 1);
+    assert.equal(globalThis.window.dataLayer.length, 1);
+    assert.deepEqual(received[0], globalThis.window.dataLayer[0]);
+    const serialized = JSON.stringify(received[0]);
+    assert.equal(serialized.includes("243999"), false);
+    assert.equal(serialized.includes("person@example.com"), false);
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.CustomEvent = originalCustomEvent;
+  }
+});
+
+test("the app queue still receives events when the optional DOM bridge fails", () => {
+  const originalWindow = globalThis.window;
+  const originalCustomEvent = globalThis.CustomEvent;
+  globalThis.CustomEvent = undefined;
+  globalThis.window = {
+    innerWidth: 390,
+    dataLayer: [],
+    dispatchEvent() {
+      throw new Error("DOM bridge unavailable");
+    },
+  };
+
+  try {
+    emitCampaignEventOnce(
+      new Set(),
+      "provider:selected",
+      "launch_role_selected",
+      { leadType: "provider" },
+    );
+    assert.equal(globalThis.window.dataLayer.length, 1);
+    assert.equal(
+      globalThis.window.dataLayer[0].event,
+      "launch_role_selected",
+    );
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.CustomEvent = originalCustomEvent;
+  }
 });
 
 test("device and completion buckets use the documented boundaries", () => {
@@ -100,6 +215,7 @@ test("lead submission uses the explicit public endpoint without auth credentials
       timing: "EXPLORING",
       operationalConsent: true,
       privacyNoticeVersion: "campaign-2026-07-25",
+      formStartedAt: "2026-07-25T12:00:00.000Z",
       attribution: { source: "whatsapp" },
     });
   } finally {
@@ -119,6 +235,150 @@ test("lead submission uses the explicit public endpoint without auth credentials
     timing: "EXPLORING",
     operationalConsent: true,
     privacyNoticeVersion: "campaign-2026-07-25",
+    formStartedAt: "2026-07-25T12:00:00.000Z",
     attribution: { source: "whatsapp" },
   });
+});
+
+test("submission preserves safe status, code, and retry-after semantics", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        statusCode: 429,
+        code: "LAUNCH_RATE_LIMITED",
+        message: "Trop de demandes.",
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": "120",
+        },
+      },
+    );
+
+  try {
+    await assert.rejects(
+      submitCampaignLead("client", {
+        firstName: "Essai",
+        phone: "+243999000000",
+        commune: "Gombe",
+        neededSubcategoryIds: ["subcategory-id"],
+        timing: "EXPLORING",
+        operationalConsent: true,
+        privacyNoticeVersion: "campaign-2026-07-25",
+      }),
+      (error) => {
+        assert.ok(error instanceof CampaignLeadSubmissionError);
+        assert.equal(error.kind, "rate_limited");
+        assert.equal(error.status, 429);
+        assert.equal(error.code, "LAUNCH_RATE_LIMITED");
+        assert.equal(error.retryAfterSeconds, 120);
+        return true;
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("submission errors produce distinct, actionable French states", () => {
+  assert.match(
+    campaignSubmissionErrorCopy(
+      new CampaignLeadSubmissionError("validation", 422),
+    ),
+    /Vérifiez le formulaire/,
+  );
+  assert.match(
+    campaignSubmissionErrorCopy(
+      new CampaignLeadSubmissionError("stale_privacy", 400),
+    ),
+    /notice de confidentialité a changé/,
+  );
+  assert.match(
+    campaignSubmissionErrorCopy(
+      new CampaignLeadSubmissionError(
+        "rate_limited",
+        429,
+        "LAUNCH_RATE_LIMITED",
+        120,
+      ),
+    ),
+    /2 min/,
+  );
+  assert.match(
+    campaignSubmissionErrorCopy(
+      new CampaignLeadSubmissionError("intake_disabled", 503),
+    ),
+    /momentanément fermées/,
+  );
+  assert.match(
+    campaignSubmissionErrorCopy(new CampaignLeadSubmissionError("network")),
+    /Connexion interrompue/,
+  );
+});
+
+test("submission distinguishes stale privacy, disabled intake, and network errors", async () => {
+  const originalFetch = globalThis.fetch;
+  const cases = [
+    {
+      response: new Response(
+        JSON.stringify({
+          message:
+            "Veuillez accepter la version actuelle de l'avis de confidentialité.",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+      kind: "stale_privacy",
+    },
+    {
+      response: new Response(JSON.stringify({ message: "Indisponible" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+      kind: "intake_disabled",
+    },
+  ];
+
+  try {
+    for (const item of cases) {
+      globalThis.fetch = async () => item.response.clone();
+      await assert.rejects(
+        submitCampaignLead("provider", {
+          firstName: "Essai",
+          phone: "+243999000000",
+          primarySubcategoryId: "subcategory-id",
+          experienceBand: "STARTING",
+          homeCommune: "Gombe",
+          operationalConsent: true,
+          privacyNoticeVersion: "campaign-2026-07-25",
+        }),
+        (error) =>
+          error instanceof CampaignLeadSubmissionError &&
+          error.kind === item.kind,
+      );
+    }
+
+    globalThis.fetch = async () => {
+      throw new TypeError("fetch failed with private network details");
+    };
+    await assert.rejects(
+      submitCampaignLead("client", {
+        firstName: "Essai",
+        phone: "+243999000000",
+        commune: "Gombe",
+        neededSubcategoryIds: ["subcategory-id"],
+        timing: "EXPLORING",
+        operationalConsent: true,
+        privacyNoticeVersion: "campaign-2026-07-25",
+      }),
+      (error) =>
+        error instanceof CampaignLeadSubmissionError &&
+        error.kind === "network" &&
+        !error.message.includes("private"),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
