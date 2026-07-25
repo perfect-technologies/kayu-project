@@ -24,6 +24,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { VerificationModule } from "./modules/verification/verification.module";
 import { HealthModule } from "./modules/health/health.module";
+import { LaunchLeadsModule } from "./modules/launch-leads/launch-leads.module";
 import { validateEnv } from "./config/env.validation";
 
 @Module({
@@ -38,6 +39,7 @@ import { validateEnv } from "./config/env.validation";
     }),
     DatabaseModule,
     HealthModule,
+    LaunchLeadsModule,
     CommonModule,
     StorageModule,
     IdentityModule,

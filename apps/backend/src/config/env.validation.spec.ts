@@ -27,3 +27,27 @@ test("rejects an unconfigured Supabase placeholder", () => {
     /SUPABASE_URL/,
   );
 });
+
+test("keeps public launch intake disabled by default", () => {
+  const parsed = validateEnv({ ...base });
+  assert.equal(parsed.LAUNCH_PUBLIC_INTAKE_ENABLED, "false");
+});
+
+test("requires privacy and hashing configuration before public intake can be enabled", () => {
+  assert.throws(
+    () =>
+      validateEnv({
+        ...base,
+        LAUNCH_PUBLIC_INTAKE_ENABLED: "true",
+      }),
+    /LAUNCH_PRIVACY_NOTICE_VERSION.*LAUNCH_RATE_LIMIT_HASH_KEY/,
+  );
+
+  const parsed = validateEnv({
+    ...base,
+    LAUNCH_PUBLIC_INTAKE_ENABLED: "true",
+    LAUNCH_PRIVACY_NOTICE_VERSION: "privacy-v1",
+    LAUNCH_RATE_LIMIT_HASH_KEY: "a-32-character-minimum-test-key-value",
+  });
+  assert.equal(parsed.LAUNCH_PUBLIC_INTAKE_ENABLED, "true");
+});

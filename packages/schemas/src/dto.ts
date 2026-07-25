@@ -11,9 +11,12 @@ import {
 } from "./common.js";
 import {
   BookingStatus,
+  ClientLeadTiming,
   FinalOfferStatus,
+  LeadPreferredContact,
   MessageType,
   PayoutOperator,
+  ProviderLeadExperienceBand,
   TransactionType,
   UserRole,
   VerificationStatus,
@@ -49,6 +52,141 @@ import {
 } from "./verification.js";
 
 const RatingSchema = z.number().int().min(1).max(5);
+
+const launchAttributionKeySchema = (maxLength: number) =>
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(maxLength)
+    .regex(
+      /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
+      "Use a stable attribution key containing only letters, numbers, dot, underscore, or hyphen",
+    )
+    .transform((value) => value.toLowerCase());
+
+export const LEAD_ATTRIBUTION_SOURCES = [
+  "direct",
+  "facebook",
+  "instagram",
+  "whatsapp",
+  "referral",
+  "partner",
+  "community",
+  "google",
+  "tiktok",
+  "other",
+] as const;
+
+export const LEAD_ATTRIBUTION_MEDIA = [
+  "direct",
+  "organic_social",
+  "paid_social",
+  "referral",
+  "partner",
+  "community",
+  "qr",
+] as const;
+
+const ReferrerHostSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .refine(
+    (value) =>
+      /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(
+        value,
+      ),
+    "Must be a hostname without a scheme, path, query, or port",
+  );
+
+export const LeadAttributionDto = z
+  .object({
+    source: z.enum(LEAD_ATTRIBUTION_SOURCES).optional(),
+    medium: z.enum(LEAD_ATTRIBUTION_MEDIA).optional(),
+    campaign: launchAttributionKeySchema(100).optional(),
+    content: launchAttributionKeySchema(100).optional(),
+    referrerHost: ReferrerHostSchema.optional(),
+  })
+  .strict();
+
+const LaunchLeadBaseDto = z
+  .object({
+    firstName: z.string().trim().min(2).max(80),
+    phone: z.string().trim().min(8).max(32),
+    email: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .transform((value) => value.toLowerCase())
+      .optional(),
+    operationalConsent: z.literal(true),
+    marketingConsent: z.boolean().default(false),
+    privacyNoticeVersion: z.string().trim().min(1).max(100),
+    attribution: LeadAttributionDto.optional(),
+    website: z.string().trim().max(200).optional(),
+    formStartedAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+
+export const CreateProviderLeadDto = LaunchLeadBaseDto.extend({
+  primarySubcategoryId: IdSchema,
+  additionalSubcategoryIds: z.array(IdSchema).max(2).default([]),
+  experienceBand: ProviderLeadExperienceBand,
+  homeCommune: z.enum(KIN_COMMUNES_TUPLE),
+  serviceCommunes: z.array(z.enum(KIN_COMMUNES_TUPLE)).max(5).default([]),
+  hasWhatsApp: z.boolean().optional(),
+  summary: z.string().trim().max(300).optional(),
+})
+  .strict()
+  .superRefine((value, ctx) => {
+    const allIds = [
+      value.primarySubcategoryId,
+      ...value.additionalSubcategoryIds,
+    ];
+    if (new Set(allIds).size !== allIds.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["additionalSubcategoryIds"],
+        message: "Subcategory IDs must be distinct",
+      });
+    }
+    if (new Set(value.serviceCommunes).size !== value.serviceCommunes.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["serviceCommunes"],
+        message: "Service communes must be distinct",
+      });
+    }
+  });
+
+export const CreateClientLeadDto = LaunchLeadBaseDto.extend({
+  commune: z.enum(KIN_COMMUNES_TUPLE),
+  neededSubcategoryIds: z.array(IdSchema).min(1).max(3),
+  timing: ClientLeadTiming,
+  needSummary: z.string().trim().max(300).optional(),
+  preferredContact: LeadPreferredContact.optional(),
+})
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      new Set(value.neededSubcategoryIds).size !==
+      value.neededSubcategoryIds.length
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["neededSubcategoryIds"],
+        message: "Subcategory IDs must be distinct",
+      });
+    }
+  });
+
+export const CreateLaunchLeadResponseSchema = z.object({
+  accepted: z.literal(true),
+  message: z.literal("Merci. Votre intérêt a bien été reçu."),
+});
 
 export const ServiceZoneInputSchema = ServiceZoneSchema.pick({
   city: true,
@@ -1406,3 +1544,9 @@ export type AvailabilityQuery = z.infer<typeof AvailabilityQuery>;
 export type AvailabilityDay = z.infer<typeof AvailabilityDay>;
 export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>;
 export type RecentAddressItem = z.infer<typeof RecentAddressItem>;
+export type LeadAttributionDtoType = z.infer<typeof LeadAttributionDto>;
+export type CreateProviderLeadDtoType = z.input<typeof CreateProviderLeadDto>;
+export type CreateClientLeadDtoType = z.input<typeof CreateClientLeadDto>;
+export type CreateLaunchLeadResponse = z.infer<
+  typeof CreateLaunchLeadResponseSchema
+>;

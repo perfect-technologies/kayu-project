@@ -287,6 +287,188 @@ model Subcategory {
   @@index([isActive, order])
 }
 
+// ==================== CAMPAGNE DE LANCEMENT (LEADS UNIQUEMENT) ====================
+
+enum ProviderLeadStatus {
+  SUBMITTED
+  IN_REVIEW
+  NEEDS_INFO
+  QUALIFIED
+  REJECTED
+  WITHDRAWN
+  INVITED
+  ACTIVATED
+}
+
+enum ClientLeadStatus {
+  SUBMITTED
+  ELIGIBLE
+  PAUSED
+  DECLINED
+  WITHDRAWN
+  INVITED
+  ACTIVATED
+}
+
+enum ProviderLeadExperienceBand {
+  STARTING
+  ONE_TO_THREE_YEARS
+  FOUR_PLUS_YEARS
+}
+
+enum ClientLeadTiming {
+  WITHIN_7_DAYS
+  WITHIN_30_DAYS
+  LATER
+  EXPLORING
+}
+
+enum LeadPreferredContact {
+  PHONE
+  WHATSAPP
+}
+
+enum LeadType {
+  PROVIDER
+  CLIENT
+}
+
+enum LeadFormDurationBucket {
+  UNDER_3_SECONDS
+  FROM_3_TO_30_SECONDS
+  FROM_31_TO_90_SECONDS
+  FROM_91_TO_180_SECONDS
+  OVER_180_SECONDS
+  UNKNOWN
+}
+
+model ProviderLead {
+  id                       String                     @id @default(cuid())
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  submittedAt              DateTime                   @default(now())
+  lastSubmittedAt          DateTime                   @default(now())
+  firstName                String
+  phoneE164                String                     @unique
+  emailNormalized          String?
+  primarySubcategoryId     String
+  additionalSubcategoryIds String[]                   @default([])
+  experienceBand           ProviderLeadExperienceBand
+  homeCommune              String
+  serviceCommunes          String[]                   @default([])
+  hasWhatsApp              Boolean?
+  summary                  String?
+  status                   ProviderLeadStatus         @default(SUBMITTED)
+  consentAt                DateTime
+  consentVersion           String
+  operationalConsent       Boolean                    @default(true)
+  marketingConsent         Boolean                    @default(false)
+  marketingConsentAt       DateTime?
+  marketingConsentVersion  String?
+  attributionSource        String
+  attributionMedium        String?
+  attributionCampaign      String?
+  attributionContent       String?
+  attributionReferrerHost  String?
+  campaignKey              String
+  lastFormDurationBucket   LeadFormDurationBucket     @default(UNKNOWN)
+  isTest                   Boolean                    @default(false)
+  firstReviewedAt          DateTime?
+  lastContactedAt          DateTime?
+  qualifiedAt              DateTime?
+  rejectedAt               DateTime?
+  withdrawnAt              DateTime?
+  assignedAdminUserId      String?
+  decisionReasonCode       String?
+  privateNotes             String?
+  activatedUserId          String?
+  activatedProviderId      String?
+  activatedAt              DateTime?
+  submissionEvents         LeadSubmissionEvent[]
+
+  @@index([status, submittedAt])
+  @@index([primarySubcategoryId, status])
+  @@index([homeCommune, status])
+  @@index([attributionSource, campaignKey])
+  @@index([isTest, status])
+}
+
+model ClientWaitlistLead {
+  id                      String                 @id @default(cuid())
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  submittedAt             DateTime               @default(now())
+  lastSubmittedAt         DateTime               @default(now())
+  firstName               String
+  phoneE164               String                 @unique
+  emailNormalized         String?
+  commune                 String
+  neededSubcategoryIds    String[]               @default([])
+  timing                  ClientLeadTiming
+  needSummary             String?
+  preferredContact        LeadPreferredContact?
+  status                  ClientLeadStatus       @default(SUBMITTED)
+  consentAt               DateTime
+  consentVersion          String
+  operationalConsent      Boolean                @default(true)
+  marketingConsent        Boolean                @default(false)
+  marketingConsentAt      DateTime?
+  marketingConsentVersion String?
+  attributionSource       String
+  attributionMedium       String?
+  attributionCampaign     String?
+  attributionContent      String?
+  attributionReferrerHost String?
+  campaignKey             String
+  lastFormDurationBucket  LeadFormDurationBucket @default(UNKNOWN)
+  isTest                  Boolean                @default(false)
+  firstReviewedAt         DateTime?
+  lastContactedAt         DateTime?
+  eligibleAt              DateTime?
+  declinedAt              DateTime?
+  withdrawnAt             DateTime?
+  assignedAdminUserId     String?
+  decisionReasonCode      String?
+  privateNotes            String?
+  activatedUserId         String?
+  activatedAt             DateTime?
+  submissionEvents        LeadSubmissionEvent[]
+
+  @@index([status, submittedAt])
+  @@index([commune, status])
+  @@index([attributionSource, campaignKey])
+  @@index([isTest, status])
+}
+
+model LeadSubmissionEvent {
+  id                 String                 @id @default(cuid())
+  leadType           LeadType
+  providerLeadId     String?
+  providerLead       ProviderLead?          @relation(fields: [providerLeadId], references: [id], onDelete: Cascade)
+  clientLeadId       String?
+  clientLead         ClientWaitlistLead?    @relation(fields: [clientLeadId], references: [id], onDelete: Cascade)
+  submittedAt        DateTime               @default(now())
+  isRefresh          Boolean                @default(false)
+  consentVersion     String
+  operationalConsent Boolean
+  marketingConsent   Boolean                @default(false)
+  attributionSource  String
+  attributionMedium  String?
+  campaign           String?
+  content            String?
+  referrerHost       String?
+  campaignKey        String
+  formDurationBucket LeadFormDurationBucket @default(UNKNOWN)
+  ipHash             String?
+  contactHash        String
+
+  @@index([providerLeadId, submittedAt])
+  @@index([clientLeadId, submittedAt])
+  @@index([contactHash, submittedAt])
+  @@index([ipHash, submittedAt])
+  @@index([leadType, attributionSource, campaignKey, submittedAt], map: "LeadSubmissionEvent_attribution_idx")
+}
+
 // ==================== RELATION PRESTATAIRE-CATÉGORIE ====================
 
 model ProviderCategory {

@@ -14,7 +14,7 @@ The public campaign captures provider and “I need a service” client-demand l
 | --- | --- | --- | --- |
 | 00 — Product And Operational Contract | Done | Planning | Binding phase truth documented |
 | 01 — Launch Scope, Metrics, And Gates | Not started | TBD | All active categories visible; home-services operational priority mapping fixed; choose pilot communes |
-| 02 — Campaign Conversion, Landing, And Lead Data | Not started | TBD | French-first mobile conversion + practical acquisition + lead-only data contract |
+| 02 — Campaign Conversion, Landing, And Lead Data | In progress | Backend/data contract | Backend lead-only persistence and public intake are in review; campaign web UI remains unstarted |
 | 03 — Provider Intake, Qualification, Admin | Not started | TBD | Depends on `02` provider lead schema |
 | 04 — Approved Lead Activation And Auth | Not started | TBD | May be built dormant; issuance/claim forbidden before G3 |
 | 05 — Client Demand Waitlist | Not started | TBD | Depends on `02` client lead schema; can parallelize with `03` |
@@ -30,6 +30,50 @@ Status values:
 - `Done`
 
 Only mark `Done` when acceptance criteria and documented verification pass.
+
+### 02 — Backend/Data Contract
+
+Status: **In review** (backend/data-contract half only)
+
+Owner: Backend/data contract
+
+Date: 2026-07-25
+
+Changed:
+
+- Added `ProviderLead`, `ClientWaitlistLead`, and privacy-safe `LeadSubmissionEvent` persistence plus lifecycle/timing/contact enums in Prisma.
+- Added forward migration `20260725120000_add_launch_leads`.
+- Added strict shared Zod request/response contracts, lead lifecycle enums, controlled communes, bounded free text, explicit attribution source/medium allowlists, hostname-only referrers, and typed `launchLeadsApi` methods.
+- Added unauthenticated `POST /api/launch/provider-leads` and `POST /api/launch/client-leads` endpoints with the same generic response for new and duplicate submissions.
+- Added active-taxonomy validation with no home-priority restriction, RDC E.164 normalization, role-separated phone deduplication, safe participant-field refresh, lifecycle preservation, consent/version timestamps, marketing-consent upgrade preservation, attribution/audit events, and form-duration buckets.
+- Added an independent default-off intake kill switch, required privacy/hash configuration before enablement, body-size limits, honeypot handling, and per-IP/per-normalized-contact limits. Submission event IP/contact identifiers are HMAC-hashed; request bodies and raw contact data are not logged.
+- No campaign UI, auth/account creation, qualification/admin workflow, invitations, activation, payments, or beta operations were added.
+
+Verified:
+
+- `pnpm --filter @kayu/schemas type-check`
+- `pnpm --filter @kayu/schemas build`
+- `pnpm --filter @kayu/api type-check`
+- `pnpm --filter @kayu/api build`
+- `pnpm --filter @kayu/backend test:launch` — 97/97 passed, including 14 focused launch-lead contract/protection/persistence tests.
+- `pnpm --filter @kayu/backend type-check`
+- `DATABASE_URL=postgresql://u:p@localhost:5432/db pnpm --filter @kayu/backend build`
+- Fresh temporary Postgres: `prisma migrate deploy` applied `0_init` and `20260725120000_add_launch_leads`; `prisma migrate status` reported the schema up to date and `prisma migrate diff --exit-code` reported `No difference detected`.
+- Production-like Nest smoke: new provider submission, normalized duplicate, and same-contact client submission all returned the generic accepted response. Aggregate database evidence was `ProviderLead=1`, `ClientWaitlistLead=1`, `LeadSubmissionEvent=3`, `User=0`, `Provider=0`; stored contact/IP identifiers were 64-character hashes.
+
+Data/phase checks:
+
+- Provider/client intake code depends only on Prisma lead/taxonomy models and configuration; it injects no identity, Supabase admin, session, user, provider, membership, invitation, or marketplace service.
+- Public DTOs are strict and reject lifecycle state, admin notes, linked account IDs, unknown fields, unsafe attribution, inactive taxonomy IDs, and invalid communes.
+- Every active category/subcategory remains available through the existing taxonomy interfaces; intake accepts any active subcategory, including non-priority categories.
+- Intake defaults disabled and cannot be enabled without a current privacy-notice version and a 32+ character hashing key.
+
+Remaining:
+
+- Campaign landing/forms, browser funnel events, responsive/accessibility/performance/user testing, and campaign route gating are intentionally outside this backend-only change.
+- Operations/privacy must set the real privacy-notice version and intake hash key before enabling the kill switch.
+- The current repository has no shared rate-limit store; focused IP/contact buckets are process-local. Revisit a shared limiter before running multiple backend replicas.
+- Pilot-commune selection and the reviewed home-priority taxonomy-ID configuration remain workstream `01`/operator decisions; neither blocks all-active-category lead capture.
 
 ## Current Gates
 

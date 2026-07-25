@@ -1,6 +1,7 @@
 import type {
   // DTOs
   CompleteProfileDto,
+  CreateClientLeadDtoType,
   ProviderOnboardingDto,
   UpdateProviderDto,
   CreateBookingDto,
@@ -9,6 +10,7 @@ import type {
   CreateReviewDto,
   CreateClientReviewDto,
   CreateMessageDto,
+  CreateProviderLeadDtoType,
   UpdateVisibilityDto,
   AdminUpdateUserDto,
   AdminUpdateProviderDto,
@@ -112,6 +114,7 @@ import type {
   AdminVerificationQueueResponse,
   AvailabilityResponse,
   RecentAddressItem,
+  CreateLaunchLeadResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
@@ -181,6 +184,15 @@ export const categoriesApi = (client: ApiClient) => ({
     client.get<CategoriesResponse>("/categories", params as Record<string, string | number | boolean | undefined>),
   getHierarchy: () =>
     client.get<CategoryHierarchyResponse>("/categories/hierarchy"),
+});
+
+// ---------- Public launch lead intake ----------
+
+export const launchLeadsApi = (client: ApiClient) => ({
+  submitProvider: (data: CreateProviderLeadDtoType) =>
+    client.post<CreateLaunchLeadResponse>("/launch/provider-leads", data),
+  submitClient: (data: CreateClientLeadDtoType) =>
+    client.post<CreateLaunchLeadResponse>("/launch/client-leads", data),
 });
 
 // ---------- Providers ----------
