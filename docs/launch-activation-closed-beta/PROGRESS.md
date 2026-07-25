@@ -14,7 +14,7 @@ The public campaign captures provider and “I need a service” client-demand l
 | --- | --- | --- | --- |
 | 00 — Product And Operational Contract | Done | Planning | Binding phase truth documented |
 | 01 — Launch Scope, Metrics, And Gates | Not started | TBD | All active categories visible; home-services operational priority mapping fixed; choose pilot communes |
-| 02 — Campaign Conversion, Landing, And Lead Data | Not started | TBD | French-first mobile conversion + practical acquisition + lead-only data contract |
+| 02 — Campaign Conversion, Landing, And Lead Data | In review | Web public UX | Public campaign UX/client boundary implemented; backend lead persistence and production G1 evidence remain separate |
 | 03 — Provider Intake, Qualification, Admin | Not started | TBD | Depends on `02` provider lead schema |
 | 04 — Approved Lead Activation And Auth | Not started | TBD | May be built dormant; issuance/claim forbidden before G3 |
 | 05 — Client Demand Waitlist | Not started | TBD | Depends on `02` client lead schema; can parallelize with `03` |
@@ -74,6 +74,51 @@ These do not block documentation; resolve by the stated gate:
 | Separate production Supabase or explicitly accept/mitigate shared-auth risk | Release/privacy owner | Before first invitation/G3 |
 | Confirm privacy/terms versions, withdrawal channel, and retention procedure | Privacy owner | Before G1 |
 | Choose support channel/hours | Operations owner | Before G3 |
+
+### 02 — Campaign Conversion, Landing, And Lead Data
+
+Status: In review (public web campaign-UX half complete; backend/persistence half not changed)
+Owner: Web public UX
+Date: 2026-07-25
+
+Changed:
+
+- Replaced `/` marketplace claims/data with an honest French-first forthcoming-Kinshasa-launch campaign and added direct `/launch/providers` and `/launch/clients` paths.
+- Added two-step provider/client forms with only the required triage fields, collapsed optional details, native accessible controls, French validation/retry/confirmation states, the full server-provided active category/subcategory hierarchy, and all 24 Kinshasa communes.
+- Added a thin unauthenticated web boundary for the documented provider/client lead endpoints. Requests use the documented field names, generic accepted response, bounded attribution, honeypot, `credentials: "omit"`, and no auth/account calls.
+- Added privacy-safe events for landing, role selection, form start, validation failure, and completed submission. URL attribution persists through `sessionStorage`; only bounded source/medium/campaign/content and referrer hostname cross the client boundary.
+- Added presentation-only campaign redirects for public discovery/category/provider/booking/review routes, defaulting `KAYOU_PUBLIC_WEB_MODE` to `campaign`. This does not authorize beta access or replace backend phase/membership enforcement.
+- Added web environment examples for campaign mode, privacy-notice version, and the visible withdrawal/correction contact. No Prisma, backend endpoint, shared API/schema, Admin, auth, marketplace session, invitation, activation, or matching file changed.
+
+Verified:
+
+- `node --test apps/web/src/lib/campaign-copy.test.mjs apps/web/src/lib/campaign-leads.test.mjs apps/web/src/lib/campaign-routing.test.mjs` — 8/8 pass (forthcoming-launch narrative guard, attribution normalization/redaction, privacy-safe event payload, explicit credential-free client submission boundary, device/time buckets, and public-route gating).
+- `pnpm --filter @kayu/web type-check` — pass.
+- `BACKEND_URL=http://localhost:3001 NEXT_PUBLIC_APP_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key pnpm turbo run build --filter=@kayu/web...` — 5/5 workspace build tasks pass; runner warned that local Node 24 is outside the repository's Node 22 engine.
+- Local mock-backed browser QA completed both provider and client submissions at 320px and reached their distinct French early-access confirmation states. A non-priority `Électricité automobile` client need submitted successfully.
+- Responsive browser checks at 320, 360, 390, 430, 768, and 1440px reported no horizontal overflow. At 320px both role choices are visible before the form; focus order, native labels, select/radio/checkbox semantics, keyboard-size controls, and zero browser console errors were checked.
+- The selector rendered all 15 current categories and 40 current subcategories from the existing taxonomy source, with no synthetic home-services category and no public priority styling/filter.
+- Final 320px copy QA confirmed the site-wide “KAYOU arrive bientôt à Kinshasa” narrative, free pre-registration, audience-specific provider/client benefits, and no visible beta/test/waitlist jargon.
+
+Data/phase checks:
+
+- Campaign code contains no Supabase/auth import and sends only lead DTO fields to `/api/launch/provider-leads` or `/api/launch/client-leads`; browser submissions were exercised only against a temporary no-persistence mock.
+- Analytics payload construction has no name, phone, email, summary, exact address, referrer path/query, auth metadata, or raw token field; analytics dispatch is best-effort and form success does not depend on it.
+- The redirect is explicitly presentation-only. No server phase, membership, marketplace entitlement, account creation, or seeded marketplace data is read by the campaign page.
+- Production database/auth diff proof remains owned by the backend intake implementation because this scoped branch neither defines nor modifies persistence/endpoints.
+
+Decisions:
+
+- Binding copy decision: keep both paths action-first and non-text-heavy. Core messages use short French headings, compact supporting lines, icons/cards, and progressive disclosure; only required consent/privacy language remains denser.
+- Public narrative decision: frame the entire campaign—not only the hero—as “KAYOU arrive bientôt à Kinshasa,” with free pre-registration and the benefit of being among the first providers or first people to seek a trusted provider. Public paths, CTAs, validation, confirmations, metadata, and microcopy avoid beta/test/waitlist jargon and do not promise access, work, income, or immediate provider availability.
+- Load taxonomy on the server and submit stable active subcategory IDs. Do not fall back to seed slugs as IDs when the taxonomy API is unavailable; instead show a retryable unavailable state.
+- Keep source attribution across validation/retry without storing form PII, and omit browser auth credentials from the public lead request.
+
+Remaining:
+
+- Implement and verify the documented NestJS lead endpoints, abuse controls, idempotency, persistence, and no-auth/user/provider database diff in the backend-owned workstream 02 half.
+- Confirm the production privacy notice value and `confidentialite@kayou.cd` withdrawal channel before G1; override the documented web environment values if privacy owners choose different approved values.
+- Complete fluent Kinshasa French review and 5–8 target-user phone tests, real slow-network/retry testing, production mobile p75 Core Web Vitals, and the named/capped first acquisition experiment.
 
 ## Shared Contract Changes
 
