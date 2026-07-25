@@ -104,7 +104,7 @@ export function CampaignLanding({
   }, []);
 
   return (
-    <div className="min-h-screen bg-[var(--k-bg)] text-[var(--k-text-primary)]">
+    <div className="k-campaign min-h-screen bg-[var(--k-bg)] text-[var(--k-text-primary)]">
       <header className="border-b border-[var(--k-border)] bg-[rgba(250,250,249,0.94)]">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <Link

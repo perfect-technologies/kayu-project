@@ -37,6 +37,27 @@ test("global CSS cannot re-enable smooth scrolling under reduced motion", async 
   );
 });
 
+test("campaign loading and interactive transitions respect reduced motion", async () => {
+  const [css, landing, form, privacy] = await Promise.all([
+    readFile("apps/web/src/app/globals.css", "utf8"),
+    readFile("apps/web/src/app/launch/CampaignLanding.tsx", "utf8"),
+    readFile("apps/web/src/app/launch/CampaignForm.tsx", "utf8"),
+    readFile("apps/web/src/app/launch/confidentialite/page.tsx", "utf8"),
+  ]);
+
+  assert.match(landing, /className="k-campaign /);
+  assert.match(privacy, /className="k-campaign /);
+  assert.match(form, /className="k-campaign-spinner [^"]*animate-spin"/);
+  assert.match(
+    css,
+    /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.k-campaign \.k-campaign-spinner\s*\{[\s\S]*?animation:\s*none\s*!important/,
+  );
+  assert.match(
+    css,
+    /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.k-campaign :is\(button, a, input, select, textarea, summary, \[role="button"\]\)[\s\S]*?transition:\s*none\s*!important/,
+  );
+});
+
 test("public mode fails closed unless marketplace is explicitly configured", () => {
   assert.equal(resolvePublicWebMode(undefined), "campaign");
   assert.equal(resolvePublicWebMode(""), "campaign");

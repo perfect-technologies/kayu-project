@@ -964,7 +964,7 @@ export function CampaignForm({
                   <>
                     <LoaderCircle
                       aria-hidden
-                      className="h-4 w-4 animate-spin"
+                      className="k-campaign-spinner h-4 w-4 animate-spin"
                     />
                     Envoi…
                   </>

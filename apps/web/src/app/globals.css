@@ -510,6 +510,15 @@
   .k-auth-success {
     animation: none !important;
   }
+
+  .k-campaign .k-campaign-spinner {
+    animation: none !important;
+  }
+
+  .k-campaign :is(button, a, input, select, textarea, summary, [role="button"]),
+  .k-campaign :is(button, a, input, select, textarea, summary, [role="button"]) * {
+    transition: none !important;
+  }
 }
 
 @layer utilities {
