@@ -229,19 +229,21 @@ automatically as the `preDeployCommand` before each backend service start.
 pre-1300 database with missing taxonomy IDs: its own validated foreign keys
 would fail first. Do not run `prisma migrate deploy` directly in that state.
 Use the mandatory preflight gate below. `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`
-is forward-only and recognizes the audit table created by that gate; it cannot
-repair a failed 1300 deployment retroactively.
+is forward-only. `20260725160000_import_preflight_lead_taxonomy_snapshots`
+imports the gate's durable audit rows after 1500; neither can repair a failed
+1300 deployment retroactively.
 
 Supported upgrade matrix:
 
 - Fresh database: `migrate deploy` is supported.
 - 1200 applied, no orphaned taxonomy IDs: `migrate deploy` is supported.
 - 1200 applied with orphaned IDs: run the gate below, then `migrate deploy`.
-- 1300 already applied: `migrate deploy` applies 1400/1500 normally.
+- 1300 or 1500 already applied: `migrate deploy` applies only later migrations normally.
 
 For the pre-1300 orphan case, first run
 `apps/backend/prisma/launch-leads-taxonomy-preflight-capture.sql` with `psql`.
-Review `LeadTaxonomySnapshotOrphan`, insert an approved valid replacement and
+Review `LeadTaxonomyPreflightSnapshot`, insert an approved active-subcategory/
+active-category replacement and
 note into `LeadTaxonomyPreflightPrimaryResolution` for every provider-primary
 exception, then run `launch-leads-taxonomy-preflight-remediate.sql`. That script
 fails closed without every required approved mapping, preserves every removed
@@ -278,9 +280,10 @@ The protected launch-lead migration checksums are:
 
 - `20260725120000_add_launch_leads`: `d1f4746a201ee0bd565becca44346547084a2c71307bff0f8347893f31d3d030`
 - `20260725130000_harden_launch_leads`: `acd6e6b8ef5089759eb0ef5f47845d23e3b13a13a21b26cb69d8a3788a6552ce`
-- `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`: `0696d9a09ba6f71e004f1eb1147a6350dbd8f1918cea74152b8b521f99fb517a`
+- `20260725150000_preserve_orphaned_lead_taxonomy_snapshots`: `ff8bd762ec7d9df0e3afa27a4ec830df4892f03e3fe3eb474e053779d7173573`
+- `20260725160000_import_preflight_lead_taxonomy_snapshots`: `d28849daf8cc2b17b56daa9e6c9e8bd9e4cad62c69e5dbb1ab4a93d18adfd6d3`
 
-`test:launch` byte-checks all three migrations. Do not edit an applied
+`test:launch` byte-checks all four migrations. Do not edit an applied
 migration; create a later forward migration instead.
 
 ### Baseline for an existing database previously managed by `prisma db push`
