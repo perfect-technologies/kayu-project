@@ -380,8 +380,11 @@ model ProviderLead {
   firstName                String
   phoneE164                String                              @unique
   emailNormalized          String?
-  primarySubcategoryId     String
-  primarySubcategory       Subcategory                         @relation("ProviderLeadPrimarySubcategory", fields: [primarySubcategoryId], references: [id], onDelete: Restrict)
+  // The staged database FK rejects invalid future references. This remains
+  // optional in Prisma so a historical immutable snapshot with a removed
+  // taxonomy target can be read safely as `primarySubcategory: null`.
+  primarySubcategoryId     String?
+  primarySubcategory       Subcategory?                        @relation("ProviderLeadPrimarySubcategory", fields: [primarySubcategoryId], references: [id], onDelete: Restrict)
   additionalSubcategoryIds String[]                            @default([])
   additionalSubcategories  ProviderLeadAdditionalSubcategory[]
   experienceBand           ProviderLeadExperienceBand
