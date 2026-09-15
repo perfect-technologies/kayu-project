@@ -17,11 +17,6 @@ Marketplace connecting clients to verified service providers in RDC and Congo-Br
 - Shared DTOs: `packages/schemas/src/dto.ts` (Zod)
 - Typed API client: `packages/api/src/endpoints.ts`
 
-## Specs and plans
-
-- Specs go in `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-- Plans go in `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
-
 ## Backend conventions
 
 - Service logic tested via `node:test` + hand-rolled Prisma fakes (see `apps/backend/src/modules/admin/admin.service.spec.ts` and `.../stats/stats.service.spec.ts` as references).
