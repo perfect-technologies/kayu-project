@@ -11,7 +11,7 @@ export type PublicWebMode = "campaign" | "marketplace";
 export function resolvePublicWebMode(
   configuredMode: string | undefined,
 ): PublicWebMode {
-  return configuredMode === "marketplace" ? "marketplace" : "campaign";
+  return configuredMode === "campaign" ? "campaign" : "marketplace";
 }
 
 export function isCampaignPublicMarketplacePath(pathname: string): boolean {
@@ -20,15 +20,8 @@ export function isCampaignPublicMarketplacePath(pathname: string): boolean {
   );
 }
 
-export function isCampaignShellPath(
-  pathname: string,
-  publicMode: PublicWebMode,
-): boolean {
-  return (
-    pathname === "/launch" ||
-    pathname.startsWith("/launch/") ||
-    (publicMode === "campaign" && pathname === "/")
-  );
+export function isCampaignShellPath(pathname: string): boolean {
+  return pathname === "/launch" || pathname.startsWith("/launch/");
 }
 
 export function isCampaignAuthRequest(

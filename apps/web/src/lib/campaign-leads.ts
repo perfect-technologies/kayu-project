@@ -343,7 +343,7 @@ function funnelRoute(
   if (pathname === "/launch/providers" || pathname === "/launch/clients") {
     return pathname;
   }
-  return "/";
+  return "/launch";
 }
 
 function funnelValidationField(
@@ -382,7 +382,7 @@ export function buildLaunchFunnelEventRequest(
     schemaVersion: 1,
     eventName: event,
     occurredAt: context.occurredAt ?? new Date().toISOString(),
-    route: funnelRoute(context.pathname ?? "/"),
+    route: funnelRoute(context.pathname ?? "/launch"),
     deviceClass: deviceClassForWidth(context.deviceWidth ?? 390),
   };
 

@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
   const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
 
   if (isCampaignAuthRequest(request.nextUrl.pathname, publicMode)) {
-    const campaignUrl = new URL("/", request.url);
+    const campaignUrl = new URL("/launch", request.url);
     for (const key of CAMPAIGN_ATTRIBUTION_KEYS) {
       const value = request.nextUrl.searchParams.get(key);
       if (value) campaignUrl.searchParams.set(key, value);
@@ -33,7 +33,7 @@ export function proxy(request: NextRequest) {
     publicMode === "campaign" &&
     isCampaignPublicMarketplacePath(request.nextUrl.pathname)
   ) {
-    const campaignUrl = new URL("/", request.url);
+    const campaignUrl = new URL("/launch", request.url);
     campaignUrl.search = request.nextUrl.search;
     return NextResponse.redirect(campaignUrl);
   }

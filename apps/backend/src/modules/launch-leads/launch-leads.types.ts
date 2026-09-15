@@ -61,7 +61,7 @@ export type CreateLaunchFunnelEventInput = {
     | "launch_form_validation_failed"
     | "launch_lead_submitted";
   occurredAt: string;
-  route: "/" | "/launch/providers" | "/launch/clients";
+  route: "/launch" | "/launch/providers" | "/launch/clients";
   deviceClass: "mobile" | "tablet" | "desktop" | "unknown";
   leadType?: "PROVIDER" | "CLIENT";
   validationField?: string;

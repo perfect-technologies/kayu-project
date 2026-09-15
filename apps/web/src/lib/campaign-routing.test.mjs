@@ -58,12 +58,13 @@ test("campaign loading and interactive transitions respect reduced motion", asyn
   );
 });
 
-test("public mode fails closed unless marketplace is explicitly configured", () => {
-  assert.equal(resolvePublicWebMode(undefined), "campaign");
-  assert.equal(resolvePublicWebMode(""), "campaign");
-  assert.equal(resolvePublicWebMode("CAMPAIGN"), "campaign");
-  assert.equal(resolvePublicWebMode("invalid"), "campaign");
+test("public mode is the open marketplace unless campaign is explicitly configured", () => {
+  assert.equal(resolvePublicWebMode(undefined), "marketplace");
+  assert.equal(resolvePublicWebMode(""), "marketplace");
+  assert.equal(resolvePublicWebMode("CAMPAIGN"), "marketplace");
+  assert.equal(resolvePublicWebMode("invalid"), "marketplace");
   assert.equal(resolvePublicWebMode("marketplace"), "marketplace");
+  assert.equal(resolvePublicWebMode("campaign"), "campaign");
 });
 
 test("campaign mode blocks the account-auth route and marketplace mode enables it", () => {
@@ -80,15 +81,17 @@ test("Supabase user creation is enabled only for explicit marketplace signup", (
 });
 
 test("campaign routes select the minimal public shell", () => {
-  assert.equal(isCampaignShellPath("/", "campaign"), true);
-  assert.equal(isCampaignShellPath("/launch/providers", "campaign"), true);
-  assert.equal(isCampaignShellPath("/launch/confidentialite", "marketplace"), true);
-  assert.equal(isCampaignShellPath("/", "marketplace"), false);
-  assert.equal(isCampaignShellPath("/auth", "campaign"), false);
+  assert.equal(isCampaignShellPath("/launch"), true);
+  assert.equal(isCampaignShellPath("/launch/providers"), true);
+  assert.equal(isCampaignShellPath("/launch/confidentialite"), true);
+  assert.equal(isCampaignShellPath("/"), false);
+  assert.equal(isCampaignShellPath("/auth"), false);
+  assert.equal(isCampaignShellPath("/launchpad"), false);
 });
 test("campaign presentation does not claim to authorize protected or campaign routes", () => {
   for (const pathname of [
     "/",
+    "/launch",
     "/launch/providers",
     "/launch/clients",
     "/auth",

@@ -108,7 +108,7 @@ export function CampaignLanding({
       <header className="border-b border-[var(--k-border)] bg-[rgba(250,250,249,0.94)]">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <Link
-            href="/"
+            href="/launch"
             aria-label="KAYOU — accueil de la campagne"
             className="inline-flex min-h-11 items-center gap-2.5"
           >

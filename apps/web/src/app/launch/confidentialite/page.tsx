@@ -48,7 +48,7 @@ export default function CampaignPrivacyPage() {
       <header className="border-b border-[var(--k-border)] bg-[var(--k-surface)]">
         <div className="mx-auto flex max-w-[760px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link
-            href="/"
+            href="/launch"
             aria-label="KAYOU — retour à la préinscription"
             className="inline-flex min-h-11 items-center gap-2.5"
           >
@@ -115,7 +115,7 @@ export default function CampaignPrivacyPage() {
         </section>
 
         <Link
-          href="/"
+          href="/launch"
           className="k-btn k-btn-primary mt-6 min-h-12 w-full sm:w-auto"
         >
           Retour à la préinscription

@@ -13,7 +13,7 @@ export default function AuthPage() {
   const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
 
   if (publicMode === "campaign") {
-    redirect("/");
+    redirect("/launch");
   }
 
   return <AuthFlow signupEnabled={publicMode === "marketplace"} />;

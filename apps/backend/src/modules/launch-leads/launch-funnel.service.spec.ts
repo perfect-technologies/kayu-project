@@ -63,7 +63,7 @@ test("rejects stale and future-dated funnel events", async () => {
   const event = {
     schemaVersion: 1 as const,
     eventName: "launch_landing_viewed" as const,
-    route: "/" as const,
+    route: "/launch" as const,
     deviceClass: "unknown" as const,
   };
 

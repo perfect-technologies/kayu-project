@@ -165,7 +165,7 @@ test("funnel contract enforces event-specific fields and canonical routes", asyn
   const baseEvent = {
     schemaVersion: 1,
     occurredAt: new Date().toISOString(),
-    route: "/",
+    route: "/launch",
     deviceClass: "desktop",
   };
 

@@ -212,7 +212,7 @@ export const LAUNCH_FUNNEL_DEVICE_CLASSES = [
 ] as const;
 
 export const LAUNCH_FUNNEL_ROUTES = [
-  "/",
+  "/launch",
   "/launch/providers",
   "/launch/clients",
 ] as const;

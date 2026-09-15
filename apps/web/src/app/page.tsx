@@ -1,19 +1,62 @@
-import { CampaignLanding } from "./launch/CampaignLanding";
-import {
-  campaignPublicConfig,
-  loadCampaignCategories,
-} from "./launch/campaign-data";
+import { createServerApiClient } from "@/lib/api";
+import { statsApi, categoriesApi, providersApi } from "@kayu/api";
+import HomePageClient from "./HomePageClient";
+import { buildCategoryLookup, toProviderCardData } from "@/lib/provider-card";
+import type { ProviderCardData } from "@kayu/ui";
+import type { TrendingServicesResponse } from "@kayu/schemas";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const categories = await loadCampaignCategories();
+  const client = createServerApiClient();
+
+  let stats = null;
+  let categories: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    icon: string | null;
+    color: string | null;
+    providersCount: number;
+  }> = [];
+  let featured: ProviderCardData[] = [];
+  let trending: TrendingServicesResponse = { mode: "discovery", items: [] };
+
+  try {
+    const [statsRes, catRes, providersRes, trendingRes] = await Promise.all([
+      statsApi(client).getGlobal(),
+      categoriesApi(client).getHierarchy(),
+      providersApi(client).search({ limit: 6 } as Record<string, string | number | boolean | undefined>),
+      statsApi(client).getTrending().catch(() => ({ mode: "discovery" as const, items: [] })),
+    ]);
+    stats = statsRes;
+    const rawCategories = Array.isArray(catRes) ? catRes : (catRes as { categories?: unknown[] })?.categories ?? [];
+    categories = (rawCategories as Array<Record<string, unknown>>).map((cat) => ({
+      id: (cat.id as string) ?? "",
+      name: cat.name as string,
+      slug: (cat.slug as string) ?? "",
+      description: (cat.description as string) ?? undefined,
+      icon: (cat.icon as string | null) ?? null,
+      color: (cat.color as string | null) ?? null,
+      providersCount: (cat.providersCount as number) ?? 0,
+    }));
+    const categoryLookup = buildCategoryLookup(categories);
+    const rawProviders = (providersRes as { providers?: unknown[] })?.providers ?? [];
+    featured = (rawProviders as Array<Record<string, unknown>>).map((p) =>
+      toProviderCardData(p, categoryLookup),
+    );
+    trending = trendingRes;
+  } catch {
+    // SSR fallback: backend unavailable
+  }
 
   return (
-    <CampaignLanding
-      categories={categories}
-      privacyNoticeVersion={campaignPublicConfig.privacyNoticeVersion}
-      privacyContact={campaignPublicConfig.privacyContact}
+    <HomePageClient
+      initialStats={stats}
+      initialCategories={categories}
+      featuredProviders={featured}
+      trending={trending}
     />
   );
 }
