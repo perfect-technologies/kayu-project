@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration A in progress (01 in review)**
+Overall status: **Iteration A in progress (01 done; 02 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -13,7 +13,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | Workstream | Status | Owner | Dependencies / notes |
 | --- | --- | --- | --- |
 | 00 — Product And Design Contract | Done | Planning | Frozen 2026-09-16 |
-| 01 — Domain And Schema Reset | In review | Claude (agent), started 2026-09-16 | Branch `kyou-ux/01-schema`, uncommitted pending owner review; all acceptance commands pass (see evidence) |
+| 01 — Domain And Schema Reset | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/01-schema` merged into `refactor/kyou-ux`; all acceptance commands pass (see evidence) |
 | 02 — Backend Modules | Not started | TBD | After 01 merges |
 | 03 — Shared Packages | Not started | TBD | After 02 contract is fixed |
 | 04 — Web Shell And Design System | Not started | TBD | After 03 |
@@ -106,7 +106,7 @@ Add implementation evidence below as each workstream completes.
 
 ### 01 — Domain And Schema Reset
 
-Status: In review (2026-09-16). Branch `kyou-ux/01-schema` from `refactor/kyou-ux` (both created at `89f1324`). Nothing committed yet: owner review first.
+Status: Done (2026-09-16). Branch `kyou-ux/01-schema` from `refactor/kyou-ux` (both created at `89f1324`), reviewed by the owner and merged into `refactor/kyou-ux` locally (not pushed).
 
 #### Changed files
 
