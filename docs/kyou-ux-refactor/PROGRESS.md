@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration B in progress (01–06 done; 09 next, then 07–08 in parallel)**
+Overall status: **Iteration C in progress (01–07 done; 08 and 09 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -19,7 +19,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 04 — Web Shell And Design System | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/04-shell`, uncommitted pending owner review; type-check, build, redirects, overflow, reduced-motion and keyboard checks green; contract handed over in `handover/04-web-shell.md` |
 | 05 — Web Public Screens | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/05-public`, uncommitted pending owner review; type-check, build, SSR, overflow (30/30), 22 browser interaction checks and the signed-in API paths green; contract handed over in `handover/05-web-public-screens.md` |
 | 06 — Web Auth And Provider Onboarding | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/06-auth-onboarding`, uncommitted pending owner review; type-check, production build, redirects, 76 browser checks (320/390/1440, reduced motion) and an end-to-end wizard publish green; contract handed over in `handover/06-web-auth-and-onboarding.md` |
-| 07 — Web Client And Provider Spaces | Not started | TBD | Parallel with 05, 06, 08 |
+| 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
 | 08 — Web Admin Console | Not started | TBD | Parallel with 05–07 |
 | 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change. `/launch*` still reads the deleted `--k-*` variables, so it renders unstyled until 09 |
 | 10 — QA, Migration And Release | Not started | TBD | Scaffold during wave 3; finish last |
@@ -140,6 +140,16 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (06) Admins editing another provider get a "Modération" tab (`hidden`, `premiumTier`, `verificationStatus`, `rejectionReason` → `PATCH /admin/providers/:id`) and every content tab wrapped in a disabled `fieldset` | One write path per field, as the doc requires; the disabled fieldset covers uploads, drag handles and selects without threading a prop through every step |
 | 2026-09-16 | (06) Wizard draft key `kayou.providerDraft`, envelope `{ v: 1, savedAt, draft }`, includes the current step and the uploaded media paths | Reload on the same tab restores the step, the tiles and the accepted terms; a version bump discards stale drafts |
 | 2026-09-16 | (06) The redirect row `/pro/profile/:rest*` → `/prestataire/me/modifier` replaces 04's `→ /compte`; the editor page resolves `me` server-side through the Supabase cookie (`/me` → own id, or the wizard, or `/login?returnTo=`) | The 06 doc's row; `/pro/profile/*` were provider content pages, not account settings |
+| 2026-09-17 | (07) `PageHeader`, `StatusPill`, `MetricCard`, `ConfirmSheet`, `ErrorCard`, `SkeletonCard`, `MiniAvatar` and `EmptyState` live in `apps/web/src/components/ui/` | The 07 doc credits them to 04, but 04 never built them; `components/ui/` is where 05 put its app-level composites and 08 can reuse them from there |
+| 2026-09-17 | (07) Copy is one module per screen (`copy/{bookings,espace,revenus,avis,notifications,aide,adresses,compte,messagerie}.ts`) plus `copy/spaces.ts` for the shared blocks, not a single `spaces.ts` | Matches the 07 doc's file list and the 05/06 convention of one module per route group |
+| 2026-09-17 | (07) Provider dashboard pieces live in `components/espace/` (the doc's name), not `components/dashboard/` (the handoff map's name) | The doc is the contract; nothing else references `dashboard/` |
+| 2026-09-17 | (07) New guard `RequireClientOnly` sends admins to `/admin` on `/mes-reservations`, `/avis`, `/adresses` | 04's `RequireRole CLIENT` lets admins through as clients, but `/dashboard/client`, `/reviews/mine` and `/addresses` answer 403 for ADMIN, so the doc's guard matrix (ADMIN → `/admin`) is the only working rule |
+| 2026-09-17 | (07) Messaging safety is `ThreadSafety` (report `targetKind: "CONVERSATION"`, block the counterpart user id, stay on the thread) rather than 05's `SafetyActions` | `SafetyActions` needs a provider id and redirects to `/rechercher`; a provider viewer's counterpart is a plain user, and a blocked thread must stay visible with its notice |
+| 2026-09-17 | (07) The pending-request accordion and the booking detail fetch `GET /bookings/:id` for the client phone and notes; `BookingCard` shows notes only when the caller passes them | The `BookingCard` DTO carries neither `clientPhone` nor `clientNotes`; only the detail does |
+| 2026-09-17 | (07) The messaging thread hides the dock through `body[data-dock="hidden"]` (two rules in `globals.css`) instead of a `MobileNav` prop | 07 may not edit the layout; a body attribute is the smallest hook and reverts on unmount |
+| 2026-09-17 | (07) Account deletion signs out through the Supabase client and hard-reloads on `/` instead of calling `useAuth().signOut()` | The context sets `anonymous` before its own `router.push("/")`, so `ProtectedRoute` on `/compte` won the race and landed on `/login?returnTo=/compte` |
+| 2026-09-17 | (07) `VoiceRecorder` is extracted from 05's `AttachmentBar` (2-minute cap, timer pill, cancel/confirm); `AttachmentBar` keeps its props so 05's `MessageComposer` is untouched | The 07 doc lists both files; one recorder serves the profile composer and the thread composer |
+| 2026-09-17 | (07) `/avis` "Évaluer" links to `/prestataire/[id]?review=[bookingId]` although the 05 profile page ignores the parameter | 05's `ReviewForm` picks the latest eligible booking itself, so the link works; the parameter stays for when the form reads it |
 
 ## Open Questions
 
@@ -170,6 +180,10 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (06 → owner) The real SMS path (Supabase `signInWithOtp` → `verifyOtp`) was not exercised end to end: no test OTP is configured on the project and sending real SMS to invented numbers was not attempted. The phone step, error mapping and the post-OTP name/terms/matrix logic are covered by code paths shared with the password demo login.
 - (06 → 04) `shellCopy.screenTitles.{welcome,login,register,becomeProvider,editProvider,verification}` are no longer read by any page (each route owns its metadata copy); 04 can prune them with the `homePlaceholder` block.
 - (06 → 07) `/compte` should not duplicate the provider fields; the doc moved `services`, `availability` and `zones` into the editor tabs.
+- (07 → 02, 10) After `DELETE /me` the Supabase user is removed but the caller's access token stays valid until expiry, and a later `GET /me` with it provisions a brand-new `User` row (observed on `kayu_05_verify`: new id, `auth/v1/admin/users/:id` → 404). The web never does this (it signs out and reloads), but a script or a stale tab can; provisioning should refuse a subject whose Supabase user is gone, or deletion should revoke sessions first.
+- (07 → 10) The `message-attachments` bucket is also missing on the shared Supabase project: `POST /me/uploads/sign?purpose=attachments` → 500, so image and voice attachments cannot be uploaded until 10 creates it. The composer shows the inline error; the signed-read rendering path (`GET /me/media/sign-read`) is implemented but was not exercised end to end.
+- (07 → 05) The profile page could read `?review=[bookingId]` to preselect the booking in `ReviewForm`; today it picks the latest eligible booking.
+- (07 → 04) `useUnreadNotifications()` polls every 60 s and the notifications screen invalidates `["notifications"]` on every mark-read; if 02 adds `unreadNotifications` to `GET /me` (open note from 04) both should switch to it.
 - (05 → owner) During verification a seed run mis-targeted the old `kayu` dev database (the intended `kayu_05_verify` URL rewrite failed silently) and its `clearDatabase()` step emptied the old-schema `Message`, `Conversation`, `Transaction`, `Review`, `ClientReview`, `Booking` and `Notification` tables before failing on the missing `Report` table. Users, providers and every launch-lead table are untouched. That data was on the schema the refactor discards, but it was not backed up first.
 
 ## How To Update This File
@@ -466,7 +480,36 @@ Status: Done (2026-09-16). Branch `kyou-ux/06-auth-onboarding` from `refactor/ky
 
 ### 07 — Web Client And Provider Spaces
 
-Status: Not started
+Status: Done (2026-09-17). Branch `kyou-ux/07-spaces` from `refactor/kyou-ux` at `3fec1a3`; changes left uncommitted for the owner's diff review. Handover: `handover/07-web-client-and-provider-spaces.md`.
+
+#### Changed files
+
+- Routes (placeholders replaced): `(shell)/mes-reservations/{page,MesReservationsClient}.tsx`, `(shell)/reservation/[id]/{page,ReservationDetailClient}.tsx`, `(shell)/mon-espace/{page,MonEspaceClient}.tsx`, `(shell)/revenus/{page,RevenusClient}.tsx`, `(shell)/avis/{page,AvisClient}.tsx`, `(shell)/notifications/{page,NotificationsClient}.tsx` + `notification-links.ts`, `(shell)/aide/{page,AideClient}.tsx`, `(shell)/adresses/{page,AdressesClient}.tsx`, `(shell)/compte/{page,CompteClient}.tsx`, `(shell)/messagerie/{page,MessagerieClient}.tsx`. Only 08's admin placeholder remains; `components/placeholder/` goes with it.
+- `components/ui/`: `PageHeader`, `StatusPill`, `MetricCard`, `ConfirmSheet`, `ErrorCard`, `SkeletonCard` (+ `SkeletonList`), `MiniAvatar`, `EmptyState`.
+- `components/bookings/`: `BookingCard`, `BookingActions` (+ `invalidateBookingQueries`), `ClientRatingForm`, `format.ts`.
+- `components/espace/`: `Greeting`, `StatusBanner`, `MetricsRow`, `RequestAccordion`, `ProfileRow`, `HistoryList`, `WeekBars`.
+- `components/messaging/`: `ConversationList`, `ConversationRow`, `Thread`, `ThreadHeader`, `ThreadSafety`, `MessageBubble`, `MessageAttachments`, `Composer`, `VoiceRecorder`, `thread-cache.ts`, `useConversationPolling.ts`, `useSignedAttachment.ts`; `AttachmentBar` rewired to `VoiceRecorder` (same props).
+- `components/account/`: `ProfileHeaderCard`, `ProfilePhotoUploader`, `PremiumStatusCard`, `QuickAccessGrid`, `ProfileForm`, `AccountSecurityCard`. `components/addresses/`: `AddressRow`, `AddressSheet`.
+- `copy/{spaces,bookings,espace,revenus,avis,notifications,aide,adresses,compte,messagerie}.ts`.
+- Edits outside the owned paths, each logged above: `components/guards/RequireClientOnly.tsx` (+ one export line in `guards/index.ts`), two `body[data-dock="hidden"]` rules in `globals.css`. `scripts/spaces-smoke.mjs` is the Playwright pass handed to 10.
+- Screenshots: `docs/kyou-ux-refactor/screenshots/07/` (48 files: every route × client/provider × 320/390/1440, the booking detail for both sides, the messaging thread).
+- Nothing deleted beyond the ten placeholders: the old routes, `components/dashboard`, `components/settings`, `lib/booking-v2.ts` and the `.k-messages-*` rules were already removed by 04, and the redirect rows already exist in `next.config.ts`. `/compte` carries no provider fields (06's note).
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors |
+| `NODE_ENV=production pnpm --filter @kayu/web build` | Pass; the ten routes appear in the route table |
+| Line / token audit over the owned folders | No file over 203 lines; no inline hex colour; no French literal outside `copy/*` |
+| `PW_CHANNEL=chrome node scripts/spaces-smoke.mjs --shots …/screenshots/07` (Chrome; client, provider, admin, anonymous, throwaway phone user) | 75/76: every route renders with the expected H1 and no horizontal overflow at 320/390/1440 for both roles, `/reservation/[id]` for both sides, the thread hides the dock on mobile; redirect matrix (anonymous → `/login?returnTo=`, provider → `/mon-espace`, client → `/mes-reservations`, admin → `/admin`) and the seven 308 rows; tabs filter to the right pills; mark-read drops `unreadCount` by one; availability toggle flips `isAvailable` on the API and back; `/revenus` shows the ledger total (77 500 FC) and links rows to `/reservation/[id]`; profile save round-trips `bio` through `PATCH /me/profile`; address create then delete; message send persists, the open thread refetches within 16.5 s on a visible tab, own message deleted through the sheet; admin `DELETE /me` → 409 `ADMIN_ACCOUNT`; a throwaway user deletes its account from `/compte`, lands on `/bienvenue` (welcome gate for a fresh phone-sized visitor) and is gone from Supabase Auth. The one failure is `POST /me/uploads/sign?purpose=attachments` → 500 (missing bucket, see open note) |
+| `REDUCED=1 … --only render` | 48/48 renders without overflow under `prefers-reduced-motion: reduce` |
+
+#### Remaining risks
+
+- Image and voice attachments were not uploaded or rendered through signed URLs end to end: the bucket is missing (open note). The recorder, lightbox and `useSignedAttachment` are verified by code review and type-check only.
+- Provider confirm/complete/cancel and the client cancel were exercised through `BookingActions` sheets by code review; the smoke did not mutate the seeded bookings (it would consume the demo data). Each path is a single `bookingsApi` call followed by `invalidateBookingQueries`.
+- The deleted-user token re-provisioning (open note) is a backend behaviour outside 07.
 
 ### 08 — Web Admin Console
 
