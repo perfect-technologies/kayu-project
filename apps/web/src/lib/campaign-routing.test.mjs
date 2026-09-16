@@ -15,10 +15,9 @@ test("campaign presentation redirects public marketplace routes", () => {
   for (const pathname of [
     "/services",
     "/services/plomberie",
-    "/categories/plomberie",
-    "/providers/provider-id",
-    "/book/provider-id",
-    "/review/provider-id",
+    "/rechercher",
+    "/prestataire/provider-id",
+    "/prestataire/nouveau",
   ]) {
     assert.equal(isCampaignPublicMarketplacePath(pathname), true, pathname);
   }
@@ -68,9 +67,10 @@ test("public mode is the open marketplace unless campaign is explicitly configur
 });
 
 test("campaign mode blocks the account-auth route and marketplace mode enables it", () => {
-  assert.equal(isCampaignAuthRequest("/auth", "campaign"), true);
-  assert.equal(isCampaignAuthRequest("/dashboard", "campaign"), false);
-  assert.equal(isCampaignAuthRequest("/auth", "marketplace"), false);
+  assert.equal(isCampaignAuthRequest("/login", "campaign"), true);
+  assert.equal(isCampaignAuthRequest("/register", "campaign"), true);
+  assert.equal(isCampaignAuthRequest("/mon-espace", "campaign"), false);
+  assert.equal(isCampaignAuthRequest("/login", "marketplace"), false);
 });
 
 test("Supabase user creation is enabled only for explicit marketplace signup", () => {
@@ -85,7 +85,7 @@ test("campaign routes select the minimal public shell", () => {
   assert.equal(isCampaignShellPath("/launch/providers"), true);
   assert.equal(isCampaignShellPath("/launch/confidentialite"), true);
   assert.equal(isCampaignShellPath("/"), false);
-  assert.equal(isCampaignShellPath("/auth"), false);
+  assert.equal(isCampaignShellPath("/login"), false);
   assert.equal(isCampaignShellPath("/launchpad"), false);
 });
 test("campaign presentation does not claim to authorize protected or campaign routes", () => {
@@ -94,10 +94,10 @@ test("campaign presentation does not claim to authorize protected or campaign ro
     "/launch",
     "/launch/providers",
     "/launch/clients",
-    "/auth",
-    "/dashboard",
-    "/bookings",
-    "/pro",
+    "/login",
+    "/mes-reservations",
+    "/mon-espace",
+    "/compte",
   ]) {
     assert.equal(isCampaignPublicMarketplacePath(pathname), false, pathname);
   }

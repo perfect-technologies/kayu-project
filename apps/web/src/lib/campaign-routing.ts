@@ -1,10 +1,6 @@
-const CAMPAIGN_PUBLIC_PREFIXES = [
-  "/services",
-  "/categories",
-  "/providers",
-  "/book",
-  "/review",
-] as const;
+const CAMPAIGN_PUBLIC_PREFIXES = ["/rechercher", "/prestataire", "/services"] as const;
+
+const CAMPAIGN_AUTH_PATHS = ["/login", "/register"] as const;
 
 export type PublicWebMode = "campaign" | "marketplace";
 
@@ -28,7 +24,10 @@ export function isCampaignAuthRequest(
   pathname: string,
   publicMode: PublicWebMode,
 ): boolean {
-  return publicMode === "campaign" && pathname === "/auth";
+  return (
+    publicMode === "campaign" &&
+    (CAMPAIGN_AUTH_PATHS as readonly string[]).includes(pathname)
+  );
 }
 
 export function shouldCreateAuthUser(

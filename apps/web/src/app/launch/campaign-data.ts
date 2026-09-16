@@ -77,10 +77,10 @@ function toCampaignCategories(value: unknown): CampaignCategory[] {
 
 export async function loadCampaignCategories(): Promise<CampaignCategory[]> {
   try {
-    const response = await categoriesApi(
-      createServerApiClient(),
-    ).getHierarchy();
-    return toCampaignCategories(response);
+    const response = await categoriesApi(createServerApiClient()).getTree();
+    return toCampaignCategories(
+      response.items.map((category) => ({ ...category, subcategories: category.children })),
+    );
   } catch {
     // Do not substitute seed slugs for production taxonomy IDs: the lead API
     // accepts only reviewed active IDs. The client renders a retryable state.
