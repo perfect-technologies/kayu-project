@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
 import { ProtectedRoute } from "@/components/guards";
+import { aideCopy } from "@/copy/aide";
+import { AideClient } from "./AideClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.help };
+export const metadata: Metadata = { title: aideCopy.meta.title, description: aideCopy.meta.description };
 
 export default function Page() {
   return (
     <ProtectedRoute>
-      <RoutePlaceholder title={shellCopy.screenTitles.help} workstream="07" container="max-w-3xl" />
+      <AideClient />
     </ProtectedRoute>
   );
 }

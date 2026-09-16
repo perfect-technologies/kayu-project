@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
 import { ProtectedRoute } from "@/components/guards";
+import { compteCopy } from "@/copy/compte";
+import { CompteClient } from "./CompteClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.account };
+export const metadata: Metadata = { title: compteCopy.meta.title, description: compteCopy.meta.description };
 
+/** Any signed-in user; anonymous visitors are sent to /login?returnTo= by the guard. */
 export default function Page() {
   return (
     <ProtectedRoute>
-      <RoutePlaceholder title={shellCopy.screenTitles.account} workstream="07" container="max-w-3xl" />
+      <CompteClient />
     </ProtectedRoute>
   );
 }

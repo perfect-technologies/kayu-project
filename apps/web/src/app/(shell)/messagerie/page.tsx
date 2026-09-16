@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
+import { Suspense } from "react";
 import { ProtectedRoute } from "@/components/guards";
+import { AuthBootScreen } from "@/components/guards/AuthBootScreen";
+import { messagerieCopy } from "@/copy/messagerie";
+import { MessagerieClient } from "./MessagerieClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.messaging };
+export const metadata: Metadata = { title: messagerieCopy.meta.title, description: messagerieCopy.meta.description };
 
+/** Any signed-in user; `?c=<conversationId>` opens a thread. */
 export default function Page() {
   return (
     <ProtectedRoute>
-      <RoutePlaceholder title={shellCopy.screenTitles.messaging} workstream="07" container="max-w-5xl" />
+      <Suspense fallback={<AuthBootScreen />}>
+        <MessagerieClient />
+      </Suspense>
     </ProtectedRoute>
   );
 }

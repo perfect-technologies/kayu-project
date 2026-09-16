@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
 import { RequireRole } from "@/components/guards";
+import { revenusCopy } from "@/copy/revenus";
+import { RevenusClient } from "./RevenusClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.earnings };
+export const metadata: Metadata = { title: revenusCopy.meta.title, description: revenusCopy.meta.description };
 
+/** PROVIDER only; clients are sent to /mes-reservations by the guard. */
 export default function Page() {
   return (
     <RequireRole role="PROVIDER">
-      <RoutePlaceholder title={shellCopy.screenTitles.earnings} workstream="07" container="max-w-4xl" />
+      <RevenusClient />
     </RequireRole>
   );
 }

@@ -227,6 +227,13 @@
   .mobile-dock a:active svg {
     scale: 0.87;
   }
+  /* A full-height screen (the messaging thread) hides the dock so its composer sits at the bottom. */
+  body[data-dock="hidden"] .mobile-dock {
+    display: none;
+  }
+  body[data-dock="hidden"] .app-shell {
+    padding-bottom: 0 !important;
+  }
 
   .compact-footer {
     @apply mt-8 border-t border-border text-muted-foreground;

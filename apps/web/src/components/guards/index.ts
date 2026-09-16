@@ -5,3 +5,4 @@ export { RequireAdmin } from "./RequireAdmin";
 export { RequireOwnerOrAdmin } from "./RequireOwnerOrAdmin";
 export { RequireRole, hasRole, type GuardedRole } from "./RequireRole";
 export { RequireNotProvider } from "./RequireNotProvider";
+export { RequireClientOnly } from "./RequireClientOnly";
