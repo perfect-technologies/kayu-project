@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration A in progress (01, 02 and 03 done; 02 swaps to the shared packages; 04 next)**
+Overall status: **Iteration B in progress (01–04 done; 09 next, then 05–08 in parallel)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -16,12 +16,12 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 01 — Domain And Schema Reset | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/01-schema` merged into `refactor/kyou-ux`; all acceptance commands pass (see evidence) |
 | 02 — Backend Modules | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/02-backend` merged into `refactor/kyou-ux`; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
 | 03 — Shared Packages | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/03-packages` merged into `refactor/kyou-ux`; every package gate green; web type-check red until 04–08 as planned; contract handed over in `handover/03-shared-packages.md` |
-| 04 — Web Shell And Design System | Not started | TBD | After 03 |
-| 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 02, 03, 04 |
+| 04 — Web Shell And Design System | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/04-shell`, uncommitted pending owner review; type-check, build, redirects, overflow, reduced-motion and keyboard checks green; contract handed over in `handover/04-web-shell.md` |
+| 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 04 merges |
 | 06 — Web Auth And Provider Onboarding | Not started | TBD | Parallel with 05, 07, 08 |
 | 07 — Web Client And Provider Spaces | Not started | TBD | Parallel with 05, 06, 08 |
 | 08 — Web Admin Console | Not started | TBD | Parallel with 05–07 |
-| 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change |
+| 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change. `/launch*` still reads the deleted `--k-*` variables, so it renders unstyled until 09 |
 | 10 — QA, Migration And Release | Not started | TBD | Scaffold during wave 3; finish last |
 
 Status values:
@@ -102,6 +102,19 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (03) Web primitives drop the presets with inline French copy (`NoBookingsEmpty`…, `NetworkErrorState`…, `FormErrorBanner`); `EmptyState` / `ErrorState` take `description` and an `action` node; `Input.label` is required (`hideLabel` for search bars); `Button` defaults to `type="button"`; `I.badgeCheck` is `I.verified` (Lucide's `Verified` alias) | Contract §12 keeps copy in `apps/web/src/copy`; §11 rule 8 requires visible labels; the old icon name tripped the removed-domain grep |
 | 2026-09-16 | (03) Button radii follow §9: primary and gold are pills, secondary, ghost and danger use the 14 px field radius | 04 describes `.secondary-action` as a pill; flagged below |
 | 2026-09-16 | (03) The root `package.json` comment about the mobile freeze is a top-level `"//"` key | JSON has no comments; `"//"` is the npm convention |
+| 2026-09-16 | (04) Every pre-refactor route folder (`admin`, `auth`, `book`, `bookings`, `categories`, `dashboard`, `design`, `design-system`, `home`, `messages`, `pro`, `providers`, `quotes`, `review`, `services`, `HomePageClient`) and the component folders `booking`, `bookings`, `dashboard`, `distance`, `layout` (old), `map`, `notifications`, `pro`, `profile`, `provider-profile`, `ratings`, `services`, `settings` are deleted now, not "when the replacement lands" | All 387 web type errors after 03 sat in those files; the 04 definition of done needs a green type-check and build with placeholder pages. Every K-YOU screen is rebuilt anyway; the old code stays in git at `36cc284` for 05–08 to consult |
+| 2026-09-16 | (04) Placeholder pages exist for every route in the navigation matrix and redirect table (`RoutePlaceholder` / `CanvasPlaceholder`, guarded like the real screens), plus a placeholder Home that exercises the shell | Dock and navbar links must resolve and the three viewports must render Home; 05–08 delete each placeholder as they land |
+| 2026-09-16 | (04) Route groups are `(shell)/` (renders `Layout`) and `(canvas)/` (renders `AuthCanvas`); `/bienvenue` sits outside both because it is the one canvas with the top bar; `app/not-found.tsx` wraps `Layout` itself | Root `not-found` renders outside route groups; a group for one route is noise. 05–08 place folders directly under `(shell)/` |
+| 2026-09-16 | (04) `AuthProvider` always renders children; `AuthGate` swaps in `SuspendedScreen` / `AcceptTermsScreen`; the 32 px boot ring is shown only by guards while `status === "loading"` | A provider-level loading screen would kill SSR for `/` and `/prestataire/[id]` (05 requires SSR); contract §11 rule 9 still holds (one full-page loader, auth bootstrap only) |
+| 2026-09-16 | (04) The unread bell count comes from `GET /notifications?limit=1` (`unreadCount`, polled every 60 s), not from `/me`; `AuthUser` has no `unreadNotifications` | `/me` does not return a counter (02 contract). 02 may add one later; then `useUnreadNotifications` reads it instead |
+| 2026-09-16 | (04) `RequireOwnerOrAdmin` takes `providerId` and matches `me.provider.id` | No extra fetch; the 04 doc's `providerOwnerId` would need the provider row first |
+| 2026-09-16 | (04) Secondary actions use the 14 px field radius (`.secondary-action`, `Button variant="secondary"`); primary and gold actions are pills | Contract §9 wins over the 04 §A table; closes the 03 → 04 open question. Navbar "Connexion / Déconnexion" stay pills as in K-YOU |
+| 2026-09-16 | (04) `tw-animate-css` stays imported; `@theme` also defines `--color-popover*`, `--color-card-foreground`, `--color-secondary-foreground`, `--color-destructive-foreground` and `--font-sans` | The kept radix primitives (`sheet`, `dropdown-menu`, `alert-dialog`) use `animate-in/out` and `bg-popover`; reduced motion disables `animate-in/out` too |
+| 2026-09-16 | (04) `components/ui` keeps `button`, `badge`, `card`, `avatar`, `dropdown-menu`, `sheet`, `alert-dialog`, `label`, `scroll-area`, `sonner`; the radix `toast`/`toaster` pair, `hooks/use-toast.ts` and `next-themes` are removed | Toasts go through sonner (`<Toaster>` mounted once in `MarketplaceProviders`); the radix toast was a second, unused toast system |
+| 2026-09-16 | (04) Deleted dependencies: unused `@radix-ui/*`, `@dnd-kit/*`, `@tanstack/react-table`, `recharts`, `cmdk`, `embla-carousel-react`, `input-otp`, `next-themes`, `react-day-picker`, `vaul`; added devDependency `playwright` | Nothing imported them after the ui prune; `scripts/overflow-check.mjs` needs Playwright (Chrome via `PW_CHANNEL=chrome`, no browser download) |
+| 2026-09-16 | (04) Campaign-mode routing (`src/lib/campaign-routing.ts`) intercepts the new public paths `/rechercher`, `/prestataire`, `/services` and the auth pages `/login`, `/register`; `campaign-routing.test.mjs` updated to the same 9 tests; `launch/campaign-data.ts` calls `categoriesApi.getTree()` and maps level-2 `children` to `subcategories` | The old prefixes now 308 before the proxy runs, so campaign mode would have leaked the marketplace; `getHierarchy` no longer exists after 03. 09 verifies the tree mapping; the five campaign test files still pass (28/28) |
+| 2026-09-16 | (04) The K-YOU two-figure mark is ported as a hand-drawn SVG in the token colours (`public/logo.svg`, inline `LogoMark`, `src/app/icon.svg`, `src/app/apple-icon.png`) with a Sora "KAYOU" wordmark; the six blue `kayou-logo*.png` files are deleted | Owner asked for the K-YOU logo and the removal of the blue one; a vector redraw in `primary` / `accent` scales to every size and follows the tokens instead of copying the generated PNG. `/launch*` already loads `/logo.svg`, so the campaign pages pick up the mark without a 09 edit |
+| 2026-09-16 | (04) Copy modules seeded: `copy/shell.ts` (04's `common.ts` in the handoff), `copy/errors.ts` (22 backend codes + `errorMessage()`), `copy/dev.ts` | Doc F names the file `shell.ts`; `errors.ts` is shared by every screen so it ships with the shell |
 
 ## Open Questions
 
@@ -118,9 +131,9 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (02) Should the recommended search sort ignore expired premium tiers? It currently orders by the stored tier.
 - (02 → 08) Deactivating a category or level-2 node does not cascade `isActive` to its children in the admin tree (the public tree hides them anyway). Confirm this is the wanted admin view.
 - (03 → 02) Swap `contractPipe` to `@kayu/schemas` and move `providers/schedule.ts` / `youtube.ts` to `@kayu/utils` (steps and the `localSlotToInstant` ISO change in `handover/03-shared-packages.md`).
-- (03 → 04) Secondary actions: §9 says 14 px radius, 04 §A says a bordered pill. The `@kayu/ui` Button follows §9; 04 decides and either side adjusts.
-- (03 → 04) Primitives read `var(--font-heading)` / `var(--font-body)` before the token font stacks; `next/font` family names are hashed, so 04's `@theme` must keep defining those two variables.
-- (03 → 10) `pnpm test:launch` and the CI "Type-check" and "Web production build" steps stay red at `@kayu/web` until 04–08 replace the old API calls (387 web type errors after 03, expected per README Iteration A).
+- (04 → 02) Should `GET /me` return `unreadNotifications` so the navbar bell stops polling `GET /notifications?limit=1`?
+- (04 → 09) `/launch*` still uses `var(--k-*)` (105 usages) and renders without those variables until 09 lands; 09 should start right after 04 merges.
+- (04 → 06) `input-otp` was removed with the unused primitive; re-add it if the OTP field wants segmented input.
 - (03) `packages/ui/package.json` still lists `@kayu/schemas` although no UI file imports it any more; left alone because the file is outside 03's owned paths.
 
 ## How To Update This File
@@ -306,7 +319,43 @@ Status: Done (2026-09-16). Branch `kyou-ux/03-packages` from `refactor/kyou-ux` 
 
 ### 04 — Web Shell And Design System
 
-Status: Not started
+Status: Done (2026-09-16). Branch `kyou-ux/04-shell` from `refactor/kyou-ux` at `36cc284`; changes left uncommitted for the owner's diff review. Handover: `handover/04-web-shell.md`.
+
+#### Changed files
+
+- `apps/web/src/app/globals.css`: rewritten — Tailwind v4 `@theme` (K-YOU HSL colours, Sora / Plus Jakarta Sans, radii, shadows, `--ease-screen`, `--animate-*` keyframes), base layer (gold 3 px / 4 px focus ring, `color-scheme: light`), the §A component classes, admin rail classes, reduced-motion and fine-pointer blocks. Every `--k-*` variable and `.k-*` class removed except the `.k-campaign` reduced-motion rules (09).
+- `apps/web/src/app/layout.tsx`: Sora + Plus Jakarta Sans via `next/font/google`, French metadata, `theme-color #0A3D36`, `viewport-fit: cover`.
+- `apps/web/src/app/(shell)/layout.tsx`, `(canvas)/layout.tsx`, `bienvenue/page.tsx`, `not-found.tsx`, 25 placeholder pages, `(shell)/admin/AdminPlaceholder.tsx`, `(shell)/dev/tokens/{page,TokensShowcase}.tsx`.
+- `apps/web/src/components/layout/`: `Layout`, `Navbar`, `MobileNav`, `Footer`, `FooterSwitch`, `Logo`, `AuthCanvas`, `AdminRail`, `ScreenTransition`, `ScrollToTop`, `NetworkStatus`, `InteractionEffects`, `SuspendedScreen`, `AcceptTermsScreen`, `MaintenanceBanner`. Old `AppShell`, `Header`, `Footer`, `Layout` deleted.
+- `apps/web/src/components/guards/`: `ProtectedRoute`, `RequireRole`, `RequireAdmin`, `RequireOwnerOrAdmin`, `RequireNotProvider`, `GuestOnly`, `AuthBootScreen`.
+- `apps/web/src/components/providers/`: `AppProviders` (unchanged), `MarketplaceProviders` (query, auth, gate, network banner, pulse, scroll, sonner), `AuthGate`, `QueryProvider`.
+- `apps/web/src/contexts/AuthContext.tsx`: `status` machine, `AuthUser` with terms / suspension / provider, suspended detection on 403 `ACCOUNT_SUSPENDED`, `acceptTerms`, `signOut` → `/`, token-deduped `/me` sync.
+- `apps/web/src/lib/auth-redirects.ts`, `src/hooks/useSiteSettings.ts`, `src/hooks/useUnreadNotifications.ts`, `src/lib/upload.ts` (new `UploadPurpose`, `bytes`).
+- `apps/web/src/components/ui/`: pruned to the keep list; `button`, `badge`, `card`, `sonner` restyled on the tokens; new `skeleton`, `bottom-sheet`, `wizard-steps`, `animated-list`.
+- `apps/web/src/copy/{shell,errors,dev}.ts`; `apps/web/src/components/placeholder/{RoutePlaceholder,CanvasPlaceholder}.tsx`.
+- Brand: `apps/web/public/logo.svg` (the ported K-YOU mark), `src/app/icon.svg`, `src/app/apple-icon.png`; `Logo` / `LogoMark` in `components/layout/Logo.tsx`. Deleted `public/kayou-logo*.png` (6 files).
+- `apps/web/next.config.ts` (`legacyRedirects`, 26 rows), `src/proxy.ts` (new public paths, `/dev/*` 404 in production), `src/lib/campaign-routing.ts` + test, `src/app/launch/campaign-data.ts` (`getTree`).
+- `apps/web/package.json` (dependencies pruned, `playwright`, `check:overflow` script), `apps/web/scripts/overflow-check.mjs`, `pnpm-lock.yaml`.
+- Deleted: 219 files (old routes, chromes, dead component folders, `lib/booking-v2.ts`, `lib/launch-flags.ts`, `lib/provider-card.ts`, `hooks/use-mobile.ts`, `hooks/use-toast.ts`, 38 shadcn primitives).
+- Screenshots: `screenshots/04/{home,rechercher,login,bienvenue,admin,dev-tokens}-{320,390,1440}.png`.
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors (387 before) |
+| `pnpm --filter @kayu/web build` (`.env`: `BACKEND_URL`, Supabase keys) | Pass; 31 routes, proxy compiled |
+| `node --test apps/web/src/lib/*.test.mjs` | 28/28 pass (the five campaign files) |
+| `curl -sI` on the 26 rows of 04 §E against the dev server | Every row 308 to the expected destination; `/services` without a query stays 200; `/auth?mode=signup` → `/register?mode=signup` (query forwarded, harmless) |
+| `PW_CHANNEL=chrome node scripts/overflow-check.mjs --urls / /rechercher /dev/tokens /login /bienvenue /admin --widths 320 390 1440` | 18/18 `scrollWidth === innerWidth` |
+| Playwright checks (Chrome, dev server) | Reduced motion: `.screen-enter` and `.skeleton-sheen::after` `animation-name: none`, no `.touch-pulse` on pointer-down. Normal: `screen-arrive` plays, one pulse per pointer-down, removed after 450 ms. Dock visible and navbar pills hidden below `lg`, inverse at 1440. Footer on exactly `/`, `/services`, `/contact`, `/cgu`, `/confidentialite`. Tab reaches all 6 navbar links and all 4 dock links; focus ring `3px solid rgb(232,174,41)`, offset 4 px. Anonymous on `/mon-espace`, `/mes-reservations`, `/compte`, `/admin`, `/prestataire/nouveau` → `/login?returnTo=<path>` |
+| `next start -p 3005` | `/dev/tokens` and `/dev` → 404; `/` → 200 |
+| Acceptance greps (`AppShell|k-display|k-body|--k-|from "@kayu/ui"` in layout files; `Inter|JetBrains` in `src`; `components/map|FinalOfferDialog|launch-flags|booking-v2`) | All empty; `var(--k-` remains only in `src/app/launch/**` (09) |
+
+#### Remaining risks
+
+- Role-based navbar and dock, the suspended and terms screens, and `RequireRole` redirects were exercised with anonymous sessions and by code review only; the seeded demo accounts (`Password123!`) can drive the signed-in paths once 06 restyles login.
+- `/launch*` is visually broken on the integration branch until 09 (expected per the 04 doc).
 
 ### 05 — Web Public Screens
 
