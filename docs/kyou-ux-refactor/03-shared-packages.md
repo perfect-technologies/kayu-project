@@ -1,6 +1,6 @@
 # 03 - Shared Packages
 
-Status: **In review** (2026-09-16). The packages as implemented, including the deviations from this doc, are described in [`handover/03-shared-packages.md`](./handover/03-shared-packages.md); decisions are logged in `PROGRESS.md` with the prefix "(03)".
+Status: **Done** (2026-09-16). The packages as implemented, including the deviations from this doc, are described in [`handover/03-shared-packages.md`](./handover/03-shared-packages.md); decisions are logged in `PROGRESS.md` with the prefix "(03)".
 
 ## Objective
 
