@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
+import { contactCopy } from "@/copy/contact";
+import { ContactClient } from "./ContactClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.contact };
+export const metadata: Metadata = {
+  title: contactCopy.meta.title,
+  description: contactCopy.meta.description,
+};
 
 export default function Page() {
-  return (
-    <RoutePlaceholder title={shellCopy.screenTitles.contact} workstream="05" container="max-w-5xl" />
-  );
+  return <ContactClient />;
 }

@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
+import { categoriesApi } from "@kayu/api";
+import type { CategoryTreeNode } from "@kayu/schemas";
+import { servicesCopy } from "@/copy/services";
+import { createServerApiClient } from "@/lib/api";
+import { ServicesClient } from "./ServicesClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.services };
+export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return (
-    <RoutePlaceholder title={shellCopy.screenTitles.services} workstream="05" container="max-w-5xl" />
-  );
+export const metadata: Metadata = {
+  title: servicesCopy.meta.title,
+  description: servicesCopy.meta.description,
+};
+
+export default async function Page() {
+  const tree = await categoriesApi(createServerApiClient())
+    .getTree()
+    .catch(() => ({ items: [] as CategoryTreeNode[] }));
+  return <ServicesClient categories={tree.items.filter((node) => node.level === 1)} />;
 }
