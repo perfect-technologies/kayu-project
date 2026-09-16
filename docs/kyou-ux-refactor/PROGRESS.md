@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration C in progress (01–07 done; 08 and 09 next)**
+Overall status: **Iteration C in progress (01–08 done; 09 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -20,7 +20,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 05 — Web Public Screens | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/05-public`, uncommitted pending owner review; type-check, build, SSR, overflow (30/30), 22 browser interaction checks and the signed-in API paths green; contract handed over in `handover/05-web-public-screens.md` |
 | 06 — Web Auth And Provider Onboarding | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/06-auth-onboarding`, uncommitted pending owner review; type-check, production build, redirects, 76 browser checks (320/390/1440, reduced motion) and an end-to-end wizard publish green; contract handed over in `handover/06-web-auth-and-onboarding.md` |
 | 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
-| 08 — Web Admin Console | Not started | TBD | Parallel with 05–07 |
+| 08 — Web Admin Console | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; type-check, production build, 64/64 browser checks and 42/42 reduced-motion renders green; contract handed over in `handover/08-web-admin-console.md` |
 | 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change. `/launch*` still reads the deleted `--k-*` variables, so it renders unstyled until 09 |
 | 10 — QA, Migration And Release | Not started | TBD | Scaffold during wave 3; finish last |
 
@@ -150,6 +150,18 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-17 | (07) Account deletion signs out through the Supabase client and hard-reloads on `/` instead of calling `useAuth().signOut()` | The context sets `anonymous` before its own `router.push("/")`, so `ProtectedRoute` on `/compte` won the race and landed on `/login?returnTo=/compte` |
 | 2026-09-17 | (07) `VoiceRecorder` is extracted from 05's `AttachmentBar` (2-minute cap, timer pill, cancel/confirm); `AttachmentBar` keeps its props so 05's `MessageComposer` is untouched | The 07 doc lists both files; one recorder serves the profile composer and the thread composer |
 | 2026-09-17 | (07) `/avis` "Évaluer" links to `/prestataire/[id]?review=[bookingId]` although the 05 profile page ignores the parameter | 05's `ReviewForm` picks the latest eligible booking itself, so the link works; the parameter stays for when the form reads it |
+| 2026-09-17 | (08) The console lives in `app/(shell)/admin/` (04's route-group rule), not `app/admin/`; the server guard `layout.tsx` returns its children because `(shell)/layout.tsx` already renders `Layout` | One chrome, no double shell |
+| 2026-09-17 | (08) `print.css` is a global stylesheet imported by the admin layout with every rule inside `@media print`, not a `<link media="print">` | The App Router bundles CSS; the effect is the same and the file stays in the owned folder |
+| 2026-09-17 | (08) `AdminConsole` renders an empty canvas until `status === "ready"` and the role is ADMIN instead of wrapping in `RequireAdmin` | `RequireAdmin` shows the full-page ring; the server layout already redirected anonymous and non-admin visitors, so the client only needs to avoid a flash |
+| 2026-09-17 | (08) Three redirect rows added to `next.config.ts` (04's file): `/dashboard/admin?tab=moderation|disputes|payouts` → `/admin?tab=users|reports|overview`; every other `?tab=` passes through Next's query forwarding, and `sections.ts` maps the same legacy keys client-side | The 08 doc asks for the three renamed tabs; the generic row already forwards the rest |
+| 2026-09-17 | (08) The System section shows `KAYOU_PUBLIC_WEB_MODE` and the Node version of the **web** server (page props), because `GET /admin/health` reports neither | The doc says "reported by the API"; adding fields is 02's call (open note) |
+| 2026-09-17 | (08) "Retirer la vérification" sets `verificationStatus: PENDING`; `REJECTED` stays a KYC-queue decision with a reason | The provider card is a switch; document-level refusal belongs to the Vérification section |
+| 2026-09-17 | (08) Approving a suggestion with edits calls `POST …/approve` then `PATCH /admin/places/:resolvedPlaceId` with the edited fields | The approve route takes no body |
+| 2026-09-17 | (08) The category editor uses a numeric `order` field instead of the old dnd-kit drag list | There is no bulk reorder endpoint; one PATCH per drop would spam the journal |
+| 2026-09-17 | (08) The old `dashboard/admin/categories/_components` were rewritten under the same names (`AdminCategoriesList`, `LucideIconPicker`, `LucideIconView`, `NewCategoryModal`, `slugify`) plus a new `SubcategoryForm`, not moved | They used removed primitives (`Popover`, `Dialog`), `--k-*` variables and pre-refactor API shapes |
+| 2026-09-17 | (08) Only `q`, `page`, `id` and `sub` live in the URL; the select filters (role, status, tier, kind, type) are local state | Deep links and back navigation need the search and the open item; filters reset with the tab |
+| 2026-09-17 | (08) Admin error toasts show the backend's French `message` (plus the `REFERENCED` counts and `DOCS_MISSING` kinds) and the first `errors[]` entry on a validation 400, falling back to `errorCopy` | The doc asks for the server message; the admin is internal and the backend's messages are already French |
+| 2026-09-17 | (08) The member sheet opens in the kept Radix `Sheet` (right side, full width under `sm`) with its own header; `window.print()` prints `#member-sheet` alone | Focus trap, Escape and scroll lock for free; no `html2canvas` / `jspdf` |
 
 ## Open Questions
 
@@ -184,6 +196,11 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (07 → 10) The `message-attachments` bucket is also missing on the shared Supabase project: `POST /me/uploads/sign?purpose=attachments` → 500, so image and voice attachments cannot be uploaded until 10 creates it. The composer shows the inline error; the signed-read rendering path (`GET /me/media/sign-read`) is implemented but was not exercised end to end.
 - (07 → 05) The profile page could read `?review=[bookingId]` to preselect the booking in `ReviewForm`; today it picks the latest eligible booking.
 - (07 → 04) `useUnreadNotifications()` polls every 60 s and the notifications screen invalidates `["notifications"]` on every mark-read; if 02 adds `unreadNotifications` to `GET /me` (open note from 04) both should switch to it.
+- (08 → 02) `GET /admin/health` could report the public web mode and the Node version; today the System section shows the web server's own values.
+- (08 → 02) `GET /admin/places` and `/admin/references` rows carry only `mergedIntoId`; the list shows the target label when it is on the same page and an id prefix otherwise. A `mergedIntoLabel` would remove the fallback.
+- (08 → 10) The seed has no `UNDER_REVIEW` KYC submission, so the Vérification detail (thumbnails through `GET /me/media/sign-read`, approve / reject) was verified by type-check and code review, not in the browser; the `verification-docs` bucket is still missing (06's note). `scripts/admin-smoke.mjs` is handed to 10.
+- (08 → 10) `LAST_ADMIN` cannot be triggered with one seeded admin (self edits hit `SELF_ACTION` first); the smoke records it and should seed a second admin when 10 owns the demo data.
+- (08 → 10) The smoke creates and deactivates throwaway rows (`Smoke service …` level-3 node, `Smoke Q …` quartiers under Gombe) and flips one contact `NEW → READ → NEW`; the journal keeps those actions.
 - (05 → owner) During verification a seed run mis-targeted the old `kayu` dev database (the intended `kayu_05_verify` URL rewrite failed silently) and its `clearDatabase()` step emptied the old-schema `Message`, `Conversation`, `Transaction`, `Review`, `ClientReview`, `Booking` and `Notification` tables before failing on the missing `Report` table. Users, providers and every launch-lead table are untouched. That data was on the schema the refactor discards, but it was not backed up first.
 
 ## How To Update This File
@@ -513,7 +530,32 @@ Status: Done (2026-09-17). Branch `kyou-ux/07-spaces` from `refactor/kyou-ux` at
 
 ### 08 — Web Admin Console
 
-Status: Not started
+Status: Done (2026-09-17). Work on `refactor/kyou-ux` from `473dd32`; changes left uncommitted for the owner's diff review. Handover: `handover/08-web-admin-console.md`.
+
+#### Changed files
+
+- Route: `(shell)/admin/{layout,page}.tsx` (server guard, metadata), `AdminConsole.tsx` (client orchestrator: no-flash auth wait, `?tab=` → section, `motion.div` swap), `sections.ts` (the 14 entries and the legacy tab map), `print.css`.
+- `_components/`: `AdminHeader`, `AdminTable` (+ default stacked card), `Pagination`, `SearchBox`, `FilterSelect`, `AdminStatusPill`, `ConfirmAction`, `ToggleRow`, `SplitPane`, `CommandHero`, `QueryState`, `SectionTitle`, `useAdminParams`, `useAdminMutation`, `admin-errors.ts`, `format.ts`; `_components/categories/`: `AdminCategoriesList`, `LucideIcon`, `LucideIconPicker`, `NewCategoryModal`, `SubcategoryForm`, `slug.ts`.
+- `_sections/`: `Overview`, `Users` + `UserSheet` + `MemberSheet`, `Providers` + `ProviderCard`, `Verification` + `VerificationDetail`, `Bookings`, `Reviews`, `Conversations` + `ConversationThread`, `Contacts`, `Reports`, `Content`, `Categories`, `References` + `Places` + `PlaceForm` + `Lists` + `ReferenceForm` + `MergeControl`, `Audit`, `System`.
+- `copy/admin.ts`. `scripts/admin-smoke.mjs` (Playwright pass handed to 10). Screenshots in `docs/kyou-ux-refactor/screenshots/08/` (29 files: every tab at 390 and 1440, the member sheet).
+- Edits outside the owned paths, logged above: three query-conditional rows in `next.config.ts`.
+- Deleted: `(shell)/admin/AdminPlaceholder.tsx` and `components/placeholder/` (the last placeholder). The 2437-line `dashboard/admin/page.tsx`, its layout and `categories/[id]` were already removed by 04; `html2canvas` / `jspdf` were never added.
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors |
+| `NODE_ENV=production pnpm --filter @kayu/web build` | Pass; `/admin` is dynamic (server guard) |
+| Line / token audit over `app/(shell)/admin/` | Longest file 167 lines (limit 400); no inline hex colour; no French literal outside `copy/admin.ts` |
+| `PW_CHANNEL=chrome node scripts/admin-smoke.mjs --shots …/screenshots/08` | 64/64: anonymous `/admin` → 307 `/login?returnTo=%2Fadmin`; client → `/`; the six 308 rows (`/dashboard/admin`, `?tab=moderation|disputes|payouts|categories`, `/dashboard/admin/categories/x`); all 14 tabs render with the greeting, the right rail item active and no horizontal overflow at 320/390/1440; users search mirrors `?q=`; the self row has both toggles disabled; `PATCH /admin/users/:self` → 400 `SELF_ACTION`; the member sheet opens from `?id=` and under `print` media only `#member-sheet` stays visible; verifying a PENDING provider without documents surfaces the API message with the missing kinds; a level-3 service is created from the form (slug auto-derived) then deleted; deleting a referenced category shows "Références : 4 prestataires, 14 réservations…"; a throwaway quartier is merged through the UI and disappears from the public `GET /places?parentId=`; opening a NEW contact flips it to READ; the journal lists the mutations; the System cards read "Opérationnel" |
+| `REDUCED=1 … --only render` | 42/42 renders without overflow under `prefers-reduced-motion: reduce` |
+
+#### Remaining risks
+
+- The KYC detail (signed thumbnails, approve / reject) and the conversation attachment links could not be exercised end to end: no submission is under review in the seed and the private buckets are missing.
+- `LAST_ADMIN` (409) is reflected in the UI only through the generic toast path; it was not triggered (single admin).
+- The merge candidates for places come from `GET /admin/places?kind&parentId&active=true` (100 max); a parent with more than 100 active children would truncate the picker.
 
 ### 09 — Launch Campaign Restyle
 

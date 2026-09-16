@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
-import { RequireAdmin } from "@/components/guards";
-import { shellCopy } from "@/copy/shell";
-import { AdminPlaceholder } from "./AdminPlaceholder";
+import { adminCopy } from "@/copy/admin";
+import { AdminConsole } from "./AdminConsole";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.admin };
+export const metadata: Metadata = { title: adminCopy.meta.title, description: adminCopy.meta.description };
 
 export default function Page() {
-  return (
-    <RequireAdmin>
-      <AdminPlaceholder />
-    </RequireAdmin>
-  );
+  return <AdminConsole system={{ webMode: process.env.KAYOU_PUBLIC_WEB_MODE ?? "", nodeVersion: process.version }} />;
 }
