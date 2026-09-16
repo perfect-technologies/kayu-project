@@ -17,10 +17,20 @@ const CAMPAIGN_ATTRIBUTION_KEYS = [
   "content",
 ] as const;
 
+function isDevOnlyPath(pathname: string): boolean {
+  return pathname === "/dev" || pathname.startsWith("/dev/");
+}
+
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (process.env.NODE_ENV === "production" && isDevOnlyPath(pathname)) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const publicMode = resolvePublicWebMode(process.env.KAYOU_PUBLIC_WEB_MODE);
 
-  if (isCampaignAuthRequest(request.nextUrl.pathname, publicMode)) {
+  if (isCampaignAuthRequest(pathname, publicMode)) {
     const campaignUrl = new URL("/launch", request.url);
     for (const key of CAMPAIGN_ATTRIBUTION_KEYS) {
       const value = request.nextUrl.searchParams.get(key);
@@ -29,10 +39,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(campaignUrl);
   }
 
-  if (
-    publicMode === "campaign" &&
-    isCampaignPublicMarketplacePath(request.nextUrl.pathname)
-  ) {
+  if (publicMode === "campaign" && isCampaignPublicMarketplacePath(pathname)) {
     const campaignUrl = new URL("/launch", request.url);
     campaignUrl.search = request.nextUrl.search;
     return NextResponse.redirect(campaignUrl);
