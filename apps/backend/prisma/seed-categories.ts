@@ -2,418 +2,551 @@ import type { PrismaClient } from "@prisma/client";
 
 type SeedPrismaClient = Pick<PrismaClient, "category" | "subcategory">;
 
-type CategorySeed = {
-  name: string;
+export type TaxonomyNode = {
   slug: string;
-  description: string;
-  icon: string;
-  color: string;
-  image: string;
-  order: number;
-  subcategories: Array<{
-    name: string;
-    slug: string;
-    order: number;
-  }>;
+  name: string;
+  subs?: TaxonomyNode[];
 };
 
-const unsplashImage = (id: string) =>
-  `https://images.unsplash.com/${id}?w=800&h=480&fit=crop&q=80`;
+type TaxonomyCategory = TaxonomyNode & {
+  icon: string;
+  color: string;
+};
 
-export const categoriesData = [
+// Tree, slugs, Lucide icons and colours follow K-YOU shared/taxonomy.json and
+// src/lib/taxonomy.jsx. K-YOU reuses three level-3 slugs across branches, so
+// they carry their parent prefix here (maquillage_mariage, traiteur_mariage,
+// peinture_decoration) because Subcategory.slug is globally unique.
+export const taxonomy: TaxonomyCategory[] = [
   {
-    name: 'Bâtiment & Construction',
-    slug: 'batiment-construction',
-    description: 'Services de construction, rénovation et entretien',
-    icon: 'Building',
-    color: '#ef4444',
-    image: unsplashImage('photo-1503387762-592deb58ef4e'),
-    order: 1,
-    subcategories: [
+    slug: "batiment_construction",
+    name: "Bâtiment & Construction",
+    icon: "Hammer",
+    color: "bg-amber-500",
+    subs: [
       {
-        name: 'Maçonnerie',
-        slug: 'maconnerie',
-        order: 1,
+        slug: "plomberie",
+        name: "Plomberie",
+        subs: [
+          { slug: "installation_sanitaire", name: "Installation sanitaire" },
+          { slug: "depannage_fuite", name: "Dépannage & fuites" },
+          { slug: "chauffe_eau", name: "Chauffe-eau" },
+          { slug: "assainissement", name: "Assainissement" },
+        ],
       },
       {
-        name: 'Plâtrerie',
-        slug: 'platrerie',
-        order: 2,
+        slug: "electricite",
+        name: "Électricité",
+        subs: [
+          { slug: "installation_electrique", name: "Installation électrique" },
+          { slug: "depannage_electrique", name: "Dépannage électrique" },
+          { slug: "eclairage", name: "Éclairage" },
+          { slug: "comptage", name: "Comptage & raccordement" },
+        ],
       },
       {
-        name: 'Carrelage',
-        slug: 'carrelage',
-        order: 3,
+        slug: "maconnerie",
+        name: "Maçonnerie",
+        subs: [
+          { slug: "fondations", name: "Fondations" },
+          { slug: "elevation_murs", name: "Élévation de murs" },
+          { slug: "chape", name: "Chape & dallage" },
+        ],
       },
       {
-        name: 'Peinture',
-        slug: 'peinture',
-        order: 4,
+        slug: "menuiserie",
+        name: "Menuiserie",
+        subs: [
+          { slug: "menuiserie_bois", name: "Menuiserie bois" },
+          { slug: "metallique_soudure", name: "Métallique & soudure" },
+          { slug: "alu_pvc", name: "Alu & PVC" },
+        ],
       },
       {
-        name: 'Toiture',
-        slug: 'toiture',
-        order: 5,
+        slug: "peinture",
+        name: "Peinture",
+        subs: [
+          { slug: "peinture_interieure", name: "Peinture intérieure" },
+          { slug: "peinture_exterieure", name: "Peinture extérieure" },
+          { slug: "peinture_decoration", name: "Décoration" },
+          { slug: "enduits", name: "Enduits" },
+        ],
+      },
+      { slug: "carrelage", name: "Carrelage & Faïence" },
+      {
+        slug: "climatisation",
+        name: "Climatisation & Froid",
+        subs: [
+          { slug: "installation_clim", name: "Installation" },
+          { slug: "maintenance_clim", name: "Maintenance & recharge" },
+          { slug: "froid_commercial", name: "Froid commercial" },
+        ],
+      },
+      { slug: "toiture", name: "Toiture & Couverture" },
+      { slug: "terrassement", name: "Terrassement & VRD" },
+      { slug: "vitrerie", name: "Vitrerie & Miroiterie" },
+      {
+        slug: "architecture",
+        name: "Architecture & Études",
+        subs: [
+          { slug: "plans", name: "Plans & devis" },
+          { slug: "suivi_chantier", name: "Suivi de chantier" },
+        ],
+      },
+      { slug: "genie_civil", name: "Génie civil" },
+    ],
+  },
+  {
+    slug: "beaute_bien_etre",
+    name: "Beauté & Bien-être",
+    icon: "Sparkles",
+    color: "bg-pink-500",
+    subs: [
+      {
+        slug: "coiffure",
+        name: "Coiffure",
+        subs: [
+          { slug: "coiffure_femme", name: "Femme" },
+          { slug: "coiffure_homme", name: "Homme" },
+          { slug: "coiffure_enfant", name: "Enfant" },
+          { slug: "tresses_tissages", name: "Tresses & tissages" },
+        ],
+      },
+      {
+        slug: "onglerie",
+        name: "Onglerie",
+        subs: [
+          { slug: "manucure", name: "Manucure" },
+          { slug: "prothese_ongles", name: "Prothèses d'ongles" },
+          { slug: "vernis_semi_permanent", name: "Vernis semi-permanent" },
+        ],
+      },
+      {
+        slug: "maquillage",
+        name: "Maquillage",
+        subs: [
+          { slug: "maquillage_mariage", name: "Mariée" },
+          { slug: "soiree", name: "Soirée" },
+          { slug: "professionnel", name: "Professionnel" },
+        ],
+      },
+      {
+        slug: "esthetique",
+        name: "Esthétique & Soins visage",
+        subs: [
+          { slug: "soins_visage", name: "Soins du visage" },
+          { slug: "gommage", name: "Gommage" },
+          { slug: "epilation", name: "Épilation" },
+        ],
+      },
+      {
+        slug: "spa_massage",
+        name: "Spa & Massage",
+        subs: [
+          { slug: "massage_relaxant", name: "Massage relaxant" },
+          { slug: "massage_therapeutique", name: "Massage thérapeutique" },
+          { slug: "soins_corps", name: "Soins du corps" },
+        ],
+      },
+      { slug: "barbier", name: "Barbier" },
+    ],
+  },
+  {
+    slug: "cuisine_restauration",
+    name: "Cuisine & Restauration",
+    icon: "ChefHat",
+    color: "bg-orange-500",
+    subs: [
+      {
+        slug: "traiteur",
+        name: "Traiteur",
+        subs: [
+          { slug: "traiteur_mariage", name: "Mariage" },
+          { slug: "anniversaire", name: "Anniversaire" },
+          { slug: "evenements", name: "Événements" },
+        ],
+      },
+      { slug: "cuisinier_domicile", name: "Cuisinier à domicile" },
+      {
+        slug: "patisserie",
+        name: "Pâtisserie",
+        subs: [
+          { slug: "gateaux", name: "Gâteaux" },
+          { slug: "viennoiserie", name: "Viennoiserie" },
+        ],
+      },
+      { slug: "boulangerie", name: "Boulangerie" },
+      { slug: "plats_emporter", name: "Plats à emporter" },
+      { slug: "restauration_evenementielle", name: "Restauration événementielle" },
+    ],
+  },
+  {
+    slug: "maison_entretien",
+    name: "Maison & Entretien",
+    icon: "House",
+    color: "bg-teal-500",
+    subs: [
+      {
+        slug: "menage",
+        name: "Ménage",
+        subs: [
+          { slug: "menage_regulier", name: "Ménage régulier" },
+          { slug: "grand_menage", name: "Grand ménage" },
+          { slug: "fin_chantier", name: "Fin de chantier" },
+        ],
+      },
+      { slug: "blanchisserie", name: "Blanchisserie & Pressing" },
+      {
+        slug: "jardinage",
+        name: "Jardinage",
+        subs: [
+          { slug: "entretien_jardin", name: "Entretien" },
+          { slug: "paysagisme", name: "Paysagisme" },
+          { slug: "elagage", name: "Élagage" },
+        ],
+      },
+      { slug: "desinsectisation", name: "Désinsectisation & Dératisation" },
+      { slug: "conciergerie", name: "Conciergerie" },
+    ],
+  },
+  {
+    slug: "garde_assistance",
+    name: "Garde & Assistance",
+    icon: "HeartHandshake",
+    color: "bg-rose-500",
+    subs: [
+      {
+        slug: "garde_enfants",
+        name: "Garde d'enfants",
+        subs: [
+          { slug: "nounou", name: "Nounou" },
+          { slug: "garde_partagee", name: "Garde partagée" },
+          { slug: "sorties_ecole", name: "Sorties d'école" },
+        ],
+      },
+      { slug: "garde_personnes_agees", name: "Garde personnes âgées" },
+      { slug: "aide_domicile", name: "Aide à domicile" },
+      { slug: "assistance_pmr", name: "Assistance PMR" },
+    ],
+  },
+  {
+    slug: "transport_logistique",
+    name: "Transport & Logistique",
+    icon: "Truck",
+    color: "bg-blue-500",
+    subs: [
+      {
+        slug: "transport_personnes",
+        name: "Transport de personnes",
+        subs: [
+          { slug: "taxi", name: "Taxi" },
+          { slug: "vtc", name: "VTC" },
+          { slug: "navette", name: "Navette" },
+        ],
+      },
+      { slug: "transport_marchandises", name: "Transport de marchandises" },
+      { slug: "demenagement", name: "Déménagement" },
+      { slug: "location_vehicule", name: "Location de véhicule" },
+      {
+        slug: "livraison_coursier",
+        name: "Livraison & Coursier",
+        subs: [
+          { slug: "colis", name: "Colis" },
+          { slug: "documents", name: "Documents" },
+          { slug: "repas", name: "Repas" },
+        ],
+      },
+      { slug: "transport_evenementiel", name: "Transport événementiel / Bus" },
+    ],
+  },
+  {
+    slug: "mecanique_auto",
+    name: "Mécanique & Automobile",
+    icon: "Wrench",
+    color: "bg-slate-600",
+    subs: [
+      {
+        slug: "mecanique_automobile",
+        name: "Mécanique auto",
+        subs: [
+          { slug: "diagnostic", name: "Diagnostic" },
+          { slug: "revision", name: "Révision" },
+          { slug: "moteur", name: "Moteur" },
+        ],
+      },
+      { slug: "mecanique_moto", name: "Mécanique moto" },
+      { slug: "carrosserie", name: "Carrosserie & Peinture auto" },
+      { slug: "pneumatiques", name: "Pneumatiques" },
+      {
+        slug: "entretien_auto",
+        name: "Entretien auto",
+        subs: [
+          { slug: "vidange", name: "Vidange" },
+          { slug: "lavage", name: "Lavage" },
+          { slug: "climatisation_auto", name: "Climatisation auto" },
+        ],
       },
     ],
   },
   {
-    name: 'Plomberie & Sanitaire',
-    slug: 'plomberie-sanitaire',
-    description: 'Installation et réparation de plomberie',
-    icon: 'Droplets',
-    color: '#3b82f6',
-    image: unsplashImage('photo-1585704032915-c3400ca199e7'),
-    order: 2,
-    subcategories: [
+    slug: "technologie_numerique",
+    name: "Technologie & Numérique",
+    icon: "Cpu",
+    color: "bg-indigo-500",
+    subs: [
       {
-        name: 'Plomberie générale',
-        slug: 'plomberie-generale',
-        order: 1,
+        slug: "reparation_telephone",
+        name: "Réparation téléphone",
+        subs: [
+          { slug: "ecran", name: "Écran" },
+          { slug: "batterie", name: "Batterie" },
+          { slug: "logiciel", name: "Logiciel" },
+        ],
       },
-      {
-        name: 'Sanitaires',
-        slug: 'sanitaires',
-        order: 2,
-      },
+      { slug: "reparation_ordinateur", name: "Réparation ordinateur" },
+      { slug: "installation_reseau", name: "Installation réseau & Wi-Fi" },
+      { slug: "developpement_web", name: "Développement web & logiciel" },
+      { slug: "formation_informatique", name: "Formation informatique" },
+      { slug: "electronique_hifi", name: "Électronique & Hi-Fi" },
     ],
   },
   {
-    name: 'Électricité',
-    slug: 'electricite',
-    description: 'Installations électriques et dépannage',
-    icon: 'Zap',
-    color: '#f59e0b',
-    image: unsplashImage('photo-1621905251189-08b45d6a269e'),
-    order: 3,
-    subcategories: [
-      {
-        name: 'Électricité générale',
-        slug: 'electricite-generale',
-        order: 1,
-      },
-      {
-        name: 'Électricité automobile',
-        slug: 'electricite-automobile',
-        order: 2,
-      },
-      {
-        name: 'Climatisation',
-        slug: 'climatisation',
-        order: 3,
-      },
+    slug: "sante",
+    name: "Santé",
+    icon: "Stethoscope",
+    color: "bg-red-500",
+    subs: [
+      { slug: "infirmier_domicile", name: "Infirmier à domicile" },
+      { slug: "kinesitherapie", name: "Kinésithérapie" },
+      { slug: "sages_femmes", name: "Sages-femmes" },
+      { slug: "pharmacie_garde", name: "Pharmacie de garde" },
+      { slug: "laboratoire_analyses", name: "Laboratoire d'analyses" },
+      { slug: "nutrition", name: "Nutrition / Diététique" },
+      { slug: "accompagnement_psy", name: "Accompagnement psychologique" },
     ],
   },
   {
-    name: 'Menuiserie & Ébénisterie',
-    slug: 'menuiserie-ebenisterie',
-    description: 'Travail du bois et aménagement',
-    icon: 'Hammer',
-    color: '#8b5cf6',
-    image: unsplashImage('photo-1452860606245-08befc0ff44b'),
-    order: 4,
-    subcategories: [
+    slug: "agriculture_elevage",
+    name: "Agriculture & Élevage",
+    icon: "Sprout",
+    color: "bg-green-600",
+    subs: [
       {
-        name: 'Menuiserie bois',
-        slug: 'menuiserie-bois',
-        order: 1,
+        slug: "agriculture",
+        name: "Agriculture",
+        subs: [
+          { slug: "cultures", name: "Grandes cultures" },
+          { slug: "maraichage", name: "Maraîchage" },
+          { slug: "preparation_sol", name: "Préparation du sol" },
+        ],
       },
       {
-        name: 'Menuiserie aluminium',
-        slug: 'menuiserie-aluminium',
-        order: 2,
+        slug: "elevage",
+        name: "Élevage",
+        subs: [
+          { slug: "volaille", name: "Volaille" },
+          { slug: "betail", name: "Bétail" },
+          { slug: "porcin", name: "Porcin" },
+        ],
       },
-      {
-        name: 'Agencement',
-        slug: 'agencement',
-        order: 3,
-      },
+      { slug: "veterinaire", name: "Vétérinaire" },
+      { slug: "pisciculture", name: "Pisciculture" },
+      { slug: "amenagement_agricole", name: "Aménagement / Irrigation" },
+      { slug: "transformation_produits", name: "Transformation de produits" },
     ],
   },
   {
-    name: 'Métallerie & Serrurerie',
-    slug: 'metallerie-serrurerie',
-    description: 'Travail du métal et sécurité',
-    icon: 'Key',
-    color: '#6b7280',
-    image: unsplashImage('photo-1504917595217-d4dc5ebe6122'),
-    order: 5,
-    subcategories: [
+    slug: "education_formation",
+    name: "Éducation & Formation",
+    icon: "GraduationCap",
+    color: "bg-cyan-600",
+    subs: [
+      { slug: "soutien_scolaire", name: "Soutien scolaire" },
       {
-        name: 'Serrurerie',
-        slug: 'serrurerie',
-        order: 1,
+        slug: "cours_particuliers",
+        name: "Cours particuliers",
+        subs: [
+          { slug: "math_sciences", name: "Math & Sciences" },
+          { slug: "langues", name: "Langues" },
+        ],
       },
-      {
-        name: 'Métallerie',
-        slug: 'metallerie',
-        order: 2,
-      },
+      { slug: "formation_pro", name: "Formation professionnelle" },
+      { slug: "musique_arts", name: "Musique & Arts" },
+      { slug: "coaching", name: "Coaching & Dév. personnel" },
+      { slug: "formation_langues", name: "Formation en langues" },
     ],
   },
   {
-    name: 'Automobile',
-    slug: 'automobile',
-    description: 'Réparation et entretien automobile',
-    icon: 'Car',
-    color: '#ec4899',
-    image: unsplashImage('photo-1486006920555-c77dcf18193c'),
-    order: 6,
-    subcategories: [
-      {
-        name: 'Mécanique',
-        slug: 'mecanique-auto',
-        order: 1,
-      },
-      {
-        name: 'Carrosserie',
-        slug: 'carrosserie',
-        order: 2,
-      },
-      {
-        name: 'Pneumatiques',
-        slug: 'pneumatiques',
-        order: 3,
-      },
+    slug: "evenementiel",
+    name: "Événementiel",
+    icon: "PartyPopper",
+    color: "bg-fuchsia-500",
+    subs: [
+      { slug: "organisation_evenements", name: "Organisation d'événements" },
+      { slug: "decoration", name: "Décoration" },
+      { slug: "son_lumiere_dj", name: "Son & Lumière / DJ" },
+      { slug: "photographie", name: "Photographie" },
+      { slug: "video_montage", name: "Vidéo & Montage" },
+      { slug: "location_materiel", name: "Location de matériel & tentes" },
     ],
   },
   {
-    name: 'Beauté & Bien-être',
-    slug: 'beaute-bien-etre',
-    description: 'Services de beauté et soins',
-    icon: 'Sparkles',
-    color: '#f472b6',
-    image: unsplashImage('photo-1560066984-138dadb4c035'),
-    order: 7,
-    subcategories: [
+    slug: "securite",
+    name: "Sécurité",
+    icon: "ShieldCheck",
+    color: "bg-gray-700",
+    subs: [
+      { slug: "agent_securite", name: "Agent de sécurité" },
+      { slug: "gardiennage", name: "Gardiennage" },
       {
-        name: 'Coiffure',
-        slug: 'coiffure',
-        order: 1,
+        slug: "installation_securite",
+        name: "Système de sécurité",
+        subs: [
+          { slug: "alarmes", name: "Alarmes" },
+          { slug: "cameras", name: "Caméras" },
+          { slug: "controle_acces", name: "Contrôle d'accès" },
+        ],
       },
-      {
-        name: 'Esthétique',
-        slug: 'esthetique',
-        order: 2,
-      },
-      {
-        name: 'Bien-être',
-        slug: 'bien-etre',
-        order: 3,
-      },
+      { slug: "protection_incendie", name: "Protection incendie" },
     ],
   },
   {
-    name: 'Mode & Textile',
-    slug: 'mode-textile',
-    description: 'Création et réparation de vêtements',
-    icon: 'Shirt',
-    color: '#a855f7',
-    image: unsplashImage('photo-1558769132-cb1aea458c5e'),
-    order: 8,
-    subcategories: [
+    slug: "energie",
+    name: "Énergie",
+    icon: "Zap",
+    color: "bg-yellow-500",
+    subs: [
       {
-        name: 'Couture',
-        slug: 'couture',
-        order: 1,
+        slug: "panneaux_solaires",
+        name: "Panneaux solaires",
+        subs: [
+          { slug: "installation_solaire", name: "Installation" },
+          { slug: "maintenance_solaire", name: "Maintenance" },
+          { slug: "onduleurs", name: "Onduleurs" },
+        ],
       },
-      {
-        name: 'Nettoyage',
-        slug: 'nettoyage-textile',
-        order: 2,
-      },
+      { slug: "groupe_electrogene", name: "Groupe électrogène" },
+      { slug: "batteries_stockage", name: "Batteries & stockage" },
+      { slug: "audit_energie", name: "Audit / Économie d'énergie" },
+      { slug: "biogaz", name: "Biogaz" },
     ],
   },
   {
-    name: 'Maison & Entretien',
-    slug: 'maison-entretien',
-    description: 'Services domestiques et entretien',
-    icon: 'Home',
-    color: '#14b8a6',
-    image: unsplashImage('photo-1581578731548-c64695cc6952'),
-    order: 9,
-    subcategories: [
+    slug: "textile_mode",
+    name: "Textile & Mode",
+    icon: "Shirt",
+    color: "bg-purple-500",
+    subs: [
       {
-        name: 'Nettoyage',
-        slug: 'nettoyage',
-        order: 1,
+        slug: "couture",
+        name: "Couture",
+        subs: [
+          { slug: "sur_mesure", name: "Sur-mesure" },
+          { slug: "retouches", name: "Retouches" },
+          { slug: "uniformes", name: "Uniformes" },
+        ],
       },
-      {
-        name: 'Jardinage',
-        slug: 'jardinage',
-        order: 2,
-      },
-      {
-        name: 'Déménagement',
-        slug: 'demenagement',
-        order: 3,
-      },
+      { slug: "creation_mode", name: "Création de mode" },
+      { slug: "teinture_wax", name: "Teinture / Wax" },
+      { slug: "broderie", name: "Broderie personnalisée" },
+      { slug: "mercerie", name: "Mercerie" },
     ],
   },
   {
-    name: 'Enfance & Garde',
-    slug: 'enfance-garde',
-    description: 'Services de garde et éducation',
-    icon: 'Baby',
-    color: '#fbbf24',
-    image: unsplashImage('photo-1503454537195-1dcabb73ffb9'),
-    order: 10,
-    subcategories: [
+    slug: "communication_impression",
+    name: "Communication & Impression",
+    icon: "Printer",
+    color: "bg-sky-600",
+    subs: [
       {
-        name: 'Garde d\'enfants',
-        slug: 'garde-enfants',
-        order: 1,
+        slug: "impression",
+        name: "Impression",
+        subs: [
+          { slug: "impression_numerique", name: "Numérique" },
+          { slug: "impression_offset", name: "Offset" },
+          { slug: "grand_format", name: "Grand format" },
+        ],
       },
-      {
-        name: 'Éducation',
-        slug: 'education',
-        order: 2,
-      },
+      { slug: "serigraphie", name: "Sérigraphie" },
+      { slug: "signaletique", name: "Signalétique & Enseignes" },
+      { slug: "design_graphique", name: "Design graphique" },
+      { slug: "communication_digitale", name: "Communication digitale" },
     ],
   },
   {
-    name: 'Santé & Sport',
-    slug: 'sante-sport',
-    description: 'Services de santé et coaching sportif',
-    icon: 'Heart',
-    color: '#ef4444',
-    image: unsplashImage('photo-1571019613454-1cb2f99b2d8b'),
-    order: 11,
-    subcategories: [
-      {
-        name: 'Soins à domicile',
-        slug: 'soins-domicile',
-        order: 1,
-      },
-      {
-        name: 'Sport',
-        slug: 'sport',
-        order: 2,
-      },
+    slug: "metiers_artisanat",
+    name: "Métiers & Artisanat",
+    icon: "Wrench",
+    color: "bg-stone-600",
+    subs: [
+      { slug: "forge_soudure", name: "Forge & Soudure" },
+      { slug: "poterie_ceramique", name: "Poterie & Céramique" },
+      { slug: "vannerie", name: "Vannerie" },
+      { slug: "sculpture", name: "Sculpture" },
+      { slug: "maroquinerie", name: "Maroquinerie" },
+      { slug: "bijouterie", name: "Bijouterie" },
     ],
   },
   {
-    name: 'Informatique & Tech',
-    slug: 'informatique-tech',
-    description: 'Services numériques et informatiques',
-    icon: 'Monitor',
-    color: '#0ea5e9',
-    image: unsplashImage('photo-1517694712202-14dd9538aa97'),
-    order: 12,
-    subcategories: [
-      {
-        name: 'Développement',
-        slug: 'developpement',
-        order: 1,
-      },
-      {
-        name: 'Support',
-        slug: 'support-informatique',
-        order: 2,
-      },
-      {
-        name: 'Réseaux',
-        slug: 'reseaux',
-        order: 3,
-      },
+    slug: "services_admin_juridique",
+    name: "Services administratifs & Juridiques",
+    icon: "Scale",
+    color: "bg-emerald-700",
+    subs: [
+      { slug: "comptabilite", name: "Comptabilité" },
+      { slug: "conseil_juridique", name: "Conseil juridique" },
+      { slug: "fiscalite", name: "Fiscalité" },
+      { slug: "secretariat_saisie", name: "Secrétariat / Saisie" },
+      { slug: "traduction", name: "Traduction" },
+      { slug: "formalites_admin", name: "Formalités administratives" },
     ],
   },
   {
-    name: 'Transport & Logistique',
-    slug: 'transport-logistique',
-    description: 'Services de transport et livraison',
-    icon: 'Truck',
-    color: '#84cc16',
-    image: unsplashImage('photo-1494976388531-d1058494cdd8'),
-    order: 13,
-    subcategories: [
-      {
-        name: 'Transport de personnes',
-        slug: 'transport-personnes',
-        order: 1,
-      },
-      {
-        name: 'Livraison',
-        slug: 'livraison',
-        order: 2,
-      },
-    ],
+    slug: "autres",
+    name: "Autres services",
+    icon: "Ellipsis",
+    color: "bg-slate-400",
+    subs: [],
   },
-  {
-    name: 'Événementiel',
-    slug: 'evenementiel',
-    description: 'Organisation d\'événements',
-    icon: 'Calendar',
-    color: '#f97316',
-    image: unsplashImage('photo-1530103862676-de8c9debad1d'),
-    order: 14,
-    subcategories: [
-      {
-        name: 'Organisation',
-        slug: 'organisation-evenements',
-        order: 1,
-      },
-      {
-        name: 'Animation',
-        slug: 'animation',
-        order: 2,
-      },
-      {
-        name: 'Traiteur',
-        slug: 'traiteur',
-        order: 3,
-      },
-    ],
-  },
-  {
-    name: 'Sécurité',
-    slug: 'securite',
-    description: 'Services de sécurité',
-    icon: 'Shield',
-    color: '#1e3a5f',
-    image: unsplashImage('photo-1557597774-9d273605dfa9'),
-    order: 15,
-    subcategories: [
-      {
-        name: 'Gardiennage',
-        slug: 'gardiennage',
-        order: 1,
-      },
-      {
-        name: 'Protection',
-        slug: 'protection',
-        order: 2,
-      },
-    ],
-  },
-] satisfies CategorySeed[];
+];
 
 export async function seedCategories(prisma: SeedPrismaClient) {
   console.log("Seeding categories and subcategories...");
 
-  for (const categoryData of categoriesData) {
+  for (const [categoryIndex, categoryData] of taxonomy.entries()) {
     const category = await prisma.category.create({
       data: {
         name: categoryData.name,
         slug: categoryData.slug,
-        description: categoryData.description,
         icon: categoryData.icon,
         color: categoryData.color,
-        image: categoryData.image,
-        order: categoryData.order,
+        order: categoryIndex + 1,
         isActive: true,
       },
     });
 
-    for (const subcategoryData of categoryData.subcategories) {
-      await prisma.subcategory.create({
+    for (const [subIndex, subData] of (categoryData.subs ?? []).entries()) {
+      const subcategory = await prisma.subcategory.create({
         data: {
           categoryId: category.id,
-          name: subcategoryData.name,
-          slug: subcategoryData.slug,
-          order: subcategoryData.order,
+          name: subData.name,
+          slug: subData.slug,
+          order: subIndex + 1,
           isActive: true,
         },
+      });
+
+      if (!subData.subs?.length) continue;
+
+      await prisma.subcategory.createMany({
+        data: subData.subs.map((leaf, leafIndex) => ({
+          categoryId: category.id,
+          parentId: subcategory.id,
+          name: leaf.name,
+          slug: leaf.slug,
+          order: leafIndex + 1,
+          isActive: true,
+        })),
       });
     }
   }

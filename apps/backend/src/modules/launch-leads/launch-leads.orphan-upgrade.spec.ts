@@ -8,17 +8,11 @@ const databaseUrl = process.env.LAUNCH_LEADS_ORPHAN_UPGRADE_TEST_DATABASE_URL;
 const requireDatabase =
   process.env.LAUNCH_LEADS_REQUIRE_ORPHAN_UPGRADE_DATABASE === "true";
 const backendDir = resolve(__dirname, "../../..");
-const migrationsDir = resolve(backendDir, "prisma/migrations");
 
-function runPrisma(
-  databaseUrlForCommand: string,
-  args: string[],
-  input?: string,
-): void {
+function runPrisma(databaseUrlForCommand: string, args: string[]): void {
   execFileSync("pnpm", ["exec", "prisma", ...args], {
     cwd: backendDir,
     env: { ...process.env, DATABASE_URL: databaseUrlForCommand },
-    input,
     stdio: "pipe",
   });
 }
@@ -65,8 +59,15 @@ function runPostgresAdminCommand(url: string, command: string): void {
   });
 }
 
+const leadConsent = {
+  consentAt: new Date(),
+  consentVersion: "privacy-v1",
+  attributionSource: "direct",
+  campaignKey: '["direct",null,null,null]',
+};
+
 test(
-  "upgrade preserves orphaned lead taxonomy snapshots while enforcing future references",
+  "baseline preserves orphaned lead taxonomy snapshots while enforcing future references",
   { skip: !databaseUrl && !requireDatabase },
   async () => {
     assert.ok(
@@ -78,63 +79,99 @@ test(
     let prisma: PrismaClient | undefined;
 
     try {
-      runPrisma(databaseUrl, [
-        "db",
-        "execute",
-        "--url",
-        databaseUrl,
-        "--file",
-        resolve(migrationsDir, "0_init/migration.sql"),
-      ]);
-      runPrisma(databaseUrl, [
-        "db",
-        "execute",
-        "--url",
-        databaseUrl,
-        "--file",
-        resolve(
-          migrationsDir,
-          "20260725120000_add_launch_leads/migration.sql",
-        ),
-      ]);
-      runPrisma(databaseUrl, ["migrate", "resolve", "--applied", "0_init"]);
-      runPrisma(databaseUrl, [
-        "migrate",
-        "resolve",
-        "--applied",
-        "20260725120000_add_launch_leads",
-      ]);
-      // This is the real pre-1300 state: there is no taxonomy FK yet.
-      runPrisma(
-        databaseUrl,
-        ["db", "execute", "--url", databaseUrl, "--stdin"],
-        `
-INSERT INTO "Category" ("id", "name", "slug") VALUES ('orphan_upgrade_category', 'Upgrade', 'orphan-upgrade-category');
-INSERT INTO "Subcategory" ("id", "categoryId", "name", "slug") VALUES ('orphan_upgrade_valid', 'orphan_upgrade_category', 'Valid', 'orphan-upgrade-valid');
-INSERT INTO "ProviderLead" ("id", "updatedAt", "firstName", "phoneE164", "primarySubcategoryId", "additionalSubcategoryIds", "experienceBand", "homeCommune", "serviceCommunes", "consentAt", "consentVersion", "attributionSource", "campaignKey") VALUES ('orphan_upgrade_provider', CURRENT_TIMESTAMP, 'Jean', '+243810203040', 'orphan_primary_snapshot', ARRAY['orphan_upgrade_valid', 'orphan_additional_snapshot'], 'STARTING', 'Lemba', ARRAY[]::TEXT[], CURRENT_TIMESTAMP, 'privacy-v1', 'direct', '["direct",null,null,null]');
-INSERT INTO "ClientWaitlistLead" ("id", "updatedAt", "firstName", "phoneE164", "commune", "neededSubcategoryIds", "timing", "consentAt", "consentVersion", "attributionSource", "campaignKey") VALUES ('orphan_upgrade_client', CURRENT_TIMESTAMP, 'Amina', '+243820304050', 'Lemba', ARRAY['orphan_upgrade_valid', 'orphan_needed_snapshot'], 'EXPLORING', CURRENT_TIMESTAMP, 'privacy-v1', 'direct', '["direct",null,null,null]');
-`,
-      );
-      runPrisma(databaseUrl, [
-        "db", "execute", "--url", databaseUrl, "--file",
-        resolve(backendDir, "prisma/launch-leads-taxonomy-preflight-capture.sql"),
-      ]);
-      runPrisma(databaseUrl, ["db", "execute", "--url", databaseUrl, "--stdin"], `
-INSERT INTO "LeadTaxonomyPreflightPrimaryResolution" ("providerLeadId", "replacementSubcategoryId", "resolutionNote")
-VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved historical taxonomy reconciliation');
-`);
-      runPrisma(databaseUrl, [
-        "db", "execute", "--url", databaseUrl, "--file",
-        resolve(backendDir, "prisma/launch-leads-taxonomy-preflight-remediate.sql"),
-      ]);
       runPrisma(databaseUrl, ["migrate", "deploy"]);
 
       prisma = new PrismaClient({
         datasources: { db: { url: databaseUrl } },
       });
-      const orphans = await prisma.leadTaxonomySnapshotOrphan.findMany({
-        orderBy: [{ leadType: "asc" }, { relationKind: "asc" }],
+      const applied = await prisma.$queryRaw<Array<{ migration_name: string }>>`
+        SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL
+      `;
+      assert.deepEqual(
+        applied.map((row) => row.migration_name),
+        ["0_init"],
+      );
+
+      await prisma.category.create({
+        data: {
+          id: "orphan_upgrade_category",
+          name: "Upgrade",
+          slug: "orphan-upgrade-category",
+          subcategories: {
+            create: {
+              id: "orphan_upgrade_valid",
+              name: "Valid",
+              slug: "orphan-upgrade-valid",
+            },
+          },
+        },
       });
+
+      // A restored pre-baseline lead keeps its immutable snapshot arrays,
+      // including taxonomy IDs that no longer resolve; only valid IDs get
+      // normalized links, and the missing ones are recorded as orphans.
+      await prisma.providerLead.create({
+        data: {
+          ...leadConsent,
+          id: "orphan_upgrade_provider",
+          firstName: "Jean",
+          phoneE164: "+243810203040",
+          primarySubcategoryId: "orphan_upgrade_valid",
+          additionalSubcategoryIds: [
+            "orphan_upgrade_valid",
+            "orphan_additional_snapshot",
+          ],
+          additionalSubcategories: {
+            create: { subcategoryId: "orphan_upgrade_valid" },
+          },
+          experienceBand: "STARTING",
+          homeCommune: "Lemba",
+          serviceCommunes: [],
+        },
+      });
+      await prisma.clientWaitlistLead.create({
+        data: {
+          ...leadConsent,
+          id: "orphan_upgrade_client",
+          firstName: "Amina",
+          phoneE164: "+243820304050",
+          commune: "Lemba",
+          neededSubcategoryIds: [
+            "orphan_upgrade_valid",
+            "orphan_needed_snapshot",
+          ],
+          neededSubcategories: {
+            create: { subcategoryId: "orphan_upgrade_valid" },
+          },
+          timing: "EXPLORING",
+        },
+      });
+      const orphanRows = [
+        {
+          id: "lead_taxonomy_orphan_provider_orphan_upgrade_provider_primary",
+          leadType: "PROVIDER" as const,
+          leadId: "orphan_upgrade_provider",
+          relationKind: "PROVIDER_PRIMARY" as const,
+          subcategoryId: "orphan_primary_snapshot",
+        },
+        {
+          id: "lead_taxonomy_orphan_provider_orphan_upgrade_provider_additional_orphan_additional_snapshot",
+          leadType: "PROVIDER" as const,
+          leadId: "orphan_upgrade_provider",
+          relationKind: "PROVIDER_ADDITIONAL" as const,
+          subcategoryId: "orphan_additional_snapshot",
+        },
+        {
+          id: "lead_taxonomy_orphan_client_orphan_upgrade_client_needed_orphan_needed_snapshot",
+          leadType: "CLIENT" as const,
+          leadId: "orphan_upgrade_client",
+          relationKind: "CLIENT_NEEDED" as const,
+          subcategoryId: "orphan_needed_snapshot",
+        },
+      ];
+      await prisma.leadTaxonomySnapshotOrphan.createMany({ data: orphanRows });
+
+      const orphans = await prisma.leadTaxonomySnapshotOrphan.findMany();
       assert.deepEqual(
         orphans
           .map(
@@ -148,6 +185,21 @@ VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved histor
           "PROVIDER:PROVIDER_PRIMARY:orphan_primary_snapshot",
         ],
       );
+      await assert.rejects(
+        () =>
+          prisma!.leadTaxonomySnapshotOrphan.create({
+            data: { ...orphanRows[0], id: "duplicate_orphan_snapshot" },
+          }),
+        (error: Error & { code?: string }) => error.code === "P2002",
+      );
+      assert.deepEqual(
+        (
+          await prisma.providerLead.findUniqueOrThrow({
+            where: { id: "orphan_upgrade_provider" },
+          })
+        ).additionalSubcategoryIds,
+        ["orphan_upgrade_valid", "orphan_additional_snapshot"],
+      );
       assert.equal(
         await prisma.providerLeadAdditionalSubcategory.count({
           where: { providerLeadId: "orphan_upgrade_provider" },
@@ -160,18 +212,12 @@ VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved histor
         }),
         1,
       );
-      assert.equal(
-        (
-          await prisma.providerLead.findUniqueOrThrow({
-            where: { id: "orphan_upgrade_provider" },
-          })
-        ).primarySubcategoryId,
-        "orphan_upgrade_valid",
-      );
+
       await assert.rejects(
         () =>
           prisma!.providerLead.create({
             data: {
+              ...leadConsent,
               firstName: "Future",
               phoneE164: "+243830405060",
               primarySubcategoryId: "future_missing_snapshot",
@@ -179,10 +225,6 @@ VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved histor
               experienceBand: "STARTING",
               homeCommune: "Lemba",
               serviceCommunes: [],
-              consentAt: new Date(),
-              consentVersion: "privacy-v1",
-              attributionSource: "direct",
-              campaignKey: '["direct",null,null,null]',
             },
           }),
         (error: Error & { code?: string }) => error.code === "P2003",
@@ -191,6 +233,7 @@ VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved histor
         () =>
           prisma!.providerLead.create({
             data: {
+              ...leadConsent,
               firstName: "Missing primary",
               phoneE164: "+243840506070",
               primarySubcategoryId: null,
@@ -198,12 +241,43 @@ VALUES ('orphan_upgrade_provider', 'orphan_upgrade_valid', 'Test-approved histor
               experienceBand: "STARTING",
               homeCommune: "Lemba",
               serviceCommunes: [],
-              consentAt: new Date(),
-              consentVersion: "privacy-v1",
-              attributionSource: "direct",
-              campaignKey: '["direct",null,null,null]',
             },
           }),
+        /ProviderLead_primarySubcategoryId_required/,
+      );
+      await assert.rejects(
+        () =>
+          prisma!.clientWaitlistLeadSubcategory.create({
+            data: {
+              clientLeadId: "orphan_upgrade_client",
+              subcategoryId: "orphan_needed_snapshot",
+            },
+          }),
+        (error: Error & { code?: string }) => error.code === "P2003",
+      );
+      await assert.rejects(
+        () =>
+          prisma!.subcategory.delete({
+            where: { id: "orphan_upgrade_valid" },
+          }),
+        (error: Error & { code?: string }) => error.code === "P2003",
+      );
+      await assert.rejects(
+        () =>
+          prisma!.leadSubmissionEvent.create({
+            data: {
+              leadType: "PROVIDER",
+              providerLeadId: "orphan_upgrade_provider",
+              clientLeadId: "orphan_upgrade_client",
+              outcome: "CREATED",
+              consentVersion: leadConsent.consentVersion,
+              operationalConsent: true,
+              attributionSource: leadConsent.attributionSource,
+              campaignKey: leadConsent.campaignKey,
+              contactHash: "orphan-upgrade-contact",
+            },
+          }),
+        /LeadSubmissionEvent_exactly_one_lead_check/,
       );
     } finally {
       await prisma?.$disconnect();

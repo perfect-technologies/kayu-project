@@ -1,6 +1,9 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { seedCategories } from "./seed-categories";
 import { seedDemo } from "./seed-demo";
+import { seedPlaces } from "./seed-places";
+import { seedReferences } from "./seed-references";
+import { seedSettings } from "./seed-settings";
 
 const prisma = new PrismaClient();
 const DEFAULT_PASSWORD = "Password123!";
@@ -11,37 +14,41 @@ export function assertSeedAllowed(nodeEnv = process.env.NODE_ENV): void {
   }
 }
 
+// Launch-lead tables are never cleared. Deleting taxonomy fails while leads
+// still reference it, which is the intended protection.
 async function clearDatabase() {
   console.log("Clearing existing data...");
 
-  await prisma.providerBadge.deleteMany();
-  await prisma.certificationDoc.deleteMany();
-  await prisma.certification.deleteMany();
-  await prisma.clientReview.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.portfolioImage.deleteMany();
-  await prisma.portfolioProject.deleteMany();
-  await prisma.booking.deleteMany();
-  await prisma.favorite.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversation.deleteMany();
+  await prisma.transaction.deleteMany();
+  await prisma.review.deleteMany();
+  await prisma.clientReview.deleteMany();
+  await prisma.booking.deleteMany();
   await prisma.notification.deleteMany();
-  await prisma.portfolioItem.deleteMany();
-  await prisma.skill.deleteMany();
-  await prisma.serviceZone.deleteMany();
-  await prisma.availabilityException.deleteMany();
-  await prisma.availabilitySchedule.deleteMany();
-  await prisma.trustScore.deleteMany();
-  await prisma.subscription.deleteMany();
-  await prisma.providerSubcategory.deleteMany();
-  await prisma.providerCategory.deleteMany();
+  await prisma.report.deleteMany();
+  await prisma.block.deleteMany();
+  await prisma.placeSuggestion.deleteMany();
+  await prisma.address.deleteMany();
+  await prisma.contactMessage.deleteMany();
+  await prisma.activityLog.deleteMany();
+  await prisma.provider.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.referenceItem.deleteMany();
   await prisma.subcategory.deleteMany();
   await prisma.category.deleteMany();
-  await prisma.activityLog.deleteMany();
-  await prisma.visibilitySettings.deleteMany();
-  await prisma.provider.deleteMany();
+  await clearPlaces();
   await prisma.systemSetting.deleteMany();
-  await prisma.user.deleteMany();
+}
+
+// Place.parentId is ON DELETE RESTRICT, so the tree is removed leaves first.
+async function clearPlaces() {
+  let deleted: number;
+  do {
+    ({ count: deleted } = await prisma.place.deleteMany({
+      where: { children: { none: {} } },
+    }));
+  } while (deleted > 0);
 }
 
 async function seedSupabaseAuthUsers() {
@@ -149,31 +156,29 @@ async function findSupabaseUserIdByEmail(
   return user?.id ?? null;
 }
 
+async function printModelCounts() {
+  const delegates = prisma as unknown as Record<string, { count(): Promise<number> }>;
+
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const delegate = model.name.charAt(0).toLowerCase() + model.name.slice(1);
+    console.log(`${model.name}: ${await delegates[delegate].count()}`);
+  }
+}
+
 async function main() {
   assertSeedAllowed();
   console.log("KAYOU seed starting...");
 
   await clearDatabase();
+  await seedPlaces(prisma);
   await seedCategories(prisma);
+  await seedReferences(prisma);
+  await seedSettings(prisma);
   await seedDemo(prisma);
   await seedSupabaseAuthUsers();
 
-  const [categories, subcategories, users, providers, bookings, reviews] = await Promise.all([
-    prisma.category.count(),
-    prisma.subcategory.count(),
-    prisma.user.count(),
-    prisma.provider.count(),
-    prisma.booking.count(),
-    prisma.review.count(),
-  ]);
-
   console.log("KAYOU seed completed.");
-  console.log(`Categories: ${categories}`);
-  console.log(`Subcategories: ${subcategories}`);
-  console.log(`Users: ${users}`);
-  console.log(`Providers: ${providers}`);
-  console.log(`Bookings: ${bookings}`);
-  console.log(`Reviews: ${reviews}`);
+  await printModelCounts();
 }
 
 if (require.main === module) {
