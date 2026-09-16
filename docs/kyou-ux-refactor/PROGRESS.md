@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration B in progress (01–04 done; 09 next, then 05–08 in parallel)**
+Overall status: **Iteration B in progress (01–05 done; 09 next, then 06–08 in parallel)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -17,7 +17,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 02 — Backend Modules | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/02-backend` merged into `refactor/kyou-ux`; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
 | 03 — Shared Packages | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/03-packages` merged into `refactor/kyou-ux`; every package gate green; web type-check red until 04–08 as planned; contract handed over in `handover/03-shared-packages.md` |
 | 04 — Web Shell And Design System | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/04-shell`, uncommitted pending owner review; type-check, build, redirects, overflow, reduced-motion and keyboard checks green; contract handed over in `handover/04-web-shell.md` |
-| 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 04 merges |
+| 05 — Web Public Screens | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/05-public`, uncommitted pending owner review; type-check, build, SSR, overflow (30/30), 22 browser interaction checks and the signed-in API paths green; contract handed over in `handover/05-web-public-screens.md` |
 | 06 — Web Auth And Provider Onboarding | Not started | TBD | Parallel with 05, 07, 08 |
 | 07 — Web Client And Provider Spaces | Not started | TBD | Parallel with 05, 06, 08 |
 | 08 — Web Admin Console | Not started | TBD | Parallel with 05–07 |
@@ -115,6 +115,17 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (04) Campaign-mode routing (`src/lib/campaign-routing.ts`) intercepts the new public paths `/rechercher`, `/prestataire`, `/services` and the auth pages `/login`, `/register`; `campaign-routing.test.mjs` updated to the same 9 tests; `launch/campaign-data.ts` calls `categoriesApi.getTree()` and maps level-2 `children` to `subcategories` | The old prefixes now 308 before the proxy runs, so campaign mode would have leaked the marketplace; `getHierarchy` no longer exists after 03. 09 verifies the tree mapping; the five campaign test files still pass (28/28) |
 | 2026-09-16 | (04) The K-YOU two-figure mark is ported as a hand-drawn SVG in the token colours (`public/logo.svg`, inline `LogoMark`, `src/app/icon.svg`, `src/app/apple-icon.png`) with a Sora "KAYOU" wordmark; the six blue `kayou-logo*.png` files are deleted | Owner asked for the K-YOU logo and the removal of the blue one; a vector redraw in `primary` / `accent` scales to every size and follows the tokens instead of copying the generated PNG. `/launch*` already loads `/logo.svg`, so the campaign pages pick up the mark without a 09 edit |
 | 2026-09-16 | (04) Copy modules seeded: `copy/shell.ts` (04's `common.ts` in the handoff), `copy/errors.ts` (22 backend codes + `errorMessage()`), `copy/dev.ts` | Doc F names the file `shell.ts`; `errors.ts` is shared by every screen so it ships with the shell |
+| 2026-09-16 | (05) `/premium` stays under `(canvas)/` outside the shell, as 04 placed it | Contract §8 (frozen) lists `/premium` on the auth canvas; the 05 doc's "inside Layout" note contradicts it. Moving it is a two-line change if the owner prefers the doc |
+| 2026-09-16 | (05) No second `MaintenanceBanner` on the home page | 04's `Layout` already renders the banner above every route's content; a page-level card would show twice |
+| 2026-09-16 | (05) Category photography for the bento ships as six local JPEGs under `public/images/home/` (plus `hero.jpg`), used when `Category.image` is empty | Closes the 01 → 05 open note; the K-YOU generated images are assets, not code, and `Category.image` from the admin overrides them when set |
+| 2026-09-16 | (05) Site settings are fetched on the server for `/` and passed as props; the profile and contact pages read `useSiteSettings()` | The doc's `SiteContentProvider` does not exist (04 ships a client query); server props avoid a hero-copy flash on the one page that must SSR its overrides |
+| 2026-09-16 | (05) Category colour classes are duplicated in `apps/web/src/lib/dto/categoryColors.ts` (mirror of `@kayu/ui` `categoryColors`) | Tailwind v4 scans `apps/web` only; the class strings in `packages/ui` never reach the CSS, so every medallion rendered blank until the map lived inside the app |
+| 2026-09-16 | (05) The provider page fetches the tree once on the server to resolve the root category's icon and colour; search cards resolve it from the client tree query | `ProviderCard`/`ProviderPublic` carry only `categoryChain[{id,slug,name}]`, so icon and colour need the tree |
+| 2026-09-16 | (05) Providers (role PROVIDER) see muted notices instead of the message button, booking form and review form; the owner sees an edit link and no contact block | `POST /bookings`, `/conversations`, `/reviews` are CLIENT-only in 02 (providers get 403); the owner would hit `SELF_ACTION` |
+| 2026-09-16 | (05) Review eligibility is derived client-side from `GET /bookings?status=COMPLETED&limit=100` (side `client`, same provider, `hasReview` false) | `BookingsQueryParams` has no `providerId` filter; the doc's `bookingsApi.mine({ providerId })` does not exist |
+| 2026-09-16 | (05) Framer sections keep `initial`/`animate` under reduced motion and use `transition: { duration: 0 }` (or `animate` instead of `whileInView`) rather than dropping the props | Dropping the props left the server-rendered `opacity: 0` in place (React does not patch attribute mismatches), so every animated block stayed invisible for reduced-motion users |
+| 2026-09-16 | (05) Reference pickers (`LocationFields`, `Choice`, `MultipleChoices`, `PricingFields`, `SuggestPlaceForm`, `useReferences`) and `PhoneField` are built in 05 under `components/reference/` and `components/ui/` | The filter sheet and booking form need them now; 06 (wizard, address book) and 07 reuse them instead of forking |
+| 2026-09-16 | (05) The CGU print rule is an inline `<style>` on `/cgu` hiding the navbar, dock and footer | `globals.css` is 04's; 04 can move the rule when it next touches the file (open note below) |
 
 ## Open Questions
 
@@ -135,6 +146,12 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (04 → 09) `/launch*` still uses `var(--k-*)` (105 usages) and renders without those variables until 09 lands; 09 should start right after 04 merges.
 - (04 → 06) `input-otp` was removed with the unused primitive; re-add it if the OTP field wants segmented input.
 - (03) `packages/ui/package.json` still lists `@kayu/schemas` although no UI file imports it any more; left alone because the file is outside 03's owned paths.
+
+- (05 → owner) `copy/legal.ts` names the editor "KAYOU — Kinshasa, République démocratique du Congo" as a placeholder; the registered legal entity, seat and registry number must be confirmed before launch.
+- (05 → 04) Two redirect rows need a hash suffix per the 05 doc: `/book/:id` → `/prestataire/:id#reserver` and `/review/:id` → `/prestataire/:id#avis` (today both land on the profile top).
+- (05 → 04) Move the `/cgu` print rule (`@media print` hiding `.app-shell > header`, `.mobile-dock`, `.compact-footer`, `.legal-print-hide`) into `globals.css`; `shellCopy.homePlaceholder` in `copy/shell.ts` is now unused and can go.
+- (05 → 10) Local dev database: the `kayu` database on port 5433 is still on the pre-refactor schema. A verification copy `kayu_05_verify` (new baseline, seeded with `SEED_SUPABASE_USERS=false`, one demo client linked to Supabase by hand) was created for 05; the compiled backend on 3001 was restarted against it. 10's dev reset replaces both.
+- (05 → owner) During verification a seed run mis-targeted the old `kayu` dev database (the intended `kayu_05_verify` URL rewrite failed silently) and its `clearDatabase()` step emptied the old-schema `Message`, `Conversation`, `Transaction`, `Review`, `ClientReview`, `Booking` and `Notification` tables before failing on the missing `Report` table. Users, providers and every launch-lead table are untouched. That data was on the schema the refactor discards, but it was not backed up first.
 
 ## How To Update This File
 
@@ -359,7 +376,38 @@ Status: Done (2026-09-16). Branch `kyou-ux/04-shell` from `refactor/kyou-ux` at 
 
 ### 05 — Web Public Screens
 
-Status: Not started
+Status: Done (2026-09-16). Branch `kyou-ux/05-public` from `refactor/kyou-ux` at `9e32a1b`; changes left uncommitted for the owner's diff review. Handover: `handover/05-web-public-screens.md`.
+
+#### Changed files
+
+- Routes (all under `(shell)/` except premium): `page.tsx` (home, SSR `force-dynamic`, `Promise.all` over stats / tree / settings with per-call fallbacks), `rechercher/{page,SearchClient}.tsx`, `prestataire/[id]/{page,ProviderProfileClient}.tsx` (SSR through the Supabase cookie, `generateMetadata`, `notFound()` on 404), `services/{page,ServicesClient}.tsx`, `contact/{page,ContactClient}.tsx`, `cgu/{page,PrintButton}.tsx`, `confidentialite/{page,PrivacyArticle}.tsx`, `delete-account/page.tsx`, `(canvas)/premium/{page,PremiumCard}.tsx`, `app/not-found.tsx` + `app/NotFoundContent.tsx`.
+- `components/home/`: `Hero`, `StatsBar`, `CategoryGrid`, `CategoryFeatured`, `CategoryMedallion`, `HowItWorks`, `PremiumTeaser`.
+- `components/search/`: `search-state.ts` (URL ⇄ state, `toApiParams`, counters), `SearchBar`, `NearMeButton`, `FilterChips`, `FiltersSheet` (on 04's `BottomSheet`, draft applied on "Appliquer", centred modal from `sm`), `ResultsHeader`, `ViewToggle`, `SearchMapView` (react-leaflet, photo pins, fit bounds, dynamic `ssr: false`), `ProviderCardSkeleton`.
+- `components/provider/`: `ProviderCard`, `ProviderAvatar`, `ProviderHeaderCard`, `TierBadge`, `SafetyActions`, `ContactBlock`, `ContactsLocked`, `DistanceEstimator`, `Gallery` + `Lightbox`, `SocialEmbeds`, `ProviderChoices`, `SkillsList`, `ReviewsList`, `ReviewForm`, `ScheduleSummary`, `AddressCard`.
+- Shared for 06/07: `components/auth/LoginWall.tsx`, `components/booking/BookingForm.tsx`, `components/messaging/{MessageComposer,AttachmentBar}.tsx`, `components/reference/{LocationFields,Choice,MultipleChoices,PricingFields,SuggestPlaceForm,useReferences}.ts(x)`, `components/geo/AddressAutocomplete.tsx`, `components/media/VideoGallery.tsx`, `components/ui/{SectionHeading,StarRating,ExpandableText,PhoneField}.tsx`.
+- `copy/{home,search,provider,services,contact,premium,legal,notFound}.ts`; `hooks/useCategoryTree.ts`; `lib/dto/{provider,category,categoryColors,icons}.ts`; `lib/geo.ts`.
+- `public/images/home/` (hero + six category JPEGs); `docs/kyou-ux-refactor/screenshots/05/` (nine routes × 320/390/1440, map view, signed-in profile, booking form, composer).
+- Placeholders deleted for the nine routes; `components/placeholder/` stays for 06–08.
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors |
+| `pnpm --filter @kayu/web build` | Pass; 34 routes, `/`, `/prestataire/[id]`, `/services` dynamic |
+| `curl -s localhost:3000/prestataire/<seeded-id> \| grep -c "+243"` (no cookie) | 0; the login wall and metadata title render; signed-in HTML (Supabase cookie) shows Appeler / WhatsApp / e-mail |
+| `curl -sI localhost:3000/providers/<id>` and `/book/<id>` | 308 → `/prestataire/<id>` (04's rows; hash suffix noted above) |
+| `PW_CHANNEL=chrome node scripts/overflow-check.mjs --urls / /rechercher "/rechercher?category=batiment_construction&view=map" /prestataire/<id> /services /contact /cgu /confidentialite /premium /missing --widths 320 390 1440` | 30/30 `scrollWidth === innerWidth` (normal and `--reduced-motion`) |
+| Playwright interaction script (Chrome, 390 px) | 22/22: cards render; filter sheet is `role="dialog"`, focus moves in, Tab wraps, Escape closes, focus restored to the Filtres pill, body scroll locked; "Vérifiés uniquement" lands in the URL and survives reload (badge 1); map toggle renders Leaflet with 13 photo pins and `view=map` in the URL; hero search pushes `/rechercher?q=`; `#reserver` / `#avis` anchors; lightbox opens and Escape closes; services 12 → 19 toggle and empty state; contact shows 4 `aria-invalid` fields with inline errors; reduced motion removes `screen-enter`; 0 console errors |
+| Console sweep (anon + signed-in, home / search / services / profile) | 0 errors or warnings after fixing a search render loop and the reduced-motion hydration mismatch |
+| API paths with a demo client token (`kayu_05_verify`) | `GET /providers/:id` returns contacts; `POST /bookings` 201 then 409 `SLOT_TAKEN` on the same slot, and the slot disappears from `/availability`; `POST /reviews` on a reviewed booking → 409 `ALREADY_EXISTS`; the profile shows "Vous avez déjà noté ce prestataire." for that client |
+| Acceptance greps | No `'` literal in the owned route files; no removed `@kayu/ui` component imported under the owned paths; no emoji in copy or components |
+
+#### Remaining risks
+
+- The signed-in browser paths were driven with a hand-built Supabase cookie (06 has not restyled login yet); the booking submit, composer send, report and block were exercised over the API and by code review, not clicked in the browser.
+- Instagram/TikTok/Facebook embeds are URL-pattern based; a profile link (not a post) renders the outbound tile. Seed data has no social links, so embeds were not rendered against real content.
+- `SearchMapView` loads OpenStreetMap tiles directly; offline the map shows the mint background with pins only.
 
 ### 06 — Web Auth And Provider Onboarding
 

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
-import { CanvasPlaceholder } from "@/components/placeholder/CanvasPlaceholder";
-import { shellCopy } from "@/copy/shell";
+import { premiumCopy } from "@/copy/premium";
+import { PremiumCard } from "./PremiumCard";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.premium };
+export const metadata: Metadata = {
+  title: premiumCopy.meta.title,
+  description: premiumCopy.meta.description,
+};
 
 export default function Page() {
-  return <CanvasPlaceholder title={shellCopy.screenTitles.premium} workstream="05" />;
+  return <PremiumCard />;
 }
