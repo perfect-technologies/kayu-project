@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration B in progress (01–05 done; 09 next, then 06–08 in parallel)**
+Overall status: **Iteration B in progress (01–06 done; 09 next, then 07–08 in parallel)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -18,7 +18,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 03 — Shared Packages | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/03-packages` merged into `refactor/kyou-ux`; every package gate green; web type-check red until 04–08 as planned; contract handed over in `handover/03-shared-packages.md` |
 | 04 — Web Shell And Design System | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/04-shell`, uncommitted pending owner review; type-check, build, redirects, overflow, reduced-motion and keyboard checks green; contract handed over in `handover/04-web-shell.md` |
 | 05 — Web Public Screens | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/05-public`, uncommitted pending owner review; type-check, build, SSR, overflow (30/30), 22 browser interaction checks and the signed-in API paths green; contract handed over in `handover/05-web-public-screens.md` |
-| 06 — Web Auth And Provider Onboarding | Not started | TBD | Parallel with 05, 07, 08 |
+| 06 — Web Auth And Provider Onboarding | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/06-auth-onboarding`, uncommitted pending owner review; type-check, production build, redirects, 76 browser checks (320/390/1440, reduced motion) and an end-to-end wizard publish green; contract handed over in `handover/06-web-auth-and-onboarding.md` |
 | 07 — Web Client And Provider Spaces | Not started | TBD | Parallel with 05, 06, 08 |
 | 08 — Web Admin Console | Not started | TBD | Parallel with 05–07 |
 | 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change. `/launch*` still reads the deleted `--k-*` variables, so it renders unstyled until 09 |
@@ -126,6 +126,20 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (05) Framer sections keep `initial`/`animate` under reduced motion and use `transition: { duration: 0 }` (or `animate` instead of `whileInView`) rather than dropping the props | Dropping the props left the server-rendered `opacity: 0` in place (React does not patch attribute mismatches), so every animated block stayed invisible for reduced-motion users |
 | 2026-09-16 | (05) Reference pickers (`LocationFields`, `Choice`, `MultipleChoices`, `PricingFields`, `SuggestPlaceForm`, `useReferences`) and `PhoneField` are built in 05 under `components/reference/` and `components/ui/` | The filter sheet and booking form need them now; 06 (wizard, address book) and 07 reuse them instead of forking |
 | 2026-09-16 | (05) The CGU print rule is an inline `<style>` on `/cgu` hiding the navbar, dock and footer | `globals.css` is 04's; 04 can move the rule when it next touches the file (open note below) |
+| 2026-09-16 | (06) `AuthGate` no longer swaps in `AcceptTermsScreen` on `/login` and `/register` (a three-line edit to 04's file) | Those screens collect the name and the terms as inline OTP steps; without the exemption the gate replaced the flow the moment `/me` returned `termsAcceptedAt: null` |
+| 2026-09-16 | (06) The post-auth matrix lives in `lib/auth-return-to.ts` (`postAuthDestination`, `roleLanding`, `usableReturnTo`, the `kayou.signupIntent` helpers); 04's `postLoginDestination` delegates to it and `GuestOnly` keeps working | One table for both screens and the guards; the 06 fallback is `/rechercher` (K-YOU `Register.jsx`), not 04's `/`; an already signed-in visitor of `/login` goes to `returnTo` or the role home |
+| 2026-09-16 | (06) `AuthContext` sign-in methods resolve with the provisioned user and an explicit sync joins the in-flight `/me` fetch started by `onAuthStateChange`; `updateProfile` added | Supabase notifies subscribers before `verifyOtp` resolves, so the explicit sync used to find "the same token" and return nothing; the screens route synchronously on the returned user |
+| 2026-09-16 | (06) `/prestataire/nouveau` uses `ProtectedRoute` plus an in-client provider check instead of `RequireNotProvider` | The guard redirected to the editor the instant `/me` refetched after publish, killing the success screen; `RequireNotProvider` stays exported |
+| 2026-09-16 | (06) `LocationFields` gains a `stopAt?: PlaceKind` prop (05's file, three lines) | The name step needs country › city only; RDC cities sit under provinces so "stop at CITY" is the honest rule, not "two levels" |
+| 2026-09-16 | (06) `lib/upload.ts` is replaced by `lib/media-upload.ts` (`uploadFile(purpose, file, { onProgress, signal })`, XHR PUT to the signed URL, public URL for `avatar` / `media`); `AttachmentBar` import re-pointed (one line in 05's file) | The doc's progress support; the same helper serves the wizard, the editor, KYC and chat |
+| 2026-09-16 | (06) `@dnd-kit/{core,sortable,utilities}` re-added to `apps/web` (04 had pruned them as unused) | The doc's drag-to-reorder for video tiles; keyboard reorder comes with the sortable keyboard sensor |
+| 2026-09-16 | (06) The OTP boxes are hand-rolled (six inputs, auto-advance, paste, backspace); `input-otp` stays out | 60 lines, no dependency, and the shake animation needed the wrapper anyway |
+| 2026-09-16 | (06) Visiting `/bienvenue` sets `kayou_onboarded` on mount, not only on finish | The "Passer" link is 04's `AuthCanvas topBar` (a server link), so the flag cannot be set on click without forking the canvas; "first visit only" still holds |
+| 2026-09-16 | (06) No second `Logo` bar on the wizard page | The page renders inside `Layout`, whose navbar already carries the mark; a second logo 60 px under it is noise (K-YOU's `BecomeProvider.jsx` had no navbar logo at that width) |
+| 2026-09-16 | (06) The register account-type choice is stored in `sessionStorage` (`kayou.signupIntent`), read once by the matrix and cleared; `/register?as=provider` pre-selects it | Doc rule: a routing hint, never a role; the query form lets `/premium` and the "Devenir prestataire" links deep-link the provider intent |
+| 2026-09-16 | (06) Admins editing another provider get a "Modération" tab (`hidden`, `premiumTier`, `verificationStatus`, `rejectionReason` → `PATCH /admin/providers/:id`) and every content tab wrapped in a disabled `fieldset` | One write path per field, as the doc requires; the disabled fieldset covers uploads, drag handles and selects without threading a prop through every step |
+| 2026-09-16 | (06) Wizard draft key `kayou.providerDraft`, envelope `{ v: 1, savedAt, draft }`, includes the current step and the uploaded media paths | Reload on the same tab restores the step, the tiles and the accepted terms; a version bump discards stale drafts |
+| 2026-09-16 | (06) The redirect row `/pro/profile/:rest*` → `/prestataire/me/modifier` replaces 04's `→ /compte`; the editor page resolves `me` server-side through the Supabase cookie (`/me` → own id, or the wizard, or `/login?returnTo=`) | The 06 doc's row; `/pro/profile/*` were provider content pages, not account settings |
 
 ## Open Questions
 
@@ -151,6 +165,11 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (05 → 04) Two redirect rows need a hash suffix per the 05 doc: `/book/:id` → `/prestataire/:id#reserver` and `/review/:id` → `/prestataire/:id#avis` (today both land on the profile top).
 - (05 → 04) Move the `/cgu` print rule (`@media print` hiding `.app-shell > header`, `.mobile-dock`, `.compact-footer`, `.legal-print-hide`) into `globals.css`; `shellCopy.homePlaceholder` in `copy/shell.ts` is now unused and can go.
 - (05 → 10) Local dev database: the `kayu` database on port 5433 is still on the pre-refactor schema. A verification copy `kayu_05_verify` (new baseline, seeded with `SEED_SUPABASE_USERS=false`, one demo client linked to Supabase by hand) was created for 05; the compiled backend on 3001 was restarted against it. 10's dev reset replaces both.
+- (06 → 10) The Supabase buckets `provider-media` and `verification-docs` do not exist in the shared project (only `avatars` does): `POST /me/uploads/sign` returns 500 "The related resource does not exist" for `media` and `verification`, so wizard gallery/video uploads and KYC uploads fail with the retry tile until 10 creates them (02 handed bucket creation to 10). The XHR upload path was proven against `avatars`.
+- (06 → 10) `kayu_05_verify` now has four demo accounts linked to their real Supabase auth ids by hand (Paul from 05; Jean-Pierre, Michelle, Joseph and admin from 06) so every role can be exercised through the dev panel; 10's dev reset should seed those links (`SEED_SUPABASE_USERS`) instead.
+- (06 → owner) The real SMS path (Supabase `signInWithOtp` → `verifyOtp`) was not exercised end to end: no test OTP is configured on the project and sending real SMS to invented numbers was not attempted. The phone step, error mapping and the post-OTP name/terms/matrix logic are covered by code paths shared with the password demo login.
+- (06 → 04) `shellCopy.screenTitles.{welcome,login,register,becomeProvider,editProvider,verification}` are no longer read by any page (each route owns its metadata copy); 04 can prune them with the `homePlaceholder` block.
+- (06 → 07) `/compte` should not duplicate the provider fields; the doc moved `services`, `availability` and `zones` into the editor tabs.
 - (05 → owner) During verification a seed run mis-targeted the old `kayu` dev database (the intended `kayu_05_verify` URL rewrite failed silently) and its `clearDatabase()` step emptied the old-schema `Message`, `Conversation`, `Transaction`, `Review`, `ClientReview`, `Booking` and `Notification` tables before failing on the missing `Report` table. Users, providers and every launch-lead table are untouched. That data was on the schema the refactor discards, but it was not backed up first.
 
 ## How To Update This File
@@ -411,7 +430,39 @@ Status: Done (2026-09-16). Branch `kyou-ux/05-public` from `refactor/kyou-ux` at
 
 ### 06 — Web Auth And Provider Onboarding
 
-Status: Not started
+Status: Done (2026-09-16). Branch `kyou-ux/06-auth-onboarding` from `refactor/kyou-ux` at `ddd7937`; changes left uncommitted for the owner's diff review. Handover: `handover/06-web-auth-and-onboarding.md`.
+
+#### Changed files
+
+- Routes: `(canvas)/login/{page,LoginClient}.tsx`, `(canvas)/register/{page,RegisterClient}.tsx` (`?returnTo`, `?as=provider|client`), `bienvenue/{page,WelcomeClient}.tsx`, `(shell)/prestataire/nouveau/{page,WizardClient}.tsx`, `(shell)/prestataire/[id]/modifier/{page,EditorClient}.tsx` (server resolves `me`, `GET /providers/:id` through the cookie, 403/404 → `notFound()`), `(shell)/verification/{page,VerificationClient}.tsx`. The six placeholders are gone; `components/placeholder/` stays for 07–08.
+- `components/auth/`: `useAuthFlow.ts` (the shared phone → code → name → terms machine), `OtpFlow`, `PhoneStep`, `CountrySelect`, `OtpStep`, `NameStep`, `TermsStep` (+ `TermsCheckbox` reused by the wizard), `AuthStepDots`, `AccountTypeSelector`, `AuthCardHeader`, `AuthCardMotion`, `DemoAccountsPanel` (dev only), `WelcomeSlide`, `WelcomeGate` (mounted in 05's `(shell)/page.tsx`, one line), `supabase-errors.ts`.
+- `components/onboarding/`: `wizard-state.ts` (`WizardDraft`, `useWizardDraft` over `lib/onboarding-draft.ts`), `wizard-validation.ts` (step rules, `toPublishPayload`, `validatePayload` through `PublishProviderDto`, `mapIssues` for client and server 400 paths), `CategoryCascade` (+ `selectionForNode`), `WizardHero`, `ProgressRail`, `StepInfos`, `StepServices`, `StepLocation`, `StepPublic`, `PublicProfileFields`, `PreviewCard`, `BenefitsCard`, `WizardFooter`.
+- `components/schedule/`: `ScheduleEditor` (+ `defaultSchedule`, `scheduleIssues` over `validateSchedule`), `RangeRow`, `ExceptionRow`.
+- `components/media/`: `media-draft.ts` (`MediaDraftItem`, `toMediaInput`, `fromProviderMedia`), `PhotoDropzone` (single avatar / `multiple` gallery, immediate upload with progress, retry tile), `VideoEditor` (YouTube host check via `parseYouTubeUrl`, MP4/MOV/WebM ≤ 25 MB with XHR progress, 12 tiles, dnd-kit reorder, confirm on remove), `UploadProgress`.
+- `components/verification/`: `VerifyWizard`, `VerifyStatus`, `UploadTarget`, `DocStatusRow`. `components/forms/Field.tsx` (`Field`, `TextAreaField`, `SelectField`, `FormError`, `Spinner` on 04's `.field`).
+- `contexts/AuthContext.tsx` (sign-ins resolve with the user, in-flight join, `updateProfile`), `lib/auth-return-to.ts`, `lib/media-upload.ts`, `lib/onboarding-draft.ts`; `lib/auth-redirects.ts` delegates; `lib/upload.ts` deleted.
+- `copy/{auth,onboarding,verification}.ts`. Edits outside the owned paths, each logged above: `components/providers/AuthGate.tsx`, `components/reference/LocationFields.tsx` (`stopAt`), `components/messaging/AttachmentBar.tsx` (import), `(shell)/page.tsx` (`WelcomeGate`), `next.config.ts` (one redirect row), `package.json` (dnd-kit).
+- Assets: `public/welcome/slide-{1..4}.png`, `public/images/wizard-hero.png` (K-YOU generated illustrations). Screenshots: `docs/kyou-ux-refactor/screenshots/06/` (30 files: bienvenue / login / register × 320/390/1440, wizard steps 1–4 at 390 and 1440, step 4 filled, success, editor tabs, admin moderation, verification × 320/390/1440).
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors |
+| `NODE_ENV=production pnpm --filter @kayu/web build` | Pass; `grep -r Password123 .next/static .next/server/app` → no match (the demo panel is compiled out) |
+| `curl -sI` on `/auth?mode=signup`, `/auth`, `/pro/onboarding`, `/pro/verify`, `/pro/profile/photo` | 308 → `/register?mode=signup`, `/login`, `/prestataire/nouveau`, `/verification`, `/prestataire/me/modifier`; `/prestataire/me/modifier` anonymous → 307 `/login?returnTo=…` |
+| `PW_CHANNEL=chrome node scripts/overflow-check.mjs --urls /bienvenue /login /register --widths 320 390 1440 --reduced-motion` | 9/9 `scrollWidth === innerWidth` |
+| Playwright suite (Chrome; anonymous, client, provider, admin) | 76/76: no overflow on `/bienvenue`, `/login`, `/register`, the wizard (steps 1 and 4), the editor and `/verification` at 320/390/1440; no brand column on `/login`; invalid phone → `role="alert"`; welcome gate fires once on a fresh 390 px profile, never at 1440, never with `returnTo`, never signed in, and finishing lands on `/login`; client demo login → `/rechercher`, signed-in visitor of `/login` → `/mes-reservations`, `returnTo=/services` honoured, `//evil.com` ignored; wizard "Continuer" disabled until name+phone, deepest taxonomy node, city, CGU; draft survives reload on step 2 and step 4; schedule caps Monday at four ranges and flags an overlap before any request; `youtube.com.evil.io` rejected, `youtu.be` accepted; provider demo login → `/mon-espace`, `/prestataire/me/modifier` resolves to the own id, save disabled when clean, enabled when dirty, toast on save, dirty guard on tab switch; provider on `/prestataire/nouveau` → own editor; client on `/verification` → `/mes-reservations`; admin login → `/admin`, admin sees the Modération tab with content fields disabled |
+| Playwright publish flow (Chrome, demo client Joseph on `kayu_05_verify`) | 10/10: phone prefilled from `/me`; YouTube tile added, duplicate rejected; gallery upload shows the retry tile (bucket missing, see open note); draft with the video survives reload; `POST /me/provider` → 201; success screen; redirect to `/prestataire/<id>`; draft cleared; `/prestataire/nouveau` then redirects to the editor (role `PROVIDER`). The test rows were deleted afterwards |
+| XHR signed-upload probe against the existing `avatars` bucket | sign 200 → PUT 200 with progress → public URL 200 |
+| KYC upload as the demo provider | `POST /me/uploads/sign` (purpose `verification`) → 500 upstream (missing bucket); the screen shows the inline error and the retry action |
+
+#### Remaining risks
+
+- SMS OTP itself was not sent or verified against Supabase (see open note); every step after the code is shared with the password demo path and was exercised.
+- Gallery, video and KYC uploads cannot complete until 10 creates the two buckets; the UI paths (progress, retry, removal, publish without media) are verified.
+- The wizard's browser-geolocation fallback runs only at publish time when the autocomplete gave no coordinates; Playwright had no geolocation grant, so the publish went through with `latitude: null`.
+- The editor's Planning tab saves through `PUT /providers/me/schedule` and Vidéos through `PUT /providers/me/media`; both were exercised by code review and the shared payload builders, not by a browser save (the media save needs the buckets).
 
 ### 07 — Web Client And Provider Spaces
 
