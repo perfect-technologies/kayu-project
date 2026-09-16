@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
+import { motion, palette, radii } from "../tokens.js";
 
 export type ShimmerProps = {
   width?: number | string;
@@ -11,11 +11,11 @@ export type ShimmerProps = {
   style?: React.CSSProperties;
 };
 
-// 1600ms linear infinite horizontal shimmer. Matches prototype .k-shimmer.
+/** Skeleton block with the K-YOU 1.4 s sheen. Mount `<ShimmerStyles />` once for the animation. */
 export const Shimmer: React.FC<ShimmerProps> = ({
   width = "100%",
   height = 16,
-  radius = tokens.radius.sm,
+  radius = radii.field,
   className,
   style,
 }) => (
@@ -23,21 +23,29 @@ export const Shimmer: React.FC<ShimmerProps> = ({
     aria-hidden
     className={className}
     style={{
-      display: "inline-block",
+      position: "relative",
+      display: "block",
+      overflow: "hidden",
       width,
       height,
       borderRadius: radius,
-      background:
-        "linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%)",
-      backgroundSize: "800px 100%",
-      animation: "kayu-shimmer 1600ms linear infinite",
+      background: palette.skeleton,
       ...style,
     }}
-  />
+  >
+    <span
+      data-kayu-sheen=""
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "linear-gradient(100deg, transparent 20%, rgba(255,255,255,.56) 50%, transparent 80%)",
+        animation: `kayu-sheen ${motion.sheenMs}ms ease-in-out infinite`,
+      }}
+    />
+  </span>
 );
 
-// Keyframes as a mountable one-shot. Consumers can instead ship the CSS via
-// globals.css — kept inline so the component is self-sufficient in isolation.
 export const ShimmerStyles: React.FC = () => (
-  <style>{`@keyframes kayu-shimmer { 0% { background-position: -400px 0 } 100% { background-position: 400px 0 } }`}</style>
+  <style>{`@keyframes kayu-sheen { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+@media (prefers-reduced-motion: reduce) { [data-kayu-sheen] { animation: none !important; opacity: 0 } }`}</style>
 );
