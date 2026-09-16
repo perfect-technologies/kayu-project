@@ -1,7 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
+  HttpStatus,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -10,7 +10,16 @@ import {
   ACTOR_RESOLVER,
   type IActorResolver,
 } from "../auth/actor-resolver.interface";
-import type { AuthenticatedRequest } from "../auth/types";
+import type { Actor, AuthenticatedRequest } from "../auth/types";
+import { apiError } from "../http/errors";
+
+export function assertActive(actor: Actor): void {
+  if (!actor.isActive) {
+    throw apiError(HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED", "Votre compte est suspendu.", {
+      suspendedReason: actor.suspendedReason ?? null,
+    });
+  }
+}
 
 @Injectable()
 export class ActorGuard implements CanActivate {
@@ -27,10 +36,7 @@ export class ActorGuard implements CanActivate {
     }
 
     const actor = await this.actorResolver.resolve(authUser);
-
-    if (!actor.isActive) {
-      throw new ForbiddenException("User account is inactive");
-    }
+    assertActive(actor);
 
     req.actor = actor;
     return true;

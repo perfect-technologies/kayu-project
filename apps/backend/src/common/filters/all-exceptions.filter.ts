@@ -6,6 +6,11 @@ import {
   Logger,
 } from "@nestjs/common";
 
+type JsonResponse = {
+  status: (c: number) => { json: (b: unknown) => unknown };
+  setHeader?: (name: string, value: string) => void;
+};
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger("Exception");
@@ -14,12 +19,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const http = host.switchToHttp();
-    const res = http.getResponse<{ status: (c: number) => { json: (b: unknown) => unknown } }>();
+    const res = http.getResponse<JsonResponse>();
     const req = http.getRequest<{ url: string; method: string }>();
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
+      const retryAfter =
+        typeof body === "object" && body !== null
+          ? (body as { retryAfter?: unknown }).retryAfter
+          : undefined;
+      if (typeof retryAfter === "number") res.setHeader?.("Retry-After", String(retryAfter));
       res.status(status).json(
         typeof body === "string" ? { statusCode: status, message: body } : body,
       );

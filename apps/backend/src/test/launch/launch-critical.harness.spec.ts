@@ -1,1727 +1,1229 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { Module } from "@nestjs/common";
-import { NestFactory, Reflector } from "@nestjs/core";
-import type { UserRole } from "@prisma/client";
-import { ACTOR_RESOLVER } from "../../common/auth/actor-resolver.interface";
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { after, before, describe, test } from "node:test";
+import { Global, Module, type INestApplication } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { NestFactory } from "@nestjs/core";
+import { PrismaClient } from "@prisma/client";
+import { featureModules } from "../../app.modules";
 import { SupabaseJwtService } from "../../common/auth/supabase-jwt.service";
-import type { Actor, AuthContextUser } from "../../common/auth/types";
-import { ActorGuard } from "../../common/guards/actor.guard";
+import type { SupabaseJwtClaims } from "../../common/auth/types";
+import { AllExceptionsFilter } from "../../common/filters/all-exceptions.filter";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
-import { PrismaService } from "../../database/prisma.service";
-import { BookingsController } from "../../modules/bookings/bookings.controller";
-import { BookingsService } from "../../modules/bookings/bookings.service";
-import { FinalOffersController } from "../../modules/bookings/final-offers.controller";
-import { IdentityController } from "../../modules/identity/identity.controller";
-import { IdentityRepository, type UserWithProvider } from "../../modules/identity/identity.repository";
-import { IdentityService } from "../../modules/identity/identity.service";
-import { RecentAddressesService } from "../../modules/identity/recent-addresses.service";
-import { MessagingController } from "../../modules/messaging/messaging.controller";
-import { MessagingService } from "../../modules/messaging/messaging.service";
-import { NotificationsService } from "../../modules/notifications/notifications.service";
-import { ProvidersController } from "../../modules/providers/providers.controller";
-import { ProvidersAvailabilityService } from "../../modules/providers/providers-availability.service";
-import { ProvidersService } from "../../modules/providers/providers.service";
-import { QuotesController } from "../../modules/quotes/quotes.controller";
-import { QuotesService } from "../../modules/quotes/quotes.service";
-import { ReviewsController } from "../../modules/reviews/reviews.controller";
-import { ReviewsService } from "../../modules/reviews/reviews.service";
-import { StorageService, type UploadPurpose } from "../../modules/storage/storage.service";
+import { RateLimiterService } from "../../common/rate-limit/rate-limiter.service";
+import { DatabaseModule } from "../../database/database.module";
+import { addDays, localParts } from "../../modules/providers/schedule";
+import { SUPABASE_CLIENT } from "../../modules/storage/storage.service";
 
-const now = new Date("2026-04-22T10:00:00.000Z");
+// The launch harness drives the real modules over HTTP against a disposable Postgres database;
+// only Supabase (JWT verification, storage, auth admin) is faked.
+const databaseUrl = process.env.LAUNCH_HARNESS_DATABASE_URL;
+const requireDatabase = process.env.LAUNCH_HARNESS_REQUIRE_DATABASE === "true";
+const backendDir = resolve(__dirname, "../../..");
+const TIMEZONE = "Africa/Kinshasa";
 
-type IntegrationState = ReturnType<typeof createState>;
+type Identity = { authUserId: string; phone?: string; email?: string };
+type JsonResponse = { status: number; body: any };
 
-function createState() {
-  const usersById = new Map<string, UserWithProvider>();
-  const usersByAuthUserId = new Map<string, UserWithProvider>();
-  const providersById = new Map<string, Record<string, any>>();
-  const providersByUserId = new Map<string, { id: string }>();
-  const bookingsById = new Map<string, Record<string, unknown>>();
-  const conversationsByKey = new Map<string, Record<string, any>>();
-  const messagesByConversationId = new Map<string, Array<Record<string, unknown>>>();
-  const quotesById = new Map<string, Record<string, unknown>>();
-  const finalOffersById = new Map<string, Record<string, unknown>>();
-  const reviewsByBookingId = new Map<string, Record<string, unknown>>();
-  const notifications: Array<Record<string, unknown>> = [];
-  const earningTransactions: Array<Record<string, unknown>> = [];
-  let nextBookingIndex = 2;
-  let nextConversationIndex = 1;
-  let nextFinalOfferIndex = 0;
-  let nextMessageIndex = 0;
+const tokenFor = (identity: Identity) =>
+  `harness.${Buffer.from(JSON.stringify(identity)).toString("base64url")}`;
 
-  const clientUser = makeUser({
-    id: "client_user_1",
-    authUserId: "auth_client_1",
-    email: "client@example.com",
-    phone: "+243810000001",
-    firstName: "Client",
-    lastName: "User",
-    role: "CLIENT",
-    roleSelectedAt: new Date("2026-04-18T10:00:00.000Z"),
-  });
-  const providerUser = makeUser({
-    id: "provider_user_1",
-    authUserId: "auth_provider_1",
-    email: "provider@example.com",
-    phone: "+243897000001",
-    firstName: "Pro",
-    lastName: "User",
-    role: "PROVIDER",
-    roleSelectedAt: new Date("2026-04-18T10:00:00.000Z"),
-  });
-  const freshUser = makeUser({
-    id: "fresh_user_1",
-    authUserId: "auth_fresh_1",
-    email: "fresh@example.com",
-    phone: "+243810000099",
-    firstName: null,
-    lastName: null,
-    role: "CLIENT",
-    roleSelectedAt: null,
-  });
-
-  for (const user of [clientUser, providerUser, freshUser]) {
-    usersById.set(user.id, user);
-    usersByAuthUserId.set(user.authUserId, user);
+class FakeJwtService {
+  async verify(token: string): Promise<SupabaseJwtClaims> {
+    if (!token.startsWith("harness.")) throw new Error("invalid token");
+    const identity = JSON.parse(
+      Buffer.from(token.slice("harness.".length), "base64url").toString("utf8"),
+    ) as Identity;
+    return { sub: identity.authUserId, phone: identity.phone, email: identity.email };
   }
-
-  const provider = {
-    id: "provider_1",
-    userId: providerUser.id,
-    profession: "Plombier",
-    description: "Interventions plomberie rapides a Kinshasa.",
-    experience: 8,
-    hourlyRate: 30000,
-    videoUrl: null,
-    isAvailable: true,
-    isPremium: false,
-    premiumExpiry: null,
-    totalReviews: 3,
-    totalJobs: 8,
-    responseTime: 45,
-    verificationStatus: "VERIFIED" as const,
-    onboardingCompleteAt: new Date("2026-04-18T10:00:00.000Z"),
-    createdAt: now,
-    updatedAt: now,
-    user: {
-      id: providerUser.id,
-      firstName: providerUser.firstName,
-      lastName: providerUser.lastName,
-      avatar: null,
-      city: "Kinshasa",
-      country: "RDC",
-      isVerified: true,
-      visibilitySettings: {
-        profileVisible: "PUBLIC",
-        showEmail: false,
-        showPhone: true,
-        showExactLocation: false,
-        showHourlyRate: true,
-        showPastWork: true,
-        showReviews: true,
-        showAvailability: true,
-        showCertifications: true,
-        showClientHistory: false,
-        showClientReviews: false,
-        allowDirectContact: true,
-        allowMessages: true,
-        appearInSearch: true,
-        appearInCategory: true,
-      },
-    },
-    categories: [
-      {
-        category: {
-          id: "cat_plomberie",
-          name: "Plomberie",
-          slug: "plomberie",
-          icon: "wrench",
-          color: "#0f766e",
-          isActive: true,
-        },
-      },
-    ],
-    subcategories: [
-      {
-        isPrimary: true,
-        experience: 7,
-        subcategory: {
-          id: "sub_depannage",
-          categoryId: "cat_plomberie",
-          name: "Depannage",
-          slug: "depannage",
-          description: "Fuites, joints et canalisations",
-          icon: "droplets",
-          isActive: true,
-          order: 1,
-          createdAt: now,
-          updatedAt: now,
-        },
-      },
-    ],
-    skills: [{ id: "skill_1", providerId: "provider_1", name: "Fuites", level: 5 }],
-    serviceZones: [
-      {
-        id: "zone_1",
-        providerId: "provider_1",
-        city: "Kinshasa",
-        commune: "Gombe",
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    trustScore: {
-      id: "trust_1",
-      providerId: "provider_1",
-      badges: [],
-    },
-    certifications: [],
-    portfolio: [],
-    portfolioProjects: [],
-    availabilitySchedules: [],
-    subscription: null,
-    reviews: [],
-    _count: {
-      bookings: 8,
-      reviews: 3,
-    },
-  };
-  providersById.set(provider.id, provider);
-  providersByUserId.set(provider.userId, { id: provider.id });
-
-  const pendingBooking = makeBookingRecord({
-    id: "booking_1",
-    clientId: clientUser.id,
-    providerId: provider.id,
-    status: "PENDING",
-    provider,
-    client: clientUser,
-  });
-  const completedBooking = makeBookingRecord({
-    id: "booking_completed_1",
-    clientId: clientUser.id,
-    providerId: provider.id,
-    status: "COMPLETED",
-    completedAt: now,
-    provider,
-    client: clientUser,
-  });
-  bookingsById.set(pendingBooking.id as string, pendingBooking);
-  bookingsById.set(completedBooking.id as string, completedBooking);
-
-  const quote = {
-    id: "quote_1",
-    jobRequestId: "request_1",
-    providerId: provider.id,
-    clientId: clientUser.id,
-    message: "Je peux intervenir demain matin.",
-    validityDays: 7,
-    startDateKind: "23/04/2026",
-    discountPct: 0,
-    subtotal: 75000,
-    discountAmt: 0,
-    total: 75000,
-    commissionPct: 10,
-    commissionAmt: 7500,
-    payoutAmt: 67500,
-    status: "SENT",
-    sentAt: now,
-    acceptedAt: null,
-    declinedAt: null,
-    expiresAt: new Date("2999-04-27T10:00:00.000Z"),
-    bookingId: null,
-    createdAt: now,
-    updatedAt: now,
-    lines: [
-      {
-        id: "line_1",
-        quoteId: "quote_1",
-        label: "Intervention",
-        qty: 2,
-        unit: "Heure",
-        unitPrice: 30000,
-        order: 0,
-      },
-    ],
-    jobRequest: {
-      id: "request_1",
-      service: "Réparer une fuite",
-      address: "12 Avenue Kasa-Vubu",
-      city: "Kinshasa",
-      budget: 80000,
-      status: "OPEN",
-    },
-    provider: {
-      ...provider,
-      user: {
-        id: provider.user.id,
-        firstName: provider.user.firstName,
-        lastName: provider.user.lastName,
-        avatar: provider.user.avatar,
-        city: provider.user.city,
-      },
-    },
-    client: {
-      id: clientUser.id,
-      firstName: clientUser.firstName,
-      lastName: clientUser.lastName,
-      avatar: clientUser.avatar,
-      email: clientUser.email,
-      phone: clientUser.phone,
-    },
-  };
-  quotesById.set(quote.id, quote);
-
-  return {
-    usersById,
-    usersByAuthUserId,
-    providersById,
-    providersByUserId,
-    bookingsById,
-    conversationsByKey,
-    messagesByConversationId,
-    quotesById,
-    finalOffersById,
-    reviewsByBookingId,
-    notifications,
-    earningTransactions,
-    nextBookingId() {
-      nextBookingIndex += 1;
-      return `booking_${nextBookingIndex}`;
-    },
-    nextConversationId() {
-      nextConversationIndex += 1;
-      return `conversation_${nextConversationIndex}`;
-    },
-    nextFinalOfferId() {
-      nextFinalOfferIndex += 1;
-      return `final_offer_${nextFinalOfferIndex}`;
-    },
-    nextMessage() {
-      nextMessageIndex += 1;
-      return {
-        id: `message_${nextMessageIndex}`,
-        createdAt: new Date(now.getTime() + nextMessageIndex * 1000),
-      };
-    },
-  };
 }
 
-function makeUser(overrides: Partial<UserWithProvider>): UserWithProvider {
-  return {
-    id: "user_1",
-    authUserId: "auth_1",
-    email: null,
-    phone: "+243897123456",
-    firstName: null,
-    lastName: null,
-    avatar: null,
-    role: "CLIENT" as UserRole,
-    roleSelectedAt: null,
-    city: "Kinshasa",
-    country: "RDC",
-    address: null,
-    latitude: null,
-    longitude: null,
-    isVerified: false,
-    emailVerifiedAt: null,
-    phoneVerifiedAt: null,
-    isActive: true,
-    lastLoginAt: now,
-    clientScore: 0,
-    clientTrustLevel: "NEW_CLIENT",
-    onboardingStep: null,
-    onboardingDraft: null,
-    createdAt: now,
-    updatedAt: now,
-    provider: null,
-    ...overrides,
-  };
+function assertDisposableDatabase(url: string): string {
+  const name = new URL(url).pathname.replace(/^\//, "");
+  if (!/^kayu_(ci|test)_launch_harness$/.test(name)) {
+    throw new Error("LAUNCH_HARNESS_DATABASE_URL must name a kayu_ci/test_launch_harness database");
+  }
+  return name;
 }
 
-function makeBookingRecord(input: {
-  id: string;
-  clientId: string;
-  providerId: string;
-  status: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED";
-  provider: IntegrationState["providersById"] extends Map<string, infer T> ? T : never;
-  client: UserWithProvider;
-  completedAt?: Date | null;
-}) {
-  return {
-    id: input.id,
-    clientId: input.clientId,
-    providerId: input.providerId,
-    title: "Dépannage urgent",
-    description: "Canalisation bouchée",
-    status: input.status,
-    address: "Gombe",
-    city: "Kinshasa",
-    clientLatitude: null,
-    clientLongitude: null,
-    scheduledDate: new Date("2026-04-23T08:00:00.000Z"),
-    duration: 120,
-    price: 50000,
-    clientNotes: "Intervention rapide si possible",
-    providerNotes: null,
-    paymentMethod: null,
-    isPaid: false,
-    paidAt: null,
-    confirmedAt: input.status === "CONFIRMED" ? now : null,
-    startedAt: input.status === "IN_PROGRESS" ? now : null,
-    completedAt: input.completedAt ?? null,
-    cancelledAt: null,
-    cancelReason: null,
-    cancelledBy: null,
-    createdAt: now,
-    updatedAt: now,
-    client: {
-      id: input.client.id,
-      firstName: input.client.firstName,
-      lastName: input.client.lastName,
-      avatar: input.client.avatar,
-      isVerified: input.client.isVerified,
-    },
-    provider: {
-      id: input.provider.id,
-      userId: input.provider.userId,
-      profession: input.provider.profession,
-      user: {
-        id: input.provider.user.id,
-        firstName: input.provider.user.firstName,
-        lastName: input.provider.user.lastName,
-        avatar: input.provider.user.avatar,
-        isVerified: input.provider.user.isVerified,
-      },
-    },
-    service: null,
-    review: null,
-    clientReview: null,
-  };
+// CREATE/DROP DATABASE cannot run inside Prisma's transaction wrapper, so psql talks to the
+// maintenance database directly.
+function psqlAdmin(url: string, command: string) {
+  const admin = new URL(url);
+  admin.pathname = "/postgres";
+  admin.search = "";
+  execFileSync("psql", ["--dbname", admin.toString(), "--command", command], { stdio: "pipe" });
 }
 
-function createIdentityRepo(state: IntegrationState): IdentityRepository {
-  return {
-    findByAuthUserId: async (authUserId: string) =>
-      state.usersByAuthUserId.get(authUserId) ?? null,
-    createUser: async (input: {
-      authUserId: string;
-      email?: string;
-      phone?: string;
-    }) => {
-      const created = makeUser({
-        id: `user_${state.usersById.size + 1}`,
-        authUserId: input.authUserId,
-        email: input.email ?? null,
-        phone: input.phone ?? null,
-      });
-      state.usersById.set(created.id, created);
-      state.usersByAuthUserId.set(created.authUserId, created);
-      return created;
-    },
-    updateAuthFields: async (
-      userId: string,
-      data: Partial<UserWithProvider>,
-    ) => {
-      const user = state.usersById.get(userId);
-      if (!user) throw new Error("User not found");
-      const updated = { ...user, ...data };
-      state.usersById.set(updated.id, updated);
-      state.usersByAuthUserId.set(updated.authUserId, updated);
-      return updated;
-    },
-    updateProfile: async (
-      userId: string,
-      data: Partial<UserWithProvider>,
-    ) => {
-      const user = state.usersById.get(userId);
-      if (!user) throw new Error("User not found");
-      const updated = { ...user, ...data };
-      state.usersById.set(updated.id, updated);
-      state.usersByAuthUserId.set(updated.authUserId, updated);
-      return updated;
-    },
-    findById: async (userId: string) => state.usersById.get(userId) ?? null,
-    setRole: async (
-      userId: string,
-      role: Exclude<UserRole, "ADMIN">,
-      roleSelectedAt: Date,
-    ) => {
-      const user = state.usersById.get(userId);
-      if (!user) throw new Error("User not found");
-      const updated = { ...user, role, roleSelectedAt };
-      state.usersById.set(updated.id, updated);
-      state.usersByAuthUserId.set(updated.authUserId, updated);
-      return updated;
-    },
-    hasRoleBlockingActivity: async () => false,
-    countCategories: async () => 0,
-    countTrades: async () => 0,
-    createProviderProfile: async () => {
-      throw new Error("provider onboarding not used by launch harness");
-    },
-  } as unknown as IdentityRepository;
-}
-
-function createPrisma(state: IntegrationState) {
-  const getPublicUser = (userId: string) => {
-    const user = state.usersById.get(userId);
-    if (!user) return null;
-    return {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      avatar: user.avatar,
-      role: user.role,
-      isVerified: user.isVerified,
-    };
+function createFakeSupabase() {
+  const calls = {
+    removed: [] as Array<{ bucket: string; paths: string[] }>,
+    deletedAuthUsers: [] as string[],
   };
-
-  const bookingMatchesWhere = (
-    booking: Record<string, unknown>,
-    where?: Record<string, unknown>,
-  ) => {
-    if (!where) return true;
-    if (where.clientId && booking.clientId !== where.clientId) return false;
-    if (where.providerId && booking.providerId !== where.providerId) return false;
-    if (where.status && booking.status !== where.status) return false;
-    return true;
-  };
-
-  const finalOfferMatchesWhere = (
-    finalOffer: Record<string, unknown>,
-    where?: Record<string, unknown>,
-  ) => {
-    if (!where) return true;
-    if (where.OR) {
-      const clauses = where.OR as Record<string, unknown>[];
-      if (!clauses.some((clause) => finalOfferMatchesWhere(finalOffer, clause))) return false;
-    }
-    if (where.id && finalOffer.id !== where.id) return false;
-    if (where.clientId && finalOffer.clientId !== where.clientId) return false;
-    if (where.providerId && finalOffer.providerId !== where.providerId) return false;
-    if (where.status) {
-      const status = where.status;
-      if (
-        typeof status === "object" &&
-        status !== null &&
-        "in" in status &&
-        !(status.in as unknown[]).includes(finalOffer.status)
-      ) {
-        return false;
-      }
-      if (typeof status !== "object" && finalOffer.status !== status) return false;
-    }
-    if (where.conversationId && finalOffer.conversationId !== where.conversationId) return false;
-    if (where.bookingId) {
-      const bookingId = where.bookingId;
-      if (
-        typeof bookingId === "object" &&
-        bookingId !== null &&
-        "not" in bookingId &&
-        finalOffer.bookingId === bookingId.not
-      ) {
-        return false;
-      }
-      if (typeof bookingId !== "object" && finalOffer.bookingId !== bookingId) return false;
-    }
-    return true;
-  };
-
-  const getConversationById = (id: string) =>
-    Array.from(state.conversationsByKey.values()).find(
-      (conversation) => conversation.id === id,
-    ) ?? null;
-
-  const mapConversationForList = (conversation: Record<string, any>, actorId: string) => {
-    const messages = state.messagesByConversationId.get(String(conversation.id)) ?? [];
-    const lastMessage = messages[messages.length - 1];
-    const unreadCount = messages.filter(
-      (message) =>
-        message.senderId !== actorId &&
-        message.isRead === false &&
-        message.isDeleted === false,
-    ).length;
-
-    return {
-      ...conversation,
-      user1: getPublicUser(String(conversation.user1Id)),
-      user2: getPublicUser(String(conversation.user2Id)),
-      messages: lastMessage
-        ? [
-            {
-              content: lastMessage.content,
-              createdAt: lastMessage.createdAt,
-              senderId: lastMessage.senderId,
-              sender: getPublicUser(String(lastMessage.senderId)),
-            },
-          ]
-        : [],
-      _count: {
-        messages: unreadCount,
-      },
-    };
-  };
-
-  const buildTransactionClient = () => ({
-    provider: {
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        const provider = state.providersById.get(where.id);
-        if (!provider) throw new Error("Provider not found");
-        const updated = {
-          ...provider,
-          ...data,
-          totalJobs:
-            data.totalJobs &&
-            typeof data.totalJobs === "object" &&
-            "increment" in data.totalJobs
-              ? provider.totalJobs + Number((data.totalJobs as { increment: number }).increment)
-              : provider.totalJobs,
-        };
-        state.providersById.set(where.id, updated);
-        return updated;
-      },
-      findUnique: async ({ where }: { where: { id: string } }) => {
-        const provider = state.providersById.get(where.id);
-        return provider ? { userId: provider.userId } : null;
-      },
-    },
-    booking: {
-      findUnique: async ({ where }: { where: { id: string } }) => {
-        const booking = state.bookingsById.get(where.id);
-        if (!booking) return null;
+  const client = {
+    storage: {
+      from(bucket: string) {
         return {
-          clientId: booking.clientId,
-          providerId: booking.providerId,
-          status: booking.status,
-        };
-      },
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const provider = state.providersById.get(String(data.providerId));
-        const client = state.usersById.get(String(data.clientId));
-        if (!provider || !client) throw new Error("Missing booking participants");
-        const booking = makeBookingRecord({
-          id: state.nextBookingId(),
-          clientId: String(data.clientId),
-          providerId: String(data.providerId),
-          status: "PENDING",
-          provider,
-          client,
-        });
-        Object.assign(booking, data);
-        state.bookingsById.set(String(booking.id), booking);
-        return booking;
-      },
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        const booking = state.bookingsById.get(where.id);
-        if (!booking) throw new Error("Booking not found");
-        Object.assign(booking, data, { updatedAt: now });
-        state.bookingsById.set(where.id, booking);
-        return booking;
-      },
-    },
-    finalOffer: {
-      findFirst: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.finalOffersById.values()).find((finalOffer) =>
-          finalOfferMatchesWhere(finalOffer, where),
-        ) ?? null,
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const provider = state.providersById.get(String(data.providerId));
-        const client = state.usersById.get(String(data.clientId));
-        if (!provider || !client) throw new Error("Missing final offer participants");
-        const finalOffer = {
-          id: state.nextFinalOfferId(),
-          providerId: data.providerId,
-          clientId: data.clientId,
-          conversationId: data.conversationId ?? null,
-          bookingId: data.bookingId ?? null,
-          title: data.title,
-          description: data.description ?? null,
-          price: data.price,
-          duration: data.duration ?? null,
-          scheduledDate: data.scheduledDate,
-          address: data.address ?? null,
-          city: data.city ?? null,
-          notes: data.notes ?? null,
-          paymentMethod: "cash",
-          status: data.status ?? "PENDING",
-          sentAt: now,
-          acceptedAt: null,
-          declinedAt: null,
-          cancelledAt: null,
-          expiresAt: data.expiresAt ?? null,
-          createdAt: now,
-          updatedAt: now,
-          client: {
-            id: client.id,
-            firstName: client.firstName,
-            lastName: client.lastName,
-            avatar: client.avatar,
-            isVerified: client.isVerified,
+          async createSignedUploadUrl(path: string) {
+            return {
+              data: { signedUrl: `https://storage.test/upload/${bucket}/${path}`, token: "upload-token", path },
+              error: null,
+            };
           },
-          provider: {
-            id: provider.id,
-            userId: provider.userId,
-            profession: provider.profession,
-            user: {
-              id: provider.user.id,
-              firstName: provider.user.firstName,
-              lastName: provider.user.lastName,
-              avatar: provider.user.avatar,
-              isVerified: provider.user.isVerified,
-            },
+          async createSignedUrl(path: string, expiresIn: number) {
+            return {
+              data: { signedUrl: `https://storage.test/sign/${bucket}/${path}?expires=${expiresIn}` },
+              error: null,
+            };
           },
-          booking: null,
-        };
-        state.finalOffersById.set(String(finalOffer.id), finalOffer);
-        return finalOffer;
-      },
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        state.finalOffersById.get(where.id) ?? null,
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        const finalOffer = state.finalOffersById.get(where.id);
-        if (!finalOffer) throw new Error("Final offer not found");
-        Object.assign(finalOffer, data, { updatedAt: now });
-        if (finalOffer.bookingId) {
-          const booking = state.bookingsById.get(String(finalOffer.bookingId));
-          finalOffer.booking = booking
-            ? {
-                id: booking.id,
-                title: booking.title,
-                status: booking.status,
-                scheduledDate: booking.scheduledDate,
-                price: booking.price,
-              }
-            : null;
-        }
-        state.finalOffersById.set(where.id, finalOffer);
-        return finalOffer;
-      },
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where?: Record<string, unknown>;
-        data: Record<string, unknown>;
-      }) => {
-        let count = 0;
-        for (const finalOffer of state.finalOffersById.values()) {
-          if (!finalOfferMatchesWhere(finalOffer, where)) continue;
-          Object.assign(finalOffer, data, { updatedAt: now });
-          count += 1;
-        }
-        return { count };
-      },
-    },
-    transaction: {
-      create: async (input: Record<string, unknown>) => {
-        state.earningTransactions.push(input);
-      },
-      findFirst: async () => null,
-      update: async () => {},
-    },
-    conversation: {
-      upsert: async ({
-        where,
-      }: {
-        where: { user1Id_user2Id: { user1Id: string; user2Id: string } };
-      }) => {
-        const key = `${where.user1Id_user2Id.user1Id}:${where.user1Id_user2Id.user2Id}`;
-        let conversation = state.conversationsByKey.get(key);
-        if (!conversation) {
-          conversation = {
-            id: state.nextConversationId(),
-            user1Id: where.user1Id_user2Id.user1Id,
-            user2Id: where.user1Id_user2Id.user2Id,
-            createdAt: now,
-            updatedAt: now,
-            lastMessageAt: null,
-          };
-          state.conversationsByKey.set(key, conversation);
-        }
-        return conversation;
-      },
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        const conversation = Array.from(state.conversationsByKey.values()).find(
-          (item) => item.id === where.id,
-        );
-        if (conversation) {
-          Object.assign(conversation, data, { updatedAt: now });
-        }
-        return conversation;
-      },
-    },
-    message: {
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const sender = state.usersById.get(String(data.senderId));
-        const messageMeta = state.nextMessage();
-        const created = {
-          id: messageMeta.id,
-          conversationId: data.conversationId,
-          senderId: data.senderId,
-          content: data.content,
-          type: data.type,
-          fileUrl: data.fileUrl ?? null,
-          isRead: false,
-          readAt: null,
-          isDeleted: false,
-          createdAt: messageMeta.createdAt,
-          sender: {
-            id: data.senderId,
-            firstName: sender?.firstName ?? null,
-            lastName: sender?.lastName ?? null,
-            avatar: sender?.avatar ?? null,
+          getPublicUrl(path: string) {
+            return { data: { publicUrl: `https://storage.test/storage/v1/object/public/${bucket}/${path}` } };
           },
-        };
-        const key = String(data.conversationId);
-        const messages = state.messagesByConversationId.get(key) ?? [];
-        messages.push(created);
-        state.messagesByConversationId.set(key, messages);
-        return created;
-      },
-    },
-    quote: {
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        state.quotesById.get(where.id) ?? null,
-      update: async ({
-        where,
-        data,
-      }: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        const quote = state.quotesById.get(where.id);
-        if (!quote) throw new Error("Quote not found");
-        Object.assign(quote, data, { updatedAt: now });
-        state.quotesById.set(where.id, quote);
-        return quote;
-      },
-      updateMany: async () => ({ count: 1 }),
-    },
-    jobRequest: {
-      update: async () => {},
-    },
-    review: {
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const booking = state.bookingsById.get(String(data.bookingId));
-        const client = state.usersById.get(String(data.clientId));
-        const review = {
-          id: `review_${state.reviewsByBookingId.size + 1}`,
-          bookingId: data.bookingId,
-          clientId: data.clientId,
-          providerId: data.providerId,
-          punctuality: data.punctuality ?? null,
-          quality: data.quality ?? null,
-          communication: data.communication ?? null,
-          value: data.value ?? null,
-          professionalism: data.professionalism ?? null,
-          overallScore: 4.6,
-          satisfactionTags: data.satisfactionTags ?? null,
-          comment: data.comment ?? null,
-          reply: null,
-          repliedAt: null,
-          isPublic: data.isPublic ?? true,
-          isEdited: false,
-          createdAt: now,
-          updatedAt: now,
-          client: {
-            id: client?.id ?? "client_user_1",
-            firstName: client?.firstName ?? "Client",
-            lastName: client?.lastName ?? "User",
-            avatar: client?.avatar ?? null,
-          },
-          booking: {
-            title: booking?.title ?? "Dépannage urgent",
-            service: null,
-          },
-        };
-        state.reviewsByBookingId.set(String(data.bookingId), review);
-        if (booking) {
-          booking.review = { id: review.id };
-        }
-        return review;
-      },
-    },
-    clientReview: {
-      create: async () => {
-        throw new Error("client review creation not used by launch harness");
-      },
-    },
-  });
-
-  return {
-    user: {
-      findUnique: async ({
-        where,
-      }: {
-        where: { id: string };
-      }) => {
-        const user = state.usersById.get(where.id);
-        if (!user) return null;
-        return {
-          ...user,
-          id: user.id,
-          role: user.role,
-          visibilitySettings: {
-            allowMessages: true,
+          async remove(paths: string[]) {
+            calls.removed.push({ bucket, paths });
+            return { data: paths.map((name) => ({ name })), error: null };
           },
         };
       },
-    },
-    conversation: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { id: string; OR?: Array<{ user1Id?: string; user2Id?: string }> };
-      }) => {
-        const conversation = getConversationById(where.id);
-        if (!conversation) return null;
-        const participantIds = [conversation.user1Id, conversation.user2Id];
-        const allowed = where.OR?.some(
-          (condition) =>
-            (condition.user1Id && participantIds.includes(condition.user1Id)) ||
-            (condition.user2Id && participantIds.includes(condition.user2Id)),
-        );
-        return allowed === false ? null : { id: conversation.id };
-      },
-      findMany: async ({
-        where,
-      }: {
-        where: { OR?: Array<{ user1Id?: string; user2Id?: string }> };
-      }) => {
-        const actorId =
-          where.OR?.find((condition) => condition.user1Id)?.user1Id ??
-          where.OR?.find((condition) => condition.user2Id)?.user2Id ??
-          "";
-        return Array.from(state.conversationsByKey.values())
-          .filter((conversation) =>
-            [conversation.user1Id, conversation.user2Id].includes(actorId),
-          )
-          .map((conversation) => mapConversationForList(conversation, actorId));
-      },
-      findUnique: async ({ where }: { where: { id: string } }) => {
-        return getConversationById(where.id);
+      async listBuckets() {
+        return { data: [], error: null };
       },
     },
-    message: {
-      count: async ({ where }: { where: { conversationId: string } }) =>
-        (state.messagesByConversationId.get(where.conversationId) ?? []).filter(
-          (message) => message.isDeleted === false,
-        ).length,
-      findMany: async ({
-        where,
-      }: {
-        where: { conversationId: string };
-      }) =>
-        [...(state.messagesByConversationId.get(where.conversationId) ?? [])]
-          .filter((message) => message.isDeleted === false)
-          .sort(
-            (left, right) =>
-              (right.createdAt as Date).getTime() - (left.createdAt as Date).getTime(),
-          ),
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where: { conversationId: string; senderId?: { not: string } };
-        data: Record<string, unknown>;
-      }) => {
-        const messages = state.messagesByConversationId.get(where.conversationId) ?? [];
-        let count = 0;
-        for (const message of messages) {
-          if (where.senderId?.not && message.senderId === where.senderId.not) continue;
-          Object.assign(message, data);
-          count += 1;
-        }
-        return { count };
-      },
-    },
-    provider: {
-      count: async () => state.providersById.size,
-      findMany: async () => Array.from(state.providersById.values()),
-      findUnique: async ({
-        where,
-      }: {
-        where: { id?: string; userId?: string };
-        select?: Record<string, boolean>;
-        include?: Record<string, unknown>;
-      }) => {
-        if (where.id) {
-          return state.providersById.get(where.id) ?? null;
-        }
-        if (where.userId) {
-          const providerRef = state.providersByUserId.get(where.userId);
-          return providerRef ? state.providersById.get(providerRef.id) ?? providerRef : null;
-        }
-        return null;
-      },
-    },
-    booking: {
-      count: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.bookingsById.values()).filter((booking) =>
-          bookingMatchesWhere(booking, where),
-        ).length,
-      findMany: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.bookingsById.values()).filter((booking) =>
-          bookingMatchesWhere(booking, where),
-        ),
-      findFirst: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.bookingsById.values()).find((booking) =>
-          bookingMatchesWhere(booking, where),
-        ) ?? null,
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        state.bookingsById.get(where.id) ?? null,
-    },
-    finalOffer: {
-      count: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.finalOffersById.values()).filter((finalOffer) =>
-          finalOfferMatchesWhere(finalOffer, where),
-        ).length,
-      findMany: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        Array.from(state.finalOffersById.values()).filter((finalOffer) =>
-          finalOfferMatchesWhere(finalOffer, where),
-        ),
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        state.finalOffersById.get(where.id) ?? null,
-    },
-    review: {
-      count: async () => state.reviewsByBookingId.size,
-      findMany: async () => Array.from(state.reviewsByBookingId.values()),
-      groupBy: async () => [
-        {
-          providerId: "provider_1",
-          _avg: { overallScore: 4.6 },
-          _count: { providerId: state.reviewsByBookingId.size || 3 },
-        },
-      ],
-      aggregate: async () => ({
-        _avg: {
-          overallScore: 4.6,
-          punctuality: 4.5,
-          quality: 4.7,
-          communication: 4.4,
-          value: 4.5,
-          professionalism: 4.8,
-        },
-      }),
-    },
-    certification: {
-      groupBy: async () => [],
-    },
-    $transaction: async <T>(
-      callback: (tx: ReturnType<typeof buildTransactionClient>) => Promise<T>,
-    ) => callback(buildTransactionClient()),
-  };
-}
-
-function createNotifications(state: IntegrationState) {
-  return {
-    create: async (input: Record<string, unknown>) => {
-      state.notifications.push(input);
-      return input;
-    },
-  };
-}
-
-function createJwt() {
-  const claimsByToken = new Map<string, AuthContextUser>([
-    [
-      "fresh-token",
-      {
-        authUserId: "auth_fresh_1",
-        email: "fresh@example.com",
-        phone: "+243810000099",
-        claims: { sub: "auth_fresh_1", email: "fresh@example.com", phone: "+243810000099" },
-      },
-    ],
-    [
-      "new-client-token",
-      {
-        authUserId: "auth_smoke_client_1",
-        email: "smoke-client@example.com",
-        phone: "+243810000123",
-        claims: {
-          sub: "auth_smoke_client_1",
-          email: "smoke-client@example.com",
-          phone: "+243810000123",
+    auth: {
+      admin: {
+        async deleteUser(id: string) {
+          calls.deletedAuthUsers.push(id);
+          return { data: {}, error: null };
         },
       },
-    ],
-    [
-      "client-token",
-      {
-        authUserId: "auth_client_1",
-        email: "client@example.com",
-        phone: "+243810000001",
-        claims: { sub: "auth_client_1", email: "client@example.com", phone: "+243810000001" },
-      },
-    ],
-    [
-      "provider-token",
-      {
-        authUserId: "auth_provider_1",
-        email: "provider@example.com",
-        phone: "+243897000001",
-        claims: {
-          sub: "auth_provider_1",
-          email: "provider@example.com",
-          phone: "+243897000001",
-        },
-      },
-    ],
-  ]);
-
-  return {
-    verify: async (token: string) => claimsByToken.get(token)?.claims ?? null,
+    },
   };
+  return { client, calls };
 }
 
-function createStorage() {
-  return {
-    assertOwnedPath: (_purpose: UploadPurpose, _actorId: string, _path: string) => true as const,
-    resolveStoredUrl: (_purpose: UploadPurpose, _path: string) => "" as string,
-  };
-}
+async function bootApp(url: string) {
+  process.env.DATABASE_URL = url;
+  delete process.env.STORAGE_ENV_PREFIX;
+  const supabase = createFakeSupabase();
 
-async function createHarness() {
-  const state = createState();
-  const prisma = createPrisma(state);
-  const notifications = createNotifications(state);
-  const identityRepo = createIdentityRepo(state);
-  const jwt = createJwt();
-  const storage = createStorage();
+  @Global()
+  @Module({
+    providers: [
+      { provide: SupabaseJwtService, useClass: FakeJwtService },
+      SupabaseGuard,
+      RolesGuard,
+      RateLimiterService,
+    ],
+    exports: [SupabaseJwtService, SupabaseGuard, RolesGuard, RateLimiterService],
+  })
+  class HarnessCommonModule {}
+
+  @Global()
+  @Module({
+    providers: [{ provide: SUPABASE_CLIENT, useValue: supabase.client }],
+    exports: [SUPABASE_CLIENT],
+  })
+  class HarnessSupabaseModule {}
 
   @Module({
-    controllers: [
-      IdentityController,
-      BookingsController,
-      FinalOffersController,
-      MessagingController,
-      ProvidersController,
-      QuotesController,
-      ReviewsController,
-    ],
-    providers: [
-      Reflector,
-      SupabaseGuard,
-      ActorGuard,
-      RolesGuard,
-      IdentityService,
-      RecentAddressesService,
-      BookingsService,
-      MessagingService,
-      ProvidersService,
-      ProvidersAvailabilityService,
-      QuotesService,
-      ReviewsService,
-      {
-        provide: IdentityRepository,
-        useValue: identityRepo,
-      },
-      {
-        provide: ACTOR_RESOLVER,
-        useExisting: IdentityService,
-      },
-      {
-        provide: PrismaService,
-        useValue: prisma,
-      },
-      {
-        provide: NotificationsService,
-        useValue: notifications,
-      },
-      {
-        provide: SupabaseJwtService,
-        useValue: jwt,
-      },
-      {
-        provide: StorageService,
-        useValue: storage,
-      },
+    imports: [
+      ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+      DatabaseModule,
+      HarnessSupabaseModule,
+      HarnessCommonModule,
+      ...featureModules,
     ],
   })
   class HarnessModule {}
 
-  const app = await NestFactory.create(HarnessModule, { logger: false });
+  const app: INestApplication = await NestFactory.create(HarnessModule, { logger: false });
   app.setGlobalPrefix("api");
+  app.useGlobalFilters(new AllExceptionsFilter("test"));
   await app.listen(0, "127.0.0.1");
-
-  const reviews = app.get(ReviewsService);
-  (reviews as unknown as { syncProviderMetrics: () => Promise<void> }).syncProviderMetrics =
-    async () => {};
-  (reviews as unknown as { syncClientMetrics: () => Promise<void> }).syncClientMetrics =
-    async () => {};
-
   const address = app.getHttpServer().address();
-  const port =
-    address && typeof address === "object" && "port" in address ? address.port : null;
-  if (!port) {
-    await app.close();
-    throw new Error("Failed to resolve harness port");
-  }
-
-  const baseUrl = `http://127.0.0.1:${port}/api`;
-  return { app, baseUrl, state };
+  const port = address && typeof address === "object" ? address.port : null;
+  if (!port) throw new Error("Failed to resolve harness port");
+  return { app, supabase, baseUrl: `http://127.0.0.1:${port}/api` };
 }
 
-async function requestJson(
-  baseUrl: string,
-  path: string,
-  options: {
-    method?: string;
-    token?: string;
-    body?: unknown;
-  } = {},
-) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: options.method ?? "GET",
-    headers: {
-      ...(options.token
-        ? { authorization: `Bearer ${options.token}` }
-        : {}),
-      ...(options.body !== undefined
-        ? { "content-type": "application/json" }
-        : {}),
+async function seedFixtures(prisma: PrismaClient) {
+  await prisma.category.create({
+    data: {
+      id: "cat_batiment",
+      name: "Bâtiment",
+      slug: "batiment",
+      icon: "Hammer",
+      subcategories: {
+        create: [{ id: "sub_plomberie", name: "Plomberie", slug: "plomberie" }],
+      },
     },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+  await prisma.place.create({ data: { id: "place_cd", kind: "COUNTRY", label: "RDC", slug: "cd" } });
+  await prisma.place.create({
+    data: { id: "place_kin_prov", kind: "PROVINCE", label: "Kinshasa", slug: "cd-province-kinshasa", parentId: "place_cd" },
+  });
+  await prisma.place.create({
+    data: {
+      id: "place_kin",
+      kind: "CITY",
+      label: "Kinshasa",
+      slug: "cd-province-kinshasa-city-kinshasa",
+      parentId: "place_kin_prov",
+      latitude: -4.325,
+      longitude: 15.322,
+    },
+  });
+  await prisma.place.create({
+    data: {
+      id: "place_gombe",
+      kind: "COMMUNE",
+      label: "Gombe",
+      slug: "cd-province-kinshasa-city-kinshasa-commune-gombe",
+      parentId: "place_kin",
+    },
+  });
+  await prisma.referenceItem.createMany({
+    data: [
+      { id: "ref_fr", type: "LANGUAGE", label: "Français", slug: "language-francais" },
+      { id: "ref_home", type: "INTERVENTION_MODE", label: "À domicile", slug: "mode-a-domicile" },
+      { id: "ref_cdf", type: "CURRENCY", label: "CDF", slug: "currency-cdf" },
+      { id: "ref_job", type: "PRICE_UNIT", label: "Par prestation", slug: "price-unit-par-prestation" },
+      { id: "ref_skill_leak", type: "SKILL", label: "Fuites", slug: "skill-fuites", categoryId: "cat_batiment" },
+    ],
+  });
+  await prisma.user.create({
+    data: {
+      id: "user_admin",
+      authUserId: "auth-admin",
+      phone: "+243899000000",
+      firstName: "Ada",
+      lastName: "Admin",
+      role: "ADMIN",
+      roleSelectedAt: new Date(),
+    },
+  });
+}
+
+describe("launch-critical harness (real Postgres)", { skip: !databaseUrl && !requireDatabase }, () => {
+  let app: INestApplication;
+  let prisma: PrismaClient;
+  let calls: ReturnType<typeof createFakeSupabase>["calls"];
+  const captured = new Map<string, unknown>();
+  let call: (label: string, path: string, options?: { token?: string; body?: unknown }) => Promise<JsonResponse>;
+
+  const pro = tokenFor({ authUserId: "auth-pro", phone: "+243810000001" });
+  const client = tokenFor({ authUserId: "auth-client", phone: "+243820000002" });
+  const other = tokenFor({ authUserId: "auth-other", phone: "+243830000003" });
+  const admin = tokenFor({ authUserId: "auth-admin", phone: "+243899000000" });
+
+  const state: {
+    providerId?: string;
+    proUserId?: string;
+    clientUserId?: string;
+    conversationId?: string;
+    bookingId?: string;
+    reportId?: string;
+    date?: string;
+    time?: string;
+  } = {};
+
+  before(async () => {
+    assert.ok(databaseUrl, "LAUNCH_HARNESS_DATABASE_URL is required when LAUNCH_HARNESS_REQUIRE_DATABASE=true");
+    const name = assertDisposableDatabase(databaseUrl);
+    psqlAdmin(databaseUrl, `DROP DATABASE IF EXISTS "${name}" WITH (FORCE);`);
+    psqlAdmin(databaseUrl, `CREATE DATABASE "${name}";`);
+    execFileSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
+      cwd: backendDir,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      stdio: "pipe",
+    });
+
+    prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+    await seedFixtures(prisma);
+
+    const booted = await bootApp(databaseUrl);
+    app = booted.app;
+    calls = booted.supabase.calls;
+
+    call = async (label, path, options = {}) => {
+      const method = label.split(" ")[0]!;
+      const response = await fetch(`${booted.baseUrl}${path}`, {
+        method,
+        headers: {
+          ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+          ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
+        },
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : null;
+      const key = `${label} → ${response.status}`;
+      if (!captured.has(key)) captured.set(key, body);
+      return { status: response.status, body };
+    };
   });
 
-  const text = await response.text();
-  return {
-    status: response.status,
-    body: text ? (JSON.parse(text) as Record<string, unknown>) : null,
-  };
-}
+  after(async () => {
+    const target = process.env.LAUNCH_HARNESS_CAPTURE;
+    if (target) writeFileSync(target, `${JSON.stringify(Object.fromEntries(captured), null, 2)}\n`);
+    await app?.close();
+    await prisma?.$disconnect();
+    if (databaseUrl && process.env.LAUNCH_HARNESS_KEEP_DATABASE !== "true") {
+      psqlAdmin(databaseUrl, `DROP DATABASE IF EXISTS "${assertDisposableDatabase(databaseUrl)}" WITH (FORCE);`);
+    }
+  });
 
-test("role selection route enforces auth and Zod validation through Nest", async () => {
-  const { app, baseUrl, state } = await createHarness();
+  test("an OTP user accepts the terms and publishes a provider profile", async () => {
+    const me = await call("GET /me", "/me", { token: pro });
+    assert.equal(me.status, 200, JSON.stringify(me.body));
+    assert.equal(me.body.user.role, "CLIENT");
+    assert.equal(me.body.user.provider, null);
+    state.proUserId = me.body.user.id;
 
-  try {
-    const success = await requestJson(baseUrl, "/me/role", {
-      method: "PATCH",
-      token: "fresh-token",
-      body: { role: "PROVIDER" },
+    const terms = await call("POST /me/accept-terms", "/me/accept-terms", { token: pro });
+    assert.equal(terms.status, 200, JSON.stringify(terms.body));
+    assert.ok(terms.body.user.termsAcceptedAt);
+
+    const signed = await call("POST /me/uploads/sign", "/me/uploads/sign", {
+      token: pro,
+      body: { purpose: "media", fileName: "atelier.jpg", mimeType: "image/jpeg", bytes: 120_000 },
     });
+    assert.equal(signed.status, 200, JSON.stringify(signed.body));
+    assert.match(signed.body.path, new RegExp(`^media/${state.proUserId}/`));
 
-    assert.equal(success.status, 200);
-    assert.equal(success.body?.success, true);
-    assert.equal((success.body?.user as { role: string }).role, "PROVIDER");
-    assert.equal(state.usersByAuthUserId.get("auth_fresh_1")?.role, "PROVIDER");
-
-    const invalid = await requestJson(baseUrl, "/me/role", {
-      method: "PATCH",
-      token: "fresh-token",
-      body: { role: "ADMIN" },
+    const rejected = await call("POST /me/provider", "/me/provider", {
+      token: pro,
+      body: { displayName: "X" },
     });
+    assert.equal(rejected.status, 400);
 
-    assert.equal(invalid.status, 400);
-    assert.equal(invalid.body?.message, "Validation failed");
-  } finally {
-    await app.close();
-  }
-});
-
-test("booking create route enforces role guards and returns the controller contract", async () => {
-  const { app, baseUrl } = await createHarness();
-
-  try {
-    const created = await requestJson(baseUrl, "/bookings", {
-      method: "POST",
-      token: "client-token",
+    const published = await call("POST /me/provider", "/me/provider", {
+      token: pro,
       body: {
-        providerId: "provider_1",
-        title: "Réparer une fuite",
-        description: "Salle de bain",
-        address: "Gombe",
-        city: "Kinshasa",
-        scheduledDate: "2026-04-23T08:00:00.000Z",
-        duration: 120,
-        price: 50000,
-        clientNotes: "Intervention rapide si possible",
+        displayName: "Plomberie Mukendi",
+        phone: "+243 810 000 001",
+        whatsapp: "+243810000001",
+        subcategoryId: "sub_plomberie",
+        yearsExperience: 8,
+        skillIds: ["ref_skill_leak"],
+        freeSkills: ["Chauffe-eau"],
+        description: "Dépannage rapide à Gombe et alentours.",
+        placeId: "place_gombe",
+        addressLine: "12 avenue de la Justice",
+        latitude: -4.3101,
+        longitude: 15.2872,
+        languageIds: ["ref_fr"],
+        modeIds: ["ref_home"],
+        pricing: { amount: 25000, currencyId: "ref_cdf", unitId: "ref_job" },
+        schedule: {
+          timezone: TIMEZONE,
+          slotDurationMin: 60,
+          slotBufferMin: 0,
+          rules: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({ dayOfWeek, startTime: "08:00", endTime: "18:00" })),
+          exceptions: [],
+        },
+        media: [
+          { kind: "IMAGE", path: signed.body.path, title: "Atelier" },
+          { kind: "VIDEO_YOUTUBE", url: "https://youtu.be/M7lc1UVf-VE" },
+        ],
+        social: { facebookUrl: "https://www.facebook.com/plomberie.mukendi" },
+        acceptTerms: true,
       },
     });
+    assert.equal(published.status, 201, JSON.stringify(published.body));
+    state.providerId = published.body.id;
+    assert.equal(published.body.media.length, 2);
+    assert.equal(published.body.media[1].youtubeId, "M7lc1UVf-VE");
 
-    assert.equal(created.status, 201);
-    assert.equal(created.body?.success, true);
-    assert.equal((created.body?.booking as { status: string }).status, "PENDING");
-    assert.ok((created.body?.booking as { id: string }).id);
+    const again = await call("POST /me/provider", "/me/provider", { token: pro, body: published.body });
+    assert.ok([400, 403, 409].includes(again.status));
 
-    const forbidden = await requestJson(baseUrl, "/bookings", {
-      method: "POST",
-      token: "provider-token",
-      body: {
-        providerId: "provider_1",
-        title: "Réparer une fuite",
-        scheduledDate: "2026-04-23T08:00:00.000Z",
-      },
-    });
+    const after = await call("GET /me", "/me", { token: pro });
+    assert.equal(after.body.user.role, "PROVIDER");
+    assert.equal(after.body.user.provider.id, state.providerId);
+    assert.equal(after.body.user.provider.verificationStatus, "PENDING");
+  });
 
-    assert.equal(forbidden.status, 403);
-  } finally {
-    await app.close();
-  }
-});
-
-test("booking status transitions run through controller validation and service state rules", async () => {
-  const { app, baseUrl } = await createHarness();
-
-  try {
-    const invalidSkip = await requestJson(baseUrl, "/bookings/booking_1", {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "COMPLETED" },
-    });
-
-    assert.equal(invalidSkip.status, 400);
-
-    const confirmed = await requestJson(baseUrl, "/bookings/booking_1", {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "CONFIRMED" },
-    });
-    assert.equal(confirmed.status, 200);
-    assert.equal((confirmed.body?.booking as { status: string }).status, "CONFIRMED");
-
-    const started = await requestJson(baseUrl, "/bookings/booking_1", {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "IN_PROGRESS" },
-    });
-    assert.equal(started.status, 200);
-    assert.equal((started.body?.booking as { status: string }).status, "IN_PROGRESS");
-
-    const completed = await requestJson(baseUrl, "/bookings/booking_1", {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "COMPLETED" },
-    });
-    assert.equal(completed.status, 200);
-    assert.equal((completed.body?.booking as { status: string }).status, "COMPLETED");
-  } finally {
-    await app.close();
-  }
-});
-
-test("messaging route bootstraps first contact through the real controller and guards", async () => {
-  const { app, baseUrl } = await createHarness();
-
-  try {
-    const sent = await requestJson(baseUrl, "/messages", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        recipientId: "provider_user_1",
-        content: "Bonjour, êtes-vous disponible ?",
-        type: "TEXT",
-      },
-    });
-
-    assert.equal(sent.status, 201);
-    assert.equal(sent.body?.success, true);
-    assert.equal((sent.body as { conversationId: string }).conversationId.startsWith("conversation_"), true);
-    assert.equal(((sent.body as { message: { conversationId: string } }).message.conversationId), (sent.body as { conversationId: string }).conversationId);
-  } finally {
-    await app.close();
-  }
-});
-
-test("final offer route lets provider send terms and client accept into booking", async () => {
-  const { app, baseUrl, state } = await createHarness();
-
-  try {
-    const created = await requestJson(baseUrl, "/final-offers", {
-      method: "POST",
-      token: "provider-token",
-      body: {
-        providerId: "provider_1",
-        clientId: "client_user_1",
-        title: "Réparer une fuite",
-        description: "Remplacement du joint et test.",
-        price: 65000,
-        duration: 90,
-        scheduledDate: "2026-04-23T10:00:00.000Z",
-        address: "12 Avenue Kasa-Vubu",
-        city: "Kinshasa",
-        notes: "Paiement en espèces à la fin.",
-        paymentMethod: "cash",
-      },
-    });
-
-    assert.equal(created.status, 201);
-    assert.equal(created.body?.success, true);
-    const finalOffer = created.body?.finalOffer as { id: string; status: string; paymentMethod: string };
-    assert.equal(finalOffer.status, "ACCEPTED");
-    assert.equal(finalOffer.paymentMethod, "cash");
-    assert.equal((created.body?.booking as { status: string }).status, "CONFIRMED");
-    assert.equal((created.body?.booking as { paymentMethod: string }).paymentMethod, "cash");
-
-    const accepted = await requestJson(baseUrl, `/final-offers/${finalOffer.id}/accept`, {
-      method: "POST",
-      token: "client-token",
-    });
-
-    assert.equal(accepted.status, 201);
-    assert.equal((accepted.body?.finalOffer as { status: string }).status, "ACCEPTED");
-    assert.equal((accepted.body?.booking as { status: string }).status, "CONFIRMED");
-    assert.equal((accepted.body?.booking as { paymentMethod: string }).paymentMethod, "cash");
-    assert.equal(state.quotesById.get("quote_1")?.status, "SENT");
-  } finally {
-    await app.close();
-  }
-});
-
-test("launch smoke covers signup, discovery, chat, direct booking, cash completion, review, and final offer", async () => {
-  const { app, baseUrl, state } = await createHarness();
-
-  try {
-    const me = await requestJson(baseUrl, "/me", {
-      token: "new-client-token",
-    });
+  test("a second user finds the provider and sees contacts only once signed in", async () => {
+    const me = await call("GET /me", "/me", { token: client });
     assert.equal(me.status, 200);
-    assert.equal(me.body?.success, true);
-    const newClient = me.body?.user as { id: string; profileComplete: boolean; phone: string };
-    assert.equal(newClient.profileComplete, false);
-    assert.equal(newClient.phone, "+243810000123");
+    state.clientUserId = me.body.user.id;
 
-    const role = await requestJson(baseUrl, "/me/role", {
-      method: "PATCH",
-      token: "new-client-token",
-      body: { role: "CLIENT" },
+    const profile = await call("PATCH /me/profile", "/me/profile", {
+      token: client,
+      body: { firstName: "Paul", lastName: "Kabasele", placeId: "place_gombe" },
     });
-    assert.equal(role.status, 200);
-    assert.equal((role.body?.user as { role: string }).role, "CLIENT");
+    assert.equal(profile.status, 200, JSON.stringify(profile.body));
+    assert.equal(profile.body.user.profileComplete, true);
 
-    const profile = await requestJson(baseUrl, "/me/profile", {
-      method: "PATCH",
-      token: "new-client-token",
-      body: {
-        firstName: "Smoke",
-        lastName: "Client",
-        city: "Kinshasa",
-        country: "RDC",
-        phone: "+243810000123",
-      },
-    });
-    assert.equal(profile.status, 200);
-    assert.equal((profile.body?.user as { profileComplete: boolean }).profileComplete, true);
+    const publicSettings = await call("GET /settings/public", "/settings/public");
+    assert.equal(publicSettings.status, 200);
+    assert.equal(publicSettings.body.feat_booking, true);
 
-    const discovery = await requestJson(
-      baseUrl,
-      "/providers?category=plomberie&city=Kinshasa&page=1&limit=10",
+    const tree = await call("GET /categories/tree", "/categories/tree");
+    assert.equal(tree.status, 200, JSON.stringify(tree.body));
+    assert.equal(tree.body.items[0].providerCount, 1);
+
+    const places = await call("GET /places", "/places?parentId=place_kin");
+    assert.equal(places.status, 200);
+    assert.deepEqual(places.body.items.map((place: { id: string }) => place.id), ["place_gombe"]);
+
+    const references = await call("GET /references", "/references?type=LANGUAGE");
+    assert.equal(references.status, 200);
+    assert.equal(references.body.items[0].label, "Français");
+
+    const stats = await call("GET /stats", "/stats");
+    assert.equal(stats.status, 200);
+    assert.deepEqual(stats.body, { categories: 1, countries: 2, providers: 1, verifiedProviders: 0 });
+
+    const search = await call(
+      "GET /providers",
+      "/providers?categorySlug=batiment&placeId=place_kin&lat=-4.32&lng=15.3&sort=distance",
+      { token: client },
     );
-    assert.equal(discovery.status, 200);
-    const providers = discovery.body?.providers as Array<{ id: string; categories: Array<{ slug: string }> }>;
-    assert.equal(providers.length, 1);
-    assert.equal(providers[0]?.id, "provider_1");
-    assert.equal(providers[0]?.categories[0]?.slug, "plomberie");
+    assert.equal(search.status, 200, JSON.stringify(search.body));
+    assert.equal(search.body.total, 1);
+    const card = search.body.items[0];
+    assert.equal(card.id, state.providerId);
+    assert.deepEqual(card.categoryChain.map((node: { slug: string }) => node.slug), ["batiment", "plomberie"]);
+    assert.deepEqual(card.placeChain.map((node: { id: string }) => node.id), [
+      "place_cd",
+      "place_kin_prov",
+      "place_kin",
+      "place_gombe",
+    ]);
+    assert.equal(typeof card.distanceKm, "number");
 
-    const providerProfile = await requestJson(baseUrl, "/providers/provider_1", {
-      token: "client-token",
+    const anonymous = await call("GET /providers/:id (anonymous)", `/providers/${state.providerId}`);
+    assert.equal(anonymous.status, 200);
+    assert.equal(anonymous.body.contactsLocked, true);
+    assert.equal(anonymous.body.contacts, null);
+
+    const signedIn = await call("GET /providers/:id", `/providers/${state.providerId}`, { token: client });
+    assert.equal(signedIn.status, 200);
+    assert.equal(signedIn.body.contactsLocked, false);
+    assert.equal(signedIn.body.contacts.phone, "+243810000001");
+    assert.equal(signedIn.body.scheduleSummary.length, 7);
+  });
+
+  test("the client messages the provider, and unread counters follow the thread", async () => {
+    const started = await call("POST /conversations", "/conversations", {
+      token: client,
+      body: { providerId: state.providerId, subject: "Fuite cuisine", body: "Bonjour, êtes-vous disponible demain ?" },
     });
-    assert.equal(providerProfile.status, 200);
-    assert.equal(providerProfile.body?.success, true);
-    assert.equal(providerProfile.body?.hasAccess, true);
+    assert.equal(started.status, 201, JSON.stringify(started.body));
+    state.conversationId = started.body.conversation.id;
 
-    const firstMessage = await requestJson(baseUrl, "/messages", {
-      method: "POST",
-      token: "client-token",
+    const inbox = await call("GET /conversations", "/conversations", { token: pro });
+    assert.equal(inbox.status, 200);
+    assert.equal(inbox.body.unreadTotal, 1);
+    assert.equal(inbox.body.items[0].unread, 1);
+
+    const thread = await call("GET /conversations/:id/messages", `/conversations/${state.conversationId}/messages`, {
+      token: pro,
+    });
+    assert.equal(thread.status, 200);
+    assert.equal(thread.body.items.length, 1);
+
+    const upload = await call("POST /me/uploads/sign (attachment)", "/me/uploads/sign", {
+      token: pro,
+      body: { purpose: "attachments", fileName: "devis.jpg", mimeType: "image/jpeg", bytes: 80_000 },
+    });
+    assert.equal(upload.status, 200, JSON.stringify(upload.body));
+    assert.equal(upload.body.bucket, "message-attachments");
+
+    const reply = await call("POST /conversations/:id/messages", `/conversations/${state.conversationId}/messages`, {
+      token: pro,
       body: {
-        recipientId: "provider_user_1",
-        content: "Bonjour, etes-vous disponible demain ?",
-        type: "TEXT",
+        body: "Oui, réservez un créneau.",
+        attachments: [{ kind: "image", path: upload.body.path, mime: "image/jpeg", bytes: 80_000 }],
       },
     });
-    assert.equal(firstMessage.status, 201);
-    const conversationId = (firstMessage.body as { conversationId: string }).conversationId;
+    assert.equal(reply.status, 201, JSON.stringify(reply.body));
+    assert.equal(reply.body.attachments[0].path, upload.body.path);
 
-    const providerInbox = await requestJson(baseUrl, "/messages?page=1&limit=10", {
-      token: "provider-token",
+    const participantRead = await call(
+      "GET /me/media/sign-read",
+      `/me/media/sign-read?path=${encodeURIComponent(upload.body.path)}`,
+      { token: client },
+    );
+    assert.equal(participantRead.status, 200, JSON.stringify(participantRead.body));
+    assert.ok(participantRead.body.url);
+    assert.ok(participantRead.body.expiresAt);
+
+    const strangerRead = await call(
+      "GET /me/media/sign-read (stranger)",
+      `/me/media/sign-read?path=${encodeURIComponent(upload.body.path)}`,
+      { token: other },
+    );
+    assert.equal(strangerRead.status, 403);
+
+    const cleared = await call("GET /conversations", "/conversations", { token: pro });
+    assert.equal(cleared.body.unreadTotal, 0);
+
+    const clientInbox = await call("GET /conversations (client)", "/conversations", { token: client });
+    assert.equal(clientInbox.body.unreadTotal, 1);
+    assert.equal(clientInbox.body.items[0].lastPreview, "Oui, réservez un créneau.");
+
+    const stranger = await call("GET /conversations/:id/messages (stranger)", `/conversations/${state.conversationId}/messages`, {
+      token: other,
     });
-    assert.equal(providerInbox.status, 200);
+    assert.equal(stranger.status, 404);
+  });
+
+  test("the client books a real slot; the same slot cannot be taken twice", async () => {
+    const tomorrow = addDays(localParts(TIMEZONE, new Date()).date, 1);
+    const availability = await call(
+      "GET /providers/:id/availability",
+      `/providers/${state.providerId}/availability?date=${tomorrow}`,
+    );
+    assert.equal(availability.status, 200, JSON.stringify(availability.body));
+    assert.equal(availability.body.timezone, TIMEZONE);
+    assert.ok(availability.body.slots.length > 0);
+    state.date = tomorrow;
+    state.time = availability.body.slots[0];
+
+    const anonymous = await call("POST /bookings (anonymous)", "/bookings", {
+      body: { providerId: state.providerId, date: state.date, time: state.time, clientPhone: "+243820000002" },
+    });
+    assert.equal(anonymous.status, 401);
+
+    const asProvider = await call("POST /bookings (provider)", "/bookings", {
+      token: pro,
+      body: { providerId: state.providerId, date: state.date, time: state.time, clientPhone: "+243810000001" },
+    });
+    assert.equal(asProvider.status, 403);
+
+    const booked = await call("POST /bookings", "/bookings", {
+      token: client,
+      body: {
+        providerId: state.providerId,
+        date: state.date,
+        time: state.time,
+        clientPhone: "+243820000002",
+        clientNotes: "Fuite sous l'évier",
+        placeId: "place_gombe",
+        addressLine: "4 avenue Kasa-Vubu",
+      },
+    });
+    assert.equal(booked.status, 201, JSON.stringify(booked.body));
+    assert.equal(booked.body.status, "PENDING");
+    assert.deepEqual(booked.body.scheduledLocal, { date: state.date, time: state.time });
+    state.bookingId = booked.body.id;
+
+    await call("GET /me", "/me", { token: other });
+    const taken = await call("POST /bookings (slot taken)", "/bookings", {
+      token: other,
+      body: { providerId: state.providerId, date: state.date, time: state.time, clientPhone: "+243830000003" },
+    });
+    assert.equal(taken.status, 409);
+    assert.equal(taken.body.code, "SLOT_TAKEN");
+
+    const invalid = await call("POST /bookings (invalid)", "/bookings", {
+      token: client,
+      body: { providerId: state.providerId, date: "2026-02-30", time: "9h", clientPhone: "123" },
+    });
+    assert.equal(invalid.status, 400);
+
+    const refreshed = await call(
+      "GET /providers/:id/availability (after booking)",
+      `/providers/${state.providerId}/availability?date=${state.date}`,
+    );
+    assert.equal(refreshed.body.slots.includes(state.time), false);
+  });
+
+  test("the provider confirms, then completes with an agreed price that reaches the ledger", async () => {
+    const pending = await call("GET /bookings (provider)", "/bookings?status=PENDING", { token: pro });
+    assert.equal(pending.status, 200);
+    assert.equal(pending.body.items[0].id, state.bookingId);
+    assert.equal(pending.body.items[0].side, "provider");
+
+    const clientConfirm = await call("POST /bookings/:id/confirm (client)", `/bookings/${state.bookingId}/confirm`, {
+      token: client,
+    });
+    assert.equal(clientConfirm.status, 403);
+
+    const earlyComplete = await call("POST /bookings/:id/complete (pending)", `/bookings/${state.bookingId}/complete`, {
+      token: pro,
+      body: {},
+    });
+    assert.equal(earlyComplete.status, 409);
+
+    const confirmed = await call("POST /bookings/:id/confirm", `/bookings/${state.bookingId}/confirm`, { token: pro });
+    assert.equal(confirmed.status, 200, JSON.stringify(confirmed.body));
+    assert.equal(confirmed.body.status, "CONFIRMED");
+
+    const completed = await call("POST /bookings/:id/complete", `/bookings/${state.bookingId}/complete`, {
+      token: pro,
+      body: { agreedPrice: 50000, isPaid: true },
+    });
+    assert.equal(completed.status, 200, JSON.stringify(completed.body));
+    assert.equal(completed.body.status, "COMPLETED");
+    assert.equal(completed.body.commissionAmt, 5000);
+    assert.equal(completed.body.providerNetAmt, 45000);
+
+    const summary = await call("GET /pro/earnings/summary", "/pro/earnings/summary", { token: pro });
+    assert.equal(summary.status, 200, JSON.stringify(summary.body));
+    assert.equal(summary.body.total, 45000);
+    assert.equal(summary.body.byDay.length, 7);
+
+    const transactions = await call("GET /pro/earnings/transactions", "/pro/earnings/transactions", { token: pro });
+    assert.equal(transactions.status, 200);
+    assert.equal(transactions.body.total, 1);
+    assert.equal(transactions.body.items[0].type, "EARNING");
+    assert.equal(transactions.body.items[0].status, "COMPLETED");
+
+    const dashboard = await call("GET /dashboard/provider", "/dashboard/provider", { token: pro });
+    assert.equal(dashboard.status, 200, JSON.stringify(dashboard.body));
+    assert.equal(dashboard.body.metrics.completed, 1);
+
+    const detail = await call("GET /bookings/:id (client)", `/bookings/${state.bookingId}`, { token: client });
+    assert.equal(detail.status, 200);
+    assert.equal(detail.body.providerNetAmt, null);
+  });
+
+  test("the client reviews the provider and the provider rates the client", async () => {
+    const mine = await call("GET /reviews/mine", "/reviews/mine", { token: client });
+    assert.equal(mine.status, 200, JSON.stringify(mine.body));
+    assert.equal(mine.body.toReview[0].id, state.bookingId);
+
+    const review = await call("POST /reviews", "/reviews", {
+      token: client,
+      body: { bookingId: state.bookingId, rating: 5, comment: "Travail propre et rapide." },
+    });
+    assert.equal(review.status, 201, JSON.stringify(review.body));
+
+    const duplicate = await call("POST /reviews (duplicate)", "/reviews", {
+      token: client,
+      body: { bookingId: state.bookingId, rating: 4 },
+    });
+    assert.equal(duplicate.status, 409);
+
+    const reply = await call("POST /reviews/:id/reply", `/reviews/${review.body.id}/reply`, {
+      token: pro,
+      body: { reply: "Merci pour votre confiance !" },
+    });
+    assert.equal(reply.status, 200, JSON.stringify(reply.body));
+
+    const profile = await call("GET /providers/:id (rated)", `/providers/${state.providerId}`);
+    assert.equal(profile.body.ratingAvg, 5);
+    assert.equal(profile.body.ratingCount, 1);
+    assert.equal(profile.body.reviewsPreview[0].reply, "Merci pour votre confiance !");
+
+    const reviews = await call("GET /providers/:id/reviews", `/providers/${state.providerId}/reviews`);
+    assert.equal(reviews.status, 200);
+    assert.equal(reviews.body.total, 1);
+
+    const clientReview = await call("POST /reviews/clients", "/reviews/clients", {
+      token: pro,
+      body: { bookingId: state.bookingId, rating: 4, comment: "Client ponctuel." },
+    });
+    assert.equal(clientReview.status, 201, JSON.stringify(clientReview.body));
+
+    const summary = await call(
+      "GET /reviews/clients/:clientId/summary",
+      `/reviews/clients/${state.clientUserId}/summary`,
+      { token: pro },
+    );
+    assert.equal(summary.status, 200);
+    assert.equal(summary.body.avg, 4);
+    assert.equal(summary.body.count, 1);
+
+    const clientDashboard = await call("GET /dashboard/client", "/dashboard/client", { token: client });
+    assert.equal(clientDashboard.status, 200, JSON.stringify(clientDashboard.body));
+    assert.equal(clientDashboard.body.bookingsByStatus.COMPLETED, 1);
+    assert.deepEqual(clientDashboard.body.clientRating, { avg: 4, count: 1 });
+
+    const notifications = await call("GET /notifications", "/notifications", { token: client });
+    assert.equal(notifications.status, 200);
+    const types = notifications.body.items.map((item: { type: string }) => item.type);
+    for (const type of ["BOOKING_CONFIRMED", "BOOKING_COMPLETED", "NEW_MESSAGE", "NEW_CLIENT_REVIEW"]) {
+      assert.ok(types.includes(type), `missing ${type}`);
+    }
+    const readAll = await call("PATCH /notifications/read-all", "/notifications/read-all", { token: client });
+    assert.equal(readAll.status, 200);
+  });
+
+  test("blocks stop messaging and booking both ways", async () => {
+    const block = await call("POST /blocks", "/blocks", { token: pro, body: { userId: state.clientUserId } });
+    assert.equal(block.status, 201, JSON.stringify(block.body));
+
+    const message = await call("POST /conversations/:id/messages (blocked)", `/conversations/${state.conversationId}/messages`, {
+      token: client,
+      body: { body: "Toujours là ?" },
+    });
+    assert.equal(message.status, 403);
+    assert.equal(message.body.code, "BLOCKED");
+
+    const tomorrow = await call("GET /providers/:id/availability (blocked)", `/providers/${state.providerId}/availability?date=${state.date}`);
+    const booking = await call("POST /bookings (blocked)", "/bookings", {
+      token: client,
+      body: { providerId: state.providerId, date: state.date, time: tomorrow.body.slots[0], clientPhone: "+243820000002" },
+    });
+    assert.equal(booking.status, 403);
+    assert.equal(booking.body.code, "BLOCKED");
+
+    const hidden = await call("GET /providers (blocked viewer)", "/providers", { token: client });
+    assert.equal(hidden.body.total, 0);
+
+    const blocks = await call("GET /blocks", "/blocks", { token: pro });
+    assert.equal(blocks.body.total, 1);
+
+    const unblock = await call("DELETE /blocks/:userId", `/blocks/${state.clientUserId}`, { token: pro });
+    assert.equal(unblock.status, 200);
+  });
+
+  test("a report, the contact form and the admin console close the loop", async () => {
+    const report = await call("POST /reports", "/reports", {
+      token: client,
+      body: { targetKind: "PROVIDER", targetId: state.providerId, reason: "Numéro de téléphone erroné" },
+    });
+    assert.equal(report.status, 201, JSON.stringify(report.body));
+    state.reportId = report.body.id;
+
+    const contact = await call("POST /contact", "/contact", {
+      body: {
+        name: "Visiteur",
+        email: "visiteur@example.cd",
+        subject: "Partenariat",
+        message: "Bonjour, nous aimerions vous présenter notre offre.",
+      },
+    });
+    assert.equal(contact.status, 201, JSON.stringify(contact.body));
+
+    const forbidden = await call("GET /admin/overview (client)", "/admin/overview", { token: client });
+    assert.equal(forbidden.status, 403);
+
+    const overview = await call("GET /admin/overview", "/admin/overview", { token: admin });
+    assert.equal(overview.status, 200, JSON.stringify(overview.body));
+    assert.equal(overview.body.openReports, 1);
+
+    const bookings = await call("GET /admin/bookings", "/admin/bookings?q=Mukendi", { token: admin });
+    assert.equal(bookings.status, 200, JSON.stringify(bookings.body));
+    assert.equal(bookings.body.items[0].id, state.bookingId);
+
+    const reports = await call("GET /admin/reports", "/admin/reports?status=OPEN", { token: admin });
+    assert.equal(reports.status, 200);
+    assert.equal(reports.body.items[0].target.label, "Plomberie Mukendi");
+
+    const resolved = await call("PATCH /admin/reports/:id", `/admin/reports/${state.reportId}`, {
+      token: admin,
+      body: { resolution: "Numéro vérifié avec le prestataire." },
+    });
+    assert.equal(resolved.status, 200, JSON.stringify(resolved.body));
+    assert.equal(resolved.body.status, "RESOLVED");
+
+    const settings = await call("PUT /admin/settings", "/admin/settings", {
+      token: admin,
+      body: { hero_title: "Des pros vérifiés près de chez vous" },
+    });
+    assert.equal(settings.status, 200, JSON.stringify(settings.body));
+    const publicSettings = await call("GET /settings/public (after edit)", "/settings/public");
+    assert.equal(publicSettings.body.hero_title, "Des pros vérifiés près de chez vous");
+
+    const contacts = await call("GET /admin/contacts", "/admin/contacts", { token: admin });
+    assert.equal(contacts.status, 200);
+    assert.equal(contacts.body.total, 1);
+
+    const audit = await call("GET /admin/audit", "/admin/audit", { token: admin });
+    assert.equal(audit.status, 200);
+    const actions = audit.body.items.map((item: { action: string }) => item.action);
+    assert.ok(actions.includes("report.resolve"), actions.join(","));
+    assert.ok(actions.includes("settings.update"), actions.join(","));
+    assert.ok(audit.body.items.every((item: { ipAddress: string | null }) => item.ipAddress !== undefined));
+
+    const health = await call("GET /admin/health", "/admin/health", { token: admin });
+    assert.equal(health.status, 200);
+    assert.equal(health.body.database, "ok");
+  });
+
+  test("KYC documents go through the admin queue and the provider becomes verified", async () => {
+    const clientState = await call("GET /pro/verification/state (client)", "/pro/verification/state", { token: client });
+    assert.equal(clientState.status, 403);
+
+    const docs: Array<{ kind: string; path: string }> = [];
+    for (const kind of ["ID_FRONT", "ID_BACK", "SELFIE", "ADDRESS"]) {
+      const signed = await call("POST /me/uploads/sign (verification)", "/me/uploads/sign", {
+        token: pro,
+        body: { purpose: "verification", fileName: `${kind.toLowerCase()}.jpg`, mimeType: "image/jpeg", bytes: 200_000 },
+      });
+      assert.equal(signed.status, 200, JSON.stringify(signed.body));
+      const uploaded = await call("POST /pro/verification/documents", "/pro/verification/documents", {
+        token: pro,
+        body: { kind, path: signed.body.path, fileName: `${kind}.jpg`, mime: "image/jpeg", bytes: 200_000 },
+      });
+      assert.equal(uploaded.status, 200, JSON.stringify(uploaded.body));
+      docs.push({ kind, path: signed.body.path });
+    }
+
+    const optionalUpload = await call("POST /me/uploads/sign (optional certificate)", "/me/uploads/sign", {
+      token: pro,
+      body: { purpose: "verification", fileName: "diplome.pdf", mimeType: "application/pdf", bytes: 300_000 },
+    });
+    const optional = await call("POST /pro/verification/documents (optional)", "/pro/verification/documents", {
+      token: pro,
+      body: { kind: "CERT_OPTIONAL", path: optionalUpload.body.path, fileName: "diplome.pdf", mime: "application/pdf", bytes: 300_000 },
+    });
+    assert.equal(optional.status, 200, JSON.stringify(optional.body));
+    const removedDoc = await call("DELETE /pro/verification/documents/:id", `/pro/verification/documents/${optional.body.doc.id}`, {
+      token: pro,
+    });
+    assert.equal(removedDoc.status, 200, JSON.stringify(removedDoc.body));
+    assert.ok(calls.removed.some((entry) => entry.paths.includes(optionalUpload.body.path)));
+
+    const submitted = await call("POST /pro/verification/submit", "/pro/verification/submit", { token: pro });
+    assert.equal(submitted.status, 200, JSON.stringify(submitted.body));
+    assert.equal(submitted.body.state, "IN_REVIEW");
+
+    const strangerRead = await call(
+      "GET /me/media/sign-read (verification, stranger)",
+      `/me/media/sign-read?path=${encodeURIComponent(docs[0]!.path)}`,
+      { token: client },
+    );
+    assert.equal(strangerRead.status, 403);
+    const adminRead = await call(
+      "GET /me/media/sign-read (verification, admin)",
+      `/me/media/sign-read?path=${encodeURIComponent(docs[0]!.path)}`,
+      { token: admin },
+    );
+    assert.equal(adminRead.status, 200);
+
+    const queue = await call("GET /admin/verification/submissions", "/admin/verification/submissions", { token: admin });
+    assert.equal(queue.status, 200, JSON.stringify(queue.body));
+    const submission = queue.body.submissions.find((item: { providerId: string }) => item.providerId === state.providerId);
+    assert.ok(submission);
+
+    let last: JsonResponse | undefined;
+    for (const doc of submission.docs as Array<{ id: string }>) {
+      last = await call("PUT /admin/verification/documents", "/admin/verification/documents", {
+        token: admin,
+        body: { providerId: state.providerId, docId: doc.id, decision: "APPROVED" },
+      });
+      assert.equal(last.status, 200, JSON.stringify(last.body));
+    }
+    assert.equal(last!.body.verificationStatus, "VERIFIED");
+
+    const proState = await call("GET /pro/verification/state", "/pro/verification/state", { token: pro });
+    assert.equal(proState.body.state, "VERIFIED");
+
+    const cv = await call("GET /admin/users/:id/cv", `/admin/users/${state.proUserId}/cv`, { token: admin });
+    assert.equal(cv.status, 200, JSON.stringify(cv.body));
+    assert.equal(cv.body.provider.verificationStatus, "VERIFIED");
+
+    const providers = await call("GET /admin/providers", "/admin/providers?verificationStatus=VERIFIED", { token: admin });
+    assert.equal(providers.body.total, 1);
+    const verifiedSearch = await call("GET /providers (verifiedOnly)", "/providers?verifiedOnly=true");
+    assert.equal(verifiedSearch.body.items[0].verified, true);
+  });
+
+  test("place suggestions, the address book, message deletion and catalog reads", async () => {
+    const suggestion = await call("POST /places/suggestions", "/places/suggestions", {
+      token: client,
+      body: { kind: "QUARTIER", label: "Cité Verte", parentId: "place_gombe" },
+    });
+    assert.equal(suggestion.status, 201, JSON.stringify(suggestion.body));
+
+    const pending = await call("GET /admin/places/suggestions", "/admin/places/suggestions", { token: admin });
+    assert.equal(pending.status, 200);
+    assert.equal(pending.body.total, 1);
+
+    const approved = await call(
+      "POST /admin/places/suggestions/:id/approve",
+      `/admin/places/suggestions/${suggestion.body.id}/approve`,
+      { token: admin },
+    );
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    const placeId = approved.body.resolvedPlaceId;
+    assert.ok(placeId);
+
+    const place = await call("GET /admin/places/:id", `/admin/places/${placeId}`, { token: admin });
+    assert.equal(place.status, 200);
+    assert.equal(place.body.chain.length, 5);
+    const ancestors = await call("GET /places/:id/ancestors", `/places/${placeId}/ancestors`);
+    assert.deepEqual(ancestors.body.items.map((item: { label: string }) => item.label), [
+      "RDC",
+      "Kinshasa",
+      "Kinshasa",
+      "Gombe",
+      "Cité Verte",
+    ]);
+
+    const notifications = await call("GET /notifications (suggestion)", "/notifications?unreadOnly=true", { token: client });
+    assert.ok(notifications.body.items.some((item: { type: string }) => item.type === "PLACE_SUGGESTION_RESOLVED"));
+
+    const home = await call("POST /addresses", "/addresses", {
+      token: client,
+      body: { label: "HOME", addressLine: "4 avenue Kasa-Vubu", placeId },
+    });
+    assert.equal(home.status, 201, JSON.stringify(home.body));
+    assert.equal(home.body.isDefault, true);
+    const work = await call("POST /addresses (second)", "/addresses", {
+      token: client,
+      body: { label: "WORK", addressLine: "Boulevard du 30 Juin", placeId: "place_gombe", isDefault: true },
+    });
+    assert.equal(work.body.isDefault, true);
+    const addresses = await call("GET /addresses", "/addresses", { token: client });
+    assert.equal(addresses.body.items.filter((item: { isDefault: boolean }) => item.isDefault).length, 1);
+    const removed = await call("DELETE /addresses/:id", `/addresses/${work.body.id}`, { token: client });
+    assert.equal(removed.status, 200);
+    const asProvider = await call("GET /addresses (provider)", "/addresses", { token: pro });
+    assert.equal(asProvider.status, 403);
+
+    const sent = await call("POST /conversations/:id/messages (to delete)", `/conversations/${state.conversationId}/messages`, {
+      token: client,
+      body: { body: "Message envoyé par erreur" },
+    });
+    assert.equal(sent.status, 201, JSON.stringify(sent.body));
+    const notMine = await call(
+      "DELETE /conversations/:id/messages/:messageId (not sender)",
+      `/conversations/${state.conversationId}/messages/${sent.body.id}`,
+      { token: pro },
+    );
+    assert.ok([403, 404].includes(notMine.status));
+    const deleted = await call(
+      "DELETE /conversations/:id/messages/:messageId",
+      `/conversations/${state.conversationId}/messages/${sent.body.id}`,
+      { token: client },
+    );
+    assert.equal(deleted.status, 200);
+    const thread = await call("GET /conversations/:id/messages (tombstone)", `/conversations/${state.conversationId}/messages`, {
+      token: pro,
+    });
+    const tombstone = thread.body.items.find((item: { id: string }) => item.id === sent.body.id);
+    assert.equal(tombstone.body, null);
+    assert.ok(tombstone.deletedAt);
+
+    const reference = await call("GET /admin/references/:id", "/admin/references/ref_fr", { token: admin });
+    assert.equal(reference.status, 200);
+    assert.equal(reference.body.usageCount, 1);
+    const subcategories = await call("GET /admin/subcategories", "/admin/subcategories?categoryId=cat_batiment", { token: admin });
+    assert.equal(subcategories.status, 200);
+    assert.equal(subcategories.body.items[0].counts.providers, 1);
+    const subcategory = await call("GET /admin/subcategories/:id", "/admin/subcategories/sub_plomberie", { token: admin });
+    assert.equal(subcategory.status, 200);
+    const referenced = await call("DELETE /admin/subcategories/:id (referenced)", "/admin/subcategories/sub_plomberie", {
+      token: admin,
+    });
+    assert.equal(referenced.status, 409);
+    assert.equal(referenced.body.code, "REFERENCED");
+  });
+
+  test("every remaining route answers through its guards and validation pipe", async () => {
+    const edited = await call("PATCH /providers/me", "/providers/me", {
+      token: pro,
+      body: { description: "Dépannage et installation sanitaire.", yearsExperience: 9 },
+    });
+    assert.equal(edited.status, 200, JSON.stringify(edited.body));
+    assert.equal(edited.body.yearsExperience, 9);
+
+    const schedule = await call("PUT /providers/me/schedule", "/providers/me/schedule", {
+      token: pro,
+      body: {
+        timezone: TIMEZONE,
+        slotDurationMin: 60,
+        slotBufferMin: 15,
+        rules: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({ dayOfWeek, startTime: "08:00", endTime: "18:00" })),
+        exceptions: [{ date: addDays(state.date!, 30), isOpen: false }],
+      },
+    });
+    assert.equal(schedule.status, 200, JSON.stringify(schedule.body));
+
+    const media = await call("PUT /providers/me/media", "/providers/me/media", {
+      token: pro,
+      body: { items: edited.body.media.slice(1).map((item: { id: string; kind: string }) => ({ id: item.id, kind: item.kind })) },
+    });
+    assert.equal(media.status, 200, JSON.stringify(media.body));
+    assert.equal(media.body.items.length, 1);
+    assert.ok(calls.removed.some((entry) => entry.bucket === "provider-media"));
+
+    const paused = await call("PATCH /providers/me/availability", "/providers/me/availability", {
+      token: pro,
+      body: { isAvailable: false },
+    });
+    assert.deepEqual(paused.body, { isAvailable: false });
+    await call("PATCH /providers/me/availability (resume)", "/providers/me/availability", {
+      token: pro,
+      body: { isAvailable: true },
+    });
+
+    const avatarUpload = await call("POST /me/uploads/sign (avatar)", "/me/uploads/sign", {
+      token: client,
+      body: { purpose: "avatar", fileName: "moi.png", mimeType: "image/png", bytes: 50_000 },
+    });
+    const avatar = await call("POST /me/avatar", "/me/avatar", { token: client, body: { path: avatarUpload.body.path } });
+    assert.equal(avatar.status, 200, JSON.stringify(avatar.body));
+    const foreignAvatar = await call("POST /me/avatar (foreign path)", "/me/avatar", {
+      token: other,
+      body: { path: avatarUpload.body.path },
+    });
+    assert.equal(foreignAvatar.status, 403);
+
+    const geocode = await call("GET /geocode", "/geocode?placeId=place_gombe");
+    assert.equal(geocode.status, 200, JSON.stringify(geocode.body));
+    assert.equal(geocode.body.source, "place");
+    const distance = await call("GET /distance", "/distance?lat=-4.32&lng=15.3&providerLat=-4.31&providerLng=15.29");
+    assert.equal(distance.status, 200);
+
+    const unread = await call("GET /notifications (provider)", "/notifications", { token: pro });
+    const read = await call("PATCH /notifications/:id/read", `/notifications/${unread.body.items[0].id}/read`, { token: pro });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.isRead, true);
+
+    const addresses = await call("GET /addresses (for update)", "/addresses", { token: client });
+    const updatedAddress = await call("PATCH /addresses/:id", `/addresses/${addresses.body.items[0].id}`, {
+      token: client,
+      body: { recipient: "Paul K." },
+    });
+    assert.equal(updatedAddress.status, 200, JSON.stringify(updatedAddress.body));
+
+    const slots = await call("GET /providers/:id/availability (second booking)", `/providers/${state.providerId}/availability?date=${state.date}`);
+    const second = await call("POST /bookings (with saved address)", "/bookings", {
+      token: client,
+      body: {
+        providerId: state.providerId,
+        date: state.date,
+        time: slots.body.slots[0],
+        clientPhone: "+243820000002",
+        addressId: addresses.body.items[0].id,
+      },
+    });
+    assert.equal(second.status, 201, JSON.stringify(second.body));
+    const notes = await call("PATCH /bookings/:id/notes", `/bookings/${second.body.id}/notes`, {
+      token: pro,
+      body: { providerNotes: "Apporter un joint de 20 mm" },
+    });
+    assert.equal(notes.status, 200);
+    assert.equal(notes.body.providerNotes, "Apporter un joint de 20 mm");
+    const providerCancel = await call("POST /bookings/:id/cancel (provider, no reason)", `/bookings/${second.body.id}/cancel`, {
+      token: pro,
+    });
+    assert.equal(providerCancel.status, 400);
+    assert.equal(providerCancel.body.code, "REASON_REQUIRED");
+    const clientCancel = await call("POST /bookings/:id/cancel", `/bookings/${second.body.id}/cancel`, { token: client });
+    assert.equal(clientCancel.status, 200, JSON.stringify(clientCancel.body));
+    assert.equal(clientCancel.body.status, "CANCELLED");
+
+    const third = await call("POST /bookings (for admin cancel)", "/bookings", {
+      token: client,
+      body: { providerId: state.providerId, date: state.date, time: slots.body.slots[0], clientPhone: "+243820000002" },
+    });
+    assert.equal(third.status, 201, JSON.stringify(third.body));
+    const adminCancel = await call("POST /admin/bookings/:id/cancel", `/admin/bookings/${third.body.id}/cancel`, {
+      token: admin,
+      body: { reason: "Doublon signalé par le client" },
+    });
+    assert.equal(adminCancel.status, 200, JSON.stringify(adminCancel.body));
+
+    const users = await call("GET /admin/users", "/admin/users?q=Kabasele", { token: admin });
+    assert.equal(users.body.total, 1);
+    const settings = await call("GET /admin/settings", "/admin/settings", { token: admin });
+    assert.equal(settings.body.hero_title, "Des pros vérifiés près de chez vous");
+
+    const reviews = await call("GET /admin/reviews", "/admin/reviews?rating=5", { token: admin });
+    assert.equal(reviews.body.total, 1);
+    const reviewId = reviews.body.items[0].id;
+    const hiddenReview = await call("PATCH /admin/reviews/:id", `/admin/reviews/${reviewId}`, {
+      token: admin,
+      body: { isPublic: false },
+    });
+    assert.equal(hiddenReview.status, 200, JSON.stringify(hiddenReview.body));
+    const unrated = await call("GET /providers/:id (review hidden)", `/providers/${state.providerId}`);
+    assert.equal(unrated.body.ratingCount, 0);
+    const deletedReview = await call("DELETE /admin/reviews/:id", `/admin/reviews/${reviewId}`, { token: admin });
+    assert.equal(deletedReview.status, 200);
+
+    const conversations = await call("GET /admin/conversations", "/admin/conversations", { token: admin });
+    assert.equal(conversations.body.total, 1);
+    const adminThread = await call(
+      "GET /admin/conversations/:id/messages",
+      `/admin/conversations/${state.conversationId}/messages`,
+      { token: admin },
+    );
+    assert.equal(adminThread.status, 200);
+    const firstMessage = adminThread.body.items[0];
+    const adminMessageDelete = await call("DELETE /admin/messages/:id", `/admin/messages/${firstMessage.id}`, { token: admin });
+    assert.equal(adminMessageDelete.status, 200);
+    const adminConversationDelete = await call(
+      "DELETE /admin/conversations/:id",
+      `/admin/conversations/${state.conversationId}`,
+      { token: admin },
+    );
+    assert.equal(adminConversationDelete.status, 200);
+    assert.ok(calls.removed.some((entry) => entry.bucket === "message-attachments"));
+
+    const contacts = await call("GET /admin/contacts (for update)", "/admin/contacts", { token: admin });
+    const contactRead = await call("PATCH /admin/contacts/:id", `/admin/contacts/${contacts.body.items[0].id}`, {
+      token: admin,
+      body: { status: "READ" },
+    });
+    assert.equal(contactRead.status, 200);
+    const contactDelete = await call("DELETE /admin/contacts/:id", `/admin/contacts/${contacts.body.items[0].id}`, { token: admin });
+    assert.equal(contactDelete.status, 200);
+
+    const category = await call("POST /admin/categories", "/admin/categories", {
+      token: admin,
+      body: { name: "Beauté", slug: "beaute", icon: "Sparkles", color: "bg-pink-500" },
+    });
+    assert.equal(category.status, 201, JSON.stringify(category.body));
+    const renamed = await call("PATCH /admin/categories/:id", `/admin/categories/${category.body.id}`, {
+      token: admin,
+      body: { name: "Beauté & bien-être" },
+    });
+    assert.equal(renamed.status, 200);
+    const level2 = await call("POST /admin/subcategories", "/admin/subcategories", {
+      token: admin,
+      body: { categoryId: category.body.id, name: "Coiffure", slug: "coiffure" },
+    });
+    assert.equal(level2.status, 201, JSON.stringify(level2.body));
+    const level3 = await call("POST /admin/subcategories (level 3)", "/admin/subcategories", {
+      token: admin,
+      body: { categoryId: category.body.id, parentId: level2.body.id, name: "Tresses", slug: "tresses" },
+    });
+    assert.equal(level3.status, 201, JSON.stringify(level3.body));
+    const renamedSub = await call("PATCH /admin/subcategories/:id", `/admin/subcategories/${level3.body.id}`, {
+      token: admin,
+      body: { name: "Tresses africaines" },
+    });
+    assert.equal(renamedSub.status, 200);
+    const categoryDetail = await call("GET /admin/categories/:id", `/admin/categories/${category.body.id}`, { token: admin });
+    assert.equal(categoryDetail.body.children[0].children.length, 1);
+    const adminTree = await call("GET /admin/categories", "/admin/categories", { token: admin });
+    assert.equal(adminTree.body.items.length, 2);
     assert.equal(
-      (providerInbox.body?.conversations as Array<{ id: string }>).some(
-        (conversation) => conversation.id === conversationId,
-      ),
-      true,
+      (await call("DELETE /admin/subcategories/:id", `/admin/subcategories/${level3.body.id}`, { token: admin })).status,
+      200,
     );
-
-    const providerReply = await requestJson(baseUrl, "/messages", {
-      method: "POST",
-      token: "provider-token",
-      body: {
-        recipientId: "client_user_1",
-        content: "Oui, je peux passer demain matin.",
-        type: "TEXT",
-      },
-    });
-    assert.equal(providerReply.status, 201);
-
-    const chatThread = await requestJson(
-      baseUrl,
-      `/messages?conversationId=${conversationId}&page=1&limit=10`,
-      { token: "client-token" },
-    );
-    assert.equal(chatThread.status, 200);
-    const messages = chatThread.body?.messages as Array<{ content: string }>;
-    assert.equal(messages.length, 2);
-    assert.equal(messages[0]?.content, "Bonjour, etes-vous disponible demain ?");
-    assert.equal(messages[1]?.content, "Oui, je peux passer demain matin.");
-
-    const createdBooking = await requestJson(baseUrl, "/bookings", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        providerId: "provider_1",
-        title: "Reparer une fuite",
-        description: "Salle de bain",
-        address: "12 Avenue Kasa-Vubu",
-        city: "Kinshasa",
-        scheduledDate: "2026-04-24T08:00:00.000Z",
-        duration: 120,
-        price: 50000,
-        clientNotes: "Intervention rapide si possible",
-      },
-    });
-    assert.equal(createdBooking.status, 201);
-    const directBooking = createdBooking.body?.booking as { id: string; status: string };
-    assert.equal(directBooking.status, "PENDING");
-
-    const providerBookings = await requestJson(
-      baseUrl,
-      "/bookings?role=provider&status=PENDING&page=1&limit=10",
-      { token: "provider-token" },
-    );
-    assert.equal(providerBookings.status, 200);
     assert.equal(
-      (providerBookings.body?.bookings as Array<{ id: string }>).some(
-        (booking) => booking.id === directBooking.id,
-      ),
-      true,
+      (await call("DELETE /admin/categories/:id", `/admin/categories/${category.body.id}`, { token: admin })).status,
+      200,
     );
 
-    const confirmed = await requestJson(baseUrl, `/bookings/${directBooking.id}`, {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "CONFIRMED" },
+    const limete = await call("POST /admin/places", "/admin/places", {
+      token: admin,
+      body: { kind: "COMMUNE", label: "Limete", parentId: "place_kin", aliases: ["Limeté"] },
     });
-    assert.equal(confirmed.status, 200);
-    assert.equal((confirmed.body?.booking as { status: string }).status, "CONFIRMED");
-
-    const clientBooking = await requestJson(baseUrl, `/bookings/${directBooking.id}`, {
-      token: "client-token",
+    assert.equal(limete.status, 201, JSON.stringify(limete.body));
+    const duplicate = await call("POST /admin/places (duplicate label)", "/admin/places", {
+      token: admin,
+      body: { kind: "COMMUNE", label: "Limete", parentId: "place_kin" },
     });
-    assert.equal(clientBooking.status, 200);
-    assert.equal((clientBooking.body?.booking as { status: string }).status, "CONFIRMED");
-
-    const started = await requestJson(baseUrl, `/bookings/${directBooking.id}`, {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "IN_PROGRESS" },
+    assert.equal(duplicate.status, 409);
+    const typo = await call("POST /admin/places (typo)", "/admin/places", {
+      token: admin,
+      body: { kind: "COMMUNE", label: "Limette", parentId: "place_kin" },
     });
-    assert.equal(started.status, 200);
-
-    const completed = await requestJson(baseUrl, `/bookings/${directBooking.id}`, {
-      method: "PATCH",
-      token: "provider-token",
-      body: { status: "COMPLETED" },
+    const patchedPlace = await call("PATCH /admin/places/:id", `/admin/places/${limete.body.id}`, {
+      token: admin,
+      body: { latitude: -4.37, longitude: 15.35 },
     });
-    assert.equal(completed.status, 200);
-    assert.equal((completed.body?.booking as { status: string }).status, "COMPLETED");
-
-    const paid = await requestJson(baseUrl, `/bookings/${directBooking.id}`, {
-      method: "PATCH",
-      token: "provider-token",
-      body: { isPaid: true, paymentMethod: "cash" },
+    assert.equal(patchedPlace.status, 200);
+    const mergedPlace = await call("POST /admin/places/merge", "/admin/places/merge", {
+      token: admin,
+      body: { fromId: typo.body.id, intoId: limete.body.id },
     });
-    assert.equal(paid.status, 200);
-    const paidBooking = paid.body?.booking as { isPaid: boolean; paymentMethod: string };
-    assert.equal(paidBooking.isPaid, true);
-    assert.equal(paidBooking.paymentMethod, "cash");
+    assert.equal(mergedPlace.status, 200, JSON.stringify(mergedPlace.body));
+    const adminPlaces = await call("GET /admin/places", "/admin/places?parentId=place_kin", { token: admin });
+    assert.equal(adminPlaces.body.total, 3);
 
-    const review = await requestJson(baseUrl, "/reviews", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        bookingId: directBooking.id,
-        providerId: "provider_1",
-        rating: 5,
-        punctuality: 5,
-        quality: 5,
-        communication: 5,
-        value: 4,
-        professionalism: 5,
-        satisfactionTags: ["Ponctuel"],
-        comment: "Tres bon travail, intervention rapide.",
-        isPublic: true,
-      },
+    const toReject = await call("POST /places/suggestions (to reject)", "/places/suggestions", {
+      token: client,
+      body: { kind: "QUARTIER", label: "Quartier fantôme", parentId: "place_gombe" },
     });
-    assert.equal(review.status, 201);
-    assert.equal(review.body?.success, true);
-    assert.equal((review.body?.review as { bookingId: string }).bookingId, directBooking.id);
-
-    const acceptedOfferResponse = await requestJson(baseUrl, "/final-offers", {
-      method: "POST",
-      token: "provider-token",
-      body: {
-        providerId: "provider_1",
-        clientId: "client_user_1",
-        conversationId,
-        title: "Remplacer le joint",
-        description: "Joint et test de fuite apres discussion.",
-        price: 65000,
-        duration: 90,
-        scheduledDate: "2026-04-25T09:00:00.000Z",
-        address: "12 Avenue Kasa-Vubu",
-        city: "Kinshasa",
-        notes: "Paiement en especes a la fin de la mission.",
-        paymentMethod: "cash",
-      },
-    });
-    assert.equal(acceptedOfferResponse.status, 201);
-    const acceptedOffer = acceptedOfferResponse.body?.finalOffer as { id: string; status: string };
-    assert.equal(acceptedOffer.status, "ACCEPTED");
-    assert.equal((acceptedOfferResponse.body?.booking as { status: string }).status, "CONFIRMED");
-
-    const acceptedOfferResult = await requestJson(
-      baseUrl,
-      `/final-offers/${acceptedOffer.id}/accept`,
-      {
-        method: "POST",
-        token: "client-token",
-      },
+    const rejected = await call(
+      "POST /admin/places/suggestions/:id/reject",
+      `/admin/places/suggestions/${toReject.body.id}/reject`,
+      { token: admin },
     );
-    assert.equal(acceptedOfferResult.status, 201);
-    assert.equal((acceptedOfferResult.body?.finalOffer as { status: string }).status, "ACCEPTED");
-    assert.equal((acceptedOfferResult.body?.booking as { status: string }).status, "CONFIRMED");
-    assert.equal((acceptedOfferResult.body?.booking as { paymentMethod: string }).paymentMethod, "cash");
+    assert.equal(rejected.status, 200, JSON.stringify(rejected.body));
+    assert.equal(rejected.body.status, "REJECTED");
 
-    const declinedOfferResponse = await requestJson(baseUrl, "/final-offers", {
-      method: "POST",
-      token: "provider-token",
-      body: {
-        providerId: "provider_1",
-        clientId: "client_user_1",
-        conversationId,
-        title: "Intervention supplementaire",
-        price: 25000,
-        duration: 30,
-        scheduledDate: "2026-04-25T11:00:00.000Z",
-        address: "12 Avenue Kasa-Vubu",
-        city: "Kinshasa",
-        paymentMethod: "cash",
-      },
+    const lingala = await call("POST /admin/references", "/admin/references", {
+      token: admin,
+      body: { type: "LANGUAGE", label: "Lingala" },
     });
-    assert.equal(declinedOfferResponse.status, 201);
-    const declinedOffer = declinedOfferResponse.body?.finalOffer as { id: string };
-    assert.equal((declinedOfferResponse.body?.booking as { status: string }).status, "CONFIRMED");
-
-    const declined = await requestJson(baseUrl, `/final-offers/${declinedOffer.id}/decline`, {
-      method: "POST",
-      token: "client-token",
+    assert.equal(lingala.status, 201, JSON.stringify(lingala.body));
+    const lingalaTypo = await call("POST /admin/references (typo)", "/admin/references", {
+      token: admin,
+      body: { type: "LANGUAGE", label: "Lingalla" },
     });
-    assert.equal(declined.status, 400);
-
-    const continueDiscussion = await requestJson(baseUrl, "/messages", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        recipientId: "provider_user_1",
-        content: "Merci, discutons encore du prix.",
-        type: "TEXT",
-      },
+    const patchedReference = await call("PATCH /admin/references/:id", `/admin/references/${lingala.body.id}`, {
+      token: admin,
+      body: { aliases: ["Ngala"], order: 2 },
     });
-    assert.equal(continueDiscussion.status, 201);
-    assert.equal(state.quotesById.get("quote_1")?.status, "SENT");
-    assert.equal(state.earningTransactions.length > 0, true);
-  } finally {
-    await app.close();
-  }
-});
-
-test("quote acceptance route returns a real confirmed-booking payload shape", async () => {
-  const { app, baseUrl } = await createHarness();
-
-  try {
-    const accepted = await requestJson(baseUrl, "/quotes/quote_1/accept", {
-      method: "POST",
-      token: "client-token",
+    assert.equal(patchedReference.status, 200);
+    const mergedReference = await call("POST /admin/references/merge", "/admin/references/merge", {
+      token: admin,
+      body: { fromId: lingalaTypo.body.id, intoId: lingala.body.id },
     });
+    assert.equal(mergedReference.status, 200, JSON.stringify(mergedReference.body));
+    const adminReferences = await call("GET /admin/references", "/admin/references?type=LANGUAGE", { token: admin });
+    assert.equal(adminReferences.body.total, 3);
+    const publicLanguages = await call("GET /references (after merge)", "/references?type=LANGUAGE");
+    assert.equal(publicLanguages.body.total, 2);
 
-    assert.equal(accepted.status, 201);
-    assert.equal((accepted.body?.quote as { status: string }).status, "ACCEPTED");
-    assert.equal((accepted.body?.booking as { status: string }).status, "CONFIRMED");
-    assert.ok((accepted.body?.booking as { id: string }).id);
-  } finally {
-    await app.close();
-  }
-});
+    const audit = await call("GET /admin/audit (after curation)", "/admin/audit", { token: admin });
+    const actions = new Set(audit.body.items.map((item: { action: string }) => item.action));
+    for (const action of ["booking.cancel", "review.update", "review.delete", "place.merge", "reference.merge"]) {
+      assert.ok(actions.has(action), `missing ${action} in ${[...actions].join(",")}`);
+    }
+  });
 
-test("review creation route only accepts completed bookings and returns review payloads", async () => {
-  const { app, baseUrl } = await createHarness();
-
-  try {
-    const pending = await requestJson(baseUrl, "/reviews", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        bookingId: "booking_1",
-        providerId: "provider_1",
-        rating: 5,
-        comment: "Très bon travail",
-        isPublic: true,
-      },
+  test("suspension returns 403 everywhere and hides the provider; last-admin protection holds", async () => {
+    const self = await call("PATCH /admin/users/:id (self)", "/admin/users/user_admin", {
+      token: admin,
+      body: { suspended: true, suspendedReason: "test" },
     });
+    assert.equal(self.status, 400);
 
-    assert.equal(pending.status, 400);
-
-    const completed = await requestJson(baseUrl, "/reviews", {
-      method: "POST",
-      token: "client-token",
-      body: {
-        bookingId: "booking_completed_1",
-        providerId: "provider_1",
-        rating: 5,
-        punctuality: 5,
-        quality: 5,
-        communication: 4,
-        value: 4,
-        professionalism: 5,
-        satisfactionTags: ["Ponctuel"],
-        comment: "Très bon travail",
-        isPublic: true,
-      },
+    const suspended = await call("PATCH /admin/users/:id", `/admin/users/${state.proUserId}`, {
+      token: admin,
+      body: { suspended: true, suspendedReason: "Signalements répétés" },
     });
+    assert.equal(suspended.status, 200, JSON.stringify(suspended.body));
 
-    assert.equal(completed.status, 201);
-    assert.equal(completed.body?.success, true);
-    assert.equal((completed.body?.review as { id: string }).id, "review_1");
-  } finally {
-    await app.close();
-  }
+    const me = await call("GET /me (suspended)", "/me", { token: pro });
+    assert.equal(me.status, 403);
+    assert.equal(me.body.code, "ACCOUNT_SUSPENDED");
+    assert.equal(me.body.suspendedReason, "Signalements répétés");
+
+    const search = await call("GET /providers (after suspension)", "/providers");
+    assert.equal(search.body.total, 0);
+
+    const profile = await call("GET /providers/:id (suspended owner)", `/providers/${state.providerId}`);
+    assert.equal(profile.status, 404);
+
+    const restored = await call("PATCH /admin/users/:id (restore)", `/admin/users/${state.proUserId}`, {
+      token: admin,
+      body: { suspended: false },
+    });
+    assert.equal(restored.status, 200);
+    const unhidden = await call("PATCH /admin/providers/:id", `/admin/providers/${state.providerId}`, {
+      token: admin,
+      body: { hidden: false, premiumTier: "BOOSTED" },
+    });
+    assert.equal(unhidden.status, 200, JSON.stringify(unhidden.body));
+  });
+
+  test("account deletion removes the provider, its data and storage, then the auth user", async () => {
+    const deleted = await call("DELETE /me", "/me", { token: pro });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.body));
+
+    const profile = await call("GET /providers/:id (deleted)", `/providers/${state.providerId}`);
+    assert.equal(profile.status, 404);
+    assert.equal(await prisma.booking.count({ where: { id: state.bookingId } }), 0);
+    assert.equal(await prisma.conversation.count({ where: { id: state.conversationId } }), 0);
+    assert.ok(calls.removed.some((entry) => entry.bucket === "provider-media"));
+    assert.ok(calls.deletedAuthUsers.includes("auth-pro"));
+
+    const fresh = await call("GET /me (after deletion)", "/me", { token: pro });
+    assert.equal(fresh.status, 200);
+    assert.equal(fresh.body.user.role, "CLIENT");
+    assert.notEqual(fresh.body.user.id, state.proUserId);
+
+    const adminDelete = await call("DELETE /me (admin)", "/me", { token: admin });
+    assert.equal(adminDelete.status, 409);
+  });
 });

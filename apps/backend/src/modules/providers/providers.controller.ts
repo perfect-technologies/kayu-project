@@ -1,184 +1,100 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Patch,
-  Post,
-  Query,
-  Req,
-  Param,
-  UseGuards,
-} from "@nestjs/common";
-import type { Request } from "express";
-import { CurrentActor, LazyZodValidationPipe, Roles } from "../../common";
+import { Body, Controller, Get, Param, Patch, Put, Query, UseGuards } from "@nestjs/common";
+import type { Actor } from "../../common/auth/types";
+import type {
+  AvailabilityQuery,
+  ProviderSearchQuery,
+  PutMediaInput,
+  ScheduleInput,
+  UpdateAvailabilityInput,
+  UpdateProviderInput,
+} from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
+import { OptionalActorGuard } from "../../common/guards/optional-actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
-import type { Actor } from "../../common/auth/types";
+import type { PageQuery } from "../../common/http/pagination";
+import { ProviderEditorService } from "./provider-editor.service";
 import { ProvidersService } from "./providers.service";
-import { ProvidersAvailabilityService } from "./providers-availability.service";
-
-type ProviderSearchQuery = {
-  q?: string;
-  category?: string;
-  subcategory?: string;
-  city?: string;
-  minRating?: number;
-  minPrice?: number;
-  maxPrice?: number;
-  available?: boolean;
-  verified?: boolean;
-  page: number;
-  limit: number;
-  sortBy?: "recommended" | "createdAt" | "hourlyRate";
-  sortOrder?: "asc" | "desc";
-};
-
-type UpdateProviderBody = {
-  profession?: string;
-  description?: string | null;
-  experience?: number | null;
-  hourlyRate?: number | null;
-  isAvailable?: boolean;
-  categoryIds?: string[];
-  skills?: Array<{
-    name: string;
-    level?: number;
-  }>;
-  serviceZones?: Array<{
-    city: string;
-    commune?: string | null;
-  }>;
-  subcategoryIds?: string[];
-};
-
-const providersQueryPipe = new LazyZodValidationPipe(async () => {
-  const { ProviderSearchParams } = await import("@kayu/schemas");
-  return ProviderSearchParams;
-});
-
-const availabilityQueryPipe = new LazyZodValidationPipe(async () => {
-  const { AvailabilityQuery } = await import("@kayu/schemas");
-  return AvailabilityQuery;
-});
-
-const updateProviderBodyPipe = new LazyZodValidationPipe(async () => {
-  const { UpdateProviderDto } = await import("@kayu/schemas");
-  return UpdateProviderDto;
-});
-
-const updateAvailabilityBodyPipe = new LazyZodValidationPipe(async () => {
-  const { UpdateProviderAvailabilityDto } = await import("@kayu/schemas");
-  return UpdateProviderAvailabilityDto;
-});
-
-const portfolioBodyPipe = new LazyZodValidationPipe(async () => {
-  const { PortfolioProjectInputDto } = await import("@kayu/schemas");
-  return PortfolioProjectInputDto;
-});
-
-type PortfolioBody = {
-  title: string;
-  description?: string;
-  categoryId?: string;
-  duration?: number;
-  price?: number;
-  images: Array<{
-    imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
-    path: string;
-    caption?: string;
-    displayOrder?: number;
-  }>;
-};
 
 @Controller("providers")
 export class ProvidersController {
   constructor(
     private readonly providers: ProvidersService,
-    private readonly availabilityService: ProvidersAvailabilityService,
+    private readonly editor: ProviderEditorService,
   ) {}
-
-  @Get()
-  search(@Query(providersQueryPipe) query: ProviderSearchQuery) {
-    return this.providers.search(query);
-  }
 
   @Patch("me")
   @Roles("PROVIDER")
   @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
   updateMe(
     @CurrentActor() actor: Actor,
-    @Body(updateProviderBodyPipe) body: UpdateProviderBody,
+    @Body(contractPipe("UpdateProviderDto")) body: UpdateProviderInput,
   ) {
-    return this.providers.updateMe(actor, body);
+    return this.editor.update(actor, body);
+  }
+
+  @Put("me/schedule")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  putSchedule(
+    @CurrentActor() actor: Actor,
+    @Body(contractPipe("PutScheduleDto")) body: ScheduleInput,
+  ) {
+    return this.editor.replaceSchedule(actor, body);
+  }
+
+  @Put("me/media")
+  @Roles("PROVIDER")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  putMedia(@CurrentActor() actor: Actor, @Body(contractPipe("PutMediaDto")) body: PutMediaInput) {
+    return this.editor.replaceMedia(actor, body.items);
   }
 
   @Patch("me/availability")
   @Roles("PROVIDER")
   @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  async updateAvailability(
+  setAvailability(
     @CurrentActor() actor: Actor,
-    @Body(updateAvailabilityBodyPipe) body: { isAvailable: boolean },
+    @Body(contractPipe("UpdateAvailabilityDto")) body: UpdateAvailabilityInput,
   ) {
-    await this.providers.updateMe(actor, { isAvailable: body.isAvailable });
-    return { success: true as const, isAvailable: body.isAvailable };
+    return this.editor.setAvailability(actor, body.isAvailable);
   }
 
-  // NOTE: must stay declared above @Get(":id") so Nest does not route "me/strength" into findById.
-  @Get("me/strength")
-  @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  getStrength(@CurrentActor() actor: Actor) {
-    return this.providers.getStrength(actor);
-  }
-
-  @Get("me/portfolio")
-  @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  listPortfolio(@CurrentActor() actor: Actor) {
-    return this.providers.listPortfolio(actor);
-  }
-
-  @Post("me/portfolio")
-  @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  createPortfolio(
-    @CurrentActor() actor: Actor,
-    @Body(portfolioBodyPipe) body: PortfolioBody,
+  @Get()
+  @UseGuards(OptionalActorGuard)
+  search(
+    @CurrentActor() viewer: Actor | undefined,
+    @Query(contractPipe("ProviderSearchParams")) query: ProviderSearchQuery,
   ) {
-    return this.providers.createPortfolioProject(actor, body);
-  }
-
-  @Patch("me/portfolio/:id")
-  @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  updatePortfolio(
-    @CurrentActor() actor: Actor,
-    @Param("id") id: string,
-    @Body(portfolioBodyPipe) body: PortfolioBody,
-  ) {
-    return this.providers.updatePortfolioProject(actor, id, body);
-  }
-
-  @Delete("me/portfolio/:id")
-  @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  deletePortfolio(@CurrentActor() actor: Actor, @Param("id") id: string) {
-    return this.providers.deletePortfolioProject(actor, id);
+    return this.providers.search(query, viewer);
   }
 
   @Get(":id")
-  async findById(@Param("id") id: string, @Req() request: Request) {
-    const viewer = await this.providers.resolveViewer(request);
-    return this.providers.findById(id, viewer);
+  @UseGuards(OptionalActorGuard)
+  getPublic(@CurrentActor() viewer: Actor | undefined, @Param("id") id: string) {
+    return this.providers.getPublicProfile(id, viewer);
   }
 
   @Get(":id/availability")
+  @UseGuards(OptionalActorGuard)
   availability(
+    @CurrentActor() viewer: Actor | undefined,
     @Param("id") id: string,
-    @Query(availabilityQueryPipe) query: { from: string; to: string },
+    @Query(contractPipe("AvailabilityQueryParams")) query: AvailabilityQuery,
   ) {
-    return this.availabilityService.computeRange(id, query.from, query.to);
+    return this.providers.getAvailability(id, query.date, viewer);
+  }
+
+  @Get(":id/reviews")
+  @UseGuards(OptionalActorGuard)
+  reviews(
+    @CurrentActor() viewer: Actor | undefined,
+    @Param("id") id: string,
+    @Query(contractPipe("ProviderReviewsQueryParams")) query: PageQuery,
+  ) {
+    return this.providers.listReviews(id, query, viewer);
   }
 }

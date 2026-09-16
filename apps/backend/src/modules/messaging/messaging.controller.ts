@@ -1,50 +1,74 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
 import type { Actor } from "../../common/auth/types";
-import { CurrentActor, LazyZodValidationPipe } from "../../common";
+import type {
+  ConversationsQuery,
+  MessagesQuery,
+  SendMessageInput,
+  StartConversationInput,
+} from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
+import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { MessagingService } from "./messaging.service";
 
-type MessageQuery = {
-  conversationId?: string;
-  page: number;
-  limit: number;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-};
-
-type CreateMessageBody = {
-  recipientId: string;
-  content: string;
-  type: "TEXT" | "IMAGE" | "FILE" | "LOCATION" | "BOOKING_REQUEST" | "QUOTE";
-  fileUrl?: string;
-};
-
-const messagesQueryPipe = new LazyZodValidationPipe(async () => {
-  const { MessageSearchParams } = await import("@kayu/schemas");
-  return MessageSearchParams;
-});
-
-const createMessageBodyPipe = new LazyZodValidationPipe(async () => {
-  const { CreateMessageDto } = await import("@kayu/schemas");
-  return CreateMessageDto;
-});
-
-@Controller("messages")
-@UseGuards(SupabaseGuard, ActorGuard)
+@Controller("conversations")
+@UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
 export class MessagingController {
   constructor(private readonly messaging: MessagingService) {}
 
   @Get()
-  findAll(@CurrentActor() actor: Actor, @Query(messagesQueryPipe) query: MessageQuery) {
-    return this.messaging.findAll(actor, query);
+  list(
+    @CurrentActor() actor: Actor,
+    @Query(contractPipe("ConversationsQueryParams")) query: ConversationsQuery,
+  ) {
+    return this.messaging.list(actor, query);
   }
 
   @Post()
-  sendMessage(
+  @Roles("CLIENT")
+  start(
     @CurrentActor() actor: Actor,
-    @Body(createMessageBodyPipe) body: CreateMessageBody,
+    @Body(contractPipe("StartConversationDto")) body: StartConversationInput,
   ) {
-    return this.messaging.sendMessage(actor, body);
+    return this.messaging.start(actor, body);
+  }
+
+  @Get(":id/messages")
+  messages(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Query(contractPipe("MessagesQueryParams")) query: MessagesQuery,
+  ) {
+    return this.messaging.messages(actor, id, query);
+  }
+
+  @Post(":id/messages")
+  send(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Body(contractPipe("SendMessageDto")) body: SendMessageInput,
+  ) {
+    return this.messaging.send(actor, id, body);
+  }
+
+  @Delete(":id/messages/:messageId")
+  deleteMessage(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Param("messageId") messageId: string,
+  ) {
+    return this.messaging.deleteMessage(actor, id, messageId);
   }
 }

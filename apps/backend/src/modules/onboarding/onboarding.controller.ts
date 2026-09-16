@@ -1,35 +1,25 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import type { Actor } from "../../common/auth/types";
-import { CurrentActor, LazyZodValidationPipe } from "../../common";
+import type { PublishProviderInput } from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
+import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
-import { OnboardingService, type ProviderDraftInput } from "./onboarding.service";
-
-const draftBodyPipe = new LazyZodValidationPipe(async () => {
-  const { ProviderDraftDto } = await import("@kayu/schemas");
-  return ProviderDraftDto;
-});
+import { ProviderEditorService } from "../providers/provider-editor.service";
 
 @Controller("me")
-@UseGuards(SupabaseGuard, ActorGuard)
 export class OnboardingController {
-  constructor(private readonly onboarding: OnboardingService) {}
+  constructor(private readonly editor: ProviderEditorService) {}
 
-  @Get("provider-draft")
-  getDraft(@CurrentActor() actor: Actor) {
-    return this.onboarding.getDraft(actor);
-  }
-
-  @Patch("provider-draft")
-  patchDraft(
+  @Post("provider")
+  @Roles("CLIENT")
+  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
+  publish(
     @CurrentActor() actor: Actor,
-    @Body(draftBodyPipe) body: ProviderDraftInput,
+    @Body(contractPipe("PublishProviderDto")) body: PublishProviderInput,
   ) {
-    return this.onboarding.patchDraft(actor, body);
-  }
-
-  @Post("provider-publish")
-  publish(@CurrentActor() actor: Actor) {
-    return this.onboarding.publish(actor);
+    return this.editor.publish(actor, body);
   }
 }

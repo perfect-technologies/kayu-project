@@ -1,95 +1,61 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Query,
-  UseGuards,
-} from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
 import type { Actor } from "../../common/auth/types";
-import {
-  CurrentActor,
-  LazyZodValidationPipe,
-  Roles,
-} from "../../common";
+import type {
+  CreateClientReviewInput,
+  CreateReviewInput,
+  ReplyReviewInput,
+} from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { ReviewsService } from "./reviews.service";
 
-type ReviewQuery = {
-  providerId: string;
-  page: number;
-  limit: number;
-  sortBy: "recent" | "highest" | "lowest";
-};
-
-type CreateReviewBody = {
-  bookingId: string;
-  providerId: string;
-  rating: number;
-  punctuality?: number;
-  quality?: number;
-  communication?: number;
-  value?: number;
-  professionalism?: number;
-  satisfactionTags?: string[];
-  comment?: string;
-  isPublic: boolean;
-};
-
-type CreateClientReviewBody = {
-  bookingId: string;
-  clientId: string;
-  paymentRating: "PREPAID" | "ONTIME" | "LATE" | "PARTIAL" | "DISPUTED";
-  communication?: number;
-  respectfulness?: number;
-  tags: string[];
-  comment?: string;
-  isPublic: boolean;
-};
-
-const reviewsQueryPipe = new LazyZodValidationPipe(async () => {
-  const { ReviewSearchParams } = await import("@kayu/schemas");
-  return ReviewSearchParams;
-});
-
-const createReviewBodyPipe = new LazyZodValidationPipe(async () => {
-  const { CreateReviewDto } = await import("@kayu/schemas");
-  return CreateReviewDto;
-});
-
-const createClientReviewBodyPipe = new LazyZodValidationPipe(async () => {
-  const { CreateClientReviewDto } = await import("@kayu/schemas");
-  return CreateClientReviewDto;
-});
-
 @Controller("reviews")
+@UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
-  @Get()
-  findAll(@Query(reviewsQueryPipe) query: ReviewQuery) {
-    return this.reviews.findAll(query);
-  }
-
   @Post()
   @Roles("CLIENT")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
   create(
     @CurrentActor() actor: Actor,
-    @Body(createReviewBodyPipe) body: CreateReviewBody,
+    @Body(contractPipe("CreateReviewDto")) body: CreateReviewInput,
   ) {
     return this.reviews.create(actor, body);
   }
 
+  @Get("mine")
+  @Roles("CLIENT")
+  mine(@CurrentActor() actor: Actor) {
+    return this.reviews.mine(actor);
+  }
+
   @Post("clients")
   @Roles("PROVIDER")
-  @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
-  createClient(
+  createClientReview(
     @CurrentActor() actor: Actor,
-    @Body(createClientReviewBodyPipe) body: CreateClientReviewBody,
+    @Body(contractPipe("CreateClientReviewDto")) body: CreateClientReviewInput,
   ) {
     return this.reviews.createClientReview(actor, body);
+  }
+
+  @Get("clients/:clientId/summary")
+  @Roles("PROVIDER", "ADMIN")
+  clientSummary(@Param("clientId") clientId: string) {
+    return this.reviews.clientSummary(clientId);
+  }
+
+  @Post(":id/reply")
+  @Roles("PROVIDER")
+  @HttpCode(200)
+  reply(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Body(contractPipe("ReplyReviewDto")) body: ReplyReviewInput,
+  ) {
+    return this.reviews.reply(actor, id, body);
   }
 }

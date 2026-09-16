@@ -1,144 +1,81 @@
 import { Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";
+import { addDays, computeSlots, localSlotToInstant } from "./schedule";
 
-type AvailabilityDayStatus = "available" | "off" | "full" | "past";
+type AvailabilityClient = Pick<Prisma.TransactionClient, "provider" | "booking">;
 
-export interface AvailabilityDay {
+export type DayAvailability = {
   date: string;
-  status: AvailabilityDayStatus;
+  timezone: string;
+  slotDurationMin: number;
+  slotBufferMin: number;
   slots: string[];
-}
+};
 
-export interface AvailabilityRangeResult {
-  days: AvailabilityDay[];
-  workWindow: { start: string; end: string } | null;
-}
-
-const SLOT_MINUTES = 60;
-
-function ymd(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function eachDay(fromYmd: string, toYmd: string): Date[] {
-  const out: Date[] = [];
-  const start = new Date(`${fromYmd}T00:00:00Z`);
-  const end = new Date(`${toYmd}T00:00:00Z`);
-  for (let d = new Date(start); d <= end; d = new Date(d.getTime() + 86400000)) {
-    out.push(new Date(d));
-  }
-  return out;
-}
-
-function parseHHMM(s: string): { h: number; m: number } {
-  const [hh, mm] = s.split(":").map(Number);
-  return { h: hh, m: mm };
-}
-
-function generateSlots(start: string, end: string): string[] {
-  const a = parseHHMM(start);
-  const b = parseHHMM(end);
-  const startMin = a.h * 60 + a.m;
-  const endMin = b.h * 60 + b.m;
-  const slots: string[] = [];
-  for (let t = startMin; t + SLOT_MINUTES <= endMin; t += SLOT_MINUTES) {
-    slots.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
-  }
-  return slots;
-}
+export const ACTIVE_BOOKING_STATUSES = ["PENDING", "CONFIRMED"] as const;
 
 @Injectable()
 export class ProvidersAvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async computeRange(
+  async computeForDate(
     providerId: string,
-    fromYmd: string,
-    toYmd: string,
-    now: Date = new Date(),
-  ): Promise<AvailabilityRangeResult> {
-    const [schedules, exceptions, bookings] = await Promise.all([
-      this.prisma.availabilitySchedule.findMany({ where: { providerId } }),
-      this.prisma.availabilityException.findMany({
-        where: { providerId, date: { gte: new Date(`${fromYmd}T00:00:00Z`), lte: new Date(`${toYmd}T23:59:59Z`) } },
-      }),
-      this.prisma.booking.findMany({
-        where: {
-          providerId,
-          status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
-          scheduledDate: { gte: new Date(`${fromYmd}T00:00:00Z`), lte: new Date(`${toYmd}T23:59:59Z`) },
+    date: string,
+    options: { client?: AvailabilityClient; now?: Date } = {},
+  ): Promise<DayAvailability | null> {
+    const client = options.client ?? this.prisma;
+    const provider = await client.provider.findUnique({
+      where: { id: providerId },
+      select: {
+        timezone: true,
+        slotDurationMin: true,
+        slotBufferMin: true,
+        isAvailable: true,
+        availabilityRules: { select: { dayOfWeek: true, startTime: true, endTime: true } },
+        availabilityExceptions: {
+          where: { date: new Date(`${date}T00:00:00.000Z`) },
+          select: { date: true, isOpen: true, startTime: true, endTime: true },
         },
-        select: { scheduledDate: true, duration: true },
-      }),
-    ]);
+      },
+    });
+    if (!provider) return null;
 
-    const scheduleByDow = new Map<number, { startTime: string; endTime: string; isAvailable: boolean }>();
-    for (const s of schedules) scheduleByDow.set(s.dayOfWeek, s);
+    const base = {
+      date,
+      timezone: provider.timezone,
+      slotDurationMin: provider.slotDurationMin,
+      slotBufferMin: provider.slotBufferMin,
+    };
+    if (!provider.isAvailable) return { ...base, slots: [] };
 
-    const exceptionByDate = new Map<string, boolean>();
-    for (const e of exceptions) exceptionByDate.set(ymd(e.date), e.isAvailable);
-
-    const today = ymd(now);
-
-    const days: AvailabilityDay[] = eachDay(fromYmd, toYmd).map((d) => {
-      const dateStr = ymd(d);
-
-      if (dateStr < today) {
-        return { date: dateStr, status: "past", slots: [] };
-      }
-
-      const dow = d.getUTCDay();
-      const sched = scheduleByDow.get(dow);
-      if (!sched || !sched.isAvailable) {
-        return { date: dateStr, status: "off", slots: [] };
-      }
-
-      const exception = exceptionByDate.get(dateStr);
-      if (exception === false) {
-        return { date: dateStr, status: "off", slots: [] };
-      }
-
-      let slots = generateSlots(sched.startTime, sched.endTime);
-
-      // Drop today's past hours
-      if (dateStr === today) {
-        const cutoff = now.getUTCHours() * 60 + now.getUTCMinutes();
-        slots = slots.filter((slot) => {
-          const { h, m } = parseHHMM(slot);
-          return h * 60 + m >= cutoff;
-        });
-      }
-
-      // Drop slots that overlap any existing booking for this date
-      const dayBookings = bookings.filter(
-        (b): b is typeof b & { scheduledDate: Date } =>
-          b.scheduledDate !== null && ymd(b.scheduledDate) === dateStr,
-      );
-      slots = slots.filter((slot) => {
-        const { h, m } = parseHHMM(slot);
-        const slotStartMin = h * 60 + m;
-        const slotEndMin = slotStartMin + SLOT_MINUTES;
-        for (const b of dayBookings) {
-          const bStart = b.scheduledDate.getUTCHours() * 60 + b.scheduledDate.getUTCMinutes();
-          const bEnd = bStart + (b.duration ?? 60);
-          if (slotStartMin < bEnd && slotEndMin > bStart) return false;
-        }
-        return true;
-      });
-
-      return {
-        date: dateStr,
-        status: slots.length > 0 ? "available" : "full",
-        slots,
-      };
+    const existing = await client.booking.findMany({
+      where: {
+        providerId,
+        status: { in: [...ACTIVE_BOOKING_STATUSES] },
+        scheduledAt: {
+          gte: localSlotToInstant(addDays(date, -1), "00:00", provider.timezone),
+          lt: localSlotToInstant(addDays(date, 2), "00:00", provider.timezone),
+        },
+      },
+      select: { scheduledAt: true, durationMin: true, bufferMin: true },
     });
 
-    const anySchedule = schedules[0];
-    const workWindow = anySchedule ? { start: anySchedule.startTime, end: anySchedule.endTime } : null;
-
-    return { days, workWindow };
+    return {
+      ...base,
+      slots: computeSlots({
+        rules: provider.availabilityRules,
+        exceptions: provider.availabilityExceptions.map((exception) => ({
+          ...exception,
+          date: exception.date.toISOString().slice(0, 10),
+        })),
+        slotDurationMin: provider.slotDurationMin,
+        slotBufferMin: provider.slotBufferMin,
+        timezone: provider.timezone,
+        date,
+        existing,
+        now: options.now ?? new Date(),
+      }),
+    };
   }
 }

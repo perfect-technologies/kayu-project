@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration A in progress (01 done; 02 next)**
+Overall status: **Iteration A in progress (01 and 02 done; 03 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -14,7 +14,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | --- | --- | --- | --- |
 | 00 — Product And Design Contract | Done | Planning | Frozen 2026-09-16 |
 | 01 — Domain And Schema Reset | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/01-schema` merged into `refactor/kyou-ux`; all acceptance commands pass (see evidence) |
-| 02 — Backend Modules | Not started | TBD | After 01 merges |
+| 02 — Backend Modules | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/02-backend` merged into `refactor/kyou-ux`; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
 | 03 — Shared Packages | Not started | TBD | After 02 contract is fixed |
 | 04 — Web Shell And Design System | Not started | TBD | After 03 |
 | 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 02, 03, 04 |
@@ -69,6 +69,24 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (01) Place slugs are path-based (`cd`, `cd-province-kinshasa-city-kinshasa-commune-gombe`, `cg-city-brazzaville`); country labels are K-YOU's `RDC` and `Congo` with full names as aliases | Unique, readable and traceable to K-YOU's reference keys |
 | 2026-09-16 | (01) Demo providers whose city is not a seeded place keep the nearest seeded ancestor plus a free `addressLine` (Pointe-Noire → country `Congo`, Lubumbashi communes → city), and a pending `PlaceSuggestion` for Pointe-Noire is seeded | K-YOU rule: no invented attachment; also gives the admin queue a suggestion to approve |
 | 2026-09-16 | (01) `launch-leads.orphan-upgrade.spec.ts` rewritten for the baseline although it sits under `src/modules` | The 01 definition of done requires it green on the new baseline, and it hard-referenced deleted migration folders. It now checks that `migrate deploy` applies only `0_init`, preserves orphan snapshots, and enforces the lead FKs and CHECK constraints |
+| 2026-09-16 | (02) Request DTOs are drafted as Zod in `apps/backend/src/common/contract/` and wired through `contractPipe("Name")` | 02 may not edit `packages/schemas`; 03 copies the files under the same names, then `contractPipe` switches to a lazy `@kayu/schemas` import in one place |
+| 2026-09-16 | (02) Response envelopes: none, except endpoints the doc marks unchanged (`GET /me`, `PATCH /me/profile`, `POST /me/accept-terms` → `{ success, user }`; `POST /me/avatar`; `GET /distance`; `/pro/verification/*`; `/admin/verification/*` keeps `{ success, submissions, pagination, stats }`). Mutations return the resource; deletes return `{ ok: true }`; action POSTs return 200 | One predictable rule for 03, without breaking the "unchanged" promises |
+| 2026-09-16 | (02) `GET /notifications` follows the global list envelope `{ items, total, page, limit }` plus `unreadCount` | The doc's "every list endpoint" rule wins over "unchanged" |
+| 2026-09-16 | (02) Business errors carry a machine `code` (`SLOT_TAKEN`, `BLOCKED`, `ACCOUNT_SUSPENDED`, `LAST_ADMIN`, … full table in the handover) | 03 surfaces `ApiError.code`; the web matches codes, not messages |
+| 2026-09-16 | (02) `GET /me` also returns 403 `ACCOUNT_SUSPENDED` (with `suspendedReason`) for suspended users | Contract §2: every API call returns 403; the web renders the notice from the error body |
+| 2026-09-16 | (02) Public endpoints that adapt to the viewer use a new `OptionalActorGuard`: a missing or invalid token means anonymous, a suspended account is still refused | Contact gating and block exclusion need the viewer without forcing sign-in |
+| 2026-09-16 | (02) Hidden providers and suspended owners return 404 on profile, availability and public reviews, except to the owner and admins; blocked pairs still see the profile with `blocked: true` but are excluded from search | Owners must reach their own hidden profile to edit it; the doc only excludes blocked pairs from search |
+| 2026-09-16 | (02) Contacts: owner and admins always; signed-in viewers unless `contacts_require_premium` is on and the effective tier is `FREE`; `feat_whatsapp` off nulls `contacts.whatsapp`. Effective tier treats a past `premiumUntil` as `FREE`; the recommended sort still orders by the stored tier | Server-side enforcement of the flags; expiry-aware sorting would need raw SQL for little gain |
+| 2026-09-16 | (02) Booking address is optional: `addressId` or inline fields, never both | K-YOU bookings have no address; 03's plan said "exactly one" |
+| 2026-09-16 | (02) Booking detail hides `commissionPct`, `commissionAmt`, `providerNetAmt` and `providerNotes` from clients | Commission is internal |
+| 2026-09-16 | (02) Admin role changes are limited to CLIENT ⇄ ADMIN on users without a provider row; suspending hides the provider, unsuspending leaves it hidden until an admin unhides it | Contract §2 has no downgrade path; 08 needs the Client ⇄ Admin toggle |
+| 2026-09-16 | (02) Contact form and report rate limits use a new in-memory `RateLimiterService` (5 per IP per 15 min; 10 per user per hour), not `LaunchIntakeProtectionService` | The launch bucket helper is private and gated by the launch flags, and launch-leads internals are out of bounds. Buckets are per process (one Render instance today) |
+| 2026-09-16 | (02) Place suggestions are capped at 10 pending per user (409 `LIMIT_REACHED`) rather than rate limited; approving a duplicate links the existing place | A pending cap bounds the admin queue directly |
+| 2026-09-16 | (02) Storage purposes `avatar`, `media`, `attachments`, `verification` map to buckets `avatars`, `provider-media` (new, public), `message-attachments` (new, private), `verification-docs`; private files are read through `GET /me/media/sign-read` (5-minute URLs) | Chat attachments and KYC files must not share a bucket or be public; bucket creation handed to 10 |
+| 2026-09-16 | (02) Admin reads added beyond the doc's rows: `GET /admin/places/:id` (with chain), `GET /admin/references/:id`, `GET /admin/subcategories` (`{ items }`, flat) and `GET /admin/subcategories/:id` | The doc's `GET/POST/PATCH` shorthand implies them; 08's editors need single-item reads |
+| 2026-09-16 | (02) `GET /geocode` takes `?q` or `?placeId` and returns 404 when nothing is found instead of defaulting to Kinshasa | A silent default puts pins in the wrong city |
+| 2026-09-16 | (02) The launch harness runs the real modules over HTTP on a disposable Postgres database (`LAUNCH_HARNESS_DATABASE_URL`, name `kayu_(ci|test)_launch_harness`), faking only Supabase; it skips without the URL like the launch-lead integration specs | An in-memory Prisma fake cannot prove transactions, row locks, the partial slot index or JSON attachment queries; CI must set the URL (handed to 10) |
+| 2026-09-16 | (02) Removed and rewritten module sources were moved out of the tree, not edited in place; account deletion also recomputes `completedJobs` for other affected providers | Clean rewrite on the new schema; K-YOU only recomputed ratings, which left job counts stale |
 
 ## Open Questions
 
@@ -80,6 +98,10 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - Should the campaign form move from `KIN_COMMUNES` strings to Place ids once the closed-beta folder picks it up?
 - (01) What are the public `contact_phone`, `contact_email` and `contact_website` values? The 01 doc says "current footer values", but the current footer has none, so they are seeded empty rather than invented.
 - (01 → 05) `Category.image` is seeded empty. K-YOU's category photos are local generated assets for six categories only; 05 decides which photography ships and sets the paths.
+- (02 → 10) The 01 handover asked for a non-destructive reference-only seed for prod (places, taxonomy, references, settings). 02 did not add it: the seed files are 01's. It is still needed before the prod reset.
+- (02) Should unsuspending a user also unhide their provider automatically? Today the admin unhides explicitly.
+- (02) Should the recommended search sort ignore expired premium tiers? It currently orders by the stored tier.
+- (02 → 08) Deactivating a category or level-2 node does not cascade `isActive` to its children in the admin tree (the public tree hides them anyway). Confirm this is the wanted admin view.
 
 ## How To Update This File
 
@@ -172,7 +194,56 @@ Unchanged: all launch-lead models and enums, `Category` (plus `skills` back-rela
 
 ### 02 — Backend Modules
 
-Status: Not started
+Status: Done (2026-09-16). Branch `kyou-ux/02-backend` from `refactor/kyou-ux` at `0af393b`, reviewed by the owner and merged into `refactor/kyou-ux` locally (not pushed).
+
+#### What changed
+
+- **Removed modules**: `job-requests`, `quotes`, `favorites`, the final-offers controller, recent addresses, provider strength, trending stats, visibility settings, dispute routes. `grep -r "FinalOffer\|JobRequest\|Quote\|Payout\|TrustScore\|Dispute\|Favorite\|VisibilitySettings" apps/backend/src` returns nothing.
+- **Rewritten on the 01 schema**: `providers`, `onboarding`, `bookings`, `reviews`, `earnings`, `dashboard`, `messaging`, `identity` (plus `account.service.ts` for `DELETE /me`), `categories`, `stats`, `settings`, `geo`, `storage` (four purposes, signed reads, best-effort deletion), `notifications` (trimmed types, list envelope), `verification` (new doc columns, no disputes), `admin` (six section controllers/services).
+- **New modules**: `places`, `references`, `safety` (reports, blocks, `SafetyService`), `contact`, `addresses`, `activity` (`ActivityLogService`), `supabase` (the `SUPABASE_CLIENT` provider, so the harness can swap it).
+- **Common**: `common/contract/*` (local Zod DTOs + `contractPipe`), `common/http/{errors,pagination}.ts` (coded errors, list envelope), `common/util/{db,people}.ts` (row locks, unique-violation check, names, slugs), `common/rate-limit/RateLimiterService`, `OptionalActorGuard`, `ActorGuard` 403 body with `suspendedReason`, `AllExceptionsFilter` sets `Retry-After`.
+- **Composition**: `src/app.modules.ts` lists every feature module once for `AppModule` and the harness; `app.module.ts` imports `SupabaseModule` + `CommonModule` + that list.
+- **Shared domain logic ported from K-YOU**: `providers/schedule.ts` (slots, local slot ↔ instant, summaries) and `providers/youtube.ts` (deceptive-host-safe parser). Both are pure and ready for 03 to move into `@kayu/utils`.
+- **Tests**: 34 unit spec files written for 02 (service specs with hand-rolled fakes), `bookings.concurrency.spec.ts` and a rewritten `src/test/launch/launch-critical.harness.spec.ts`, both on real Postgres.
+- **Scripts** (`apps/backend/package.json`): `test:launch` spec list rewritten; `test:providers`, `test:bookings`, `test:bookings:ci`, `test:reviews`, `test:messaging`, `test:admin`, `test:launch:harness`, `test:launch:harness:ci` added; `test:job-requests`, `test:quotes`, `test:onboarding` removed.
+- **Docs**: `handover/02-backend-contract.md`, `handover/02-example-responses.json`, `handover/02-to-10-test-mode-session-hook.md`.
+
+#### Endpoint contract
+
+All 111 marketplace routes, with access and success status generated from the Nest metadata, are in `handover/02-backend-contract.md`. Every row of the 02 doc exists. The harness calls every one of them over HTTP (success and the main error cases), so each route's guards, validation pipe and status code are proven against Postgres, not only against fakes.
+
+#### Launch harness smoke (13 tests, real Postgres)
+
+OTP user provisioned → accepts terms → signs a media upload → publishes a provider (schedule, image, YouTube video, references, pricing) → a second user completes their profile, reads settings, the category tree, places, references and stats, searches by category, place and distance → anonymous profile has locked contacts, signed-in profile shows them → messages the provider, with an image attachment readable by the participant through a signed URL (stranger 403) and unread counters on both sides → books the first real slot (anonymous 401, provider 403, second client 409 `SLOT_TAKEN`, invalid body 400) → provider confirms (client 403, early complete 409) → completes with 50 000 CDF paid (commission 5 000, net 45 000, earnings summary, EARNING row, dashboard) → client reviews (duplicate 409), provider replies, rating aggregates update, provider rates the client, notifications list the events → blocks stop messaging and booking both ways and hide search results → report, contact form, admin overview/bookings/reports, report resolved, hero title edited and served by `/settings/public`, audit journal and health → KYC: four documents uploaded, optional one removed, submitted, admin approves each through the queue, provider verified → place suggestion approved and notified, address book with default demotion, message soft delete tombstone, catalog reads, referenced subcategory delete 409 → every remaining admin and self-service write (schedule, media replace with storage removal, availability pause, avatar, geocode, notes, client and admin cancels, review hide/delete, conversation and message moderation, contacts, category/subcategory/place/reference CRUD and merges, suggestion reject) → suspension returns 403 `ACCOUNT_SUSPENDED` with the reason, hides the provider (self-action 400) → account deletion removes provider, bookings, conversations, storage objects and the Supabase auth user; the same token then provisions a fresh CLIENT; an admin gets 409.
+
+#### Commands and results (2026-09-16, local Postgres 16 on 5433)
+
+| Command (from `apps/backend`) | Result |
+| --- | --- |
+| `pnpm type-check` | Pass |
+| `pnpm build` (`prisma generate && nest build`) | Pass |
+| `pnpm test:launch` | 221 tests: 220 pass, 0 fail, 1 skipped (booking race without its database URL; the harness suite also skips without its URL) |
+| `pnpm test` (every spec) | 231 tests: 228 pass, 0 fail, 3 skipped (the three database-backed specs) |
+| `LAUNCH_HARNESS_DATABASE_URL=…/kayu_test_launch_harness pnpm test:launch:harness:ci` | 13/13 pass; the disposable database is created, migrated with `0_init` and dropped |
+| `BOOKINGS_TEST_DATABASE_URL=…/kayu_test_bookings pnpm test:bookings:ci` | 1/1 pass: two concurrent creates → one PENDING, one 409 `SLOT_TAKEN`; a cancelled booking frees the slot |
+| `pnpm test:launch:harness:ci` with no URL | Fails (exit 1), as a CI gate must |
+| `LAUNCH_LEADS_TEST_DATABASE_URL=…/kayu_test_launch_leads pnpm test:launch-leads:ci` | 1/1 pass |
+| `LAUNCH_LEADS_ORPHAN_UPGRADE_TEST_DATABASE_URL=…/kayu_test_launch_leads_orphan_upgrade pnpm test:launch-leads:orphan-upgrade:ci` | 1/1 pass |
+| Removed-domain grep (acceptance criterion) | No match |
+| `git diff refactor/kyou-ux -- apps/backend/src/modules/launch-leads apps/backend/prisma packages apps/mobile` | Empty |
+
+#### Handover
+
+- **03**: `handover/02-backend-contract.md` (conventions, error codes, route table, Zod schema list and name differences from 03's plan, response shapes, behaviour notes) and `handover/02-example-responses.json` (real bodies for every route). After 03 publishes the schemas, 02 swaps `contractPipe` to `@kayu/schemas` and deletes `src/common/contract`. `providers/schedule.ts` and `providers/youtube.ts` are ready to move into `@kayu/utils`.
+- **10**: `handover/02-to-10-test-mode-session-hook.md` (session hook design, CI steps for `test:bookings:ci` and `test:launch:harness:ci` with their database URLs, two new Supabase buckets). `test:launch` spec list: the `test:launch` script in `apps/backend/package.json`.
+
+#### Risks and follow-ups
+
+- **Web and mobile do not compile** against this backend or the current `@kayu/api`; expected in Iteration A until 03–08 land.
+- **Buckets**: `provider-media` and `message-attachments` must exist on Supabase dev and prod with file size limits before this branch is deployed; uploads to them fail until then.
+- **Rate limits are in memory**: they reset on restart and are per instance. Fine for one Render instance; revisit before scaling out.
+- **Local `dist/`** was rebuilt from this branch by `pnpm build`. Rebuild on `main` before running a compiled backend from there.
+- **Prod seed**: the reference-only seed path noted in 01's handover is still open (see Open Questions).
 
 ### 03 — Shared Packages
 
