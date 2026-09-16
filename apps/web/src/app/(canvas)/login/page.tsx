@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { GuestOnly } from "@/components/guards";
-import { CanvasPlaceholder } from "@/components/placeholder/CanvasPlaceholder";
-import { shellCopy } from "@/copy/shell";
+import { authCopy } from "@/copy/auth";
+import { usableReturnTo } from "@/lib/auth-return-to";
+import { LoginClient } from "./LoginClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.login };
+export const metadata: Metadata = { title: authCopy.login.meta.title, description: authCopy.login.meta.description };
 
-export default function Page() {
-  return (
-    <GuestOnly>
-      <CanvasPlaceholder title={shellCopy.screenTitles.login} workstream="06" />
-    </GuestOnly>
-  );
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function Page({ searchParams }: Props) {
+  const params = await searchParams;
+  const raw = params.returnTo;
+  const returnTo = usableReturnTo(typeof raw === "string" ? raw : null);
+  return <LoginClient returnTo={returnTo} />;
 }

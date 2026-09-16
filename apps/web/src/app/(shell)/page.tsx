@@ -6,6 +6,7 @@ import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { PremiumTeaser } from "@/components/home/PremiumTeaser";
 import { StatsBar } from "@/components/home/StatsBar";
+import { WelcomeGate } from "@/components/auth/WelcomeGate";
 import { homeCopy } from "@/copy/home";
 import { createServerApiClient } from "@/lib/api";
 
@@ -32,6 +33,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <WelcomeGate />
       <Hero settings={settings} />
       <StatsBar stats={stats} />
       <CategoryGrid categories={categories} />

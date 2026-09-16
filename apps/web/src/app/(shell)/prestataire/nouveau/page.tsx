@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
-import { RequireNotProvider } from "@/components/guards";
+import { ProtectedRoute } from "@/components/guards";
+import { onboardingCopy } from "@/copy/onboarding";
+import { WizardClient } from "./WizardClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.becomeProvider };
+export const metadata: Metadata = { title: onboardingCopy.meta.title, description: onboardingCopy.meta.description };
 
+/** Signed in only (anonymous → /login); the client sends an existing provider to its editor. */
 export default function Page() {
   return (
-    <RequireNotProvider>
-      <RoutePlaceholder title={shellCopy.screenTitles.becomeProvider} workstream="06" container="max-w-3xl" />
-    </RequireNotProvider>
+    <ProtectedRoute>
+      <WizardClient />
+    </ProtectedRoute>
   );
 }

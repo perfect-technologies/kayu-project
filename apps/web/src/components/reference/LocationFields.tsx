@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlaceSummary } from "@kayu/schemas";
+import type { PlaceKind, PlaceSummary } from "@kayu/schemas";
 import { providerCopy } from "@/copy/provider";
 import { Choice } from "./Choice";
 import { SuggestPlaceForm, childKindsOf } from "./SuggestPlaceForm";
@@ -15,6 +15,8 @@ export type LocationFieldsProps = {
   onChange: (placeId: string | null, chain: PlaceSummary[]) => void;
   /** Filter mode stops at commune and allows an empty selection. */
   mode?: "filter" | "full";
+  /** Stop the cascade at this kind (e.g. `CITY` for the account profile). */
+  stopAt?: PlaceKind;
   allowSuggest?: boolean;
   className?: string;
 };
@@ -42,7 +44,7 @@ function LevelSelect({
 }
 
 /** Cascading country › province › city › commune › quartier selects from `GET /places`. */
-export function LocationFields({ value, onChange, mode = "full", allowSuggest = true, className }: LocationFieldsProps) {
+export function LocationFields({ value, onChange, mode = "full", stopAt, allowSuggest = true, className }: LocationFieldsProps) {
   const [chain, setChain] = useState<PlaceSummary[]>([]);
   const [suggesting, setSuggesting] = useState(false);
   const restore = usePlaceAncestors(value && chain.length === 0 ? value : null);
@@ -60,7 +62,7 @@ export function LocationFields({ value, onChange, mode = "full", allowSuggest = 
   };
 
   const deepest = chain[chain.length - 1] ?? null;
-  const stop = mode === "filter" ? deepest?.kind === "COMMUNE" : false;
+  const stop = (mode === "filter" && deepest?.kind === "COMMUNE") || (stopAt !== undefined && deepest?.kind === stopAt);
   const showNext = deepest !== null && deepest.hasChildren && !stop;
 
   return (

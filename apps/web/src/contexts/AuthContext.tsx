@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, identityApi } from "@kayu/api";
-import type { MeUser } from "@kayu/schemas";
+import type { MeUser, UpdateProfileDto } from "@kayu/schemas";
 import { apiClient } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
@@ -45,12 +45,14 @@ interface AuthContextValue {
   suspendedReason: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  /** Dev-only email + password sign-in for seeded demo accounts. */
-  login: (email: string, password: string) => Promise<void>;
+  /** Dev-only email + password sign-in for seeded demo accounts. Resolves with the provisioned user. */
+  login: (email: string, password: string) => Promise<AuthUser | null>;
   loginWithPhone: (phone: string) => Promise<void>;
-  verifyOtp: (phone: string, code: string) => Promise<void>;
-  acceptTerms: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  /** Resolves with the provisioned user so the auth screens can route without waiting for a render. */
+  verifyOtp: (phone: string, code: string) => Promise<AuthUser | null>;
+  acceptTerms: () => Promise<AuthUser>;
+  updateProfile: (dto: UpdateProfileDto) => Promise<AuthUser>;
+  refreshUser: () => Promise<AuthUser | null>;
   signOut: () => Promise<void>;
 }
 
@@ -81,7 +83,9 @@ function toAuthUser(me: MeUser): AuthUser {
   };
 }
 
-function fromMe(me: MeUser): Snapshot {
+type SignedInSnapshot = Extract<Snapshot, { status: "ready" | "needs-terms" }>;
+
+function fromMe(me: MeUser): SignedInSnapshot {
   const user = toAuthUser(me);
   return { status: user.termsAcceptedAt ? "ready" : "needs-terms", user, suspendedReason: null };
 }
@@ -100,23 +104,45 @@ async function fetchMe(): Promise<Snapshot> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [snapshot, setSnapshot] = useState<Snapshot>(LOADING);
+  const [snapshot, setSnapshotState] = useState<Snapshot>(LOADING);
   const [supabase] = useState(() => createClient());
   const router = useRouter();
   const lastToken = useRef<string | null>(null);
+  const snapshotRef = useRef<Snapshot>(LOADING);
+  // Supabase notifies `onAuthStateChange` before `verifyOtp` resolves, so the explicit sync after
+  // a sign-in usually finds the same token already loading: it joins that fetch instead of skipping.
+  const inflight = useRef<{ token: string; promise: Promise<Snapshot> } | null>(null);
 
-  const syncFromToken = useCallback(async (token: string | null) => {
-    apiClient.setAccessToken(token);
-    if (!token) {
-      lastToken.current = null;
-      setSnapshot(ANONYMOUS);
-      return;
-    }
-    if (lastToken.current === token) return;
-    lastToken.current = token;
-    const next = await fetchMe();
-    if (lastToken.current === token) setSnapshot(next);
+  const setSnapshot = useCallback((next: Snapshot) => {
+    snapshotRef.current = next;
+    setSnapshotState(next);
   }, []);
+
+  const syncFromToken = useCallback(
+    async (token: string | null): Promise<AuthUser | null> => {
+      apiClient.setAccessToken(token);
+      if (!token) {
+        lastToken.current = null;
+        inflight.current = null;
+        setSnapshot(ANONYMOUS);
+        return null;
+      }
+      if (lastToken.current === token) {
+        if (inflight.current?.token === token) return (await inflight.current.promise).user;
+        return snapshotRef.current.user;
+      }
+      lastToken.current = token;
+      const promise = fetchMe();
+      inflight.current = { token, promise };
+      const next = await promise;
+      if (lastToken.current === token) {
+        setSnapshot(next);
+        if (inflight.current?.token === token) inflight.current = null;
+      }
+      return next.user;
+    },
+    [setSnapshot],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -143,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      await syncFromToken(data.session?.access_token ?? null);
+      return syncFromToken(data.session?.access_token ?? null);
     },
     [supabase, syncFromToken],
   );
@@ -160,15 +186,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (phone: string, token: string) => {
       const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: "sms" });
       if (error) throw error;
-      await syncFromToken(data.session?.access_token ?? null);
+      return syncFromToken(data.session?.access_token ?? null);
     },
     [supabase, syncFromToken],
   );
 
   const acceptTerms = useCallback(async () => {
     const response = await identityApi(apiClient).acceptTerms();
-    setSnapshot(fromMe(response.user));
-  }, []);
+    const next = fromMe(response.user);
+    setSnapshot(next);
+    return next.user;
+  }, [setSnapshot]);
+
+  const updateProfile = useCallback(async (dto: UpdateProfileDto) => {
+    const response = await identityApi(apiClient).updateProfile(dto);
+    const next = fromMe(response.user);
+    setSnapshot(next);
+    return next.user;
+  }, [setSnapshot]);
 
   const refreshUser = useCallback(async () => {
     const {
@@ -177,16 +212,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = session?.access_token ?? null;
     apiClient.setAccessToken(token);
     lastToken.current = token;
-    setSnapshot(token ? await fetchMe() : ANONYMOUS);
-  }, [supabase]);
+    const next = token ? await fetchMe() : ANONYMOUS;
+    setSnapshot(next);
+    return next.user;
+  }, [supabase, setSnapshot]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     apiClient.setAccessToken(null);
     lastToken.current = null;
+    inflight.current = null;
     setSnapshot(ANONYMOUS);
     router.push("/");
-  }, [supabase, router]);
+  }, [supabase, router, setSnapshot]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -199,10 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithPhone,
       verifyOtp,
       acceptTerms,
+      updateProfile,
       refreshUser,
       signOut,
     }),
-    [snapshot, login, loginWithPhone, verifyOtp, acceptTerms, refreshUser, signOut],
+    [snapshot, login, loginWithPhone, verifyOtp, acceptTerms, updateProfile, refreshUser, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
