@@ -1,38 +1,75 @@
 import {
-  BadgeType,
   BookingStatus,
-  ClientTrustLevel,
   NotificationType,
-  PaymentRating,
-  PortfolioImageType,
+  Prisma,
+  PremiumTier,
   PrismaClient,
-  TrustLevel,
   UserRole,
   VerificationStatus,
 } from "@prisma/client";
+import { slugify } from "./seed-places";
+import { referenceSlug, skillSlug } from "./seed-references";
 
 const DEFAULT_PASSWORD = "Password123!";
+const SLOT_DURATION_MIN = 60;
+const SLOT_BUFFER_MIN = 15;
+const COMMISSION_PCT = 10;
+
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
 
 type SeedPrismaClient = PrismaClient;
+
+type Timezone = "Africa/Kinshasa" | "Africa/Lubumbashi" | "Africa/Brazzaville";
+
+// Central African time zones observe no daylight saving time.
+const UTC_OFFSET_HOURS: Record<Timezone, number> = {
+  "Africa/Kinshasa": 1,
+  "Africa/Lubumbashi": 2,
+  "Africa/Brazzaville": 1,
+};
+
+const WEEKLY_RANGES = [
+  { startTime: "08:00", endTime: "12:00" },
+  { startTime: "13:00", endTime: "17:00" },
+];
+
+// Second slot of each weekly range with a 60 min duration and 15 min buffer.
+const SLOT_TIMES = ["09:15", "14:15"] as const;
+
+const KINSHASA = "cd-province-kinshasa-city-kinshasa";
+const LUBUMBASHI = "cd-province-haut-katanga-city-lubumbashi";
+const MATADI = "cd-province-kongo-central-city-matadi";
+const BRAZZAVILLE = "cg-city-brazzaville";
+const CONGO = "cg";
+
+function kinshasaCommune(label: string): string {
+  return `${KINSHASA}-commune-${slugify(label)}`;
+}
 
 type DemoProvider = {
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
-  city: string;
-  country: string;
-  profession: string;
+  hasWhatsApp: boolean;
+  country: "RDC" | "Congo";
+  placeSlug: string;
+  addressLine: string;
+  latitude: number;
+  longitude: number;
+  timezone: Timezone;
   description: string;
-  experience: number;
-  hourlyRate: number;
-  isPremium: boolean;
-  isVerified: boolean;
+  yearsExperience: number;
+  subcategorySlug: string;
+  skillSubcategorySlugs: string[];
+  freeSkills: string[];
+  languages: string[];
+  interventionModes: string[];
+  pricing: { amount: number; currency: "CDF" | "USD" | "XAF"; unit: string };
   verificationStatus: VerificationStatus;
-  trustLevel: TrustLevel;
-  skills: string[];
-  serviceZones: Array<{ city: string; commune?: string }>;
-  subcategorySlugs: string[];
+  premiumTier: PremiumTier;
 };
 
 type DemoClient = {
@@ -40,26 +77,52 @@ type DemoClient = {
   lastName: string;
   email: string;
   phone: string;
-  city: string;
-  country: string;
-  isVerified: boolean;
-  clientTrustLevel: ClientTrustLevel;
+  phoneVerified: boolean;
+  country: "RDC" | "Congo";
+  placeSlug: string;
+  addressLine: string;
 };
 
+type Lookups = Awaited<ReturnType<typeof loadLookups>>;
+
 type CreatedProvider = {
+  index: number;
   userId: string;
   providerId: string;
-  profession: string;
-  bookingTitle: string;
-  bookingDescription: string;
-  bookingDuration: number;
-  bookingPrice: number;
-  trustScoreId: string;
+  name: string;
+  timezone: Timezone;
+  subcategoryId: string;
+  pricingAmount: number;
 };
 
 type CreatedClient = {
   userId: string;
-  city: string;
+  name: string;
+  phone: string;
+  placeId: string;
+  addressLine: string;
+};
+
+type BookingSpec = {
+  provider: CreatedProvider;
+  client: CreatedClient;
+  status: BookingStatus;
+  dayOffset: number;
+  slotTime: (typeof SLOT_TIMES)[number];
+  agreedPrice?: number;
+  isPaid?: boolean;
+  cancelledBy?: "client" | "provider";
+};
+
+type CreatedBooking = {
+  id: string;
+  spec: BookingSpec;
+  createdAt: Date;
+  completedAt: Date | null;
+  agreedPrice: number | null;
+  commissionAmt: number;
+  providerNetAmt: number;
+  isPaid: boolean;
 };
 
 const providersData: DemoProvider[] = [
@@ -68,657 +131,636 @@ const providersData: DemoProvider[] = [
     lastName: "Mukendi",
     email: "jeanpierre.mukendi@kayou.cd",
     phone: "+243812345670",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Electricien",
-    description: "Installations residentielles, depannage et mise aux normes sur Kinshasa.",
-    experience: 15,
-    hourlyRate: 25000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: kinshasaCommune("Gombe"),
+    addressLine: "24, avenue du Commerce",
+    latitude: -4.3036,
+    longitude: 15.3107,
+    timezone: "Africa/Kinshasa",
+    description: "Installations résidentielles, dépannage et mise aux normes électriques à Kinshasa.",
+    yearsExperience: 15,
+    subcategorySlug: "installation_electrique",
+    skillSubcategorySlugs: ["depannage_electrique", "eclairage", "comptage"],
+    freeSkills: ["Domotique"],
+    languages: ["Français", "Lingala"],
+    interventionModes: ["À domicile", "Sur chantier"],
+    pricing: { amount: 25000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.EXPERT,
-    skills: ["Installation electrique", "Depannage", "Domotique", "Mise aux normes"],
-    serviceZones: [{ city: "Kinshasa", commune: "Gombe" }, { city: "Kinshasa", commune: "Ngaliema" }],
-    subcategorySlugs: ["electricite-generale", "climatisation"],
+    premiumTier: PremiumTier.ELITE,
   },
   {
     firstName: "Marie-Claire",
     lastName: "Nzuzi",
     email: "marieclaire.nzuzi@kayou.cd",
     phone: "+243812345671",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Agent de menage",
-    description: "Entretien de maisons et bureaux, grand menage et repassage.",
-    experience: 8,
-    hourlyRate: 8000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: kinshasaCommune("Lemba"),
+    addressLine: "8, avenue de l'Université",
+    latitude: -4.404,
+    longitude: 15.318,
+    timezone: "Africa/Kinshasa",
+    description: "Entretien de maisons et de bureaux, grand ménage et repassage.",
+    yearsExperience: 8,
+    subcategorySlug: "grand_menage",
+    skillSubcategorySlugs: ["menage_regulier", "fin_chantier"],
+    freeSkills: ["Repassage"],
+    languages: ["Français", "Lingala"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 8000, currency: "CDF", unit: "Par heure" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Menage regulier", "Grand menage", "Repassage", "Nettoyage profond"],
-    serviceZones: [{ city: "Kinshasa", commune: "Lemba" }, { city: "Kinshasa", commune: "Limete" }],
-    subcategorySlugs: ["nettoyage", "nettoyage-textile"],
+    premiumTier: PremiumTier.FREE,
   },
   {
     firstName: "Patrick",
     lastName: "Mbuyi",
     email: "patrick.mbuyi@kayou.cd",
     phone: "+243812345672",
-    city: "Lubumbashi",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Plombier",
-    description: "Depannage plomberie, installation sanitaire et debouchage.",
-    experience: 10,
-    hourlyRate: 20000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: LUBUMBASHI,
+    addressLine: "Commune Annexe, avenue Kasapa",
+    latitude: -11.6647,
+    longitude: 27.4794,
+    timezone: "Africa/Lubumbashi",
+    description: "Dépannage de plomberie, installation sanitaire et débouchage.",
+    yearsExperience: 10,
+    subcategorySlug: "depannage_fuite",
+    skillSubcategorySlugs: ["installation_sanitaire", "chauffe_eau"],
+    freeSkills: ["Débouchage"],
+    languages: ["Français", "Swahili"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 20000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Fuites", "Sanitaires", "Debouchage", "Chauffe-eau"],
-    serviceZones: [{ city: "Lubumbashi", commune: "Annexe" }],
-    subcategorySlugs: ["plomberie-generale", "sanitaires"],
+    premiumTier: PremiumTier.BOOSTED,
   },
   {
-    firstName: "Francoise",
+    firstName: "Françoise",
     lastName: "Kabongo",
     email: "francoise.kabongo@kayou.cd",
     phone: "+243812345673",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Coiffeuse",
-    description: "Coiffure a domicile, tresses, tissages et soins capillaires.",
-    experience: 12,
-    hourlyRate: 15000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: kinshasaCommune("Bandalungwa"),
+    addressLine: "15, avenue Kimbondo",
+    latitude: -4.3421,
+    longitude: 15.2843,
+    timezone: "Africa/Kinshasa",
+    description: "Coiffure à domicile : tresses, tissages et soins capillaires.",
+    yearsExperience: 12,
+    subcategorySlug: "tresses_tissages",
+    skillSubcategorySlugs: ["coiffure_femme", "coiffure_enfant"],
+    freeSkills: ["Soins capillaires"],
+    languages: ["Français", "Lingala", "Tshiluba"],
+    interventionModes: ["À domicile", "En atelier"],
+    pricing: { amount: 15000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.EXPERT,
-    skills: ["Coiffure femme", "Tresses", "Tissage", "Soins capillaires"],
-    serviceZones: [{ city: "Kinshasa", commune: "Bandalungwa" }],
-    subcategorySlugs: ["coiffure"],
+    premiumTier: PremiumTier.VERIFIED,
   },
   {
     firstName: "Thierry",
     lastName: "Mutombo",
     email: "thierry.mutombo@kayou.cd",
     phone: "+242061234574",
-    city: "Brazzaville",
+    hasWhatsApp: true,
     country: "Congo",
-    profession: "Macon",
-    description: "Construction, renovation et finitions avec respect des delais.",
-    experience: 20,
-    hourlyRate: 18000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: BRAZZAVILLE,
+    addressLine: "Poto-Poto, avenue de la Paix",
+    latitude: -4.26,
+    longitude: 15.275,
+    timezone: "Africa/Brazzaville",
+    description: "Construction, rénovation et finitions dans le respect des délais.",
+    yearsExperience: 20,
+    subcategorySlug: "elevation_murs",
+    skillSubcategorySlugs: ["fondations", "chape"],
+    freeSkills: ["Béton armé", "Rénovation"],
+    languages: ["Français", "Lingala", "Kikongo"],
+    interventionModes: ["Sur chantier"],
+    pricing: { amount: 18000, currency: "XAF", unit: "Par jour" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Maconnerie", "Beton arme", "Renovation", "Fondations"],
-    serviceZones: [{ city: "Brazzaville", commune: "Poto-Poto" }, { city: "Pointe-Noire" }],
-    subcategorySlugs: ["maconnerie", "carrelage"],
+    premiumTier: PremiumTier.FREE,
   },
   {
-    firstName: "Esperance",
+    firstName: "Espérance",
     lastName: "Ngoma",
     email: "esperance.ngoma@kayou.cd",
     phone: "+243812345675",
-    city: "Kinshasa",
+    hasWhatsApp: false,
     country: "RDC",
-    profession: "Estheticienne",
-    description: "Soins visage, manucure, pedicure et maquillage a domicile.",
-    experience: 6,
-    hourlyRate: 12000,
-    isPremium: false,
-    isVerified: false,
+    placeSlug: kinshasaCommune("Kintambo"),
+    addressLine: "5, avenue Pumbu",
+    latitude: -4.329,
+    longitude: 15.271,
+    timezone: "Africa/Kinshasa",
+    description: "Soins du visage, manucure, pédicure et maquillage à domicile.",
+    yearsExperience: 6,
+    subcategorySlug: "soins_visage",
+    skillSubcategorySlugs: ["gommage", "epilation"],
+    freeSkills: ["Pédicure"],
+    languages: ["Français", "Lingala"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 12000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.PENDING,
-    trustLevel: TrustLevel.ESTABLISHED,
-    skills: ["Manucure", "Pedicure", "Maquillage", "Soins visage"],
-    serviceZones: [{ city: "Kinshasa", commune: "Kintambo" }],
-    subcategorySlugs: ["esthetique"],
+    premiumTier: PremiumTier.FREE,
   },
   {
-    firstName: "Dieudonne",
+    firstName: "Dieudonné",
     lastName: "Kasongo",
     email: "dieudonne.kasongo@kayou.cd",
     phone: "+243812345676",
-    city: "Lubumbashi",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Mecanicien auto",
-    description: "Diagnostic, entretien et reparation de vehicules legers.",
-    experience: 18,
-    hourlyRate: 15000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: LUBUMBASHI,
+    addressLine: "Commune Kamalondo, avenue Lumumba",
+    latitude: -11.67,
+    longitude: 27.49,
+    timezone: "Africa/Lubumbashi",
+    description: "Diagnostic, entretien et réparation de véhicules légers.",
+    yearsExperience: 18,
+    subcategorySlug: "diagnostic",
+    skillSubcategorySlugs: ["revision", "moteur"],
+    freeSkills: ["Électricité auto"],
+    languages: ["Français", "Swahili"],
+    interventionModes: ["En atelier"],
+    pricing: { amount: 15000, currency: "CDF", unit: "Par heure" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.EXPERT,
-    skills: ["Mecanique generale", "Diagnostic", "Electricite auto", "Climatisation"],
-    serviceZones: [{ city: "Lubumbashi", commune: "Kamalondo" }],
-    subcategorySlugs: ["mecanique-auto", "electricite-automobile", "climatisation"],
+    premiumTier: PremiumTier.BOOSTED,
   },
   {
-    firstName: "Veronique",
+    firstName: "Véronique",
     lastName: "Lumumba",
     email: "veronique.lumumba@kayou.cd",
     phone: "+243812345677",
-    city: "Matadi",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Professeure particuliere",
-    description: "Soutien scolaire primaire et secondaire, mathematiques et francais.",
-    experience: 10,
-    hourlyRate: 10000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: MATADI,
+    addressLine: "Quartier Soyo, avenue de la Poste",
+    latitude: -5.8177,
+    longitude: 13.46,
+    timezone: "Africa/Kinshasa",
+    description: "Soutien scolaire primaire et secondaire, mathématiques et français.",
+    yearsExperience: 10,
+    subcategorySlug: "math_sciences",
+    skillSubcategorySlugs: ["langues", "soutien_scolaire"],
+    freeSkills: ["Préparation aux examens"],
+    languages: ["Français", "Kikongo"],
+    interventionModes: ["À domicile", "À distance"],
+    pricing: { amount: 10000, currency: "CDF", unit: "Par heure" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Mathematiques", "Francais", "Sciences", "Preparation examens"],
-    serviceZones: [{ city: "Matadi" }],
-    subcategorySlugs: ["education", "support-informatique"],
+    premiumTier: PremiumTier.FREE,
   },
   {
     firstName: "Olivier",
     lastName: "Tshisekedi",
     email: "olivier.tshisekedi@kayou.cd",
     phone: "+242061234578",
-    city: "Pointe-Noire",
+    hasWhatsApp: true,
     country: "Congo",
-    profession: "Jardinier paysagiste",
-    description: "Creation et entretien de jardins, taille et arrosage.",
-    experience: 7,
-    hourlyRate: 12000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: CONGO,
+    addressLine: "Pointe-Noire, avenue Charles de Gaulle",
+    latitude: -4.778,
+    longitude: 11.8636,
+    timezone: "Africa/Brazzaville",
+    description: "Création et entretien de jardins, taille et arrosage.",
+    yearsExperience: 7,
+    subcategorySlug: "paysagisme",
+    skillSubcategorySlugs: ["entretien_jardin", "elagage"],
+    freeSkills: ["Arrosage"],
+    languages: ["Français", "Kikongo", "Lingala"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 12000, currency: "XAF", unit: "Par jour" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.ESTABLISHED,
-    skills: ["Entretien jardin", "Paysagisme", "Taille", "Arrosage"],
-    serviceZones: [{ city: "Pointe-Noire" }],
-    subcategorySlugs: ["jardinage"],
+    premiumTier: PremiumTier.FREE,
   },
   {
-    firstName: "Grace",
+    firstName: "Grâce",
     lastName: "Mwamba",
     email: "grace.mwamba@kayou.cd",
     phone: "+243812345679",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Cheffe cuisiniere",
-    description: "Traiteur, cuisine congolaise et chef privee a domicile.",
-    experience: 14,
-    hourlyRate: 30000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: `${kinshasaCommune("Gombe")}-quartier-golf`,
+    addressLine: "12, avenue des Aviateurs",
+    latitude: -4.31,
+    longitude: 15.3,
+    timezone: "Africa/Kinshasa",
+    description: "Traiteur, cuisine congolaise et cheffe privée à domicile.",
+    yearsExperience: 14,
+    subcategorySlug: "traiteur_mariage",
+    skillSubcategorySlugs: ["anniversaire", "evenements", "cuisinier_domicile"],
+    freeSkills: ["Buffets"],
+    languages: ["Français", "Lingala", "Anglais"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 30000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TOP_RATED,
-    skills: ["Cuisine congolaise", "Traiteur", "Buffets", "Chef a domicile"],
-    serviceZones: [{ city: "Kinshasa", commune: "Gombe" }],
-    subcategorySlugs: ["traiteur"],
+    premiumTier: PremiumTier.ELITE,
   },
   {
     firstName: "Emmanuel",
     lastName: "Kalonji",
     email: "emmanuel.kalonji@kayou.cd",
     phone: "+243812345680",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Technicien informatique",
-    description: "Depannage, reseaux, formation et assistance a domicile.",
-    experience: 9,
-    hourlyRate: 18000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: kinshasaCommune("Ngaba"),
+    addressLine: "7, rue Kianza",
+    latitude: -4.38,
+    longitude: 15.316,
+    timezone: "Africa/Kinshasa",
+    description: "Dépannage informatique, réseaux, formation et assistance à domicile.",
+    yearsExperience: 9,
+    subcategorySlug: "reparation_ordinateur",
+    skillSubcategorySlugs: ["installation_reseau", "formation_informatique"],
+    freeSkills: ["Sauvegarde de données"],
+    languages: ["Français", "Lingala", "Tshiluba", "Anglais"],
+    interventionModes: ["À domicile", "En atelier", "À distance"],
+    pricing: { amount: 18000, currency: "CDF", unit: "Par heure" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Depannage PC", "Reseaux", "Formation", "Sauvegarde"],
-    serviceZones: [{ city: "Kinshasa", commune: "Ngaba" }],
-    subcategorySlugs: ["support-informatique", "reseaux", "developpement"],
+    premiumTier: PremiumTier.FREE,
   },
   {
-    firstName: "Beatrice",
+    firstName: "Béatrice",
     lastName: "Nkashama",
     email: "beatrice.nkashama@kayou.cd",
     phone: "+243812345681",
-    city: "Lubumbashi",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Organisatrice d'evenements",
-    description: "Mariages, anniversaires, decoration et coordination de ceremonies.",
-    experience: 8,
-    hourlyRate: 25000,
-    isPremium: true,
-    isVerified: true,
+    placeSlug: LUBUMBASHI,
+    addressLine: "Commune Lubumbashi, avenue Mama Yemo",
+    latitude: -11.66,
+    longitude: 27.48,
+    timezone: "Africa/Lubumbashi",
+    description: "Mariages, anniversaires, décoration et coordination de cérémonies.",
+    yearsExperience: 8,
+    subcategorySlug: "organisation_evenements",
+    skillSubcategorySlugs: ["decoration", "son_lumiere_dj", "photographie"],
+    freeSkills: ["Gestion de budget"],
+    languages: ["Français", "Swahili"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 25000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.TRUSTED,
-    skills: ["Mariages", "Coordination", "Decoration", "Budget"],
-    serviceZones: [{ city: "Lubumbashi" }, { city: "Kinshasa" }],
-    subcategorySlugs: ["organisation-evenements", "animation"],
+    premiumTier: PremiumTier.VERIFIED,
   },
   {
     firstName: "Firmin",
     lastName: "Mwepu",
     email: "firmin.mwepu@kayou.cd",
     phone: "+242061234582",
-    city: "Brazzaville",
+    hasWhatsApp: false,
     country: "Congo",
-    profession: "Agent de securite",
-    description: "Gardiennage, controle d'acces et surveillance jour/nuit.",
-    experience: 5,
-    hourlyRate: 8000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: BRAZZAVILLE,
+    addressLine: "Bacongo, avenue Matsoua",
+    latitude: -4.28,
+    longitude: 15.26,
+    timezone: "Africa/Brazzaville",
+    description: "Gardiennage, contrôle d'accès et surveillance de jour comme de nuit.",
+    yearsExperience: 5,
+    subcategorySlug: "gardiennage",
+    skillSubcategorySlugs: ["agent_securite", "controle_acces"],
+    freeSkills: ["Rondes"],
+    languages: ["Français", "Lingala", "Kikongo"],
+    interventionModes: ["Sur chantier"],
+    pricing: { amount: 8000, currency: "XAF", unit: "Par jour" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.ESTABLISHED,
-    skills: ["Gardiennage", "Surveillance", "Controle d'acces", "Rondes"],
-    serviceZones: [{ city: "Brazzaville" }],
-    subcategorySlugs: ["gardiennage"],
+    premiumTier: PremiumTier.FREE,
   },
   {
-    firstName: "Charlene",
+    firstName: "Charlène",
     lastName: "Masengu",
     email: "charlene.masengu@kayou.cd",
     phone: "+243812345683",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Masseuse kine",
-    description: "Massages therapeutiques, sportifs et relaxation a domicile.",
-    experience: 6,
-    hourlyRate: 20000,
-    isPremium: false,
-    isVerified: true,
+    placeSlug: kinshasaCommune("Limete"),
+    addressLine: "10e rue, Limete résidentiel",
+    latitude: -4.37,
+    longitude: 15.347,
+    timezone: "Africa/Kinshasa",
+    description: "Massages thérapeutiques, sportifs et relaxants à domicile.",
+    yearsExperience: 6,
+    subcategorySlug: "massage_therapeutique",
+    skillSubcategorySlugs: ["massage_relaxant", "soins_corps"],
+    freeSkills: ["Récupération sportive"],
+    languages: ["Français", "Lingala"],
+    interventionModes: ["À domicile"],
+    pricing: { amount: 20000, currency: "CDF", unit: "Par prestation" },
     verificationStatus: VerificationStatus.VERIFIED,
-    trustLevel: TrustLevel.ESTABLISHED,
-    skills: ["Massage therapeutique", "Kinesitherapie", "Relaxation", "Sport"],
-    serviceZones: [{ city: "Kinshasa", commune: "Limete" }],
-    subcategorySlugs: ["bien-etre", "soins-domicile", "sport"],
+    premiumTier: PremiumTier.FREE,
   },
   {
     firstName: "Roger",
     lastName: "Ilunga",
     email: "roger.ilunga@kayou.cd",
     phone: "+243812345684",
-    city: "Kinshasa",
+    hasWhatsApp: true,
     country: "RDC",
-    profession: "Peintre en batiment",
-    description: "Peinture interieure et exterieure, finitions propres et rapides.",
-    experience: 12,
-    hourlyRate: 15000,
-    isPremium: false,
-    isVerified: false,
+    placeSlug: kinshasaCommune("Masina"),
+    addressLine: "18, avenue Mandina",
+    latitude: -4.386,
+    longitude: 15.391,
+    timezone: "Africa/Kinshasa",
+    description: "Peinture intérieure et extérieure, finitions propres et rapides.",
+    yearsExperience: 12,
+    subcategorySlug: "peinture_interieure",
+    skillSubcategorySlugs: ["peinture_exterieure", "enduits", "peinture_decoration"],
+    freeSkills: ["Papier peint"],
+    languages: ["Français", "Lingala"],
+    interventionModes: ["Sur chantier"],
+    pricing: { amount: 3500, currency: "CDF", unit: "Par m²" },
     verificationStatus: VerificationStatus.PENDING,
-    trustLevel: TrustLevel.NEWCOMER,
-    skills: ["Peinture interieure", "Peinture exterieure", "Finitions", "Decoration"],
-    serviceZones: [{ city: "Kinshasa", commune: "Masina" }],
-    subcategorySlugs: ["peinture", "platrerie"],
+    premiumTier: PremiumTier.FREE,
   },
 ];
 
 const clientsData: DemoClient[] = [
-  { firstName: "Paul", lastName: "Kabasele", email: "paul.kabasele@email.cd", phone: "+243819000001", city: "Kinshasa", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.VIP_CLIENT },
-  { firstName: "Michelle", lastName: "Kazadi", email: "michelle.kazadi@email.cd", phone: "+243819000002", city: "Kinshasa", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.GOOD_CLIENT },
-  { firstName: "Joseph", lastName: "Lomami", email: "joseph.lomami@email.cd", phone: "+243819000003", city: "Lubumbashi", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.REGULAR },
-  { firstName: "Annie", lastName: "Mutombo", email: "annie.mutombo@email.cd", phone: "+243819000004", city: "Kinshasa", country: "RDC", isVerified: false, clientTrustLevel: ClientTrustLevel.NEW_CLIENT },
-  { firstName: "Claude", lastName: "Mwamba", email: "claude.mwamba@email.cd", phone: "+242069000005", city: "Brazzaville", country: "Congo", isVerified: true, clientTrustLevel: ClientTrustLevel.GOOD_CLIENT },
-  { firstName: "Solange", lastName: "Ngoyi", email: "solange.ngoyi@email.cd", phone: "+243819000006", city: "Matadi", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.REGULAR },
-  { firstName: "Henri", lastName: "Kambale", email: "henri.kambale@email.cd", phone: "+243819000007", city: "Kinshasa", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.VIP_CLIENT },
-  { firstName: "Gisele", lastName: "Tshibanda", email: "gisele.tshibanda@email.cd", phone: "+243819000008", city: "Lubumbashi", country: "RDC", isVerified: false, clientTrustLevel: ClientTrustLevel.NEW_CLIENT },
-  { firstName: "Marc", lastName: "Ndaye", email: "marc.ndaye@email.cd", phone: "+242069000009", city: "Pointe-Noire", country: "Congo", isVerified: true, clientTrustLevel: ClientTrustLevel.REGULAR },
-  { firstName: "Brigitte", lastName: "Mwilo", email: "brigitte.mwilo@email.cd", phone: "+243819000010", city: "Kinshasa", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.GOOD_CLIENT },
-  { firstName: "Alain", lastName: "Musasa", email: "alain.musasa@email.cd", phone: "+243819000011", city: "Kinshasa", country: "RDC", isVerified: true, clientTrustLevel: ClientTrustLevel.REGULAR },
-  { firstName: "Francine", lastName: "Kiese", email: "francine.kiese@email.cd", phone: "+243819000012", city: "Matadi", country: "RDC", isVerified: false, clientTrustLevel: ClientTrustLevel.NEW_CLIENT },
-  { firstName: "Patrick", lastName: "Mwepu", email: "patrick.mwepu@email.cd", phone: "+242069000013", city: "Brazzaville", country: "Congo", isVerified: true, clientTrustLevel: ClientTrustLevel.GOOD_CLIENT },
+  { firstName: "Paul", lastName: "Kabasele", email: "paul.kabasele@email.cd", phone: "+243819000001", phoneVerified: true, country: "RDC", placeSlug: kinshasaCommune("Ngaliema"), addressLine: "45, avenue Colonel Mondjiba" },
+  { firstName: "Michelle", lastName: "Kazadi", email: "michelle.kazadi@email.cd", phone: "+243819000002", phoneVerified: true, country: "RDC", placeSlug: kinshasaCommune("Lemba"), addressLine: "3, avenue Kikwit" },
+  { firstName: "Joseph", lastName: "Lomami", email: "joseph.lomami@email.cd", phone: "+243819000003", phoneVerified: true, country: "RDC", placeSlug: LUBUMBASHI, addressLine: "Commune Kampemba, avenue Kilela Balanda" },
+  { firstName: "Annie", lastName: "Mutombo", email: "annie.mutombo@email.cd", phone: "+243819000004", phoneVerified: false, country: "RDC", placeSlug: kinshasaCommune("Kalamu"), addressLine: "9, avenue Victoire" },
+  { firstName: "Claude", lastName: "Mwamba", email: "claude.mwamba@email.cd", phone: "+242069000005", phoneVerified: true, country: "Congo", placeSlug: BRAZZAVILLE, addressLine: "Moungali, rue Mayama" },
+  { firstName: "Solange", lastName: "Ngoyi", email: "solange.ngoyi@email.cd", phone: "+243819000006", phoneVerified: true, country: "RDC", placeSlug: MATADI, addressLine: "Quartier Mvuzi" },
+  { firstName: "Henri", lastName: "Kambale", email: "henri.kambale@email.cd", phone: "+243819000007", phoneVerified: true, country: "RDC", placeSlug: kinshasaCommune("Limete"), addressLine: "5e rue, Limete industriel" },
+  { firstName: "Gisèle", lastName: "Tshibanda", email: "gisele.tshibanda@email.cd", phone: "+243819000008", phoneVerified: false, country: "RDC", placeSlug: LUBUMBASHI, addressLine: "Commune Kenya, avenue Likasi" },
+  { firstName: "Marc", lastName: "Ndaye", email: "marc.ndaye@email.cd", phone: "+242069000009", phoneVerified: true, country: "Congo", placeSlug: CONGO, addressLine: "Pointe-Noire, quartier Loandjili" },
+  { firstName: "Brigitte", lastName: "Mwilo", email: "brigitte.mwilo@email.cd", phone: "+243819000010", phoneVerified: true, country: "RDC", placeSlug: kinshasaCommune("Bandalungwa"), addressLine: "20, avenue Lubudi" },
+  { firstName: "Alain", lastName: "Musasa", email: "alain.musasa@email.cd", phone: "+243819000011", phoneVerified: true, country: "RDC", placeSlug: kinshasaCommune("Kintambo"), addressLine: "2, avenue Nguma" },
+  { firstName: "Francine", lastName: "Kiese", email: "francine.kiese@email.cd", phone: "+243819000012", phoneVerified: false, country: "RDC", placeSlug: MATADI, addressLine: "Quartier Kinkanda" },
+  { firstName: "Patrick", lastName: "Mwepu", email: "patrick.mwepu@email.cd", phone: "+242069000013", phoneVerified: true, country: "Congo", placeSlug: BRAZZAVILLE, addressLine: "Ouenzé, avenue de la Tsiémé" },
 ];
 
-const statusCycle = [
-  BookingStatus.PENDING,
-  BookingStatus.CONFIRMED,
-  BookingStatus.IN_PROGRESS,
-  BookingStatus.COMPLETED,
-  BookingStatus.COMPLETED,
-  BookingStatus.CANCELLED,
-];
+const reviewRatings = [5, 4, 5, 5, 3, 4, 5, 4, 5, 5, 4, 5, 4, 5, 4];
 
-function scoreForTrustLevel(level: TrustLevel): number {
-  switch (level) {
-    case TrustLevel.TOP_RATED:
-      return 96;
-    case TrustLevel.EXPERT:
-      return 90;
-    case TrustLevel.TRUSTED:
-      return 78;
-    case TrustLevel.ESTABLISHED:
-      return 64;
-    case TrustLevel.NEWCOMER:
-      return 42;
-  }
-}
-
-function jobsForTrustLevel(level: TrustLevel, index: number): number {
-  switch (level) {
-    case TrustLevel.TOP_RATED:
-      return 120 + index;
-    case TrustLevel.EXPERT:
-      return 60 + index;
-    case TrustLevel.TRUSTED:
-      return 24 + index;
-    case TrustLevel.ESTABLISHED:
-      return 8 + index;
-    case TrustLevel.NEWCOMER:
-      return index % 4;
-  }
-}
-
-function scoreForClientTrustLevel(level: ClientTrustLevel): number {
-  switch (level) {
-    case ClientTrustLevel.VIP_CLIENT:
-      return 96;
-    case ClientTrustLevel.GOOD_CLIENT:
-      return 82;
-    case ClientTrustLevel.REGULAR:
-      return 65;
-    case ClientTrustLevel.NEW_CLIENT:
-      return 25;
-  }
-}
-
-function daysFromNow(days: number): Date {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-}
+const reviewCommentsByRating: Record<number, string[]> = {
+  5: [
+    "Travail soigné, ponctuel et très professionnel. Je recommande sans hésiter.",
+    "Très à l'écoute, intervention rapide et propre.",
+  ],
+  4: [
+    "Bonne prestation, communication claire du début à la fin.",
+    "Résultat conforme à la demande et prix respecté.",
+  ],
+  3: ["Travail correct, mais arrivé avec une heure de retard."],
+};
 
 function authSeedId(email: string): string {
   return `seed:${email}`;
 }
 
-export async function seedDemo(prisma: SeedPrismaClient) {
-  console.log("Loading seed subcategories...");
-  const subcategories = await seedSubcategories(prisma);
-  const subcategoryBySlug = new Map(
-    subcategories.map((subcategory) => [subcategory.slug, subcategory]),
+function daysFromNow(days: number): Date {
+  return new Date(Date.now() + days * DAY_MS);
+}
+
+function localCalendarDate(timezone: Timezone, dayOffset: number): Date {
+  const local = new Date(Date.now() + UTC_OFFSET_HOURS[timezone] * HOUR_MS + dayOffset * DAY_MS);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+}
+
+function onWeekday(date: Date): Date {
+  const weekday = date.getUTCDay();
+  const shift = weekday === 6 ? 2 : weekday === 0 ? 1 : 0;
+  return new Date(date.getTime() + shift * DAY_MS);
+}
+
+function upcomingSaturday(date: Date): Date {
+  const daysAhead = (6 - date.getUTCDay() + 7) % 7 || 7;
+  return new Date(date.getTime() + daysAhead * DAY_MS);
+}
+
+function slotInstant(timezone: Timezone, localDate: Date, time: string): Date {
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(
+    localDate.getTime() + (hours - UTC_OFFSET_HOURS[timezone]) * HOUR_MS + minutes * MINUTE_MS,
   );
+}
+
+async function loadLookups(prisma: SeedPrismaClient) {
+  const [places, subcategories, references] = await Promise.all([
+    prisma.place.findMany({ select: { id: true, slug: true } }),
+    prisma.subcategory.findMany({ select: { id: true, slug: true } }),
+    prisma.referenceItem.findMany({ select: { id: true, slug: true } }),
+  ]);
+
+  const bySlug = (rows: Array<{ id: string; slug: string }>, kind: string) => {
+    const ids = new Map(rows.map((row) => [row.slug, row.id]));
+    return (slug: string): string => {
+      const id = ids.get(slug);
+      if (!id) throw new Error(`Missing seeded ${kind} for slug ${slug}`);
+      return id;
+    };
+  };
+
+  return {
+    placeId: bySlug(places, "place"),
+    subcategoryId: bySlug(subcategories, "subcategory"),
+    referenceId: bySlug(references, "reference item"),
+  };
+}
+
+export async function seedDemo(prisma: SeedPrismaClient) {
+  const lookups = await loadLookups(prisma);
 
   console.log("Seeding demo users and provider profiles...");
-  const providers = await seedProviders(prisma, subcategoryBySlug);
-  const clients = await seedClients(prisma);
-  const admin = await seedAdmin(prisma);
+  const providers = await seedProviders(prisma, lookups);
+  const clients = await seedClients(prisma, lookups);
+  const admin = await seedAdmin(prisma, lookups);
 
   console.log("Seeding marketplace activity...");
   const bookings = await seedBookings(prisma, providers, clients);
-  await seedReviews(prisma, bookings);
-  await seedFavorites(prisma, clients, providers);
-  await seedConversations(prisma, clients, providers);
-  await seedNotifications(prisma, clients, providers, admin.id);
-  await seedSettings(prisma);
+  const reviews = await seedReviews(prisma, bookings);
+  await refreshProviderAggregates(prisma, providers);
+  await seedTransactions(prisma, bookings, providers[0]);
+  const conversations = await seedConversations(prisma, providers, clients);
+  await seedSafetyAndInbox(prisma, lookups, providers, clients);
+  await seedNotifications(prisma, { adminId: admin.id, providers, bookings, reviews, conversations });
 
   console.log(`Demo password for Supabase seed users: ${DEFAULT_PASSWORD}`);
-  console.log(`Seeded ${providers.length} providers, ${clients.length} clients, and ${bookings.length} bookings.`);
+  console.log(
+    `Seeded ${providers.length} providers, ${clients.length} clients, and ${bookings.length} bookings.`,
+  );
 }
 
-async function seedSubcategories(prisma: SeedPrismaClient) {
-  return prisma.subcategory.findMany({
-    orderBy: { slug: "asc" },
-  });
-}
-
-async function seedProviders(
-  prisma: SeedPrismaClient,
-  subcategoryBySlug: Map<string, Awaited<ReturnType<typeof seedSubcategories>>[number]>,
-): Promise<CreatedProvider[]> {
+async function seedProviders(prisma: SeedPrismaClient, lookups: Lookups): Promise<CreatedProvider[]> {
   const created: CreatedProvider[] = [];
 
-  for (let index = 0; index < providersData.length; index += 1) {
-    const providerData = providersData[index];
-    const selectedSubcategories = providerData.subcategorySlugs.map((slug) => {
-      const subcategory = subcategoryBySlug.get(slug);
-      if (!subcategory) throw new Error(`Missing subcategory seed data for slug ${slug}`);
-      return subcategory;
-    });
-
+  for (const [index, data] of providersData.entries()) {
     const user = await prisma.user.create({
       data: {
-        authUserId: authSeedId(providerData.email),
-        email: providerData.email,
-        phone: providerData.phone,
-        firstName: providerData.firstName,
-        lastName: providerData.lastName,
+        authUserId: authSeedId(data.email),
+        email: data.email,
+        phone: data.phone,
+        firstName: data.firstName,
+        lastName: data.lastName,
         role: UserRole.PROVIDER,
         roleSelectedAt: daysFromNow(-90),
-        city: providerData.city,
-        country: providerData.country,
-        isVerified: providerData.isVerified,
-        emailVerifiedAt: providerData.isVerified ? daysFromNow(-90) : null,
-        phoneVerifiedAt: providerData.isVerified ? daysFromNow(-90) : null,
-        clientTrustLevel: ClientTrustLevel.NEW_CLIENT,
+        placeId: lookups.placeId(data.placeSlug),
+        country: data.country,
+        emailVerifiedAt: daysFromNow(-90),
+        phoneVerifiedAt: daysFromNow(-90),
+        termsAcceptedAt: daysFromNow(-90),
+        lastLoginAt: daysFromNow(-index),
       },
     });
 
-    const completedJobs = jobsForTrustLevel(providerData.trustLevel, index);
     const provider = await prisma.provider.create({
       data: {
         userId: user.id,
-        profession: providerData.profession,
-        description: providerData.description,
-        experience: providerData.experience,
-        hourlyRate: providerData.hourlyRate,
-        isPremium: providerData.isPremium,
-        premiumExpiry: providerData.isPremium ? daysFromNow(365) : null,
-        isAvailable: true,
-        verificationStatus: providerData.verificationStatus,
-        onboardingCompleteAt: daysFromNow(-90),
-        totalJobs: completedJobs,
-        totalReviews: Math.max(1, Math.floor(completedJobs / 2)),
-        responseTime: 20 + index * 5,
-      },
-    });
-
-    const categoryIds = Array.from(
-      new Set(selectedSubcategories.map((subcategory) => subcategory.categoryId)),
-    );
-    const subcategoryIds = Array.from(
-      new Set(selectedSubcategories.map((subcategory) => subcategory.id)),
-    );
-    await prisma.providerCategory.createMany({
-      data: categoryIds.map((categoryId) => ({ providerId: provider.id, categoryId })),
-    });
-
-    await prisma.providerSubcategory.createMany({
-      data: subcategoryIds.map((subcategoryId, subcategoryIndex) => ({
-        providerId: provider.id,
-        subcategoryId,
-        isPrimary: subcategoryIndex === 0,
-        experience: Math.max(1, providerData.experience - subcategoryIndex),
-      })),
-    });
-
-    await prisma.skill.createMany({
-      data: providerData.skills.map((name, skillIndex) => ({
-        providerId: provider.id,
-        name,
-        level: Math.min(5, 3 + (skillIndex % 3)),
-      })),
-    });
-
-    await prisma.serviceZone.createMany({
-      data: providerData.serviceZones.map((zone) => ({
-        providerId: provider.id,
-        city: zone.city,
-        commune: zone.commune,
-      })),
-    });
-
-    await prisma.availabilitySchedule.createMany({
-      data: [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-        providerId: provider.id,
-        dayOfWeek,
-        startTime: "08:00",
-        endTime: dayOfWeek === 6 ? "14:00" : "18:00",
-        isAvailable: true,
-      })),
-    });
-
-    const baseScore = scoreForTrustLevel(providerData.trustLevel);
-    const trustScore = await prisma.trustScore.create({
-      data: {
-        providerId: provider.id,
-        overallScore: baseScore,
-        reliability: Math.min(100, baseScore + 1),
-        quality: Math.min(100, baseScore + 2),
-        communication: Math.max(0, baseScore - 2),
-        professionalism: Math.min(100, baseScore + 3),
-        trustLevel: providerData.trustLevel,
-        completedJobs,
-        cancelledJobs: index % 4,
-        avgResponseTime: 20 + index * 5,
-      },
-    });
-
-    await seedProviderPortfolio(prisma, provider.id, categoryIds[0], index);
-    await seedProviderBadges(prisma, trustScore.id, providerData.trustLevel, baseScore);
-
-    if (providerData.verificationStatus === VerificationStatus.VERIFIED && index % 2 === 0) {
-      await prisma.certification.create({
-        data: {
-          providerId: provider.id,
-          title: `Certification ${providerData.profession}`,
-          issuingOrg: "Ministere du Travail",
-          certificateNum: `CERT-${index + 1000}`,
-          status: VerificationStatus.VERIFIED,
-          verifiedAt: daysFromNow(-30),
-          issueDate: daysFromNow(-365),
-          expiryDate: daysFromNow(365 * 2),
-          categoryId: categoryIds[0],
-          documents: {
-            create: {
-              type: "CERTIFICATE",
-              fileUrl: `https://picsum.photos/seed/cert-${index}/1000/700`,
-              fileName: `certification-${providerData.email}.pdf`,
-            },
-          },
+        displayName: `${data.firstName} ${data.lastName}`,
+        description: data.description,
+        yearsExperience: data.yearsExperience,
+        phone: data.phone,
+        whatsapp: data.hasWhatsApp ? data.phone : null,
+        email: data.email,
+        subcategoryId: lookups.subcategoryId(data.subcategorySlug),
+        placeId: lookups.placeId(data.placeSlug),
+        addressLine: data.addressLine,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        freeSkills: data.freeSkills,
+        pricingAmount: data.pricing.amount,
+        pricingCurrencyId: lookups.referenceId(referenceSlug("currency", data.pricing.currency)),
+        pricingUnitId: lookups.referenceId(referenceSlug("price-unit", data.pricing.unit)),
+        timezone: data.timezone,
+        slotDurationMin: SLOT_DURATION_MIN,
+        slotBufferMin: SLOT_BUFFER_MIN,
+        verificationStatus: data.verificationStatus,
+        premiumTier: data.premiumTier,
+        premiumUntil: data.premiumTier === PremiumTier.FREE ? null : daysFromNow(365),
+        publishedAt: daysFromNow(-90),
+        skills: {
+          create: data.skillSubcategorySlugs.map((slug) => ({
+            itemId: lookups.referenceId(skillSlug(slug)),
+          })),
         },
-      });
-    }
+        references: {
+          create: [
+            ...data.languages.map((label) => ({
+              kind: "LANGUAGE" as const,
+              itemId: lookups.referenceId(referenceSlug("language", label)),
+            })),
+            ...data.interventionModes.map((label) => ({
+              kind: "INTERVENTION_MODE" as const,
+              itemId: lookups.referenceId(referenceSlug("mode", label)),
+            })),
+          ],
+        },
+        media: {
+          create: [0, 1, 2].map((mediaIndex) => ({
+            kind: "IMAGE" as const,
+            url: `https://picsum.photos/seed/kayou-provider-${index}-${mediaIndex}/900/650`,
+            title: `Réalisation ${mediaIndex + 1}`,
+            order: mediaIndex,
+          })),
+        },
+        availabilityRules: {
+          create: [1, 2, 3, 4, 5].flatMap((dayOfWeek) =>
+            WEEKLY_RANGES.map((range, order) => ({ dayOfWeek, order, ...range })),
+          ),
+        },
+        availabilityExceptions: { create: availabilityExceptionsFor(index, data.timezone) },
+      },
+    });
+
+    created.push({
+      index,
+      userId: user.id,
+      providerId: provider.id,
+      name: provider.displayName,
+      timezone: data.timezone,
+      subcategoryId: provider.subcategoryId,
+      pricingAmount: data.pricing.amount,
+    });
+  }
+
+  return created;
+}
+
+function availabilityExceptionsFor(index: number, timezone: Timezone) {
+  if (index === 0) {
+    return [
+      {
+        date: onWeekday(localCalendarDate(timezone, 12)),
+        isOpen: false,
+        reason: "Formation",
+      },
+    ];
+  }
+
+  if (index === 1) {
+    return [
+      {
+        date: upcomingSaturday(localCalendarDate(timezone, 0)),
+        isOpen: true,
+        startTime: "09:00",
+        endTime: "13:00",
+        reason: "Permanence du samedi",
+      },
+    ];
+  }
+
+  return [];
+}
+
+async function seedClients(prisma: SeedPrismaClient, lookups: Lookups): Promise<CreatedClient[]> {
+  const created: CreatedClient[] = [];
+
+  for (const [index, data] of clientsData.entries()) {
+    const placeId = lookups.placeId(data.placeSlug);
+    const user = await prisma.user.create({
+      data: {
+        authUserId: authSeedId(data.email),
+        email: data.email,
+        phone: data.phone,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: UserRole.CLIENT,
+        roleSelectedAt: daysFromNow(-60),
+        placeId,
+        country: data.country,
+        phoneVerifiedAt: data.phoneVerified ? daysFromNow(-60) : null,
+        termsAcceptedAt: daysFromNow(-60),
+        lastLoginAt: daysFromNow(-index),
+        addresses:
+          index < 3
+            ? {
+                create: [
+                  {
+                    label: "HOME" as const,
+                    recipient: `${data.firstName} ${data.lastName}`,
+                    addressLine: data.addressLine,
+                    placeId,
+                    country: data.country,
+                    isDefault: true,
+                  },
+                  ...(index === 0
+                    ? [
+                        {
+                          label: "WORK" as const,
+                          addressLine: "Boulevard du 30 Juin, immeuble Interfina",
+                          placeId: lookups.placeId(kinshasaCommune("Gombe")),
+                          country: data.country,
+                        },
+                      ]
+                    : []),
+                ],
+              }
+            : undefined,
+      },
+    });
 
     created.push({
       userId: user.id,
-      providerId: provider.id,
-      profession: providerData.profession,
-      bookingTitle: providerData.skills[0] ?? providerData.profession,
-      bookingDescription: `Demande de ${providerData.profession.toLowerCase()} creee pour les donnees de demonstration.`,
-      bookingDuration: 90 + (index % 4) * 30,
-      bookingPrice: providerData.hourlyRate + index * 1000,
-      trustScoreId: trustScore.id,
+      name: `${data.firstName} ${data.lastName}`,
+      phone: data.phone,
+      placeId,
+      addressLine: data.addressLine,
     });
   }
 
   return created;
 }
 
-async function seedProviderPortfolio(
-  prisma: SeedPrismaClient,
-  providerId: string,
-  categoryId: string | undefined,
-  index: number,
-) {
-  await prisma.portfolioItem.createMany({
-    data: [0, 1, 2].map((itemIndex) => ({
-      providerId,
-      title: `Realisation ${itemIndex + 1}`,
-      description: "Exemple de travail realise pour un client satisfait.",
-      imageUrl: `https://picsum.photos/seed/kayou-provider-${index}-${itemIndex}/900/650`,
-      order: itemIndex,
-    })),
-  });
-
-  const project = await prisma.portfolioProject.create({
-    data: {
-      providerId,
-      categoryId,
-      title: "Projet reference",
-      description: "Avant/apres d'une intervention recente.",
-      duration: 8 + index,
-      price: 75000 + index * 5000,
-      isPublished: true,
-      isFeatured: index % 3 === 0,
-    },
-  });
-
-  await prisma.portfolioImage.createMany({
-    data: [
-      {
-        projectId: project.id,
-        imageType: PortfolioImageType.BEFORE,
-        imageUrl: `https://picsum.photos/seed/kayou-before-${index}/900/650`,
-        caption: "Avant intervention",
-        displayOrder: 1,
-      },
-      {
-        projectId: project.id,
-        imageType: PortfolioImageType.AFTER,
-        imageUrl: `https://picsum.photos/seed/kayou-after-${index}/900/650`,
-        caption: "Apres intervention",
-        displayOrder: 2,
-      },
-    ],
-  });
-}
-
-async function seedProviderBadges(
-  prisma: SeedPrismaClient,
-  trustScoreId: string,
-  trustLevel: TrustLevel,
-  score: number,
-) {
-  const badges = new Set<BadgeType>();
-
-  if (trustLevel !== TrustLevel.NEWCOMER) badges.add(BadgeType.ID_VERIFIED);
-  if (score >= 75) badges.add(BadgeType.FAST_RESPONSE);
-  if (score >= 85) {
-    badges.add(BadgeType.QUALITY_WORK);
-    badges.add(BadgeType.GREAT_COMMUNICATOR);
-  }
-  if (score >= 90) badges.add(BadgeType.PUNCTUAL);
-  if (trustLevel === TrustLevel.TOP_RATED) {
-    badges.add(BadgeType.CLIENT_FAVORITE);
-    badges.add(BadgeType.CERTIFIED);
-  }
-
-  if (badges.size === 0) return;
-
-  await prisma.providerBadge.createMany({
-    data: Array.from(badges).map((badgeType) => ({
-      providerId: trustScoreId,
-      badgeType,
-      isVisible: true,
-    })),
-  });
-}
-
-async function seedClients(prisma: SeedPrismaClient): Promise<CreatedClient[]> {
-  const created: CreatedClient[] = [];
-
-  for (const clientData of clientsData) {
-    const user = await prisma.user.create({
-      data: {
-        authUserId: authSeedId(clientData.email),
-        email: clientData.email,
-        phone: clientData.phone,
-        firstName: clientData.firstName,
-        lastName: clientData.lastName,
-        role: UserRole.CLIENT,
-        roleSelectedAt: daysFromNow(-60),
-        city: clientData.city,
-        country: clientData.country,
-        isVerified: clientData.isVerified,
-        clientTrustLevel: clientData.clientTrustLevel,
-        clientScore: scoreForClientTrustLevel(clientData.clientTrustLevel),
-        emailVerifiedAt: clientData.isVerified ? daysFromNow(-60) : null,
-        phoneVerifiedAt: clientData.isVerified ? daysFromNow(-60) : null,
-      },
-    });
-
-    created.push({ userId: user.id, city: clientData.city });
-  }
-
-  return created;
-}
-
-async function seedAdmin(prisma: SeedPrismaClient) {
+async function seedAdmin(prisma: SeedPrismaClient, lookups: Lookups) {
   return prisma.user.create({
     data: {
       authUserId: authSeedId("admin@kayou.cd"),
@@ -728,239 +770,501 @@ async function seedAdmin(prisma: SeedPrismaClient) {
       lastName: "KAYOU",
       role: UserRole.ADMIN,
       roleSelectedAt: daysFromNow(-120),
-      city: "Kinshasa",
+      placeId: lookups.placeId(kinshasaCommune("Gombe")),
       country: "RDC",
-      isVerified: true,
       emailVerifiedAt: daysFromNow(-120),
       phoneVerifiedAt: daysFromNow(-120),
+      termsAcceptedAt: daysFromNow(-120),
     },
   });
+}
+
+function bookingPlan(providers: CreatedProvider[], clients: CreatedClient[]): BookingSpec[] {
+  const plan: BookingSpec[] = [];
+
+  for (const provider of providers) {
+    const { index } = provider;
+    const client = (offset: number) => clients[(index + offset) % clients.length];
+
+    plan.push({
+      provider,
+      client: client(0),
+      status: BookingStatus.COMPLETED,
+      dayOffset: -(7 + index),
+      slotTime: SLOT_TIMES[0],
+      agreedPrice: provider.pricingAmount * 2,
+      isPaid: true,
+    });
+
+    if (index < 6) {
+      plan.push({
+        provider,
+        client: client(5),
+        status: BookingStatus.COMPLETED,
+        dayOffset: -(21 + index),
+        slotTime: SLOT_TIMES[1],
+        agreedPrice: index % 2 === 0 ? provider.pricingAmount : undefined,
+        isPaid: index % 4 === 0,
+      });
+      plan.push({
+        provider,
+        client: client(2),
+        status: BookingStatus.PENDING,
+        dayOffset: 2 + index,
+        slotTime: SLOT_TIMES[0],
+      });
+    }
+
+    if (index < 5) {
+      plan.push({
+        provider,
+        client: client(7),
+        status: BookingStatus.CONFIRMED,
+        dayOffset: 3 + index,
+        slotTime: SLOT_TIMES[1],
+      });
+    }
+
+    if (index >= 6 && index < 10) {
+      plan.push({
+        provider,
+        client: client(4),
+        status: BookingStatus.CANCELLED,
+        dayOffset: index - 4,
+        slotTime: SLOT_TIMES[0],
+        cancelledBy: index % 2 === 0 ? "client" : "provider",
+      });
+    }
+  }
+
+  return plan;
 }
 
 async function seedBookings(
   prisma: SeedPrismaClient,
   providers: CreatedProvider[],
   clients: CreatedClient[],
-) {
-  const bookings = [];
+): Promise<CreatedBooking[]> {
+  const created: CreatedBooking[] = [];
 
-  for (let index = 0; index < 25; index += 1) {
-    const provider = providers[index % providers.length];
-    const client = clients[(index * 3) % clients.length];
-    const status = statusCycle[index % statusCycle.length];
-    const scheduledDate = daysFromNow(index - 12);
+  for (const [index, spec] of bookingPlan(providers, clients).entries()) {
+    const { provider, client, status } = spec;
+    const scheduledAt = slotInstant(
+      provider.timezone,
+      onWeekday(localCalendarDate(provider.timezone, spec.dayOffset)),
+      spec.slotTime,
+    );
+    const createdAt = new Date(Math.min(scheduledAt.getTime(), Date.now()) - 2 * DAY_MS);
+    const isCompleted = status === BookingStatus.COMPLETED;
+    const completedAt = isCompleted ? new Date(scheduledAt.getTime() + SLOT_DURATION_MIN * MINUTE_MS) : null;
+    const agreedPrice = isCompleted ? (spec.agreedPrice ?? null) : null;
+    const commissionAmt = agreedPrice ? Math.round((agreedPrice * COMMISSION_PCT) / 100) : 0;
+    const isPaid = isCompleted && Boolean(spec.isPaid);
+    const cancelledById =
+      spec.cancelledBy === "client" ? client.userId : spec.cancelledBy === "provider" ? provider.userId : null;
 
     const booking = await prisma.booking.create({
       data: {
         clientId: client.userId,
         providerId: provider.providerId,
         status,
-        title: `${provider.bookingTitle} - intervention ${index + 1}`,
-        description: provider.bookingDescription,
-        address: `${100 + index}, Avenue de la Liberation`,
-        city: client.city,
-        scheduledDate,
-        duration: provider.bookingDuration,
-        price: provider.bookingPrice + index * 1000,
-        clientNotes: index % 2 === 0 ? "Merci de confirmer votre disponibilite." : null,
-        providerNotes: status === BookingStatus.PENDING ? null : "Intervention planifiee.",
-        isPaid: status === BookingStatus.COMPLETED,
-        paidAt: status === BookingStatus.COMPLETED ? daysFromNow(index - 11) : null,
-        confirmedAt: status === BookingStatus.PENDING ? null : daysFromNow(index - 13),
-        startedAt: status === BookingStatus.IN_PROGRESS || status === BookingStatus.COMPLETED ? scheduledDate : null,
-        completedAt: status === BookingStatus.COMPLETED ? daysFromNow(index - 11) : null,
-        cancelledAt: status === BookingStatus.CANCELLED ? daysFromNow(index - 10) : null,
-        cancelReason: status === BookingStatus.CANCELLED ? "Report client" : null,
-        cancelledBy: status === BookingStatus.CANCELLED ? client.userId : null,
+        scheduledAt,
+        durationMin: SLOT_DURATION_MIN,
+        bufferMin: SLOT_BUFFER_MIN,
+        timezone: provider.timezone,
+        subcategoryId: provider.subcategoryId,
+        clientPhone: client.phone,
+        clientNotes: index % 2 === 0 ? "Merci de m'appeler en arrivant devant la parcelle." : null,
+        providerNotes: status === BookingStatus.PENDING ? null : "Matériel apporté par le prestataire.",
+        placeId: client.placeId,
+        addressLine: client.addressLine,
+        agreedPrice,
+        commissionPct: COMMISSION_PCT,
+        commissionAmt,
+        providerNetAmt: agreedPrice ? agreedPrice - commissionAmt : 0,
+        isPaid,
+        paidAt: isPaid ? completedAt : null,
+        confirmedAt:
+          status === BookingStatus.CONFIRMED || isCompleted ? new Date(createdAt.getTime() + 2 * HOUR_MS) : null,
+        completedAt,
+        cancelledAt: status === BookingStatus.CANCELLED ? new Date(createdAt.getTime() + 5 * HOUR_MS) : null,
+        cancelledById,
+        cancelReason:
+          spec.cancelledBy === "provider"
+            ? "Indisponible ce jour-là, désolé."
+            : spec.cancelledBy === "client"
+              ? "Changement de programme."
+              : null,
+        createdAt,
       },
     });
 
-    bookings.push({
-      bookingId: booking.id,
-      clientId: client.userId,
-      providerId: provider.providerId,
-      status,
+    created.push({
+      id: booking.id,
+      spec,
+      createdAt,
+      completedAt,
+      agreedPrice,
+      commissionAmt,
+      providerNetAmt: booking.providerNetAmt,
+      isPaid,
     });
   }
 
-  return bookings;
+  return created;
 }
 
-async function seedReviews(
-  prisma: SeedPrismaClient,
-  bookings: Awaited<ReturnType<typeof seedBookings>>,
-) {
-  const completedBookings = bookings.filter((booking) => booking.status === BookingStatus.COMPLETED);
+async function seedReviews(prisma: SeedPrismaClient, bookings: CreatedBooking[]) {
+  const reviewed = new Set<string>();
+  const created: Array<{ id: string; kind: "review" | "clientReview"; booking: CreatedBooking }> = [];
 
-  for (let index = 0; index < completedBookings.length; index += 1) {
-    const booking = completedBookings[index];
-    const punctuality = 4 + (index % 2);
-    const quality = 4 + ((index + 1) % 2);
-    const communication = 4;
-    const value = 4;
-    const professionalism = 5;
-    const overallScore = (punctuality + quality + communication + value + professionalism) / 5;
+  for (const booking of bookings) {
+    const { provider, client, status } = booking.spec;
+    if (status !== BookingStatus.COMPLETED || !booking.completedAt) continue;
+    // Only each provider's first completed booking is reviewed, so the second
+    // one stays in the client's "to review" list.
+    if (reviewed.has(provider.providerId)) continue;
+    reviewed.add(provider.providerId);
 
-    await prisma.review.create({
+    const reviewedAt = new Date(booking.completedAt.getTime() + DAY_MS);
+    const rating = reviewRatings[provider.index];
+    const comments = reviewCommentsByRating[rating];
+    const review = await prisma.review.create({
       data: {
-        bookingId: booking.bookingId,
-        clientId: booking.clientId,
-        providerId: booking.providerId,
-        punctuality,
-        quality,
-        communication,
-        value,
-        professionalism,
-        overallScore,
-        satisfactionTags: ["PONCTUEL", "PROFESSIONNEL", "RECOMMANDABLE"],
-        comment: "Travail soigne, communication claire et resultat conforme a la demande.",
-        isPublic: true,
+        bookingId: booking.id,
+        clientId: client.userId,
+        providerId: provider.providerId,
+        rating,
+        comment: comments[provider.index % comments.length],
+        reply: provider.index % 3 === 0 ? "Merci pour votre confiance, à bientôt !" : null,
+        repliedAt: provider.index % 3 === 0 ? new Date(reviewedAt.getTime() + 3 * HOUR_MS) : null,
+        createdAt: reviewedAt,
       },
     });
+    created.push({ id: review.id, kind: "review", booking });
 
-    if (index % 2 === 0) {
-      await prisma.clientReview.create({
-        data: {
-          bookingId: booking.bookingId,
-          providerId: booking.providerId,
-          clientId: booking.clientId,
-          paymentTimeliness: PaymentRating.ONTIME,
-          communication: 5,
-          respectfulness: 5,
-          tags: ["PONCTUEL", "CLAIR", "PAIEMENT_RAPIDE"],
-          comment: "Client clair dans sa demande et paiement sans probleme.",
-          isPublic: true,
-        },
-      });
-    }
+    if (provider.index % 2 !== 0) continue;
+
+    const clientReview = await prisma.clientReview.create({
+      data: {
+        bookingId: booking.id,
+        providerId: provider.providerId,
+        clientId: client.userId,
+        rating: provider.index % 4 === 0 ? 5 : 4,
+        comment: "Client clair dans sa demande, accueil courtois et paiement sans difficulté.",
+        createdAt: reviewedAt,
+      },
+    });
+    created.push({ id: clientReview.id, kind: "clientReview", booking });
+  }
+
+  return created;
+}
+
+async function refreshProviderAggregates(prisma: SeedPrismaClient, providers: CreatedProvider[]) {
+  for (const provider of providers) {
+    const [ratings, completedJobs] = await Promise.all([
+      prisma.review.aggregate({
+        where: { providerId: provider.providerId, isPublic: true },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+      prisma.booking.count({
+        where: { providerId: provider.providerId, status: BookingStatus.COMPLETED },
+      }),
+    ]);
+
+    await prisma.provider.update({
+      where: { id: provider.providerId },
+      data: {
+        ratingAvg: new Prisma.Decimal((ratings._avg.rating ?? 0).toFixed(1)),
+        ratingCount: ratings._count._all,
+        completedJobs,
+      },
+    });
   }
 }
 
-async function seedFavorites(
+async function seedTransactions(
   prisma: SeedPrismaClient,
-  clients: CreatedClient[],
-  providers: CreatedProvider[],
+  bookings: CreatedBooking[],
+  bonusProvider: CreatedProvider,
 ) {
-  for (let index = 0; index < clients.length; index += 1) {
-    await prisma.favorite.create({
-      data: {
-        userId: clients[index].userId,
-        providerId: providers[index % providers.length].providerId,
+  await prisma.transaction.createMany({
+    data: [
+      ...bookings
+        .filter((booking) => booking.agreedPrice && booking.completedAt)
+        .map((booking) => ({
+          providerId: booking.spec.provider.providerId,
+          bookingId: booking.id,
+          type: "EARNING" as const,
+          amount: booking.agreedPrice!,
+          feeAmt: booking.commissionAmt,
+          netAmt: booking.providerNetAmt,
+          status: booking.isPaid ? ("COMPLETED" as const) : ("PENDING" as const),
+          occurredAt: booking.completedAt!,
+        })),
+      {
+        providerId: bonusProvider.providerId,
+        type: "BONUS" as const,
+        amount: 10000,
+        netAmt: 10000,
+        status: "COMPLETED" as const,
+        note: "Bonus de lancement",
+        occurredAt: daysFromNow(-30),
       },
-    });
-  }
+    ],
+  });
 }
 
 async function seedConversations(
   prisma: SeedPrismaClient,
-  clients: CreatedClient[],
   providers: CreatedProvider[],
+  clients: CreatedClient[],
 ) {
-  for (let index = 0; index < 8; index += 1) {
-    const client = clients[index];
-    const provider = providers[index];
+  const created: Array<{
+    id: string;
+    provider: CreatedProvider;
+    client: CreatedClient;
+    clientUnread: number;
+    providerUnread: number;
+  }> = [];
+
+  for (const provider of providers.slice(0, 8)) {
+    const client = clients[(provider.index + 2) % clients.length];
+    const firstAt = daysFromNow(-(provider.index + 1));
+    const messages = [
+      {
+        senderId: client.userId,
+        body: "Bonjour, êtes-vous disponible cette semaine pour une intervention ?",
+        createdAt: firstAt,
+      },
+      {
+        senderId: provider.userId,
+        body: "Bonjour, oui. J'ai des créneaux libres, vous pouvez réserver directement sur mon profil.",
+        createdAt: new Date(firstAt.getTime() + HOUR_MS),
+      },
+      ...(provider.index % 3 === 0
+        ? [
+            {
+              senderId: client.userId,
+              body: "Parfait, je viens de réserver. À bientôt !",
+              createdAt: new Date(firstAt.getTime() + 90 * MINUTE_MS),
+            },
+          ]
+        : []),
+    ];
+    const last = messages[messages.length - 1];
+    const lastFromClient = last.senderId === client.userId;
+    const clientUnread = !lastFromClient && provider.index % 2 === 1 ? 1 : 0;
+    const providerUnread = lastFromClient ? 1 : 0;
+
     const conversation = await prisma.conversation.create({
       data: {
-        user1Id: client.userId,
-        user2Id: provider.userId,
-        lastMessageAt: daysFromNow(-index),
+        clientId: client.userId,
+        providerId: provider.providerId,
+        subject: "Demande d'intervention",
+        lastMessageAt: last.createdAt,
+        lastPreview: last.body,
+        clientUnread,
+        providerUnread,
+        createdAt: firstAt,
+        messages: { create: messages },
       },
     });
 
-    await prisma.message.createMany({
-      data: [
-        {
-          conversationId: conversation.id,
-          senderId: client.userId,
-          content: "Bonjour, etes-vous disponible cette semaine ?",
-          isRead: true,
-          readAt: daysFromNow(-index),
-          createdAt: daysFromNow(-index - 1),
-        },
-        {
-          conversationId: conversation.id,
-          senderId: provider.userId,
-          content: "Bonjour, oui. Je peux passer demain pour evaluer le besoin.",
-          isRead: index % 2 === 0,
-          readAt: index % 2 === 0 ? daysFromNow(-index) : null,
-          createdAt: daysFromNow(-index),
-        },
-      ],
-    });
+    created.push({ id: conversation.id, provider, client, clientUnread, providerUnread });
   }
+
+  return created;
+}
+
+async function seedSafetyAndInbox(
+  prisma: SeedPrismaClient,
+  lookups: Lookups,
+  providers: CreatedProvider[],
+  clients: CreatedClient[],
+) {
+  await prisma.report.create({
+    data: {
+      reporterId: clients[4].userId,
+      targetKind: "PROVIDER",
+      targetId: providers[13].providerId,
+      reason: "Le numéro affiché sur le profil ne répond jamais.",
+      createdAt: daysFromNow(-1),
+    },
+  });
+
+  await prisma.block.create({
+    data: {
+      blockerId: clients[12].userId,
+      blockedId: providers[14].userId,
+      createdAt: daysFromNow(-2),
+    },
+  });
+
+  await prisma.placeSuggestion.create({
+    data: {
+      userId: providers[8].userId,
+      kind: "CITY",
+      label: "Pointe-Noire",
+      parentId: lookups.placeId(CONGO),
+      createdAt: daysFromNow(-3),
+    },
+  });
+
+  await prisma.contactMessage.createMany({
+    data: [
+      {
+        name: "Nadine Mbala",
+        email: "nadine.mbala@email.cd",
+        phone: "+243819000101",
+        subject: "Devenir prestataire",
+        message: "Bonjour, je suis couturière à Matete. Comment faire vérifier mon profil ?",
+        status: "NEW",
+        createdAt: daysFromNow(-1),
+      },
+      {
+        name: "Didier Lukusa",
+        email: "didier.lukusa@email.cd",
+        subject: "Problème de réservation",
+        message: "Je ne vois aucun créneau disponible pour un électricien à Ngaliema cette semaine.",
+        status: "READ",
+        createdAt: daysFromNow(-4),
+      },
+      {
+        name: "Sarah Okitu",
+        email: "sarah.okitu@email.cd",
+        phone: "+243819000103",
+        subject: "Partenariat",
+        message: "Notre entreprise souhaite référencer ses techniciens sur KAYOU. Qui contacter ?",
+        status: "REPLIED",
+        createdAt: daysFromNow(-9),
+      },
+    ],
+  });
 }
 
 async function seedNotifications(
   prisma: SeedPrismaClient,
-  clients: CreatedClient[],
-  providers: CreatedProvider[],
-  adminId: string,
+  input: {
+    adminId: string;
+    providers: CreatedProvider[];
+    bookings: CreatedBooking[];
+    reviews: Awaited<ReturnType<typeof seedReviews>>;
+    conversations: Awaited<ReturnType<typeof seedConversations>>;
+  },
 ) {
-  await prisma.notification.createMany({
-    data: [
-      {
-        userId: adminId,
-        type: NotificationType.SYSTEM,
-        title: "Donnees de demonstration chargees",
-        message: "Les donnees locales KAYOU sont pretes.",
-        isRead: false,
-      },
-      ...clients.slice(0, 5).map((client, index) => ({
+  const data: Prisma.NotificationCreateManyInput[] = [
+    {
+      userId: input.adminId,
+      type: NotificationType.SYSTEM,
+      title: "Données de démonstration chargées",
+      message: "Les données locales KAYOU sont prêtes.",
+    },
+  ];
+
+  for (const [index, booking] of input.bookings.entries()) {
+    const { provider, client, status } = booking.spec;
+    const bookingData = { bookingId: booking.id };
+
+    if (status === BookingStatus.PENDING) {
+      data.push({
+        userId: provider.userId,
+        type: NotificationType.BOOKING_NEW,
+        title: "Nouvelle demande de réservation",
+        message: `${client.name} souhaite réserver un créneau.`,
+        data: bookingData,
+        createdAt: booking.createdAt,
+      });
+    } else if (status === BookingStatus.CONFIRMED) {
+      const isRead = index % 2 === 0;
+      data.push({
         userId: client.userId,
         type: NotificationType.BOOKING_CONFIRMED,
-        title: "Reservation confirmee",
-        message: "Votre prestataire a confirme la reservation.",
-        data: { demo: true, index },
-        isRead: index % 2 === 0,
-      })),
-      ...providers.slice(0, 5).map((provider, index) => ({
-        userId: provider.userId,
+        title: "Réservation confirmée",
+        message: `${provider.name} a confirmé votre réservation.`,
+        data: bookingData,
+        isRead,
+        readAt: isRead ? new Date() : null,
+      });
+    } else if (status === BookingStatus.COMPLETED) {
+      data.push({
+        userId: client.userId,
+        type: NotificationType.BOOKING_COMPLETED,
+        title: "Prestation terminée",
+        message: `${provider.name} a marqué la prestation comme terminée.`,
+        data: bookingData,
+        isRead: true,
+        readAt: booking.completedAt,
+        createdAt: booking.completedAt ?? undefined,
+      });
+    } else if (status === BookingStatus.CANCELLED) {
+      const byClient = booking.spec.cancelledBy === "client";
+      data.push({
+        userId: byClient ? provider.userId : client.userId,
+        type: NotificationType.BOOKING_CANCELLED,
+        title: "Réservation annulée",
+        message: `${byClient ? client.name : provider.name} a annulé la réservation.`,
+        data: bookingData,
+      });
+    }
+  }
+
+  for (const review of input.reviews) {
+    const { provider, client } = review.booking.spec;
+    data.push(
+      review.kind === "review"
+        ? {
+            userId: provider.userId,
+            type: NotificationType.NEW_REVIEW,
+            title: "Nouvel avis",
+            message: `${client.name} a laissé un avis sur votre prestation.`,
+            data: { bookingId: review.booking.id, reviewId: review.id },
+          }
+        : {
+            userId: client.userId,
+            type: NotificationType.NEW_CLIENT_REVIEW,
+            title: "Vous avez été évalué",
+            message: `${provider.name} a évalué votre réservation.`,
+            data: { bookingId: review.booking.id, clientReviewId: review.id },
+          },
+    );
+  }
+
+  for (const conversation of input.conversations) {
+    const conversationData = { conversationId: conversation.id };
+    if (conversation.clientUnread > 0) {
+      data.push({
+        userId: conversation.client.userId,
         type: NotificationType.NEW_MESSAGE,
         title: "Nouveau message",
-        message: "Un client vous a envoye un message.",
-        data: { demo: true, index },
-        isRead: false,
-      })),
-    ],
-  });
-}
+        message: `${conversation.provider.name} vous a répondu.`,
+        data: conversationData,
+      });
+    }
+    if (conversation.providerUnread > 0) {
+      data.push({
+        userId: conversation.provider.userId,
+        type: NotificationType.NEW_MESSAGE,
+        title: "Nouveau message",
+        message: `${conversation.client.name} vous a envoyé un message.`,
+        data: conversationData,
+      });
+    }
+  }
 
-async function seedSettings(prisma: SeedPrismaClient) {
-  const users = await prisma.user.findMany({ select: { id: true, role: true } });
+  for (const provider of input.providers.slice(0, 2)) {
+    data.push({
+      userId: provider.userId,
+      type: NotificationType.VERIFICATION_UPDATED,
+      title: "Profil vérifié",
+      message: "Vos documents ont été validés. Le badge vérifié est visible sur votre profil.",
+      isRead: true,
+      readAt: daysFromNow(-60),
+      createdAt: daysFromNow(-60),
+    });
+  }
 
-  await prisma.visibilitySettings.createMany({
-    data: users.map((user) => ({
-      userId: user.id,
-      profileVisible: "PUBLIC",
-      showEmail: false,
-      showPhone: user.role === UserRole.PROVIDER,
-      showExactLocation: false,
-      showHourlyRate: true,
-      showPastWork: true,
-      showReviews: true,
-      showAvailability: true,
-      showCertifications: true,
-      showClientHistory: true,
-      showClientReviews: true,
-      allowDirectContact: true,
-      allowMessages: true,
-      appearInSearch: true,
-      appearInCategory: true,
-    })),
-  });
-
-  await prisma.systemSetting.createMany({
-    data: [
-      {
-        key: "platform.currency",
-        value: "CDF",
-        description: "Default marketplace currency",
-      },
-      {
-        key: "platform.countryScope",
-        value: ["RDC", "Congo"],
-        description: "Countries enabled for launch",
-      },
-    ],
-  });
+  await prisma.notification.createMany({ data });
 }
