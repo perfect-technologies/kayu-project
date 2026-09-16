@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
-import { RequireRole } from "@/components/guards";
+import { RequireClientOnly } from "@/components/guards";
+import { bookingsCopy } from "@/copy/bookings";
+import { MesReservationsClient } from "./MesReservationsClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.myBookings };
+export const metadata: Metadata = { title: bookingsCopy.meta.title, description: bookingsCopy.meta.description };
 
+/** CLIENT only; providers go to /mon-espace and admins to /admin (the endpoints answer 403 for admins). */
 export default function Page() {
   return (
-    <RequireRole role="CLIENT">
-      <RoutePlaceholder title={shellCopy.screenTitles.myBookings} workstream="07" container="max-w-4xl" />
-    </RequireRole>
+    <RequireClientOnly>
+      <MesReservationsClient />
+    </RequireClientOnly>
   );
 }

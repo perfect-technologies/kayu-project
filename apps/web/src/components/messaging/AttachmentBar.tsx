@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Image as ImageIcon, Mic, Square, X } from "lucide-react";
+import { useState } from "react";
+import { Image as ImageIcon, Mic, X } from "lucide-react";
 import { MEDIA_LIMITS, type MessageAttachmentInput } from "@kayu/schemas";
 import { providerCopy } from "@/copy/provider";
 import { uploadFile } from "@/lib/media-upload";
+import { VoiceRecorder } from "./VoiceRecorder";
 
 const copy = providerCopy.composer.attachments;
 
@@ -14,15 +15,12 @@ export type AttachmentBarProps = {
   attachments: PendingAttachment[];
   onChange: (next: PendingAttachment[]) => void;
   onError: (message: string | null) => void;
+  disabled?: boolean;
 };
 
-/** Image picker (≤ 8 MB) and voice recorder (`audio/webm`) uploading through `POST /me/uploads/sign`. */
-export function AttachmentBar({ attachments, onChange, onError }: AttachmentBarProps) {
+/** Image picker (JPEG/PNG/WebP ≤ 8 MB, up to 6) and `VoiceRecorder`, uploading through `POST /me/uploads/sign`. */
+export function AttachmentBar({ attachments, onChange, onError, disabled }: AttachmentBarProps) {
   const [uploading, setUploading] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const stream = useRef<MediaStream | null>(null);
 
   const addFile = async (file: File, kind: "image" | "audio") => {
     onError(null);
@@ -56,38 +54,8 @@ export function AttachmentBar({ attachments, onChange, onError }: AttachmentBarP
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const media = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.current = media;
-      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-      const instance = new MediaRecorder(media, { mimeType: mime });
-      chunks.current = [];
-      instance.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.current.push(event.data);
-      };
-      instance.onstop = () => {
-        const type = instance.mimeType.split(";")[0] || mime;
-        const blob = new Blob(chunks.current, { type });
-        const file = new File([blob], `voix-${Date.now()}.${type.endsWith("mp4") ? "m4a" : "webm"}`, { type });
-        stream.current?.getTracks().forEach((track) => track.stop());
-        void addFile(file, "audio");
-      };
-      instance.start();
-      recorder.current = instance;
-      setRecording(true);
-    } catch {
-      onError(copy.micUnavailable);
-    }
-  };
-
-  const stopRecording = () => {
-    const instance = recorder.current;
-    if (instance && instance.state !== "inactive") instance.stop();
-    setRecording(false);
-  };
-
   const remove = (index: number) => onChange(attachments.filter((_, position) => position !== index));
+  const full = attachments.length >= MEDIA_LIMITS.maxAttachments;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -111,14 +79,16 @@ export function AttachmentBar({ attachments, onChange, onError }: AttachmentBarP
           </button>
         </span>
       ))}
-      <label className="flex size-11 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-primary">
+      <label
+        className={`flex size-11 items-center justify-center rounded-full text-muted-foreground transition ${disabled || uploading || full ? "opacity-55" : "cursor-pointer hover:bg-muted hover:text-primary"}`}
+      >
         <span className="sr-only">{copy.image}</span>
         <ImageIcon size={18} aria-hidden />
         <input
           type="file"
           accept={MEDIA_LIMITS.imageMimes.join(",")}
           className="hidden"
-          disabled={uploading}
+          disabled={disabled || uploading || full}
           onChange={(event) => {
             const file = event.target.files?.[0];
             if (file) void addFile(file, "image");
@@ -126,17 +96,8 @@ export function AttachmentBar({ attachments, onChange, onError }: AttachmentBarP
           }}
         />
       </label>
-      <button
-        type="button"
-        onClick={recording ? stopRecording : startRecording}
-        disabled={uploading}
-        aria-label={recording ? copy.stop : copy.record}
-        className={`flex size-11 items-center justify-center rounded-full transition ${recording ? "bg-red-50 text-red-600" : "text-muted-foreground hover:bg-muted hover:text-primary"}`}
-      >
-        {recording ? <Square size={16} aria-hidden className="fill-current" /> : <Mic size={18} aria-hidden />}
-      </button>
+      <VoiceRecorder onRecorded={(file) => void addFile(file, "audio")} onError={onError} disabled={disabled || uploading || full} />
       {uploading && <span className="text-xs text-muted-foreground">{copy.uploading}</span>}
-      {recording && <span className="text-xs font-semibold text-red-500">{copy.recording}</span>}
     </div>
   );
 }

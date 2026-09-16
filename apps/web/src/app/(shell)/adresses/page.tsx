@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { RoutePlaceholder } from "@/components/placeholder/RoutePlaceholder";
-import { shellCopy } from "@/copy/shell";
-import { RequireRole } from "@/components/guards";
+import { RequireClientOnly } from "@/components/guards";
+import { adressesCopy } from "@/copy/adresses";
+import { AdressesClient } from "./AdressesClient";
 
-export const metadata: Metadata = { title: shellCopy.screenTitles.addresses };
+export const metadata: Metadata = { title: adressesCopy.meta.title, description: adressesCopy.meta.description };
 
+/** CLIENT only (GET /addresses is 403 for admins); providers → /mon-espace, admins → /admin. */
 export default function Page() {
   return (
-    <RequireRole role="CLIENT">
-      <RoutePlaceholder title={shellCopy.screenTitles.addresses} workstream="07" container="max-w-3xl" />
-    </RequireRole>
+    <RequireClientOnly>
+      <AdressesClient />
+    </RequireClientOnly>
   );
 }
