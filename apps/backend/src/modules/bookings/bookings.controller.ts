@@ -1,8 +1,9 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
+  HttpCode,
+  Ip,
   Param,
   Patch,
   Post,
@@ -10,92 +11,84 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Actor } from "../../common/auth/types";
-import {
-  CurrentActor,
-  LazyZodValidationPipe,
-  Roles,
-} from "../../common";
+import type {
+  BookingsQuery,
+  CancelBookingInput,
+  CompleteBookingInput,
+  CreateBookingInput,
+  UpdateBookingNotesInput,
+} from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { BookingsService } from "./bookings.service";
 
-type BookingQuery = {
-  status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-  role: "client" | "provider";
-  page: number;
-  limit: number;
-};
-
-type CreateBookingBody = {
-  providerId: string;
-  title: string;
-  description?: string;
-  address?: string;
-  city?: string;
-  scheduledDate: Date;
-  duration?: number;
-  price?: number;
-  clientNotes?: string;
-};
-
-type UpdateBookingBody = {
-  status?: "PENDING" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-  cancelReason?: string;
-  providerNotes?: string;
-};
-
-const bookingsQueryPipe = new LazyZodValidationPipe(async () => {
-  const { BookingSearchParams } = await import("@kayu/schemas");
-  return BookingSearchParams;
-});
-
-const createBookingBodyPipe = new LazyZodValidationPipe(async () => {
-  const { CreateBookingDto } = await import("@kayu/schemas");
-  return CreateBookingDto;
-});
-
-const updateBookingBodyPipe = new LazyZodValidationPipe(async () => {
-  const { UpdateBookingDto } = await import("@kayu/schemas");
-  return UpdateBookingDto;
-});
-
 @Controller("bookings")
-@UseGuards(SupabaseGuard, ActorGuard)
+@UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
 export class BookingsController {
   constructor(private readonly bookings: BookingsService) {}
 
-  @Get()
-  findAll(@CurrentActor() actor: Actor, @Query(bookingsQueryPipe) query: BookingQuery) {
-    return this.bookings.findAll(actor, query);
-  }
-
   @Post()
   @Roles("CLIENT")
-  @UseGuards(RolesGuard)
   create(
     @CurrentActor() actor: Actor,
-    @Body(createBookingBodyPipe) body: CreateBookingBody,
+    @Body(contractPipe("CreateBookingDto")) body: CreateBookingInput,
   ) {
     return this.bookings.create(actor, body);
   }
 
-  @Get(":id")
-  findById(@CurrentActor() actor: Actor, @Param("id") id: string) {
-    return this.bookings.findById(actor, id);
+  @Get()
+  list(
+    @CurrentActor() actor: Actor,
+    @Query(contractPipe("BookingsQueryParams")) query: BookingsQuery,
+  ) {
+    return this.bookings.list(actor, query);
   }
 
-  @Patch(":id")
-  update(
+  @Get(":id")
+  get(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.bookings.get(actor, id);
+  }
+
+  @Post(":id/confirm")
+  @Roles("PROVIDER")
+  @HttpCode(200)
+  confirm(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.bookings.confirm(actor, id);
+  }
+
+  @Post(":id/complete")
+  @Roles("PROVIDER")
+  @HttpCode(200)
+  complete(
     @CurrentActor() actor: Actor,
     @Param("id") id: string,
-    @Body(updateBookingBodyPipe) body: UpdateBookingBody,
+    @Body(contractPipe("CompleteBookingDto")) body: CompleteBookingInput,
   ) {
-    return this.bookings.update(actor, id, body);
+    return this.bookings.complete(actor, id, body);
   }
 
-  @Delete(":id")
-  cancel(@CurrentActor() actor: Actor, @Param("id") id: string) {
-    return this.bookings.cancel(actor, id);
+  @Post(":id/cancel")
+  @HttpCode(200)
+  cancel(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Body(contractPipe("CancelBookingDto")) body: CancelBookingInput,
+    @Ip() ipAddress: string,
+  ) {
+    return this.bookings.cancel(actor, id, body, { ipAddress });
+  }
+
+  @Patch(":id/notes")
+  @Roles("PROVIDER")
+  updateNotes(
+    @CurrentActor() actor: Actor,
+    @Param("id") id: string,
+    @Body(contractPipe("UpdateBookingNotesDto")) body: UpdateBookingNotesInput,
+  ) {
+    return this.bookings.updateNotes(actor, id, body);
   }
 }

@@ -1,0 +1,6365 @@
+{
+  "GET /me → 200": {
+    "success": true,
+    "user": {
+      "id": "cmu47kciw0000royml0qqmsav",
+      "authUserId": "auth-pro",
+      "email": null,
+      "phone": "+243810000001",
+      "firstName": null,
+      "lastName": null,
+      "avatar": null,
+      "role": "CLIENT",
+      "roleSelectedAt": null,
+      "bio": null,
+      "gender": null,
+      "birthdate": null,
+      "placeId": null,
+      "country": "RDC",
+      "isActive": true,
+      "suspendedAt": null,
+      "suspendedReason": null,
+      "emailVerifiedAt": null,
+      "phoneVerifiedAt": null,
+      "lastLoginAt": "2026-09-16T14:40:51.560Z",
+      "termsAcceptedAt": null,
+      "createdAt": "2026-09-16T14:40:51.561Z",
+      "updatedAt": "2026-09-16T14:40:51.561Z",
+      "provider": null,
+      "profileComplete": false
+    }
+  },
+  "POST /me/accept-terms → 200": {
+    "success": true,
+    "user": {
+      "id": "cmu47kciw0000royml0qqmsav",
+      "authUserId": "auth-pro",
+      "email": null,
+      "phone": "+243810000001",
+      "firstName": null,
+      "lastName": null,
+      "avatar": null,
+      "role": "CLIENT",
+      "roleSelectedAt": null,
+      "bio": null,
+      "gender": null,
+      "birthdate": null,
+      "placeId": null,
+      "country": "RDC",
+      "isActive": true,
+      "suspendedAt": null,
+      "suspendedReason": null,
+      "emailVerifiedAt": null,
+      "phoneVerifiedAt": null,
+      "lastLoginAt": "2026-09-16T14:40:51.560Z",
+      "termsAcceptedAt": "2026-09-16T14:40:51.577Z",
+      "createdAt": "2026-09-16T14:40:51.561Z",
+      "updatedAt": "2026-09-16T14:40:51.577Z",
+      "provider": null,
+      "profileComplete": false
+    }
+  },
+  "POST /me/uploads/sign → 200": {
+    "bucket": "provider-media",
+    "path": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+    "token": "upload-token",
+    "signedUrl": "https://storage.test/upload/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg"
+  },
+  "POST /me/provider → 400": {
+    "message": "Validation failed",
+    "errors": [
+      {
+        "path": "displayName",
+        "message": "Too small: expected string to have >=2 characters",
+        "code": "too_small"
+      },
+      {
+        "path": "phone",
+        "message": "Invalid input: expected string, received undefined",
+        "code": "invalid_type"
+      },
+      {
+        "path": "subcategoryId",
+        "message": "Invalid input: expected string, received undefined",
+        "code": "invalid_type"
+      },
+      {
+        "path": "placeId",
+        "message": "Invalid input: expected string, received undefined",
+        "code": "invalid_type"
+      },
+      {
+        "path": "schedule",
+        "message": "Invalid input: expected object, received undefined",
+        "code": "invalid_type"
+      },
+      {
+        "path": "acceptTerms",
+        "message": "Les conditions doivent être acceptées",
+        "code": "invalid_value"
+      }
+    ]
+  },
+  "POST /me/provider → 201": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "completedJobs": 0,
+    "premiumTier": "FREE",
+    "verified": false,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage rapide à Gombe et alentours.",
+    "yearsExperience": 8,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0003roymgpnrmo4e",
+        "kind": "IMAGE",
+        "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "youtubeId": null,
+        "title": "Atelier",
+        "order": 0
+      },
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 1
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 0,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": []
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": {
+      "phone": "+243810000001",
+      "whatsapp": "+243810000001",
+      "email": null,
+      "addressLine": "12 avenue de la Justice",
+      "latitude": -4.3101,
+      "longitude": 15.2872
+    },
+    "contactsLocked": false,
+    "blocked": false,
+    "reviewsPreview": [],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": true,
+    "hidden": false,
+    "verificationStatus": "PENDING"
+  },
+  "POST /me/provider → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "PATCH /me/profile → 200": {
+    "success": true,
+    "user": {
+      "id": "cmu47kcmb000croymxje2koq9",
+      "authUserId": "auth-client",
+      "email": null,
+      "phone": "+243820000002",
+      "firstName": "Paul",
+      "lastName": "Kabasele",
+      "avatar": null,
+      "role": "CLIENT",
+      "roleSelectedAt": null,
+      "bio": null,
+      "gender": null,
+      "birthdate": null,
+      "placeId": "place_gombe",
+      "country": "RDC",
+      "isActive": true,
+      "suspendedAt": null,
+      "suspendedReason": null,
+      "emailVerifiedAt": null,
+      "phoneVerifiedAt": null,
+      "lastLoginAt": "2026-09-16T14:40:51.683Z",
+      "termsAcceptedAt": null,
+      "createdAt": "2026-09-16T14:40:51.684Z",
+      "updatedAt": "2026-09-16T14:40:51.696Z",
+      "provider": null,
+      "profileComplete": true
+    }
+  },
+  "GET /settings/public → 200": {
+    "hero_title": "",
+    "hero_subtitle": "",
+    "hero_cta": "",
+    "tagline": "",
+    "how1_title": "",
+    "how1_desc": "",
+    "how2_title": "",
+    "how2_desc": "",
+    "how3_title": "",
+    "how3_desc": "",
+    "premium_title": "",
+    "premium_subtitle": "",
+    "maintenance_message": "",
+    "contact_phone": "",
+    "contact_email": "",
+    "contact_website": "",
+    "feat_booking": true,
+    "feat_reviews": true,
+    "feat_whatsapp": true,
+    "contacts_require_premium": false,
+    "maintenance_mode": false
+  },
+  "GET /categories/tree → 200": {
+    "items": [
+      {
+        "icon": "Hammer",
+        "color": null,
+        "image": null,
+        "providerCount": 1,
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment",
+        "level": 1,
+        "children": [
+          {
+            "icon": null,
+            "color": null,
+            "image": null,
+            "providerCount": 1,
+            "id": "sub_plomberie",
+            "slug": "plomberie",
+            "name": "Plomberie",
+            "level": 2,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "GET /places → 200": {
+    "items": [
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 100
+  },
+  "GET /references → 200": {
+    "items": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 100
+  },
+  "GET /stats → 200": {
+    "categories": 1,
+    "countries": 2,
+    "providers": 1,
+    "verifiedProviders": 0
+  },
+  "GET /providers → 200": {
+    "items": [
+      {
+        "id": "cmu47kckp0002roymeqf5s58k",
+        "displayName": "Plomberie Mukendi",
+        "profilePhoto": null,
+        "categoryChain": [
+          {
+            "id": "cat_batiment",
+            "slug": "batiment",
+            "name": "Bâtiment"
+          },
+          {
+            "id": "sub_plomberie",
+            "slug": "plomberie",
+            "name": "Plomberie"
+          }
+        ],
+        "placeChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": false
+          }
+        ],
+        "ratingAvg": 0,
+        "ratingCount": 0,
+        "completedJobs": 0,
+        "premiumTier": "FREE",
+        "verified": false,
+        "isAvailable": true,
+        "latitude": -4.31,
+        "longitude": 15.29,
+        "distanceKm": 1.6,
+        "pricing": {
+          "amount": 25000,
+          "currency": {
+            "id": "ref_cdf",
+            "type": "CURRENCY",
+            "label": "CDF",
+            "categoryId": null
+          },
+          "unit": {
+            "id": "ref_job",
+            "type": "PRICE_UNIT",
+            "label": "Par prestation",
+            "categoryId": null
+          }
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  },
+  "GET /providers/:id (anonymous) → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "completedJobs": 0,
+    "premiumTier": "FREE",
+    "verified": false,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage rapide à Gombe et alentours.",
+    "yearsExperience": 8,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0003roymgpnrmo4e",
+        "kind": "IMAGE",
+        "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "youtubeId": null,
+        "title": "Atelier",
+        "order": 0
+      },
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 1
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 0,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": []
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": null,
+    "contactsLocked": true,
+    "blocked": false,
+    "reviewsPreview": [],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": false,
+    "hidden": false,
+    "verificationStatus": "PENDING"
+  },
+  "GET /providers/:id → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "completedJobs": 0,
+    "premiumTier": "FREE",
+    "verified": false,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage rapide à Gombe et alentours.",
+    "yearsExperience": 8,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0003roymgpnrmo4e",
+        "kind": "IMAGE",
+        "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "youtubeId": null,
+        "title": "Atelier",
+        "order": 0
+      },
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 1
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 0,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": []
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": {
+      "phone": "+243810000001",
+      "whatsapp": "+243810000001",
+      "email": null,
+      "addressLine": "12 avenue de la Justice",
+      "latitude": -4.3101,
+      "longitude": 15.2872
+    },
+    "contactsLocked": false,
+    "blocked": false,
+    "reviewsPreview": [],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": false,
+    "hidden": false,
+    "verificationStatus": "PENDING"
+  },
+  "POST /conversations → 201": {
+    "conversation": {
+      "id": "cmu47kcpb000eroymc4wr6hs9",
+      "subject": "Fuite cuisine",
+      "lastMessageAt": "2026-09-16T14:40:51.799Z",
+      "lastPreview": "Bonjour, êtes-vous disponible demain ?",
+      "unread": 0,
+      "side": "client",
+      "counterpart": {
+        "userId": "cmu47kciw0000royml0qqmsav",
+        "providerId": "cmu47kckp0002roymeqf5s58k",
+        "name": "Plomberie Mukendi",
+        "photo": null
+      },
+      "blocked": false,
+      "createdAt": "2026-09-16T14:40:51.791Z"
+    },
+    "message": {
+      "id": "cmu47kcpi000groymdnva7q4d",
+      "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+      "senderId": "cmu47kcmb000croymxje2koq9",
+      "mine": true,
+      "body": "Bonjour, êtes-vous disponible demain ?",
+      "attachments": [],
+      "createdAt": "2026-09-16T14:40:51.799Z",
+      "deletedAt": null
+    }
+  },
+  "GET /conversations → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpb000eroymc4wr6hs9",
+        "subject": "Fuite cuisine",
+        "lastMessageAt": "2026-09-16T14:40:51.799Z",
+        "lastPreview": "Bonjour, êtes-vous disponible demain ?",
+        "unread": 1,
+        "side": "provider",
+        "counterpart": {
+          "userId": "cmu47kcmb000croymxje2koq9",
+          "providerId": null,
+          "name": "Paul Kabasele",
+          "photo": null
+        },
+        "blocked": false,
+        "createdAt": "2026-09-16T14:40:51.791Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "unreadTotal": 1
+  },
+  "GET /conversations/:id/messages → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpi000groymdnva7q4d",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kcmb000croymxje2koq9",
+        "mine": false,
+        "body": "Bonjour, êtes-vous disponible demain ?",
+        "attachments": [],
+        "createdAt": "2026-09-16T14:40:51.799Z",
+        "deletedAt": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 30,
+    "conversation": {
+      "id": "cmu47kcpb000eroymc4wr6hs9",
+      "subject": "Fuite cuisine",
+      "lastMessageAt": "2026-09-16T14:40:51.799Z",
+      "lastPreview": "Bonjour, êtes-vous disponible demain ?",
+      "unread": 0,
+      "side": "provider",
+      "counterpart": {
+        "userId": "cmu47kcmb000croymxje2koq9",
+        "providerId": null,
+        "name": "Paul Kabasele",
+        "photo": null
+      },
+      "blocked": false,
+      "createdAt": "2026-09-16T14:40:51.791Z"
+    }
+  },
+  "POST /me/uploads/sign (attachment) → 200": {
+    "bucket": "message-attachments",
+    "path": "attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg",
+    "token": "upload-token",
+    "signedUrl": "https://storage.test/upload/message-attachments/attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg"
+  },
+  "POST /conversations/:id/messages → 201": {
+    "id": "cmu47kcqw000kroymox8e9n3w",
+    "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+    "senderId": "cmu47kciw0000royml0qqmsav",
+    "mine": true,
+    "body": "Oui, réservez un créneau.",
+    "attachments": [
+      {
+        "kind": "image",
+        "mime": "image/jpeg",
+        "path": "attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg",
+        "bytes": 80000
+      }
+    ],
+    "createdAt": "2026-09-16T14:40:51.849Z",
+    "deletedAt": null
+  },
+  "GET /me/media/sign-read → 200": {
+    "url": "https://storage.test/sign/message-attachments/attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg?expires=300",
+    "expiresAt": "2026-09-16T14:45:51.857Z"
+  },
+  "GET /me/media/sign-read (stranger) → 403": {
+    "message": "Accès refusé à ce fichier",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "GET /conversations (client) → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpb000eroymc4wr6hs9",
+        "subject": "Fuite cuisine",
+        "lastMessageAt": "2026-09-16T14:40:51.849Z",
+        "lastPreview": "Oui, réservez un créneau.",
+        "unread": 1,
+        "side": "client",
+        "counterpart": {
+          "userId": "cmu47kciw0000royml0qqmsav",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "name": "Plomberie Mukendi",
+          "photo": null
+        },
+        "blocked": false,
+        "createdAt": "2026-09-16T14:40:51.791Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "unreadTotal": 1
+  },
+  "GET /conversations/:id/messages (stranger) → 404": {
+    "statusCode": 404,
+    "code": "NOT_FOUND",
+    "message": "Conversation introuvable"
+  },
+  "GET /providers/:id/availability → 200": {
+    "date": "2026-09-17",
+    "timezone": "Africa/Kinshasa",
+    "slotDurationMin": 60,
+    "slotBufferMin": 0,
+    "slots": [
+      "08:00",
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00"
+    ]
+  },
+  "POST /bookings (anonymous) → 401": {
+    "message": "Missing authentication token",
+    "error": "Unauthorized",
+    "statusCode": 401
+  },
+  "POST /bookings (provider) → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "POST /bookings → 201": {
+    "id": "cmu47kcsu000proymtjmgaquc",
+    "status": "PENDING",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:51.918Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "client",
+    "counterpart": {
+      "userId": "cmu47kciw0000royml0qqmsav",
+      "providerId": "cmu47kckp0002roymeqf5s58k",
+      "name": "Plomberie Mukendi",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": null,
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": "Fuite sous l'évier",
+    "providerNotes": null,
+    "placeId": "place_gombe",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": null,
+    "commissionAmt": null,
+    "providerNetAmt": null,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "POST /bookings (slot taken) → 409": {
+    "statusCode": 409,
+    "code": "SLOT_TAKEN",
+    "message": "Ce créneau n'est plus disponible."
+  },
+  "POST /bookings (invalid) → 400": {
+    "message": "Validation failed",
+    "errors": [
+      {
+        "path": "date",
+        "message": "Date invalide",
+        "code": "custom"
+      },
+      {
+        "path": "time",
+        "message": "Heure attendue au format HH:mm",
+        "code": "invalid_format"
+      },
+      {
+        "path": "clientPhone",
+        "message": "Numéro international invalide.",
+        "code": "invalid_format"
+      }
+    ]
+  },
+  "GET /providers/:id/availability (after booking) → 200": {
+    "date": "2026-09-17",
+    "timezone": "Africa/Kinshasa",
+    "slotDurationMin": 60,
+    "slotBufferMin": 0,
+    "slots": [
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00"
+    ]
+  },
+  "GET /bookings (provider) → 200": {
+    "items": [
+      {
+        "id": "cmu47kcsu000proymtjmgaquc",
+        "status": "PENDING",
+        "scheduledAt": "2026-09-17T07:00:00.000Z",
+        "scheduledLocal": {
+          "date": "2026-09-17",
+          "time": "08:00"
+        },
+        "durationMin": 60,
+        "timezone": "Africa/Kinshasa",
+        "createdAt": "2026-09-16T14:40:51.918Z",
+        "agreedPrice": null,
+        "isPaid": false,
+        "cancelReason": null,
+        "cancelledAt": null,
+        "side": "provider",
+        "counterpart": {
+          "userId": "cmu47kcmb000croymxje2koq9",
+          "providerId": null,
+          "name": "Paul Kabasele",
+          "photo": null,
+          "categoryLabel": "Plomberie"
+        },
+        "clientRating": {
+          "avg": 0,
+          "count": 0
+        },
+        "hasReview": false,
+        "hasClientReview": false
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  },
+  "POST /bookings/:id/confirm (client) → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "POST /bookings/:id/complete (pending) → 409": {
+    "statusCode": 409,
+    "code": "INVALID_TRANSITION",
+    "message": "Cette action n'est pas possible pour le statut actuel de la réservation."
+  },
+  "POST /bookings/:id/confirm → 200": {
+    "id": "cmu47kcsu000proymtjmgaquc",
+    "status": "CONFIRMED",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:51.918Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "provider",
+    "counterpart": {
+      "userId": "cmu47kcmb000croymxje2koq9",
+      "providerId": null,
+      "name": "Paul Kabasele",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": {
+      "avg": 0,
+      "count": 0
+    },
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": "Fuite sous l'évier",
+    "providerNotes": null,
+    "placeId": "place_gombe",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": 10,
+    "commissionAmt": 0,
+    "providerNetAmt": 0,
+    "paidAt": null,
+    "confirmedAt": "2026-09-16T14:40:51.979Z",
+    "completedAt": null,
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "POST /bookings/:id/complete → 200": {
+    "id": "cmu47kcsu000proymtjmgaquc",
+    "status": "COMPLETED",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:51.918Z",
+    "agreedPrice": 50000,
+    "isPaid": true,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "provider",
+    "counterpart": {
+      "userId": "cmu47kcmb000croymxje2koq9",
+      "providerId": null,
+      "name": "Paul Kabasele",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": {
+      "avg": 0,
+      "count": 0
+    },
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": "Fuite sous l'évier",
+    "providerNotes": null,
+    "placeId": "place_gombe",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": 10,
+    "commissionAmt": 5000,
+    "providerNetAmt": 45000,
+    "paidAt": "2026-09-16T14:40:51.994Z",
+    "confirmedAt": "2026-09-16T14:40:51.979Z",
+    "completedAt": "2026-09-16T14:40:51.994Z",
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "GET /pro/earnings/summary → 200": {
+    "total": 45000,
+    "thisWeek": 45000,
+    "byDay": [
+      0,
+      0,
+      45000,
+      0,
+      0,
+      0,
+      0
+    ],
+    "completedThisWeek": 1,
+    "acceptanceRate": 100,
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "currency": "CDF"
+  },
+  "GET /pro/earnings/transactions → 200": {
+    "items": [
+      {
+        "id": "cmu47kcuy000vroym7vuir2zy",
+        "type": "EARNING",
+        "amount": 50000,
+        "feeAmt": 5000,
+        "netAmt": 45000,
+        "status": "COMPLETED",
+        "note": null,
+        "occurredAt": "2026-09-16T14:40:51.994Z",
+        "booking": {
+          "id": "cmu47kcsu000proymtjmgaquc",
+          "scheduledAt": "2026-09-17T07:00:00.000Z",
+          "scheduledLocal": {
+            "date": "2026-09-17",
+            "time": "08:00"
+          },
+          "clientName": "Paul Kabasele",
+          "categoryLabel": "Plomberie"
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  },
+  "GET /dashboard/provider → 200": {
+    "provider": {
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "displayName": "Plomberie Mukendi",
+      "profilePhoto": null,
+      "isAvailable": true,
+      "hidden": false,
+      "verificationStatus": "PENDING",
+      "premiumTier": "FREE",
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "completedJobs": 1
+    },
+    "metrics": {
+      "pending": 0,
+      "completed": 1,
+      "ratingAvg": 0,
+      "ratingCount": 0,
+      "acceptanceRate": 100
+    },
+    "pendingBookings": [],
+    "history": [
+      {
+        "id": "cmu47kcsu000proymtjmgaquc",
+        "status": "COMPLETED",
+        "scheduledAt": "2026-09-17T07:00:00.000Z",
+        "scheduledLocal": {
+          "date": "2026-09-17",
+          "time": "08:00"
+        },
+        "durationMin": 60,
+        "timezone": "Africa/Kinshasa",
+        "createdAt": "2026-09-16T14:40:51.918Z",
+        "agreedPrice": 50000,
+        "isPaid": true,
+        "cancelReason": null,
+        "cancelledAt": null,
+        "side": "provider",
+        "counterpart": {
+          "userId": "cmu47kcmb000croymxje2koq9",
+          "providerId": null,
+          "name": "Paul Kabasele",
+          "photo": null,
+          "categoryLabel": "Plomberie"
+        },
+        "clientRating": {
+          "avg": 0,
+          "count": 0
+        },
+        "hasReview": false,
+        "hasClientReview": false
+      }
+    ],
+    "weekCompletedByDay": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ]
+  },
+  "GET /bookings/:id (client) → 200": {
+    "id": "cmu47kcsu000proymtjmgaquc",
+    "status": "COMPLETED",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:51.918Z",
+    "agreedPrice": 50000,
+    "isPaid": true,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "client",
+    "counterpart": {
+      "userId": "cmu47kciw0000royml0qqmsav",
+      "providerId": "cmu47kckp0002roymeqf5s58k",
+      "name": "Plomberie Mukendi",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": null,
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": "Fuite sous l'évier",
+    "providerNotes": null,
+    "placeId": "place_gombe",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": null,
+    "commissionAmt": null,
+    "providerNetAmt": null,
+    "paidAt": "2026-09-16T14:40:51.994Z",
+    "confirmedAt": "2026-09-16T14:40:51.979Z",
+    "completedAt": "2026-09-16T14:40:51.994Z",
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "GET /reviews/mine → 200": {
+    "reviews": [],
+    "toReview": [
+      {
+        "id": "cmu47kcsu000proymtjmgaquc",
+        "status": "COMPLETED",
+        "scheduledAt": "2026-09-17T07:00:00.000Z",
+        "scheduledLocal": {
+          "date": "2026-09-17",
+          "time": "08:00"
+        },
+        "durationMin": 60,
+        "timezone": "Africa/Kinshasa",
+        "createdAt": "2026-09-16T14:40:51.918Z",
+        "agreedPrice": 50000,
+        "isPaid": true,
+        "cancelReason": null,
+        "cancelledAt": null,
+        "side": "client",
+        "counterpart": {
+          "userId": "cmu47kciw0000royml0qqmsav",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "name": "Plomberie Mukendi",
+          "photo": null,
+          "categoryLabel": "Plomberie"
+        },
+        "clientRating": null,
+        "hasReview": false,
+        "hasClientReview": false
+      }
+    ]
+  },
+  "POST /reviews → 201": {
+    "id": "cmu47kcww000zroymkb079i4e",
+    "bookingId": "cmu47kcsu000proymtjmgaquc",
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "rating": 5,
+    "comment": "Travail propre et rapide.",
+    "reply": null,
+    "repliedAt": null,
+    "isPublic": true,
+    "createdAt": "2026-09-16T14:40:52.065Z"
+  },
+  "POST /reviews (duplicate) → 409": {
+    "statusCode": 409,
+    "code": "ALREADY_EXISTS",
+    "message": "Un avis existe déjà pour cette réservation."
+  },
+  "POST /reviews/:id/reply → 200": {
+    "id": "cmu47kcww000zroymkb079i4e",
+    "bookingId": "cmu47kcsu000proymtjmgaquc",
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "rating": 5,
+    "comment": "Travail propre et rapide.",
+    "reply": "Merci pour votre confiance !",
+    "repliedAt": "2026-09-16T14:40:52.083Z",
+    "isPublic": true,
+    "createdAt": "2026-09-16T14:40:52.065Z"
+  },
+  "GET /providers/:id (rated) → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": false
+      }
+    ],
+    "ratingAvg": 5,
+    "ratingCount": 1,
+    "completedJobs": 1,
+    "premiumTier": "FREE",
+    "verified": false,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage rapide à Gombe et alentours.",
+    "yearsExperience": 8,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0003roymgpnrmo4e",
+        "kind": "IMAGE",
+        "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "youtubeId": null,
+        "title": "Atelier",
+        "order": 0
+      },
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 1
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 0,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": []
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": null,
+    "contactsLocked": true,
+    "blocked": false,
+    "reviewsPreview": [
+      {
+        "id": "cmu47kcww000zroymkb079i4e",
+        "rating": 5,
+        "comment": "Travail propre et rapide.",
+        "reply": "Merci pour votre confiance !",
+        "repliedAt": "2026-09-16T14:40:52.083Z",
+        "createdAt": "2026-09-16T14:40:52.065Z",
+        "author": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul K.",
+          "avatar": null
+        }
+      }
+    ],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": false,
+    "hidden": false,
+    "verificationStatus": "PENDING"
+  },
+  "GET /providers/:id/reviews → 200": {
+    "items": [
+      {
+        "id": "cmu47kcww000zroymkb079i4e",
+        "rating": 5,
+        "comment": "Travail propre et rapide.",
+        "reply": "Merci pour votre confiance !",
+        "repliedAt": "2026-09-16T14:40:52.083Z",
+        "createdAt": "2026-09-16T14:40:52.065Z",
+        "author": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul K.",
+          "avatar": null
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 10
+  },
+  "POST /reviews/clients → 201": {
+    "id": "cmu47kcy80013roymp9j6afvt",
+    "bookingId": "cmu47kcsu000proymtjmgaquc",
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "rating": 4,
+    "comment": "Client ponctuel.",
+    "createdAt": "2026-09-16T14:40:52.112Z"
+  },
+  "GET /reviews/clients/:clientId/summary → 200": {
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "avg": 4,
+    "count": 1
+  },
+  "GET /dashboard/client → 200": {
+    "bookingsByStatus": {
+      "PENDING": 0,
+      "CONFIRMED": 0,
+      "COMPLETED": 1,
+      "CANCELLED": 0
+    },
+    "clientRating": {
+      "avg": 4,
+      "count": 1
+    },
+    "unreadMessages": 1
+  },
+  "GET /notifications → 200": {
+    "items": [
+      {
+        "id": "cmu47kcya0015roym1ww6rvbl",
+        "type": "NEW_CLIENT_REVIEW",
+        "title": "Vous avez reçu une note",
+        "message": "Plomberie Mukendi vous a attribué 4/5.",
+        "data": {
+          "bookingId": "cmu47kcsu000proymtjmgaquc",
+          "clientReviewId": "cmu47kcy80013roymp9j6afvt"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.114Z"
+      },
+      {
+        "id": "cmu47kcv6000xroymves6rt7e",
+        "type": "BOOKING_COMPLETED",
+        "title": "Prestation terminée",
+        "message": "Plomberie Mukendi a marqué la prestation comme terminée. Laissez un avis !",
+        "data": {
+          "bookingId": "cmu47kcsu000proymtjmgaquc"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.002Z"
+      },
+      {
+        "id": "cmu47kcup000troymadp6srnk",
+        "type": "BOOKING_CONFIRMED",
+        "title": "Réservation confirmée",
+        "message": "Plomberie Mukendi a confirmé votre réservation du jeudi 17 septembre à 08:00.",
+        "data": {
+          "bookingId": "cmu47kcsu000proymtjmgaquc"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:51.985Z"
+      },
+      {
+        "id": "cmu47kcqz000mroymymu9ctwd",
+        "type": "NEW_MESSAGE",
+        "title": "Nouveau message",
+        "message": "Plomberie Mukendi vous a envoyé un message.",
+        "data": {
+          "messageId": "cmu47kcqw000kroymox8e9n3w",
+          "conversationId": "cmu47kcpb000eroymc4wr6hs9"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:51.851Z"
+      }
+    ],
+    "total": 4,
+    "page": 1,
+    "limit": 20,
+    "unreadCount": 4
+  },
+  "PATCH /notifications/read-all → 200": {
+    "updatedCount": 4
+  },
+  "POST /blocks → 201": {
+    "userId": "cmu47kcmb000croymxje2koq9",
+    "createdAt": "2026-09-16T14:40:52.137Z"
+  },
+  "POST /conversations/:id/messages (blocked) → 403": {
+    "statusCode": 403,
+    "code": "BLOCKED",
+    "message": "Cette conversation est bloquée."
+  },
+  "GET /providers/:id/availability (blocked) → 200": {
+    "date": "2026-09-17",
+    "timezone": "Africa/Kinshasa",
+    "slotDurationMin": 60,
+    "slotBufferMin": 0,
+    "slots": [
+      "08:00",
+      "09:00",
+      "10:00",
+      "11:00",
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00"
+    ]
+  },
+  "POST /bookings (blocked) → 403": {
+    "statusCode": 403,
+    "code": "BLOCKED",
+    "message": "Cette interaction est bloquée."
+  },
+  "GET /providers (blocked viewer) → 200": {
+    "items": [],
+    "total": 0,
+    "page": 1,
+    "limit": 20
+  },
+  "GET /blocks → 200": {
+    "items": [
+      {
+        "user": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele",
+          "avatar": null
+        },
+        "createdAt": "2026-09-16T14:40:52.137Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "DELETE /blocks/:userId → 200": {
+    "ok": true
+  },
+  "POST /reports → 201": {
+    "id": "cmu47kd090017roymjw1igeue",
+    "targetKind": "PROVIDER",
+    "targetId": "cmu47kckp0002roymeqf5s58k",
+    "reason": "Numéro de téléphone erroné",
+    "status": "OPEN",
+    "createdAt": "2026-09-16T14:40:52.185Z"
+  },
+  "POST /contact → 201": {
+    "ok": true
+  },
+  "GET /admin/overview (client) → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "GET /admin/overview → 200": {
+    "users": {
+      "total": 4,
+      "suspended": 0
+    },
+    "providers": 1,
+    "bookings": 1,
+    "openReports": 1,
+    "pendingSuggestions": 0,
+    "pendingVerifications": 0
+  },
+  "GET /admin/bookings → 200": {
+    "items": [
+      {
+        "id": "cmu47kcsu000proymtjmgaquc",
+        "status": "COMPLETED",
+        "scheduledAt": "2026-09-17T07:00:00.000Z",
+        "scheduledLocal": {
+          "date": "2026-09-17",
+          "time": "08:00"
+        },
+        "timezone": "Africa/Kinshasa",
+        "client": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele",
+          "phone": "+243820000002"
+        },
+        "provider": {
+          "id": "cmu47kckp0002roymeqf5s58k",
+          "displayName": "Plomberie Mukendi",
+          "phone": "+243810000001"
+        },
+        "clientPhone": "+243820000002",
+        "agreedPrice": 50000,
+        "createdAt": "2026-09-16T14:40:51.918Z",
+        "cancelReason": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "GET /admin/reports → 200": {
+    "items": [
+      {
+        "id": "cmu47kd090017roymjw1igeue",
+        "targetKind": "PROVIDER",
+        "targetId": "cmu47kckp0002roymeqf5s58k",
+        "reason": "Numéro de téléphone erroné",
+        "status": "OPEN",
+        "resolution": null,
+        "resolvedById": null,
+        "resolvedAt": null,
+        "createdAt": "2026-09-16T14:40:52.185Z",
+        "reporter": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele"
+        },
+        "target": {
+          "kind": "PROVIDER",
+          "id": "cmu47kckp0002roymeqf5s58k",
+          "label": "Plomberie Mukendi",
+          "exists": true
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "PATCH /admin/reports/:id → 200": {
+    "id": "cmu47kd090017roymjw1igeue",
+    "targetKind": "PROVIDER",
+    "targetId": "cmu47kckp0002roymeqf5s58k",
+    "reason": "Numéro de téléphone erroné",
+    "status": "RESOLVED",
+    "resolution": "Numéro vérifié avec le prestataire.",
+    "resolvedById": "user_admin",
+    "resolvedAt": "2026-09-16T14:40:52.250Z",
+    "createdAt": "2026-09-16T14:40:52.185Z",
+    "reporter": {
+      "id": "cmu47kcmb000croymxje2koq9",
+      "name": "Paul Kabasele"
+    },
+    "target": {
+      "kind": "PROVIDER",
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "label": "Plomberie Mukendi",
+      "exists": true
+    }
+  },
+  "PUT /admin/settings → 200": {
+    "hero_title": "Des pros vérifiés près de chez vous",
+    "hero_subtitle": "",
+    "hero_cta": "",
+    "tagline": "",
+    "how1_title": "",
+    "how1_desc": "",
+    "how2_title": "",
+    "how2_desc": "",
+    "how3_title": "",
+    "how3_desc": "",
+    "premium_title": "",
+    "premium_subtitle": "",
+    "maintenance_message": "",
+    "contact_phone": "",
+    "contact_email": "",
+    "contact_website": "",
+    "feat_booking": true,
+    "feat_reviews": true,
+    "feat_whatsapp": true,
+    "contacts_require_premium": false,
+    "maintenance_mode": false
+  },
+  "GET /settings/public (after edit) → 200": {
+    "hero_title": "Des pros vérifiés près de chez vous",
+    "hero_subtitle": "",
+    "hero_cta": "",
+    "tagline": "",
+    "how1_title": "",
+    "how1_desc": "",
+    "how2_title": "",
+    "how2_desc": "",
+    "how3_title": "",
+    "how3_desc": "",
+    "premium_title": "",
+    "premium_subtitle": "",
+    "maintenance_message": "",
+    "contact_phone": "",
+    "contact_email": "",
+    "contact_website": "",
+    "feat_booking": true,
+    "feat_reviews": true,
+    "feat_whatsapp": true,
+    "contacts_require_premium": false,
+    "maintenance_mode": false
+  },
+  "GET /admin/contacts → 200": {
+    "items": [
+      {
+        "id": "cmu47kd0d0018roymq8282yca",
+        "name": "Visiteur",
+        "email": "visiteur@example.cd",
+        "phone": null,
+        "subject": "Partenariat",
+        "message": "Bonjour, nous aimerions vous présenter notre offre.",
+        "status": "NEW",
+        "createdAt": "2026-09-16T14:40:52.189Z",
+        "updatedAt": "2026-09-16T14:40:52.189Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "GET /admin/audit → 200": {
+    "items": [
+      {
+        "id": "cmu47kd2i001droymu82gyhzn",
+        "action": "settings.update",
+        "entityType": "SystemSetting",
+        "entityId": null,
+        "metadata": {
+          "keys": [
+            "hero_title"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.266Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd25001aroymqos34rv0",
+        "action": "report.resolve",
+        "entityType": "Report",
+        "entityId": "cmu47kd090017roymjw1igeue",
+        "metadata": {
+          "targetId": "cmu47kckp0002roymeqf5s58k",
+          "resolution": "Numéro vérifié avec le prestataire.",
+          "targetKind": "PROVIDER"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.253Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      }
+    ]
+  },
+  "GET /admin/health → 200": {
+    "database": "ok",
+    "storage": "ok",
+    "email": "not configured",
+    "version": "0.1.0",
+    "commit": null
+  },
+  "GET /pro/verification/state (client) → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "POST /me/uploads/sign (verification) → 200": {
+    "bucket": "verification-docs",
+    "path": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+    "token": "upload-token",
+    "signedUrl": "https://storage.test/upload/verification-docs/verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg"
+  },
+  "POST /pro/verification/documents → 200": {
+    "success": true,
+    "doc": {
+      "id": "cmu47kd3c001froymz5krr92u",
+      "kind": "ID_FRONT",
+      "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+      "fileName": "ID_FRONT.jpg",
+      "mime": "image/jpeg",
+      "bytes": 200000,
+      "uploadedAt": "2026-09-16T14:40:52.296Z",
+      "reviewedAt": null,
+      "reviewedById": null,
+      "decision": null,
+      "rejectionReason": null,
+      "storagePolicy": "SUPABASE_PRIVATE"
+    }
+  },
+  "POST /me/uploads/sign (optional certificate) → 200": {
+    "bucket": "verification-docs",
+    "path": "verification/cmu47kciw0000royml0qqmsav/mu47kd4f-8ms6kj-diplome.pdf",
+    "token": "upload-token",
+    "signedUrl": "https://storage.test/upload/verification-docs/verification/cmu47kciw0000royml0qqmsav/mu47kd4f-8ms6kj-diplome.pdf"
+  },
+  "POST /pro/verification/documents (optional) → 200": {
+    "success": true,
+    "doc": {
+      "id": "cmu47kd4k001nroymx9gdl2nn",
+      "kind": "CERT_OPTIONAL",
+      "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd4f-8ms6kj-diplome.pdf",
+      "fileName": "diplome.pdf",
+      "mime": "application/pdf",
+      "bytes": 300000,
+      "uploadedAt": "2026-09-16T14:40:52.340Z",
+      "reviewedAt": null,
+      "reviewedById": null,
+      "decision": null,
+      "rejectionReason": null,
+      "storagePolicy": "SUPABASE_PRIVATE"
+    }
+  },
+  "DELETE /pro/verification/documents/:id → 200": {
+    "success": true
+  },
+  "POST /pro/verification/submit → 200": {
+    "state": "IN_REVIEW",
+    "progress": 75,
+    "docs": [
+      {
+        "id": "cmu47kd3c001froymz5krr92u",
+        "kind": "ID_FRONT",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+        "fileName": "ID_FRONT.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.296Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd3r001hroym7vk9b4jy",
+        "kind": "ID_BACK",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3m-eqgbb6-id_back.jpg",
+        "fileName": "ID_BACK.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.310Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd41001jroymmb83nyj4",
+        "kind": "SELFIE",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3v-v4mdwh-selfie.jpg",
+        "fileName": "SELFIE.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.321Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd4b001lroymkyw6xqbz",
+        "kind": "ADDRESS",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd45-krzdrz-address.jpg",
+        "fileName": "ADDRESS.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.330Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      }
+    ],
+    "missingKinds": [],
+    "rejectionReason": null,
+    "submittedAt": "2026-09-16T14:40:52.330Z",
+    "reviewedAt": null,
+    "storage": {
+      "mode": "SUPABASE_PRIVATE",
+      "title": "Stockage privé Supabase",
+      "description": "Les pièces KYC sont stockées dans un bucket privé Supabase. Seule l'équipe de vérification y accède."
+    }
+  },
+  "GET /me/media/sign-read (verification, stranger) → 403": {
+    "message": "Accès refusé à ce fichier",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "GET /me/media/sign-read (verification, admin) → 200": {
+    "url": "https://storage.test/sign/verification-docs/verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg?expires=300",
+    "expiresAt": "2026-09-16T14:45:52.363Z"
+  },
+  "GET /admin/verification/submissions → 200": {
+    "success": true,
+    "submissions": [
+      {
+        "providerId": "cmu47kckp0002roymeqf5s58k",
+        "providerName": "Plomberie Mukendi",
+        "providerEmail": null,
+        "displayName": "Plomberie Mukendi",
+        "verificationStatus": "UNDER_REVIEW",
+        "submittedAt": "2026-09-16T14:40:52.330Z",
+        "reviewedAt": null,
+        "rejectionReason": null,
+        "docs": [
+          {
+            "id": "cmu47kd3c001froymz5krr92u",
+            "kind": "ID_FRONT",
+            "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+            "fileName": "ID_FRONT.jpg",
+            "mime": "image/jpeg",
+            "bytes": 200000,
+            "uploadedAt": "2026-09-16T14:40:52.296Z",
+            "reviewedAt": null,
+            "reviewedById": null,
+            "decision": null,
+            "rejectionReason": null
+          },
+          {
+            "id": "cmu47kd3r001hroym7vk9b4jy",
+            "kind": "ID_BACK",
+            "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3m-eqgbb6-id_back.jpg",
+            "fileName": "ID_BACK.jpg",
+            "mime": "image/jpeg",
+            "bytes": 200000,
+            "uploadedAt": "2026-09-16T14:40:52.310Z",
+            "reviewedAt": null,
+            "reviewedById": null,
+            "decision": null,
+            "rejectionReason": null
+          },
+          {
+            "id": "cmu47kd41001jroymmb83nyj4",
+            "kind": "SELFIE",
+            "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3v-v4mdwh-selfie.jpg",
+            "fileName": "SELFIE.jpg",
+            "mime": "image/jpeg",
+            "bytes": 200000,
+            "uploadedAt": "2026-09-16T14:40:52.321Z",
+            "reviewedAt": null,
+            "reviewedById": null,
+            "decision": null,
+            "rejectionReason": null
+          },
+          {
+            "id": "cmu47kd4b001lroymkyw6xqbz",
+            "kind": "ADDRESS",
+            "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd45-krzdrz-address.jpg",
+            "fileName": "ADDRESS.jpg",
+            "mime": "image/jpeg",
+            "bytes": 200000,
+            "uploadedAt": "2026-09-16T14:40:52.330Z",
+            "reviewedAt": null,
+            "reviewedById": null,
+            "decision": null,
+            "rejectionReason": null
+          }
+        ],
+        "counts": {
+          "total": 4,
+          "pending": 4,
+          "approved": 0,
+          "rejected": 0
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "totalPages": 1,
+      "hasMore": false
+    },
+    "stats": {
+      "underReview": 1,
+      "rejected": 0,
+      "verified": 0
+    }
+  },
+  "PUT /admin/verification/documents → 200": {
+    "success": true,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "previousStatus": "UNDER_REVIEW",
+    "verificationStatus": "UNDER_REVIEW",
+    "docs": [
+      {
+        "id": "cmu47kd3c001froymz5krr92u",
+        "kind": "ID_FRONT",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+        "fileName": "ID_FRONT.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.296Z",
+        "reviewedAt": "2026-09-16T14:40:52.382Z",
+        "reviewedById": "user_admin",
+        "decision": "APPROVED",
+        "rejectionReason": null
+      },
+      {
+        "id": "cmu47kd3r001hroym7vk9b4jy",
+        "kind": "ID_BACK",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3m-eqgbb6-id_back.jpg",
+        "fileName": "ID_BACK.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.310Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null
+      },
+      {
+        "id": "cmu47kd41001jroymmb83nyj4",
+        "kind": "SELFIE",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3v-v4mdwh-selfie.jpg",
+        "fileName": "SELFIE.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.321Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null
+      },
+      {
+        "id": "cmu47kd4b001lroymkyw6xqbz",
+        "kind": "ADDRESS",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd45-krzdrz-address.jpg",
+        "fileName": "ADDRESS.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.330Z",
+        "reviewedAt": null,
+        "reviewedById": null,
+        "decision": null,
+        "rejectionReason": null
+      }
+    ],
+    "reviewedDoc": {
+      "id": "cmu47kd3c001froymz5krr92u",
+      "kind": "ID_FRONT",
+      "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+      "fileName": "ID_FRONT.jpg",
+      "mime": "image/jpeg",
+      "bytes": 200000,
+      "uploadedAt": "2026-09-16T14:40:52.296Z",
+      "reviewedAt": "2026-09-16T14:40:52.382Z",
+      "reviewedById": "user_admin",
+      "decision": "APPROVED",
+      "rejectionReason": null
+    },
+    "reviewedAt": "2026-09-16T14:40:52.382Z",
+    "rejectionReason": null
+  },
+  "GET /pro/verification/state → 200": {
+    "state": "VERIFIED",
+    "progress": 100,
+    "docs": [
+      {
+        "id": "cmu47kd3c001froymz5krr92u",
+        "kind": "ID_FRONT",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd33-zfs7om-id_front.jpg",
+        "fileName": "ID_FRONT.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.296Z",
+        "reviewedAt": "2026-09-16T14:40:52.382Z",
+        "reviewedById": "user_admin",
+        "decision": "APPROVED",
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd3r001hroym7vk9b4jy",
+        "kind": "ID_BACK",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3m-eqgbb6-id_back.jpg",
+        "fileName": "ID_BACK.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.310Z",
+        "reviewedAt": "2026-09-16T14:40:52.392Z",
+        "reviewedById": "user_admin",
+        "decision": "APPROVED",
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd41001jroymmb83nyj4",
+        "kind": "SELFIE",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd3v-v4mdwh-selfie.jpg",
+        "fileName": "SELFIE.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.321Z",
+        "reviewedAt": "2026-09-16T14:40:52.401Z",
+        "reviewedById": "user_admin",
+        "decision": "APPROVED",
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      },
+      {
+        "id": "cmu47kd4b001lroymkyw6xqbz",
+        "kind": "ADDRESS",
+        "storagePath": "verification/cmu47kciw0000royml0qqmsav/mu47kd45-krzdrz-address.jpg",
+        "fileName": "ADDRESS.jpg",
+        "mime": "image/jpeg",
+        "bytes": 200000,
+        "uploadedAt": "2026-09-16T14:40:52.330Z",
+        "reviewedAt": "2026-09-16T14:40:52.422Z",
+        "reviewedById": "user_admin",
+        "decision": "APPROVED",
+        "rejectionReason": null,
+        "storagePolicy": "SUPABASE_PRIVATE"
+      }
+    ],
+    "missingKinds": [],
+    "rejectionReason": null,
+    "submittedAt": "2026-09-16T14:40:52.330Z",
+    "reviewedAt": "2026-09-16T14:40:52.422Z",
+    "storage": {
+      "mode": "SUPABASE_PRIVATE",
+      "title": "Stockage privé Supabase",
+      "description": "Les pièces KYC sont stockées dans un bucket privé Supabase. Seule l'équipe de vérification y accède."
+    }
+  },
+  "GET /admin/users/:id/cv → 200": {
+    "user": {
+      "id": "cmu47kciw0000royml0qqmsav",
+      "firstName": null,
+      "lastName": null,
+      "name": "Utilisateur",
+      "email": null,
+      "phone": "+243810000001",
+      "avatar": null,
+      "role": "PROVIDER",
+      "isActive": true,
+      "suspendedAt": null,
+      "suspendedReason": null,
+      "placeId": null,
+      "placeLabel": null,
+      "createdAt": "2026-09-16T14:40:51.561Z",
+      "lastLoginAt": "2026-09-16T14:40:51.560Z",
+      "provider": {
+        "id": "cmu47kckp0002roymeqf5s58k",
+        "displayName": "Plomberie Mukendi",
+        "hidden": false,
+        "verificationStatus": "VERIFIED"
+      },
+      "bio": null,
+      "gender": null,
+      "birthdate": null,
+      "country": "RDC",
+      "roleSelectedAt": "2026-09-16T14:40:51.623Z",
+      "termsAcceptedAt": "2026-09-16T14:40:51.577Z",
+      "placeChain": []
+    },
+    "provider": {
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "displayName": "Plomberie Mukendi",
+      "description": "Dépannage rapide à Gombe et alentours.",
+      "yearsExperience": 8,
+      "profilePhoto": null,
+      "contacts": {
+        "phone": "+243810000001",
+        "whatsapp": "+243810000001",
+        "email": null,
+        "addressLine": "12 avenue de la Justice",
+        "latitude": -4.3101,
+        "longitude": 15.2872
+      },
+      "categoryChain": [
+        {
+          "id": "cat_batiment",
+          "name": "Bâtiment",
+          "slug": "batiment"
+        },
+        {
+          "id": "sub_plomberie",
+          "name": "Plomberie",
+          "slug": "plomberie"
+        }
+      ],
+      "placeChain": [
+        {
+          "id": "place_cd",
+          "kind": "COUNTRY",
+          "label": "RDC",
+          "parentId": null,
+          "hasChildren": true
+        },
+        {
+          "id": "place_kin_prov",
+          "kind": "PROVINCE",
+          "label": "Kinshasa",
+          "parentId": "place_cd",
+          "hasChildren": true
+        },
+        {
+          "id": "place_kin",
+          "kind": "CITY",
+          "label": "Kinshasa",
+          "parentId": "place_kin_prov",
+          "hasChildren": true
+        },
+        {
+          "id": "place_gombe",
+          "kind": "COMMUNE",
+          "label": "Gombe",
+          "parentId": "place_kin",
+          "hasChildren": false
+        }
+      ],
+      "skills": [
+        {
+          "id": "ref_skill_leak",
+          "label": "Fuites"
+        }
+      ],
+      "freeSkills": [
+        "Chauffe-eau"
+      ],
+      "languages": [
+        {
+          "id": "ref_fr",
+          "label": "Français"
+        }
+      ],
+      "interventionModes": [
+        {
+          "id": "ref_home",
+          "label": "À domicile"
+        }
+      ],
+      "pricing": {
+        "amount": 25000,
+        "currency": {
+          "id": "ref_cdf",
+          "type": "CURRENCY",
+          "label": "CDF",
+          "categoryId": null
+        },
+        "unit": {
+          "id": "ref_job",
+          "type": "PRICE_UNIT",
+          "label": "Par prestation",
+          "categoryId": null
+        }
+      },
+      "media": [
+        {
+          "id": "cmu47kckp0003roymgpnrmo4e",
+          "kind": "IMAGE",
+          "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+          "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+          "youtubeId": null,
+          "title": "Atelier",
+          "order": 0
+        },
+        {
+          "id": "cmu47kckp0004roymf1u2noe9",
+          "kind": "VIDEO_YOUTUBE",
+          "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+          "storagePath": null,
+          "youtubeId": "M7lc1UVf-VE",
+          "title": null,
+          "order": 1
+        }
+      ],
+      "social": {
+        "youtubeUrl": null,
+        "instagramUrl": null,
+        "tiktokUrl": null,
+        "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+      },
+      "timezone": "Africa/Kinshasa",
+      "scheduleSummary": [
+        {
+          "dayOfWeek": 0,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 1,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 2,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 3,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 4,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 5,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        },
+        {
+          "dayOfWeek": 6,
+          "ranges": [
+            {
+              "startTime": "08:00",
+              "endTime": "18:00"
+            }
+          ]
+        }
+      ],
+      "isAvailable": true,
+      "verificationStatus": "VERIFIED",
+      "hidden": false,
+      "premiumTier": "FREE",
+      "effectivePremiumTier": "FREE",
+      "premiumUntil": null,
+      "ratingAvg": 5,
+      "ratingCount": 1,
+      "completedJobs": 1,
+      "publishedAt": "2026-09-16T14:40:51.623Z"
+    },
+    "activity": {
+      "bookingsAsClient": {
+        "PENDING": 0,
+        "CONFIRMED": 0,
+        "COMPLETED": 0,
+        "CANCELLED": 0
+      },
+      "bookingsAsProvider": {
+        "PENDING": 0,
+        "CONFIRMED": 0,
+        "COMPLETED": 1,
+        "CANCELLED": 0
+      },
+      "reviewsGiven": 0,
+      "reviewsReceived": {
+        "avg": 5,
+        "count": 1
+      },
+      "clientRating": {
+        "avg": 0,
+        "count": 0
+      },
+      "reportsFiled": 0,
+      "reportsAgainst": 1,
+      "lastLoginAt": "2026-09-16T14:40:51.560Z",
+      "earningsNet": 45000
+    },
+    "recentActivity": []
+  },
+  "GET /admin/providers → 200": {
+    "items": [
+      {
+        "id": "cmu47kckp0002roymeqf5s58k",
+        "userId": "cmu47kciw0000royml0qqmsav",
+        "displayName": "Plomberie Mukendi",
+        "profilePhoto": null,
+        "phone": "+243810000001",
+        "categoryLabel": "Plomberie",
+        "placeLabel": "Gombe",
+        "verificationStatus": "VERIFIED",
+        "premiumTier": "FREE",
+        "premiumUntil": null,
+        "hidden": false,
+        "isAvailable": true,
+        "ratingAvg": 5,
+        "ratingCount": 1,
+        "completedJobs": 1,
+        "publishedAt": "2026-09-16T14:40:51.623Z",
+        "owner": {
+          "id": "cmu47kciw0000royml0qqmsav",
+          "name": "Utilisateur",
+          "isActive": true
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "GET /providers (verifiedOnly) → 200": {
+    "items": [
+      {
+        "id": "cmu47kckp0002roymeqf5s58k",
+        "displayName": "Plomberie Mukendi",
+        "profilePhoto": null,
+        "categoryChain": [
+          {
+            "id": "cat_batiment",
+            "slug": "batiment",
+            "name": "Bâtiment"
+          },
+          {
+            "id": "sub_plomberie",
+            "slug": "plomberie",
+            "name": "Plomberie"
+          }
+        ],
+        "placeChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": false
+          }
+        ],
+        "ratingAvg": 5,
+        "ratingCount": 1,
+        "completedJobs": 1,
+        "premiumTier": "FREE",
+        "verified": true,
+        "isAvailable": true,
+        "latitude": -4.31,
+        "longitude": 15.29,
+        "distanceKm": null,
+        "pricing": {
+          "amount": 25000,
+          "currency": {
+            "id": "ref_cdf",
+            "type": "CURRENCY",
+            "label": "CDF",
+            "categoryId": null
+          },
+          "unit": {
+            "id": "ref_job",
+            "type": "PRICE_UNIT",
+            "label": "Par prestation",
+            "categoryId": null
+          }
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  },
+  "POST /places/suggestions → 201": {
+    "id": "cmu47kd98001zroym1ykxxk02",
+    "kind": "QUARTIER",
+    "label": "Cité Verte",
+    "parentId": "place_gombe",
+    "status": "PENDING",
+    "resolvedPlaceId": null,
+    "createdAt": "2026-09-16T14:40:52.508Z",
+    "resolvedAt": null
+  },
+  "GET /admin/places/suggestions → 200": {
+    "items": [
+      {
+        "id": "cmu47kd98001zroym1ykxxk02",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "status": "PENDING",
+        "resolvedPlaceId": null,
+        "createdAt": "2026-09-16T14:40:52.508Z",
+        "resolvedAt": null,
+        "parentChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": false
+          }
+        ],
+        "user": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele"
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "POST /admin/places/suggestions/:id/approve → 200": {
+    "id": "cmu47kd98001zroym1ykxxk02",
+    "kind": "QUARTIER",
+    "label": "Cité Verte",
+    "parentId": "place_gombe",
+    "status": "APPROVED",
+    "resolvedPlaceId": "cmu47kd9w0021royms6q19wvr",
+    "createdAt": "2026-09-16T14:40:52.508Z",
+    "resolvedAt": "2026-09-16T14:40:52.533Z"
+  },
+  "GET /admin/places/:id → 200": {
+    "id": "cmu47kd9w0021royms6q19wvr",
+    "kind": "QUARTIER",
+    "label": "Cité Verte",
+    "parentId": "place_gombe",
+    "hasChildren": false,
+    "childCount": 0,
+    "slug": "cd-province-kinshasa-city-kinshasa-commune-gombe-quartier-cite-verte",
+    "aliases": [],
+    "source": "Proposition utilisateur",
+    "latitude": null,
+    "longitude": null,
+    "active": true,
+    "mergedIntoId": null,
+    "createdAt": "2026-09-16T14:40:52.532Z",
+    "updatedAt": "2026-09-16T14:40:52.532Z",
+    "chain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ]
+  },
+  "GET /places/:id/ancestors → 200": {
+    "items": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ]
+  },
+  "GET /notifications (suggestion) → 200": {
+    "items": [
+      {
+        "id": "cmu47kd9z0023roymgn14fwc9",
+        "type": "PLACE_SUGGESTION_RESOLVED",
+        "title": "Lieu ajouté",
+        "message": "« Cité Verte » est désormais disponible dans la liste des lieux.",
+        "data": {
+          "status": "APPROVED",
+          "placeId": "cmu47kd9w0021royms6q19wvr",
+          "suggestionId": "cmu47kd98001zroym1ykxxk02"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.535Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "unreadCount": 1
+  },
+  "POST /addresses → 201": {
+    "id": "cmu47kdaw0027roymoh6ujj3d",
+    "label": "HOME",
+    "recipient": null,
+    "addressLine": "4 avenue Kasa-Vubu",
+    "placeId": "cmu47kd9w0021royms6q19wvr",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ],
+    "country": "RDC",
+    "latitude": null,
+    "longitude": null,
+    "isDefault": true,
+    "createdAt": "2026-09-16T14:40:52.569Z",
+    "updatedAt": "2026-09-16T14:40:52.569Z"
+  },
+  "POST /addresses (second) → 201": {
+    "id": "cmu47kdb60029roymnhae6wc8",
+    "label": "WORK",
+    "recipient": null,
+    "addressLine": "Boulevard du 30 Juin",
+    "placeId": "place_gombe",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      }
+    ],
+    "country": "RDC",
+    "latitude": null,
+    "longitude": null,
+    "isDefault": true,
+    "createdAt": "2026-09-16T14:40:52.579Z",
+    "updatedAt": "2026-09-16T14:40:52.579Z"
+  },
+  "GET /addresses → 200": {
+    "items": [
+      {
+        "id": "cmu47kdb60029roymnhae6wc8",
+        "label": "WORK",
+        "recipient": null,
+        "addressLine": "Boulevard du 30 Juin",
+        "placeId": "place_gombe",
+        "placeChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": true
+          }
+        ],
+        "country": "RDC",
+        "latitude": null,
+        "longitude": null,
+        "isDefault": true,
+        "createdAt": "2026-09-16T14:40:52.579Z",
+        "updatedAt": "2026-09-16T14:40:52.579Z"
+      },
+      {
+        "id": "cmu47kdaw0027roymoh6ujj3d",
+        "label": "HOME",
+        "recipient": null,
+        "addressLine": "4 avenue Kasa-Vubu",
+        "placeId": "cmu47kd9w0021royms6q19wvr",
+        "placeChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": true
+          },
+          {
+            "id": "cmu47kd9w0021royms6q19wvr",
+            "kind": "QUARTIER",
+            "label": "Cité Verte",
+            "parentId": "place_gombe",
+            "hasChildren": false
+          }
+        ],
+        "country": "RDC",
+        "latitude": null,
+        "longitude": null,
+        "isDefault": false,
+        "createdAt": "2026-09-16T14:40:52.569Z",
+        "updatedAt": "2026-09-16T14:40:52.578Z"
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "limit": 50
+  },
+  "DELETE /addresses/:id → 200": {
+    "ok": true
+  },
+  "GET /addresses (provider) → 403": {
+    "message": "Forbidden",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "POST /conversations/:id/messages (to delete) → 201": {
+    "id": "cmu47kdc5002broymy9phugde",
+    "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+    "senderId": "cmu47kcmb000croymxje2koq9",
+    "mine": true,
+    "body": "Message envoyé par erreur",
+    "attachments": [],
+    "createdAt": "2026-09-16T14:40:52.613Z",
+    "deletedAt": null
+  },
+  "DELETE /conversations/:id/messages/:messageId (not sender) → 403": {
+    "statusCode": 403,
+    "code": "FORBIDDEN",
+    "message": "Seul l'auteur peut supprimer ce message"
+  },
+  "DELETE /conversations/:id/messages/:messageId → 200": {
+    "ok": true
+  },
+  "GET /conversations/:id/messages (tombstone) → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpi000groymdnva7q4d",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kcmb000croymxje2koq9",
+        "mine": false,
+        "body": "Bonjour, êtes-vous disponible demain ?",
+        "attachments": [],
+        "createdAt": "2026-09-16T14:40:51.799Z",
+        "deletedAt": null
+      },
+      {
+        "id": "cmu47kcqw000kroymox8e9n3w",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kciw0000royml0qqmsav",
+        "mine": true,
+        "body": "Oui, réservez un créneau.",
+        "attachments": [
+          {
+            "kind": "image",
+            "mime": "image/jpeg",
+            "path": "attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg",
+            "bytes": 80000
+          }
+        ],
+        "createdAt": "2026-09-16T14:40:51.849Z",
+        "deletedAt": null
+      },
+      {
+        "id": "cmu47kdc5002broymy9phugde",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kcmb000croymxje2koq9",
+        "mine": false,
+        "body": null,
+        "attachments": [],
+        "createdAt": "2026-09-16T14:40:52.613Z",
+        "deletedAt": "2026-09-16T14:40:52.632Z"
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "limit": 30,
+    "conversation": {
+      "id": "cmu47kcpb000eroymc4wr6hs9",
+      "subject": "Fuite cuisine",
+      "lastMessageAt": "2026-09-16T14:40:52.613Z",
+      "lastPreview": "Message supprimé",
+      "unread": 0,
+      "side": "provider",
+      "counterpart": {
+        "userId": "cmu47kcmb000croymxje2koq9",
+        "providerId": null,
+        "name": "Paul Kabasele",
+        "photo": null
+      },
+      "blocked": false,
+      "createdAt": "2026-09-16T14:40:51.791Z"
+    }
+  },
+  "GET /admin/references/:id → 200": {
+    "id": "ref_fr",
+    "type": "LANGUAGE",
+    "label": "Français",
+    "slug": "language-francais",
+    "aliases": [],
+    "categoryId": null,
+    "order": 0,
+    "active": true,
+    "suggested": true,
+    "mergedIntoId": null,
+    "source": null,
+    "createdAt": "2026-09-16T14:40:51.380Z",
+    "usageCount": 1
+  },
+  "GET /admin/subcategories → 200": {
+    "items": [
+      {
+        "description": null,
+        "icon": null,
+        "color": null,
+        "image": null,
+        "order": 0,
+        "isActive": true,
+        "categoryId": "cat_batiment",
+        "parentId": null,
+        "counts": {
+          "providers": 1,
+          "bookings": 1,
+          "leads": 0
+        },
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie",
+        "level": 2,
+        "children": []
+      }
+    ]
+  },
+  "GET /admin/subcategories/:id → 200": {
+    "description": null,
+    "icon": null,
+    "color": null,
+    "image": null,
+    "order": 0,
+    "isActive": true,
+    "categoryId": "cat_batiment",
+    "parentId": null,
+    "counts": {
+      "providers": 1,
+      "bookings": 1,
+      "leads": 0
+    },
+    "id": "sub_plomberie",
+    "slug": "plomberie",
+    "name": "Plomberie",
+    "level": 2,
+    "children": []
+  },
+  "DELETE /admin/subcategories/:id (referenced) → 409": {
+    "statusCode": 409,
+    "code": "REFERENCED",
+    "message": "Cette sous-catégorie est encore utilisée et ne peut pas être supprimée.",
+    "counts": {
+      "providers": 1,
+      "bookings": 1,
+      "leads": 0
+    }
+  },
+  "PATCH /providers/me → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      }
+    ],
+    "ratingAvg": 5,
+    "ratingCount": 1,
+    "completedJobs": 1,
+    "premiumTier": "FREE",
+    "verified": true,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage et installation sanitaire.",
+    "yearsExperience": 9,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0003roymgpnrmo4e",
+        "kind": "IMAGE",
+        "url": "https://storage.test/storage/v1/object/public/provider-media/media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "storagePath": "media/cmu47kciw0000royml0qqmsav/mu47kcjt-xa5x0n-atelier.jpg",
+        "youtubeId": null,
+        "title": "Atelier",
+        "order": 0
+      },
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 1
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 0,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": []
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": {
+      "phone": "+243810000001",
+      "whatsapp": "+243810000001",
+      "email": null,
+      "addressLine": "12 avenue de la Justice",
+      "latitude": -4.3101,
+      "longitude": 15.2872
+    },
+    "contactsLocked": false,
+    "blocked": false,
+    "reviewsPreview": [
+      {
+        "id": "cmu47kcww000zroymkb079i4e",
+        "rating": 5,
+        "comment": "Travail propre et rapide.",
+        "reply": "Merci pour votre confiance !",
+        "repliedAt": "2026-09-16T14:40:52.083Z",
+        "createdAt": "2026-09-16T14:40:52.065Z",
+        "author": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul K.",
+          "avatar": null
+        }
+      }
+    ],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": true,
+    "hidden": false,
+    "verificationStatus": "VERIFIED"
+  },
+  "PUT /providers/me/schedule → 200": {
+    "timezone": "Africa/Kinshasa",
+    "slotDurationMin": 60,
+    "slotBufferMin": 15,
+    "rules": [
+      {
+        "dayOfWeek": 0,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 1,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 2,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 3,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 4,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 5,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      },
+      {
+        "dayOfWeek": 6,
+        "startTime": "08:00",
+        "endTime": "18:00"
+      }
+    ],
+    "exceptions": [
+      {
+        "date": "2026-10-17",
+        "isOpen": false,
+        "startTime": null,
+        "endTime": null,
+        "reason": null
+      }
+    ]
+  },
+  "PUT /providers/me/media → 200": {
+    "items": [
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 0
+      }
+    ]
+  },
+  "PATCH /providers/me/availability → 200": {
+    "isAvailable": false
+  },
+  "PATCH /providers/me/availability (resume) → 200": {
+    "isAvailable": true
+  },
+  "POST /me/uploads/sign (avatar) → 200": {
+    "bucket": "avatars",
+    "path": "avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png",
+    "token": "upload-token",
+    "signedUrl": "https://storage.test/upload/avatars/avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png"
+  },
+  "POST /me/avatar → 200": {
+    "success": true,
+    "avatarUrl": "https://storage.test/storage/v1/object/public/avatars/avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png"
+  },
+  "POST /me/avatar (foreign path) → 403": {
+    "message": "Upload path does not belong to the caller",
+    "error": "Forbidden",
+    "statusCode": 403
+  },
+  "GET /geocode → 200": {
+    "lat": -4.325,
+    "lng": 15.322,
+    "label": "Gombe, Kinshasa, Kinshasa, RDC",
+    "source": "place"
+  },
+  "GET /distance → 200": {
+    "success": true,
+    "distance": 1.6,
+    "formatted": "1.6 km",
+    "status": "close"
+  },
+  "GET /notifications (provider) → 200": {
+    "items": [
+      {
+        "id": "cmu47kdc9002droyms6acfo33",
+        "type": "NEW_MESSAGE",
+        "title": "Nouveau message",
+        "message": "Paul Kabasele vous a envoyé un message.",
+        "data": {
+          "messageId": "cmu47kdc5002broymy9phugde",
+          "conversationId": "cmu47kcpb000eroymc4wr6hs9"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.618Z"
+      },
+      {
+        "id": "cmu47kd6z001vroym6iqlblo3",
+        "type": "VERIFICATION_UPDATED",
+        "title": "Profil vérifié",
+        "message": "Votre profil prestataire est vérifié.",
+        "data": {
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "verificationStatus": "VERIFIED"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.427Z"
+      },
+      {
+        "id": "cmu47kcx30011roymxzxihxza",
+        "type": "NEW_REVIEW",
+        "title": "Nouvel avis",
+        "message": "Paul Kabasele vous a attribué 5/5.",
+        "data": {
+          "reviewId": "cmu47kcww000zroymkb079i4e",
+          "bookingId": "cmu47kcsu000proymtjmgaquc"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:52.071Z"
+      },
+      {
+        "id": "cmu47kct2000rroymlyr3mbfb",
+        "type": "BOOKING_NEW",
+        "title": "Nouvelle demande de réservation",
+        "message": "Paul Kabasele souhaite réserver le jeudi 17 septembre à 08:00.",
+        "data": {
+          "bookingId": "cmu47kcsu000proymtjmgaquc"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:51.926Z"
+      },
+      {
+        "id": "cmu47kcpl000iroymhgz2h9n0",
+        "type": "NEW_MESSAGE",
+        "title": "Nouveau message",
+        "message": "Paul Kabasele vous a envoyé un message.",
+        "data": {
+          "messageId": "cmu47kcpi000groymdnva7q4d",
+          "conversationId": "cmu47kcpb000eroymc4wr6hs9"
+        },
+        "isRead": false,
+        "readAt": null,
+        "createdAt": "2026-09-16T14:40:51.802Z"
+      }
+    ],
+    "total": 5,
+    "page": 1,
+    "limit": 20,
+    "unreadCount": 5
+  },
+  "PATCH /notifications/:id/read → 200": {
+    "id": "cmu47kdc9002droyms6acfo33",
+    "type": "NEW_MESSAGE",
+    "title": "Nouveau message",
+    "message": "Paul Kabasele vous a envoyé un message.",
+    "data": {
+      "messageId": "cmu47kdc5002broymy9phugde",
+      "conversationId": "cmu47kcpb000eroymc4wr6hs9"
+    },
+    "isRead": true,
+    "readAt": "2026-09-16T14:40:52.812Z",
+    "createdAt": "2026-09-16T14:40:52.618Z"
+  },
+  "GET /addresses (for update) → 200": {
+    "items": [
+      {
+        "id": "cmu47kdaw0027roymoh6ujj3d",
+        "label": "HOME",
+        "recipient": null,
+        "addressLine": "4 avenue Kasa-Vubu",
+        "placeId": "cmu47kd9w0021royms6q19wvr",
+        "placeChain": [
+          {
+            "id": "place_cd",
+            "kind": "COUNTRY",
+            "label": "RDC",
+            "parentId": null,
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin_prov",
+            "kind": "PROVINCE",
+            "label": "Kinshasa",
+            "parentId": "place_cd",
+            "hasChildren": true
+          },
+          {
+            "id": "place_kin",
+            "kind": "CITY",
+            "label": "Kinshasa",
+            "parentId": "place_kin_prov",
+            "hasChildren": true
+          },
+          {
+            "id": "place_gombe",
+            "kind": "COMMUNE",
+            "label": "Gombe",
+            "parentId": "place_kin",
+            "hasChildren": true
+          },
+          {
+            "id": "cmu47kd9w0021royms6q19wvr",
+            "kind": "QUARTIER",
+            "label": "Cité Verte",
+            "parentId": "place_gombe",
+            "hasChildren": false
+          }
+        ],
+        "country": "RDC",
+        "latitude": null,
+        "longitude": null,
+        "isDefault": true,
+        "createdAt": "2026-09-16T14:40:52.569Z",
+        "updatedAt": "2026-09-16T14:40:52.598Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "PATCH /addresses/:id → 200": {
+    "id": "cmu47kdaw0027roymoh6ujj3d",
+    "label": "HOME",
+    "recipient": "Paul K.",
+    "addressLine": "4 avenue Kasa-Vubu",
+    "placeId": "cmu47kd9w0021royms6q19wvr",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ],
+    "country": "RDC",
+    "latitude": null,
+    "longitude": null,
+    "isDefault": true,
+    "createdAt": "2026-09-16T14:40:52.569Z",
+    "updatedAt": "2026-09-16T14:40:52.830Z"
+  },
+  "GET /providers/:id/availability (second booking) → 200": {
+    "date": "2026-09-17",
+    "timezone": "Africa/Kinshasa",
+    "slotDurationMin": 60,
+    "slotBufferMin": 15,
+    "slots": [
+      "08:00",
+      "09:15",
+      "10:30",
+      "11:45",
+      "13:00",
+      "14:15",
+      "15:30",
+      "16:45"
+    ]
+  },
+  "POST /bookings (with saved address) → 201": {
+    "id": "cmu47kdjb002nroym8uw41vcs",
+    "status": "PENDING",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:52.871Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "client",
+    "counterpart": {
+      "userId": "cmu47kciw0000royml0qqmsav",
+      "providerId": "cmu47kckp0002roymeqf5s58k",
+      "name": "Plomberie Mukendi",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": null,
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": null,
+    "providerNotes": null,
+    "placeId": "cmu47kd9w0021royms6q19wvr",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": null,
+    "commissionAmt": null,
+    "providerNetAmt": null,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "PATCH /bookings/:id/notes → 200": {
+    "id": "cmu47kdjb002nroym8uw41vcs",
+    "status": "PENDING",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:52.871Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "provider",
+    "counterpart": {
+      "userId": "cmu47kcmb000croymxje2koq9",
+      "providerId": null,
+      "name": "Paul Kabasele",
+      "photo": "https://storage.test/storage/v1/object/public/avatars/avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png",
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": {
+      "avg": 4,
+      "count": 1
+    },
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": null,
+    "providerNotes": "Apporter un joint de 20 mm",
+    "placeId": "cmu47kd9w0021royms6q19wvr",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": 10,
+    "commissionAmt": 0,
+    "providerNetAmt": 0,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "POST /bookings/:id/cancel (provider, no reason) → 400": {
+    "statusCode": 400,
+    "code": "REASON_REQUIRED",
+    "message": "Indiquez le motif de l'annulation."
+  },
+  "POST /bookings/:id/cancel → 200": {
+    "id": "cmu47kdjb002nroym8uw41vcs",
+    "status": "CANCELLED",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:52.871Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": "2026-09-16T14:40:52.924Z",
+    "side": "client",
+    "counterpart": {
+      "userId": "cmu47kciw0000royml0qqmsav",
+      "providerId": "cmu47kckp0002roymeqf5s58k",
+      "name": "Plomberie Mukendi",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": null,
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": null,
+    "providerNotes": null,
+    "placeId": "cmu47kd9w0021royms6q19wvr",
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      },
+      {
+        "id": "cmu47kd9w0021royms6q19wvr",
+        "kind": "QUARTIER",
+        "label": "Cité Verte",
+        "parentId": "place_gombe",
+        "hasChildren": false
+      }
+    ],
+    "addressLine": "4 avenue Kasa-Vubu",
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": null,
+    "commissionAmt": null,
+    "providerNetAmt": null,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": "cmu47kcmb000croymxje2koq9",
+    "review": null,
+    "clientReview": null
+  },
+  "POST /bookings (for admin cancel) → 201": {
+    "id": "cmu47kdlk002troym6n1h2avq",
+    "status": "PENDING",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:52.953Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": null,
+    "cancelledAt": null,
+    "side": "client",
+    "counterpart": {
+      "userId": "cmu47kciw0000royml0qqmsav",
+      "providerId": "cmu47kckp0002roymeqf5s58k",
+      "name": "Plomberie Mukendi",
+      "photo": null,
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": null,
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": null,
+    "providerNotes": null,
+    "placeId": null,
+    "placeChain": [],
+    "addressLine": null,
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": null,
+    "commissionAmt": null,
+    "providerNetAmt": null,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": null,
+    "review": null,
+    "clientReview": null
+  },
+  "POST /admin/bookings/:id/cancel → 200": {
+    "id": "cmu47kdlk002troym6n1h2avq",
+    "status": "CANCELLED",
+    "scheduledAt": "2026-09-17T07:00:00.000Z",
+    "scheduledLocal": {
+      "date": "2026-09-17",
+      "time": "08:00"
+    },
+    "durationMin": 60,
+    "timezone": "Africa/Kinshasa",
+    "createdAt": "2026-09-16T14:40:52.953Z",
+    "agreedPrice": null,
+    "isPaid": false,
+    "cancelReason": "Doublon signalé par le client",
+    "cancelledAt": "2026-09-16T14:40:52.965Z",
+    "side": "provider",
+    "counterpart": {
+      "userId": "cmu47kcmb000croymxje2koq9",
+      "providerId": null,
+      "name": "Paul Kabasele",
+      "photo": "https://storage.test/storage/v1/object/public/avatars/avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png",
+      "categoryLabel": "Plomberie"
+    },
+    "clientRating": {
+      "avg": 4,
+      "count": 1
+    },
+    "hasReview": false,
+    "hasClientReview": false,
+    "providerId": "cmu47kckp0002roymeqf5s58k",
+    "clientId": "cmu47kcmb000croymxje2koq9",
+    "clientPhone": "+243820000002",
+    "clientNotes": null,
+    "providerNotes": null,
+    "placeId": null,
+    "placeChain": [],
+    "addressLine": null,
+    "latitude": null,
+    "longitude": null,
+    "commissionPct": 10,
+    "commissionAmt": 0,
+    "providerNetAmt": 0,
+    "paidAt": null,
+    "confirmedAt": null,
+    "completedAt": null,
+    "cancelledById": "user_admin",
+    "review": null,
+    "clientReview": null
+  },
+  "GET /admin/users → 200": {
+    "items": [
+      {
+        "id": "cmu47kcmb000croymxje2koq9",
+        "firstName": "Paul",
+        "lastName": "Kabasele",
+        "name": "Paul Kabasele",
+        "email": null,
+        "phone": "+243820000002",
+        "avatar": "https://storage.test/storage/v1/object/public/avatars/avatar/cmu47kcmb000croymxje2koq9/mu47kdgw-606xin-moi.png",
+        "role": "CLIENT",
+        "isActive": true,
+        "suspendedAt": null,
+        "suspendedReason": null,
+        "placeId": "place_gombe",
+        "placeLabel": "Gombe",
+        "createdAt": "2026-09-16T14:40:51.684Z",
+        "lastLoginAt": "2026-09-16T14:40:51.683Z",
+        "provider": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "GET /admin/settings → 200": {
+    "hero_title": "Des pros vérifiés près de chez vous",
+    "hero_subtitle": "",
+    "hero_cta": "",
+    "tagline": "",
+    "how1_title": "",
+    "how1_desc": "",
+    "how2_title": "",
+    "how2_desc": "",
+    "how3_title": "",
+    "how3_desc": "",
+    "premium_title": "",
+    "premium_subtitle": "",
+    "maintenance_message": "",
+    "contact_phone": "",
+    "contact_email": "",
+    "contact_website": "",
+    "feat_booking": true,
+    "feat_reviews": true,
+    "feat_whatsapp": true,
+    "contacts_require_premium": false,
+    "maintenance_mode": false
+  },
+  "GET /admin/reviews → 200": {
+    "items": [
+      {
+        "id": "cmu47kcww000zroymkb079i4e",
+        "rating": 5,
+        "comment": "Travail propre et rapide.",
+        "reply": "Merci pour votre confiance !",
+        "isPublic": true,
+        "createdAt": "2026-09-16T14:40:52.065Z",
+        "bookingId": "cmu47kcsu000proymtjmgaquc",
+        "client": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele"
+        },
+        "provider": {
+          "id": "cmu47kckp0002roymeqf5s58k",
+          "displayName": "Plomberie Mukendi"
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "PATCH /admin/reviews/:id → 200": {
+    "id": "cmu47kcww000zroymkb079i4e",
+    "rating": 5,
+    "comment": "Travail propre et rapide.",
+    "reply": "Merci pour votre confiance !",
+    "isPublic": false,
+    "createdAt": "2026-09-16T14:40:52.065Z",
+    "bookingId": "cmu47kcsu000proymtjmgaquc",
+    "client": {
+      "id": "cmu47kcmb000croymxje2koq9",
+      "name": "Paul Kabasele"
+    },
+    "provider": {
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "displayName": "Plomberie Mukendi"
+    }
+  },
+  "GET /providers/:id (review hidden) → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "categoryChain": [
+      {
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment"
+      },
+      {
+        "id": "sub_plomberie",
+        "slug": "plomberie",
+        "name": "Plomberie"
+      }
+    ],
+    "placeChain": [
+      {
+        "id": "place_cd",
+        "kind": "COUNTRY",
+        "label": "RDC",
+        "parentId": null,
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin_prov",
+        "kind": "PROVINCE",
+        "label": "Kinshasa",
+        "parentId": "place_cd",
+        "hasChildren": true
+      },
+      {
+        "id": "place_kin",
+        "kind": "CITY",
+        "label": "Kinshasa",
+        "parentId": "place_kin_prov",
+        "hasChildren": true
+      },
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true
+      }
+    ],
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "completedJobs": 1,
+    "premiumTier": "FREE",
+    "verified": true,
+    "isAvailable": true,
+    "latitude": -4.31,
+    "longitude": 15.29,
+    "distanceKm": null,
+    "pricing": {
+      "amount": 25000,
+      "currency": {
+        "id": "ref_cdf",
+        "type": "CURRENCY",
+        "label": "CDF",
+        "categoryId": null
+      },
+      "unit": {
+        "id": "ref_job",
+        "type": "PRICE_UNIT",
+        "label": "Par prestation",
+        "categoryId": null
+      }
+    },
+    "ownerId": "cmu47kciw0000royml0qqmsav",
+    "description": "Dépannage et installation sanitaire.",
+    "yearsExperience": 9,
+    "freeSkills": [
+      "Chauffe-eau"
+    ],
+    "skills": [
+      {
+        "id": "ref_skill_leak",
+        "type": "SKILL",
+        "label": "Fuites",
+        "categoryId": "cat_batiment"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      }
+    ],
+    "interventionModes": [
+      {
+        "id": "ref_home",
+        "type": "INTERVENTION_MODE",
+        "label": "À domicile",
+        "categoryId": null
+      }
+    ],
+    "media": [
+      {
+        "id": "cmu47kckp0004roymf1u2noe9",
+        "kind": "VIDEO_YOUTUBE",
+        "url": "https://www.youtube.com/watch?v=M7lc1UVf-VE",
+        "storagePath": null,
+        "youtubeId": "M7lc1UVf-VE",
+        "title": null,
+        "order": 0
+      }
+    ],
+    "schedule": {
+      "timezone": "Africa/Kinshasa",
+      "slotDurationMin": 60,
+      "slotBufferMin": 15,
+      "rules": [
+        {
+          "dayOfWeek": 0,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 2,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        },
+        {
+          "dayOfWeek": 6,
+          "startTime": "08:00",
+          "endTime": "18:00"
+        }
+      ],
+      "exceptions": [
+        {
+          "date": "2026-10-17",
+          "isOpen": false,
+          "startTime": null,
+          "endTime": null,
+          "reason": null
+        }
+      ]
+    },
+    "scheduleSummary": [
+      {
+        "dayOfWeek": 0,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 1,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 2,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 3,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 4,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 5,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      },
+      {
+        "dayOfWeek": 6,
+        "ranges": [
+          {
+            "startTime": "08:00",
+            "endTime": "18:00"
+          }
+        ]
+      }
+    ],
+    "social": {
+      "youtubeUrl": null,
+      "instagramUrl": null,
+      "tiktokUrl": null,
+      "facebookUrl": "https://www.facebook.com/plomberie.mukendi"
+    },
+    "contacts": null,
+    "contactsLocked": true,
+    "blocked": false,
+    "reviewsPreview": [],
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "subcategoryId": "sub_plomberie",
+    "placeId": "place_gombe",
+    "isOwner": false,
+    "hidden": false,
+    "verificationStatus": "VERIFIED"
+  },
+  "DELETE /admin/reviews/:id → 200": {
+    "ok": true
+  },
+  "GET /admin/conversations → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpb000eroymc4wr6hs9",
+        "subject": "Fuite cuisine",
+        "lastMessageAt": "2026-09-16T14:40:52.613Z",
+        "lastPreview": "Message supprimé",
+        "client": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele"
+        },
+        "provider": {
+          "id": "cmu47kckp0002roymeqf5s58k",
+          "userId": "cmu47kciw0000royml0qqmsav",
+          "displayName": "Plomberie Mukendi"
+        },
+        "messageCount": 3,
+        "createdAt": "2026-09-16T14:40:51.791Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "GET /admin/conversations/:id/messages → 200": {
+    "items": [
+      {
+        "id": "cmu47kcpi000groymdnva7q4d",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kcmb000croymxje2koq9",
+        "sender": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele",
+          "side": "client"
+        },
+        "body": "Bonjour, êtes-vous disponible demain ?",
+        "attachments": [],
+        "createdAt": "2026-09-16T14:40:51.799Z",
+        "deletedAt": null
+      },
+      {
+        "id": "cmu47kcqw000kroymox8e9n3w",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kciw0000royml0qqmsav",
+        "sender": {
+          "id": "cmu47kciw0000royml0qqmsav",
+          "name": "Utilisateur",
+          "side": "provider"
+        },
+        "body": "Oui, réservez un créneau.",
+        "attachments": [
+          {
+            "kind": "image",
+            "mime": "image/jpeg",
+            "path": "attachments/cmu47kciw0000royml0qqmsav/mu47kcqn-8g8vdq-devis.jpg",
+            "bytes": 80000
+          }
+        ],
+        "createdAt": "2026-09-16T14:40:51.849Z",
+        "deletedAt": null
+      },
+      {
+        "id": "cmu47kdc5002broymy9phugde",
+        "conversationId": "cmu47kcpb000eroymc4wr6hs9",
+        "senderId": "cmu47kcmb000croymxje2koq9",
+        "sender": {
+          "id": "cmu47kcmb000croymxje2koq9",
+          "name": "Paul Kabasele",
+          "side": "client"
+        },
+        "body": "Message envoyé par erreur",
+        "attachments": [],
+        "createdAt": "2026-09-16T14:40:52.613Z",
+        "deletedAt": "2026-09-16T14:40:52.632Z"
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "limit": 100,
+    "conversation": {
+      "id": "cmu47kcpb000eroymc4wr6hs9",
+      "subject": "Fuite cuisine",
+      "lastMessageAt": "2026-09-16T14:40:52.613Z",
+      "lastPreview": "Message supprimé",
+      "client": {
+        "id": "cmu47kcmb000croymxje2koq9",
+        "name": "Paul Kabasele"
+      },
+      "provider": {
+        "id": "cmu47kckp0002roymeqf5s58k",
+        "userId": "cmu47kciw0000royml0qqmsav",
+        "displayName": "Plomberie Mukendi"
+      },
+      "messageCount": 3,
+      "createdAt": "2026-09-16T14:40:51.791Z"
+    }
+  },
+  "DELETE /admin/messages/:id → 200": {
+    "ok": true
+  },
+  "DELETE /admin/conversations/:id → 200": {
+    "ok": true
+  },
+  "GET /admin/contacts (for update) → 200": {
+    "items": [
+      {
+        "id": "cmu47kd0d0018roymq8282yca",
+        "name": "Visiteur",
+        "email": "visiteur@example.cd",
+        "phone": null,
+        "subject": "Partenariat",
+        "message": "Bonjour, nous aimerions vous présenter notre offre.",
+        "status": "NEW",
+        "createdAt": "2026-09-16T14:40:52.189Z",
+        "updatedAt": "2026-09-16T14:40:52.189Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 50
+  },
+  "PATCH /admin/contacts/:id → 200": {
+    "id": "cmu47kd0d0018roymq8282yca",
+    "name": "Visiteur",
+    "email": "visiteur@example.cd",
+    "phone": null,
+    "subject": "Partenariat",
+    "message": "Bonjour, nous aimerions vous présenter notre offre.",
+    "status": "READ",
+    "createdAt": "2026-09-16T14:40:52.189Z",
+    "updatedAt": "2026-09-16T14:40:53.098Z"
+  },
+  "DELETE /admin/contacts/:id → 200": {
+    "ok": true
+  },
+  "POST /admin/categories → 201": {
+    "description": null,
+    "icon": "Sparkles",
+    "color": "bg-pink-500",
+    "image": null,
+    "order": 1,
+    "isActive": true,
+    "categoryId": null,
+    "parentId": null,
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdq2003eroymyzv9ryvn",
+    "slug": "beaute",
+    "name": "Beauté",
+    "level": 1,
+    "children": []
+  },
+  "PATCH /admin/categories/:id → 200": {
+    "description": null,
+    "icon": "Sparkles",
+    "color": "bg-pink-500",
+    "image": null,
+    "order": 1,
+    "isActive": true,
+    "categoryId": null,
+    "parentId": null,
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdq2003eroymyzv9ryvn",
+    "slug": "beaute",
+    "name": "Beauté & bien-être",
+    "level": 1,
+    "children": []
+  },
+  "POST /admin/subcategories → 201": {
+    "description": null,
+    "icon": null,
+    "color": null,
+    "image": null,
+    "order": 0,
+    "isActive": true,
+    "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+    "parentId": null,
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdr8003kroymb7tvlyl2",
+    "slug": "coiffure",
+    "name": "Coiffure",
+    "level": 2,
+    "children": []
+  },
+  "POST /admin/subcategories (level 3) → 201": {
+    "description": null,
+    "icon": null,
+    "color": null,
+    "image": null,
+    "order": 0,
+    "isActive": true,
+    "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+    "parentId": "cmu47kdr8003kroymb7tvlyl2",
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdrr003oroymif59q89h",
+    "slug": "tresses",
+    "name": "Tresses",
+    "level": 3,
+    "children": []
+  },
+  "PATCH /admin/subcategories/:id → 200": {
+    "description": null,
+    "icon": null,
+    "color": null,
+    "image": null,
+    "order": 0,
+    "isActive": true,
+    "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+    "parentId": "cmu47kdr8003kroymb7tvlyl2",
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdrr003oroymif59q89h",
+    "slug": "tresses",
+    "name": "Tresses africaines",
+    "level": 3,
+    "children": []
+  },
+  "GET /admin/categories/:id → 200": {
+    "description": null,
+    "icon": "Sparkles",
+    "color": "bg-pink-500",
+    "image": null,
+    "order": 1,
+    "isActive": true,
+    "categoryId": null,
+    "parentId": null,
+    "counts": {
+      "providers": 0,
+      "bookings": 0,
+      "leads": 0
+    },
+    "id": "cmu47kdq2003eroymyzv9ryvn",
+    "slug": "beaute",
+    "name": "Beauté & bien-être",
+    "level": 1,
+    "children": [
+      {
+        "description": null,
+        "icon": null,
+        "color": null,
+        "image": null,
+        "order": 0,
+        "isActive": true,
+        "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+        "parentId": null,
+        "counts": {
+          "providers": 0,
+          "bookings": 0,
+          "leads": 0
+        },
+        "id": "cmu47kdr8003kroymb7tvlyl2",
+        "slug": "coiffure",
+        "name": "Coiffure",
+        "level": 2,
+        "children": [
+          {
+            "description": null,
+            "icon": null,
+            "color": null,
+            "image": null,
+            "order": 0,
+            "isActive": true,
+            "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+            "parentId": "cmu47kdr8003kroymb7tvlyl2",
+            "counts": {
+              "providers": 0,
+              "bookings": 0,
+              "leads": 0
+            },
+            "id": "cmu47kdrr003oroymif59q89h",
+            "slug": "tresses",
+            "name": "Tresses africaines",
+            "level": 3,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "GET /admin/categories → 200": {
+    "items": [
+      {
+        "description": null,
+        "icon": "Hammer",
+        "color": null,
+        "image": null,
+        "order": 0,
+        "isActive": true,
+        "categoryId": null,
+        "parentId": null,
+        "counts": {
+          "providers": 1,
+          "bookings": 3,
+          "leads": 0
+        },
+        "id": "cat_batiment",
+        "slug": "batiment",
+        "name": "Bâtiment",
+        "level": 1,
+        "children": [
+          {
+            "description": null,
+            "icon": null,
+            "color": null,
+            "image": null,
+            "order": 0,
+            "isActive": true,
+            "categoryId": "cat_batiment",
+            "parentId": null,
+            "counts": {
+              "providers": 1,
+              "bookings": 3,
+              "leads": 0
+            },
+            "id": "sub_plomberie",
+            "slug": "plomberie",
+            "name": "Plomberie",
+            "level": 2,
+            "children": []
+          }
+        ]
+      },
+      {
+        "description": null,
+        "icon": "Sparkles",
+        "color": "bg-pink-500",
+        "image": null,
+        "order": 1,
+        "isActive": true,
+        "categoryId": null,
+        "parentId": null,
+        "counts": {
+          "providers": 0,
+          "bookings": 0,
+          "leads": 0
+        },
+        "id": "cmu47kdq2003eroymyzv9ryvn",
+        "slug": "beaute",
+        "name": "Beauté & bien-être",
+        "level": 1,
+        "children": [
+          {
+            "description": null,
+            "icon": null,
+            "color": null,
+            "image": null,
+            "order": 0,
+            "isActive": true,
+            "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+            "parentId": null,
+            "counts": {
+              "providers": 0,
+              "bookings": 0,
+              "leads": 0
+            },
+            "id": "cmu47kdr8003kroymb7tvlyl2",
+            "slug": "coiffure",
+            "name": "Coiffure",
+            "level": 2,
+            "children": [
+              {
+                "description": null,
+                "icon": null,
+                "color": null,
+                "image": null,
+                "order": 0,
+                "isActive": true,
+                "categoryId": "cmu47kdq2003eroymyzv9ryvn",
+                "parentId": "cmu47kdr8003kroymb7tvlyl2",
+                "counts": {
+                  "providers": 0,
+                  "bookings": 0,
+                  "leads": 0
+                },
+                "id": "cmu47kdrr003oroymif59q89h",
+                "slug": "tresses",
+                "name": "Tresses africaines",
+                "level": 3,
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "DELETE /admin/subcategories/:id → 200": {
+    "ok": true
+  },
+  "DELETE /admin/categories/:id → 200": {
+    "ok": true
+  },
+  "POST /admin/places → 201": {
+    "id": "cmu47kdul003yroym1bzsuvym",
+    "kind": "COMMUNE",
+    "label": "Limete",
+    "parentId": "place_kin",
+    "hasChildren": false,
+    "childCount": 0,
+    "slug": "cd-province-kinshasa-city-kinshasa-commune-limete",
+    "aliases": [
+      "Limeté"
+    ],
+    "source": null,
+    "latitude": null,
+    "longitude": null,
+    "active": true,
+    "mergedIntoId": null,
+    "createdAt": "2026-09-16T14:40:53.277Z",
+    "updatedAt": "2026-09-16T14:40:53.277Z"
+  },
+  "POST /admin/places (duplicate label) → 409": {
+    "statusCode": 409,
+    "code": "ALREADY_EXISTS",
+    "message": "Ce lieu existe déjà."
+  },
+  "POST /admin/places (typo) → 201": {
+    "id": "cmu47kdv50042roymrrag8xpk",
+    "kind": "COMMUNE",
+    "label": "Limette",
+    "parentId": "place_kin",
+    "hasChildren": false,
+    "childCount": 0,
+    "slug": "cd-province-kinshasa-city-kinshasa-commune-limette",
+    "aliases": [],
+    "source": null,
+    "latitude": null,
+    "longitude": null,
+    "active": true,
+    "mergedIntoId": null,
+    "createdAt": "2026-09-16T14:40:53.298Z",
+    "updatedAt": "2026-09-16T14:40:53.298Z"
+  },
+  "PATCH /admin/places/:id → 200": {
+    "id": "cmu47kdul003yroym1bzsuvym",
+    "kind": "COMMUNE",
+    "label": "Limete",
+    "parentId": "place_kin",
+    "hasChildren": false,
+    "childCount": 0,
+    "slug": "cd-province-kinshasa-city-kinshasa-commune-limete",
+    "aliases": [
+      "Limeté"
+    ],
+    "source": null,
+    "latitude": -4.37,
+    "longitude": 15.35,
+    "active": true,
+    "mergedIntoId": null,
+    "createdAt": "2026-09-16T14:40:53.277Z",
+    "updatedAt": "2026-09-16T14:40:53.308Z"
+  },
+  "POST /admin/places/merge → 200": {
+    "from": {
+      "id": "cmu47kdv50042roymrrag8xpk",
+      "kind": "COMMUNE",
+      "label": "Limette",
+      "parentId": "place_kin",
+      "hasChildren": false,
+      "childCount": 0,
+      "slug": "cd-province-kinshasa-city-kinshasa-commune-limette",
+      "aliases": [],
+      "source": null,
+      "latitude": null,
+      "longitude": null,
+      "active": false,
+      "mergedIntoId": "cmu47kdul003yroym1bzsuvym",
+      "createdAt": "2026-09-16T14:40:53.298Z",
+      "updatedAt": "2026-09-16T14:40:53.327Z"
+    },
+    "into": {
+      "id": "cmu47kdul003yroym1bzsuvym",
+      "kind": "COMMUNE",
+      "label": "Limete",
+      "parentId": "place_kin",
+      "hasChildren": false,
+      "childCount": 0,
+      "slug": "cd-province-kinshasa-city-kinshasa-commune-limete",
+      "aliases": [
+        "Limeté"
+      ],
+      "source": null,
+      "latitude": -4.37,
+      "longitude": 15.35,
+      "active": true,
+      "mergedIntoId": null,
+      "createdAt": "2026-09-16T14:40:53.277Z",
+      "updatedAt": "2026-09-16T14:40:53.308Z"
+    },
+    "repointed": {
+      "users": 0,
+      "providers": 0,
+      "addresses": 0,
+      "bookings": 0,
+      "suggestions": 0
+    }
+  },
+  "GET /admin/places → 200": {
+    "items": [
+      {
+        "id": "place_gombe",
+        "kind": "COMMUNE",
+        "label": "Gombe",
+        "parentId": "place_kin",
+        "hasChildren": true,
+        "childCount": 1,
+        "slug": "cd-province-kinshasa-city-kinshasa-commune-gombe",
+        "aliases": [],
+        "source": null,
+        "latitude": null,
+        "longitude": null,
+        "active": true,
+        "mergedIntoId": null,
+        "createdAt": "2026-09-16T14:40:51.374Z",
+        "updatedAt": "2026-09-16T14:40:51.374Z"
+      },
+      {
+        "id": "cmu47kdul003yroym1bzsuvym",
+        "kind": "COMMUNE",
+        "label": "Limete",
+        "parentId": "place_kin",
+        "hasChildren": false,
+        "childCount": 0,
+        "slug": "cd-province-kinshasa-city-kinshasa-commune-limete",
+        "aliases": [
+          "Limeté"
+        ],
+        "source": null,
+        "latitude": -4.37,
+        "longitude": 15.35,
+        "active": true,
+        "mergedIntoId": null,
+        "createdAt": "2026-09-16T14:40:53.277Z",
+        "updatedAt": "2026-09-16T14:40:53.308Z"
+      },
+      {
+        "id": "cmu47kdv50042roymrrag8xpk",
+        "kind": "COMMUNE",
+        "label": "Limette",
+        "parentId": "place_kin",
+        "hasChildren": false,
+        "childCount": 0,
+        "slug": "cd-province-kinshasa-city-kinshasa-commune-limette",
+        "aliases": [],
+        "source": null,
+        "latitude": null,
+        "longitude": null,
+        "active": false,
+        "mergedIntoId": "cmu47kdul003yroym1bzsuvym",
+        "createdAt": "2026-09-16T14:40:53.298Z",
+        "updatedAt": "2026-09-16T14:40:53.327Z"
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "limit": 100
+  },
+  "POST /places/suggestions (to reject) → 201": {
+    "id": "cmu47kdwg004aroymu2lncpfw",
+    "kind": "QUARTIER",
+    "label": "Quartier fantôme",
+    "parentId": "place_gombe",
+    "status": "PENDING",
+    "resolvedPlaceId": null,
+    "createdAt": "2026-09-16T14:40:53.344Z",
+    "resolvedAt": null
+  },
+  "POST /admin/places/suggestions/:id/reject → 200": {
+    "id": "cmu47kdwg004aroymu2lncpfw",
+    "kind": "QUARTIER",
+    "label": "Quartier fantôme",
+    "parentId": "place_gombe",
+    "status": "REJECTED",
+    "resolvedPlaceId": null,
+    "createdAt": "2026-09-16T14:40:53.344Z",
+    "resolvedAt": "2026-09-16T14:40:53.358Z"
+  },
+  "POST /admin/references → 201": {
+    "id": "cmu47kdxi004groymlvp9wkjb",
+    "type": "LANGUAGE",
+    "label": "Lingala",
+    "slug": "language-lingala",
+    "aliases": [],
+    "categoryId": null,
+    "order": 1,
+    "active": true,
+    "suggested": true,
+    "mergedIntoId": null,
+    "source": null,
+    "createdAt": "2026-09-16T14:40:53.383Z",
+    "usageCount": 0
+  },
+  "POST /admin/references (typo) → 201": {
+    "id": "cmu47kdxs004kroymonteu8zw",
+    "type": "LANGUAGE",
+    "label": "Lingalla",
+    "slug": "language-lingalla",
+    "aliases": [],
+    "categoryId": null,
+    "order": 2,
+    "active": true,
+    "suggested": true,
+    "mergedIntoId": null,
+    "source": null,
+    "createdAt": "2026-09-16T14:40:53.393Z",
+    "usageCount": 0
+  },
+  "PATCH /admin/references/:id → 200": {
+    "id": "cmu47kdxi004groymlvp9wkjb",
+    "type": "LANGUAGE",
+    "label": "Lingala",
+    "slug": "language-lingala",
+    "aliases": [
+      "Ngala"
+    ],
+    "categoryId": null,
+    "order": 2,
+    "active": true,
+    "suggested": true,
+    "mergedIntoId": null,
+    "source": null,
+    "createdAt": "2026-09-16T14:40:53.383Z",
+    "usageCount": 0
+  },
+  "POST /admin/references/merge → 200": {
+    "from": {
+      "id": "cmu47kdxs004kroymonteu8zw",
+      "type": "LANGUAGE",
+      "label": "Lingalla",
+      "slug": "language-lingalla",
+      "aliases": [],
+      "categoryId": null,
+      "order": 2,
+      "active": false,
+      "suggested": true,
+      "mergedIntoId": "cmu47kdxi004groymlvp9wkjb",
+      "source": null,
+      "createdAt": "2026-09-16T14:40:53.393Z",
+      "usageCount": 0
+    },
+    "into": {
+      "id": "cmu47kdxi004groymlvp9wkjb",
+      "type": "LANGUAGE",
+      "label": "Lingala",
+      "slug": "language-lingala",
+      "aliases": [
+        "Ngala"
+      ],
+      "categoryId": null,
+      "order": 2,
+      "active": true,
+      "suggested": true,
+      "mergedIntoId": null,
+      "source": null,
+      "createdAt": "2026-09-16T14:40:53.383Z",
+      "usageCount": 0
+    },
+    "repointed": {
+      "providerSkills": 0,
+      "providerReferences": 0,
+      "pricing": 0
+    }
+  },
+  "GET /admin/references → 200": {
+    "items": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "slug": "language-francais",
+        "aliases": [],
+        "categoryId": null,
+        "order": 0,
+        "active": true,
+        "suggested": true,
+        "mergedIntoId": null,
+        "source": null,
+        "createdAt": "2026-09-16T14:40:51.380Z",
+        "usageCount": 1
+      },
+      {
+        "id": "cmu47kdxi004groymlvp9wkjb",
+        "type": "LANGUAGE",
+        "label": "Lingala",
+        "slug": "language-lingala",
+        "aliases": [
+          "Ngala"
+        ],
+        "categoryId": null,
+        "order": 2,
+        "active": true,
+        "suggested": true,
+        "mergedIntoId": null,
+        "source": null,
+        "createdAt": "2026-09-16T14:40:53.383Z",
+        "usageCount": 0
+      },
+      {
+        "id": "cmu47kdxs004kroymonteu8zw",
+        "type": "LANGUAGE",
+        "label": "Lingalla",
+        "slug": "language-lingalla",
+        "aliases": [],
+        "categoryId": null,
+        "order": 2,
+        "active": false,
+        "suggested": true,
+        "mergedIntoId": "cmu47kdxi004groymlvp9wkjb",
+        "source": null,
+        "createdAt": "2026-09-16T14:40:53.393Z",
+        "usageCount": 0
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "limit": 100
+  },
+  "GET /references (after merge) → 200": {
+    "items": [
+      {
+        "id": "ref_fr",
+        "type": "LANGUAGE",
+        "label": "Français",
+        "categoryId": null
+      },
+      {
+        "id": "cmu47kdxi004groymlvp9wkjb",
+        "type": "LANGUAGE",
+        "label": "Lingala",
+        "categoryId": null
+      }
+    ],
+    "total": 2,
+    "page": 1,
+    "limit": 100
+  },
+  "GET /admin/audit (after curation) → 200": {
+    "items": [
+      {
+        "id": "cmu47kdyh004qroym5ygqht9u",
+        "action": "reference.merge",
+        "entityType": "ReferenceItem",
+        "entityId": "cmu47kdxs004kroymonteu8zw",
+        "metadata": {
+          "type": "LANGUAGE",
+          "fromId": "cmu47kdxs004kroymonteu8zw",
+          "intoId": "cmu47kdxi004groymlvp9wkjb",
+          "repointed": {
+            "pricing": 0,
+            "providerSkills": 0,
+            "providerReferences": 0
+          }
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.418Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdy0004oroymt3y43klo",
+        "action": "reference.update",
+        "entityType": "ReferenceItem",
+        "entityId": "cmu47kdxi004groymlvp9wkjb",
+        "metadata": {
+          "fields": [
+            "aliases",
+            "order"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.401Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdxt004mroymeubuctpj",
+        "action": "reference.create",
+        "entityType": "ReferenceItem",
+        "entityId": "cmu47kdxs004kroymonteu8zw",
+        "metadata": {
+          "type": "LANGUAGE",
+          "label": "Lingalla",
+          "categoryId": null
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.394Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdxm004iroymng00kgfv",
+        "action": "reference.create",
+        "entityType": "ReferenceItem",
+        "entityId": "cmu47kdxi004groymlvp9wkjb",
+        "metadata": {
+          "type": "LANGUAGE",
+          "label": "Lingala",
+          "categoryId": null
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.387Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdwz004eroymhccxsktz",
+        "action": "suggestion.reject",
+        "entityType": "PlaceSuggestion",
+        "entityId": "cmu47kdwg004aroymu2lncpfw",
+        "metadata": null,
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.364Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdw00048roymxmfyewjz",
+        "action": "place.merge",
+        "entityType": "Place",
+        "entityId": "cmu47kdv50042roymrrag8xpk",
+        "metadata": {
+          "fromId": "cmu47kdv50042roymrrag8xpk",
+          "intoId": "cmu47kdul003yroym1bzsuvym",
+          "repointed": {
+            "users": 0,
+            "bookings": 0,
+            "addresses": 0,
+            "providers": 0,
+            "suggestions": 0
+          }
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.328Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdvi0046roym61r2kre3",
+        "action": "place.update",
+        "entityType": "Place",
+        "entityId": "cmu47kdul003yroym1bzsuvym",
+        "metadata": {
+          "fields": [
+            "latitude",
+            "longitude"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.310Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdv80044roym2woliyls",
+        "action": "place.create",
+        "entityType": "Place",
+        "entityId": "cmu47kdv50042roymrrag8xpk",
+        "metadata": {
+          "kind": "COMMUNE",
+          "label": "Limette",
+          "parentId": "place_kin"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.300Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdup0040roym65bic1y4",
+        "action": "place.create",
+        "entityType": "Place",
+        "entityId": "cmu47kdul003yroym1bzsuvym",
+        "metadata": {
+          "kind": "COMMUNE",
+          "label": "Limete",
+          "parentId": "place_kin"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.281Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdu1003wroymft3hjrbh",
+        "action": "category.delete",
+        "entityType": "Category",
+        "entityId": "cmu47kdq2003eroymyzv9ryvn",
+        "metadata": {
+          "slug": "beaute"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.257Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdti003uroymmb43gyd0",
+        "action": "subcategory.delete",
+        "entityType": "Subcategory",
+        "entityId": "cmu47kdrr003oroymif59q89h",
+        "metadata": {
+          "slug": "tresses"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.239Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdsb003sroym1ycmjpvd",
+        "action": "subcategory.update",
+        "entityType": "Subcategory",
+        "entityId": "cmu47kdrr003oroymif59q89h",
+        "metadata": {
+          "fields": [
+            "name"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.196Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdrs003qroymb7wlzp6o",
+        "action": "subcategory.create",
+        "entityType": "Subcategory",
+        "entityId": "cmu47kdrr003oroymif59q89h",
+        "metadata": {
+          "slug": "tresses",
+          "parentId": "cmu47kdr8003kroymb7tvlyl2",
+          "categoryId": "cmu47kdq2003eroymyzv9ryvn"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.177Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdr9003mroym6sjoxl8f",
+        "action": "subcategory.create",
+        "entityType": "Subcategory",
+        "entityId": "cmu47kdr8003kroymb7tvlyl2",
+        "metadata": {
+          "slug": "coiffure",
+          "parentId": null,
+          "categoryId": "cmu47kdq2003eroymyzv9ryvn"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.158Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdqs003iroymz6aegssy",
+        "action": "category.update",
+        "entityType": "Category",
+        "entityId": "cmu47kdq2003eroymyzv9ryvn",
+        "metadata": {
+          "fields": [
+            "name"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.141Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdq4003groym7vgfshpk",
+        "action": "category.create",
+        "entityType": "Category",
+        "entityId": "cmu47kdq2003eroymyzv9ryvn",
+        "metadata": {
+          "slug": "beaute"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.116Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdpv003droymsp12xx8z",
+        "action": "contact.delete",
+        "entityType": "ContactMessage",
+        "entityId": "cmu47kd0d0018roymq8282yca",
+        "metadata": {
+          "email": "visiteur@example.cd",
+          "subject": "Partenariat"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.107Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdpn003broymbbtizha8",
+        "action": "contact.update",
+        "entityType": "ContactMessage",
+        "entityId": "cmu47kd0d0018roymq8282yca",
+        "metadata": {
+          "status": {
+            "to": "READ",
+            "from": "NEW"
+          }
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.099Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdp90039roym0kvvvp68",
+        "action": "conversation.delete",
+        "entityType": "Conversation",
+        "entityId": "cmu47kcpb000eroymc4wr6hs9",
+        "metadata": {
+          "subject": "Fuite cuisine",
+          "clientId": "cmu47kcmb000croymxje2koq9",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "messageCount": 3
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.085Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdox0037roymo2gkpobz",
+        "action": "message.delete",
+        "entityType": "Message",
+        "entityId": "cmu47kcpi000groymdnva7q4d",
+        "metadata": {
+          "senderId": "cmu47kcmb000croymxje2koq9",
+          "conversationId": "cmu47kcpb000eroymc4wr6hs9"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.074Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdo50035roymh60cpgdu",
+        "action": "review.delete",
+        "entityType": "Review",
+        "entityId": "cmu47kcww000zroymkb079i4e",
+        "metadata": {
+          "rating": 5,
+          "clientId": "cmu47kcmb000croymxje2koq9",
+          "bookingId": "cmu47kcsu000proymtjmgaquc",
+          "ratingAvg": 0,
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "ratingCount": 0
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.045Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdn20033roymjrj4wspp",
+        "action": "review.update",
+        "entityType": "Review",
+        "entityId": "cmu47kcww000zroymkb079i4e",
+        "metadata": {
+          "isPublic": {
+            "to": false,
+            "from": true
+          },
+          "providerId": "cmu47kckp0002roymeqf5s58k"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:53.006Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kdm40031roymk5d9sbc5",
+        "action": "booking.cancel",
+        "entityType": "Booking",
+        "entityId": "cmu47kdlk002troym6n1h2avq",
+        "metadata": {
+          "reason": "Doublon signalé par le client",
+          "previousStatus": "PENDING"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.972Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kda10025roym0f93ibjl",
+        "action": "suggestion.approve",
+        "entityType": "PlaceSuggestion",
+        "entityId": "cmu47kd98001zroym1ykxxk02",
+        "metadata": {
+          "placeId": "cmu47kd9w0021royms6q19wvr",
+          "linkedExisting": false
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.538Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd71001xroymwcru7moy",
+        "action": "verification.review_doc",
+        "entityType": "VerificationDoc",
+        "entityId": "cmu47kd4b001lroymkyw6xqbz",
+        "metadata": {
+          "kind": "ADDRESS",
+          "decision": "APPROVED",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "previousStatus": "UNDER_REVIEW",
+          "rejectionReason": null,
+          "verificationStatus": "VERIFIED"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.429Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd6b001troympjdpy59h",
+        "action": "verification.review_doc",
+        "entityType": "VerificationDoc",
+        "entityId": "cmu47kd41001jroymmb83nyj4",
+        "metadata": {
+          "kind": "SELFIE",
+          "decision": "APPROVED",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "previousStatus": "UNDER_REVIEW",
+          "rejectionReason": null,
+          "verificationStatus": "UNDER_REVIEW"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.404Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd62001rroymgq1r9ydy",
+        "action": "verification.review_doc",
+        "entityType": "VerificationDoc",
+        "entityId": "cmu47kd3r001hroym7vk9b4jy",
+        "metadata": {
+          "kind": "ID_BACK",
+          "decision": "APPROVED",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "previousStatus": "UNDER_REVIEW",
+          "rejectionReason": null,
+          "verificationStatus": "UNDER_REVIEW"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.395Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd5t001proymifr28k0r",
+        "action": "verification.review_doc",
+        "entityType": "VerificationDoc",
+        "entityId": "cmu47kd3c001froymz5krr92u",
+        "metadata": {
+          "kind": "ID_FRONT",
+          "decision": "APPROVED",
+          "providerId": "cmu47kckp0002roymeqf5s58k",
+          "previousStatus": "UNDER_REVIEW",
+          "rejectionReason": null,
+          "verificationStatus": "UNDER_REVIEW"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.386Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd2i001droymu82gyhzn",
+        "action": "settings.update",
+        "entityType": "SystemSetting",
+        "entityId": null,
+        "metadata": {
+          "keys": [
+            "hero_title"
+          ]
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.266Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      },
+      {
+        "id": "cmu47kd25001aroymqos34rv0",
+        "action": "report.resolve",
+        "entityType": "Report",
+        "entityId": "cmu47kd090017roymjw1igeue",
+        "metadata": {
+          "targetId": "cmu47kckp0002roymeqf5s58k",
+          "resolution": "Numéro vérifié avec le prestataire.",
+          "targetKind": "PROVIDER"
+        },
+        "ipAddress": "127.0.0.1",
+        "createdAt": "2026-09-16T14:40:52.253Z",
+        "actor": {
+          "id": "user_admin",
+          "name": "Ada Admin"
+        }
+      }
+    ]
+  },
+  "PATCH /admin/users/:id (self) → 400": {
+    "statusCode": 400,
+    "code": "SELF_ACTION",
+    "message": "Vous ne pouvez pas modifier votre propre compte ici"
+  },
+  "PATCH /admin/users/:id → 200": {
+    "id": "cmu47kciw0000royml0qqmsav",
+    "firstName": null,
+    "lastName": null,
+    "name": "Utilisateur",
+    "email": null,
+    "phone": "+243810000001",
+    "avatar": null,
+    "role": "PROVIDER",
+    "isActive": false,
+    "suspendedAt": "2026-09-16T14:40:53.459Z",
+    "suspendedReason": "Signalements répétés",
+    "placeId": null,
+    "placeLabel": null,
+    "createdAt": "2026-09-16T14:40:51.561Z",
+    "lastLoginAt": "2026-09-16T14:40:51.560Z",
+    "provider": {
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "displayName": "Plomberie Mukendi",
+      "hidden": true,
+      "verificationStatus": "VERIFIED"
+    }
+  },
+  "GET /me (suspended) → 403": {
+    "statusCode": 403,
+    "code": "ACCOUNT_SUSPENDED",
+    "message": "Votre compte est suspendu.",
+    "suspendedReason": "Signalements répétés"
+  },
+  "GET /providers (after suspension) → 200": {
+    "items": [],
+    "total": 0,
+    "page": 1,
+    "limit": 20
+  },
+  "GET /providers/:id (suspended owner) → 404": {
+    "statusCode": 404,
+    "code": "NOT_FOUND",
+    "message": "Prestataire introuvable"
+  },
+  "PATCH /admin/users/:id (restore) → 200": {
+    "id": "cmu47kciw0000royml0qqmsav",
+    "firstName": null,
+    "lastName": null,
+    "name": "Utilisateur",
+    "email": null,
+    "phone": "+243810000001",
+    "avatar": null,
+    "role": "PROVIDER",
+    "isActive": true,
+    "suspendedAt": null,
+    "suspendedReason": null,
+    "placeId": null,
+    "placeLabel": null,
+    "createdAt": "2026-09-16T14:40:51.561Z",
+    "lastLoginAt": "2026-09-16T14:40:51.560Z",
+    "provider": {
+      "id": "cmu47kckp0002roymeqf5s58k",
+      "displayName": "Plomberie Mukendi",
+      "hidden": true,
+      "verificationStatus": "VERIFIED"
+    }
+  },
+  "PATCH /admin/providers/:id → 200": {
+    "id": "cmu47kckp0002roymeqf5s58k",
+    "userId": "cmu47kciw0000royml0qqmsav",
+    "displayName": "Plomberie Mukendi",
+    "profilePhoto": null,
+    "phone": "+243810000001",
+    "categoryLabel": "Plomberie",
+    "placeLabel": "Gombe",
+    "verificationStatus": "VERIFIED",
+    "premiumTier": "BOOSTED",
+    "premiumUntil": null,
+    "hidden": false,
+    "isAvailable": true,
+    "ratingAvg": 0,
+    "ratingCount": 0,
+    "completedJobs": 1,
+    "publishedAt": "2026-09-16T14:40:51.623Z",
+    "owner": {
+      "id": "cmu47kciw0000royml0qqmsav",
+      "name": "Utilisateur",
+      "isActive": true
+    }
+  },
+  "DELETE /me → 200": {
+    "ok": true
+  },
+  "GET /providers/:id (deleted) → 404": {
+    "statusCode": 404,
+    "code": "NOT_FOUND",
+    "message": "Prestataire introuvable"
+  },
+  "GET /me (after deletion) → 200": {
+    "success": true,
+    "user": {
+      "id": "cmu47ke2f004zroym99k633fm",
+      "authUserId": "auth-pro",
+      "email": null,
+      "phone": "+243810000001",
+      "firstName": null,
+      "lastName": null,
+      "avatar": null,
+      "role": "CLIENT",
+      "roleSelectedAt": null,
+      "bio": null,
+      "gender": null,
+      "birthdate": null,
+      "placeId": null,
+      "country": "RDC",
+      "isActive": true,
+      "suspendedAt": null,
+      "suspendedReason": null,
+      "emailVerifiedAt": null,
+      "phoneVerifiedAt": null,
+      "lastLoginAt": "2026-09-16T14:40:53.558Z",
+      "termsAcceptedAt": null,
+      "createdAt": "2026-09-16T14:40:53.559Z",
+      "updatedAt": "2026-09-16T14:40:53.559Z",
+      "provider": null,
+      "profileComplete": false
+    }
+  },
+  "DELETE /me (admin) → 409": {
+    "statusCode": 409,
+    "code": "ADMIN_ACCOUNT",
+    "message": "Un compte administrateur ne peut pas être supprimé depuis l'application."
+  }
+}

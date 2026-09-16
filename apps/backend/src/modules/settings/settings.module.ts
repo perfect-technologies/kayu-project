@@ -1,9 +1,11 @@
-import { Module } from "@nestjs/common";
+import { Global, Module } from "@nestjs/common";
 import { SettingsController } from "./settings.controller";
-import { SettingsService } from "./settings.service";
+import { SiteSettingsService } from "./site-settings.service";
 
+@Global()
 @Module({
   controllers: [SettingsController],
-  providers: [SettingsService],
+  providers: [SiteSettingsService],
+  exports: [SiteSettingsService],
 })
 export class SettingsModule {}

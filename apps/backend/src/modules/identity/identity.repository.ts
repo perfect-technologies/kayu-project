@@ -2,59 +2,12 @@ import { Injectable } from "@nestjs/common";
 import type { Prisma, User } from "@prisma/client";
 import { PrismaService } from "../../database/prisma.service";
 
-const providerInclude = {
-  user: true,
-  categories: {
-    include: {
-      category: true,
-    },
-  },
-  skills: true,
-  serviceZones: true,
-  subcategories: {
-    include: {
-      subcategory: true,
-    },
-  },
-  trustScore: {
-    include: {
-      badges: true,
-    },
-  },
-} satisfies Prisma.ProviderInclude;
-
-export type ProviderWithRelations = Prisma.ProviderGetPayload<{
-  include: typeof providerInclude;
-}>;
+const userInclude = {
+  provider: { select: { id: true, hidden: true, verificationStatus: true } },
+} satisfies Prisma.UserInclude;
 
 export type UserWithProvider = User & {
-  provider: ProviderWithRelations | null;
-};
-
-export type ProviderOnboardingData = {
-  profession: string;
-  description?: string;
-  experience?: number;
-  hourlyRate?: number;
-  categoryIds: string[];
-  skills: string[];
-  serviceZones: Array<{
-    city: string;
-    commune?: string | null;
-  }>;
-  subcategoryIds: string[];
-};
-
-export type UserProfileData = {
-  firstName: string;
-  lastName: string;
-  city?: string;
-  country: string;
-  phone?: string;
-  email?: string;
-  avatar?: string;
-  latitude?: number;
-  longitude?: number;
+  provider: Prisma.UserGetPayload<{ include: typeof userInclude }>["provider"];
 };
 
 @Injectable()
@@ -62,166 +15,33 @@ export class IdentityRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findByAuthUserId(authUserId: string): Promise<UserWithProvider | null> {
-    return this.prisma.user.findUnique({
-      where: { authUserId },
-      include: { provider: { include: providerInclude } },
-    });
+    return this.prisma.user.findUnique({ where: { authUserId }, include: userInclude });
   }
 
   findById(userId: string): Promise<UserWithProvider | null> {
-    return this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { provider: { include: providerInclude } },
-    });
+    return this.prisma.user.findUnique({ where: { id: userId }, include: userInclude });
   }
 
-  async createUser(params: {
-    authUserId: string;
-    email?: string;
-    phone?: string;
-  }): Promise<UserWithProvider> {
-    const user = await this.prisma.user.create({
+  createUser(params: { authUserId: string; email?: string; phone?: string }): Promise<UserWithProvider> {
+    return this.prisma.user.create({
       data: {
         authUserId: params.authUserId,
         email: params.email,
         phone: params.phone,
         lastLoginAt: new Date(),
       },
-    });
-
-    return { ...user, provider: null };
-  }
-
-  updateAuthFields(
-    userId: string,
-    data: Prisma.UserUpdateInput,
-  ): Promise<UserWithProvider> {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data,
-      include: { provider: { include: providerInclude } },
+      include: userInclude,
     });
   }
 
-  updateProfile(userId: string, body: UserProfileData): Promise<UserWithProvider> {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName: body.firstName,
-        lastName: body.lastName,
-        city: body.city,
-        country: body.country,
-        phone: body.phone,
-        email: body.email,
-        avatar: body.avatar,
-        latitude: body.latitude,
-        longitude: body.longitude,
-      },
-      include: { provider: { include: providerInclude } },
+  update(userId: string, data: Prisma.UserUncheckedUpdateInput): Promise<UserWithProvider> {
+    return this.prisma.user.update({ where: { id: userId }, data, include: userInclude });
+  }
+
+  findProviderPhoto(userId: string): Promise<{ profilePhoto: string | null } | null> {
+    return this.prisma.provider.findUnique({
+      where: { userId },
+      select: { profilePhoto: true },
     });
-  }
-
-  setRole(
-    userId: string,
-    role: "CLIENT" | "PROVIDER",
-    roleSelectedAt: Date,
-  ): Promise<UserWithProvider> {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { role, roleSelectedAt },
-      include: { provider: { include: providerInclude } },
-    });
-  }
-
-  async hasRoleBlockingActivity(userId: string): Promise<boolean> {
-    const [
-      bookingsAsClient,
-      quotesAsClient,
-      jobRequests,
-      reviewsGiven,
-      messages,
-      favorites,
-    ] = await Promise.all([
-      this.prisma.booking.count({ where: { clientId: userId } }),
-      this.prisma.quote.count({ where: { clientId: userId } }),
-      this.prisma.jobRequest.count({ where: { clientId: userId } }),
-      this.prisma.review.count({ where: { clientId: userId } }),
-      this.prisma.message.count({ where: { senderId: userId } }),
-      this.prisma.favorite.count({ where: { userId } }),
-    ]);
-
-    return (
-      bookingsAsClient +
-        quotesAsClient +
-        jobRequests +
-        reviewsGiven +
-        messages +
-        favorites >
-      0
-    );
-  }
-
-  countCategories(categoryIds: string[]): Promise<number> {
-    if (categoryIds.length === 0) return Promise.resolve(0);
-
-    return this.prisma.category.count({
-      where: {
-        id: { in: categoryIds },
-        isActive: true,
-      },
-    });
-  }
-
-  countSubcategories(subcategoryIds: string[]): Promise<number> {
-    if (subcategoryIds.length === 0) return Promise.resolve(0);
-
-    return this.prisma.subcategory.count({
-      where: {
-        id: { in: subcategoryIds },
-        isActive: true,
-      },
-    });
-  }
-
-  async createProviderProfile(
-    userId: string,
-    data: ProviderOnboardingData,
-  ): Promise<ProviderWithRelations> {
-    return this.prisma.$transaction((tx) =>
-      tx.provider.create({
-        data: {
-          userId,
-          profession: data.profession,
-          description: data.description,
-          experience: data.experience,
-          hourlyRate: data.hourlyRate,
-          verificationStatus: "PENDING",
-          onboardingCompleteAt: new Date(),
-          categories: {
-            create: data.categoryIds.map((categoryId) => ({ categoryId })),
-          },
-          skills: {
-            create: data.skills.map((name) => ({ name })),
-          },
-          serviceZones: {
-            create: data.serviceZones.map((zone) => ({
-              city: zone.city,
-              commune: zone.commune,
-            })),
-          },
-          subcategories: {
-            create: data.subcategoryIds.map((subcategoryId, index) => ({
-              subcategoryId,
-              isPrimary: index === 0,
-              experience: data.experience,
-            })),
-          },
-          trustScore: {
-            create: {},
-          },
-        },
-        include: providerInclude,
-      }),
-    );
   }
 }
