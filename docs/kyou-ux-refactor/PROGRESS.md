@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration A in progress (01 done; 02 in review; 03 next)**
+Overall status: **Iteration A in progress (01 and 02 done; 03 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -14,7 +14,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | --- | --- | --- | --- |
 | 00 — Product And Design Contract | Done | Planning | Frozen 2026-09-16 |
 | 01 — Domain And Schema Reset | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/01-schema` merged into `refactor/kyou-ux`; all acceptance commands pass (see evidence) |
-| 02 — Backend Modules | In review | Claude (agent), 2026-09-16 | `kyou-ux/02-backend`, uncommitted for owner review; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
+| 02 — Backend Modules | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/02-backend` merged into `refactor/kyou-ux`; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
 | 03 — Shared Packages | Not started | TBD | After 02 contract is fixed |
 | 04 — Web Shell And Design System | Not started | TBD | After 03 |
 | 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 02, 03, 04 |
@@ -194,7 +194,7 @@ Unchanged: all launch-lead models and enums, `Category` (plus `skills` back-rela
 
 ### 02 — Backend Modules
 
-Status: In review (2026-09-16). Branch `kyou-ux/02-backend` from `refactor/kyou-ux` at `0af393b`. Nothing is committed; the whole diff waits for owner review.
+Status: Done (2026-09-16). Branch `kyou-ux/02-backend` from `refactor/kyou-ux` at `0af393b`, reviewed by the owner and merged into `refactor/kyou-ux` locally (not pushed).
 
 #### What changed
 

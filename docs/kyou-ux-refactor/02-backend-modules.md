@@ -1,6 +1,6 @@
 # 02 - Backend Modules
 
-Status: **In review** (2026-09-16). The contract as implemented, including the deviations from this doc, is in [`handover/02-backend-contract.md`](./handover/02-backend-contract.md); decisions are logged in `PROGRESS.md` with the prefix "(02)".
+Status: **Done** (2026-09-16). The contract as implemented, including the deviations from this doc, is in [`handover/02-backend-contract.md`](./handover/02-backend-contract.md); decisions are logged in `PROGRESS.md` with the prefix "(02)".
 
 ## Objective
 
