@@ -1,112 +1,82 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
+import { User } from "lucide-react";
+import { fonts, palette } from "../tokens.js";
 
 export type AvatarProps = {
-  name?: string;
-  bg?: string;
-  size?: number;
+  src?: string | null;
+  name?: string | null;
+  /** Overrides the initials derived from `name`. */
   initials?: string;
-  online?: boolean;
-  ring?: boolean;
-  src?: string;
+  size?: number;
   alt?: string;
+  ring?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
 };
 
-const BRAND_BGS = [
-  tokens.color.primary,
-  tokens.color.accent,
-  tokens.color.success,
-  tokens.color.warning,
-  "#4F46E5",
-  "#BE185D",
-  "#7C3AED",
-  "#0D9488",
-];
-
-const hashBg = (name = ""): string => {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return BRAND_BGS[Math.abs(h) % BRAND_BGS.length]!;
-};
-
-const deriveInitials = (name = ""): string =>
+const deriveInitials = (name: string): string =>
   name
     .split(/\s+/)
-    .map((p) => p[0] || "")
+    .filter(Boolean)
+    .map((part) => part[0] ?? "")
     .join("")
     .slice(0, 2)
     .toUpperCase();
 
+/** Fallback ladder: photo → initials on mint → Lucide `User` on mint. */
 export const Avatar: React.FC<AvatarProps> = ({
-  name,
-  bg,
-  size = 56,
-  initials,
-  online,
-  ring,
   src,
+  name,
+  initials,
+  size = 48,
   alt,
+  ring = false,
+  className,
+  style,
 }) => {
-  const background = bg ?? hashBg(name);
-  const label = initials ?? deriveInitials(name);
-  const dot = Math.round(size * 0.24);
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
+  const showPhoto = Boolean(src) && failedSrc !== src;
+  const label = initials ?? (name ? deriveInitials(name) : "");
+
   return (
     <span
       role="img"
-      aria-label={alt ?? name}
+      aria-label={alt ?? name ?? undefined}
+      className={className}
       style={{
         position: "relative",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
+        flexShrink: 0,
         width: size,
         height: size,
-        flexShrink: 0,
         borderRadius: "50%",
-        background,
-        color: "#FFFFFF",
-        fontFamily: tokens.font.display,
-        fontWeight: 600,
-        fontSize: Math.round(size * 0.38),
-        letterSpacing: 0,
-        boxShadow: ring
-          ? `0 0 0 2px ${tokens.color.surface}, 0 0 0 4px ${tokens.color.primary}`
-          : `0 0 0 2px ${tokens.color.surface}`,
         overflow: "hidden",
+        background: palette.secondary,
+        color: palette.primary,
+        fontFamily: `var(--font-heading, ${fonts.heading})`,
+        fontWeight: 700,
+        fontSize: Math.round(size * 0.36),
+        boxShadow: ring ? `0 0 0 2px ${palette.card}, 0 0 0 4px ${palette.accent}` : undefined,
+        ...style,
       }}
     >
-      {src ? (
+      {showPhoto ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
-          alt={alt ?? name ?? ""}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            borderRadius: "50%",
-          }}
+          src={src!}
+          alt=""
+          onError={() => setFailedSrc(src ?? null)}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
+      ) : label ? (
+        <span aria-hidden>{label}</span>
       ) : (
-        label
+        <User aria-hidden size={Math.round(size * 0.5)} strokeWidth={1.75} />
       )}
-      {online ? (
-        <span
-          aria-label="en ligne"
-          style={{
-            position: "absolute",
-            bottom: 0,
-            right: 0,
-            width: dot,
-            height: dot,
-            borderRadius: "50%",
-            background: tokens.color.success,
-            boxShadow: `0 0 0 2px ${tokens.color.surface}`,
-          }}
-        />
-      ) : null}
     </span>
   );
 };

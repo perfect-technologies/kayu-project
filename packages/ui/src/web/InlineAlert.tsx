@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
+import { palette, radii, type StatusTone } from "../tokens.js";
 import { I, type IconProps } from "./Icon.js";
 
 export type InlineAlertVariant = "info" | "success" | "warning" | "error";
@@ -21,39 +21,11 @@ export type InlineAlertProps = {
   style?: React.CSSProperties;
 };
 
-const VARIANT: Record<
-  InlineAlertVariant,
-  {
-    surface: string;
-    border: string;
-    icon: string;
-    Icon: React.ComponentType<IconProps>;
-  }
-> = {
-  info: {
-    surface: tokens.color.primarySubtle,
-    border: "rgba(14,165,233,0.22)",
-    icon: tokens.color.primaryHover,
-    Icon: I.info,
-  },
-  success: {
-    surface: tokens.color.successSubtle,
-    border: "rgba(16,185,129,0.24)",
-    icon: "#047857",
-    Icon: I.checkCircle,
-  },
-  warning: {
-    surface: tokens.color.warningSubtle,
-    border: "rgba(245,158,11,0.28)",
-    icon: "#B45309",
-    Icon: I.alertTriangle,
-  },
-  error: {
-    surface: tokens.color.dangerSubtle,
-    border: "rgba(225,29,72,0.22)",
-    icon: tokens.color.danger,
-    Icon: I.alertCircle,
-  },
+const VARIANT: Record<InlineAlertVariant, { tone: StatusTone; Icon: React.ComponentType<IconProps> }> = {
+  info: { tone: "messages", Icon: I.info },
+  success: { tone: "confirmed", Icon: I.checkCircle },
+  warning: { tone: "pending", Icon: I.alertTriangle },
+  error: { tone: "cancelled", Icon: I.alertCircle },
 };
 
 export const InlineAlert: React.FC<InlineAlertProps> = ({
@@ -65,8 +37,9 @@ export const InlineAlert: React.FC<InlineAlertProps> = ({
   className,
   style,
 }) => {
-  const v = VARIANT[variant];
-  const Icon = icon ?? v.Icon;
+  const { tone, Icon: DefaultIcon } = VARIANT[variant];
+  const colors = palette.status[tone];
+  const Icon = icon ?? DefaultIcon;
 
   return (
     <div
@@ -76,66 +49,36 @@ export const InlineAlert: React.FC<InlineAlertProps> = ({
         display: "flex",
         alignItems: "flex-start",
         gap: 12,
-        border: `1px solid ${v.border}`,
-        borderRadius: tokens.radius.md,
-        background: v.surface,
         padding: "12px 14px",
-        color: tokens.color.textPrimary,
+        borderRadius: radii.card,
+        border: `1px solid ${colors.border}`,
+        background: colors.bg,
+        color: palette.foreground,
         ...style,
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          display: "inline-flex",
-          color: v.icon,
-          flexShrink: 0,
-          marginTop: 1,
-        }}
-      >
-        <Icon size={18} stroke={1.85} />
+      <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, marginTop: 1, color: colors.fg }}>
+        <Icon size={18} stroke={1.9} />
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {title ? (
-          <div
-            style={{
-              fontFamily: tokens.font.body,
-              fontSize: 14,
-              fontWeight: 600,
-              lineHeight: 1.35,
-              color: tokens.color.textPrimary,
-            }}
-          >
-            {title}
-          </div>
-        ) : null}
-        <div
-          style={{
-            fontFamily: tokens.font.body,
-            fontSize: 14,
-            fontWeight: 500,
-            lineHeight: 1.45,
-            color: title ? tokens.color.textBody : tokens.color.textPrimary,
-            marginTop: title ? 2 : 0,
-          }}
-        >
-          {description}
-        </div>
+      <div style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 1.45 }}>
+        {title ? <div style={{ fontWeight: 700 }}>{title}</div> : null}
+        <div style={{ fontWeight: 500, marginTop: title ? 2 : 0 }}>{description}</div>
       </div>
       {action ? (
         <button
           type="button"
           onClick={action.onClick}
           style={{
+            flexShrink: 0,
+            minHeight: 24,
+            padding: 0,
             border: 0,
             background: "transparent",
-            color: v.icon,
+            color: colors.fg,
             cursor: "pointer",
-            fontFamily: tokens.font.body,
+            font: "inherit",
             fontSize: 14,
-            fontWeight: 600,
-            lineHeight: 1.4,
-            padding: 0,
+            fontWeight: 700,
             whiteSpace: "nowrap",
           }}
         >

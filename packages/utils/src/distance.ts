@@ -33,31 +33,6 @@ export function formatDistance(km: number): string {
   return `${km.toFixed(1)} km`;
 }
 
-/**
- * Categorize a distance as close, medium, or far.
- */
-export function getDistanceStatus(km: number): "close" | "medium" | "far" {
-  if (km <= 2) return "close";
-  if (km <= 10) return "medium";
-  return "far";
-}
-
-/**
- * Return a Tailwind text color class for a distance status.
- */
-export function getDistanceColor(
-  status: "close" | "medium" | "far",
-): string {
-  switch (status) {
-    case "close":
-      return "text-emerald-600";
-    case "medium":
-      return "text-amber-600";
-    case "far":
-      return "text-rose-600";
-  }
-}
-
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }

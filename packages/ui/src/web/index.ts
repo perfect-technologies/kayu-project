@@ -7,134 +7,23 @@ export type { InputProps } from "./Input.js";
 export { Avatar } from "./Avatar.js";
 export type { AvatarProps } from "./Avatar.js";
 
-export { Chip } from "./Chip.js";
-export type { ChipProps, ChipVariant, ChipSize } from "./Chip.js";
-
-export {
-  Icon,
-  I,
-  FallbackCategoryIcon,
-  resolveLucideIcon,
-} from "./Icon.js";
+export { Icon, I, FallbackCategoryIcon, resolveLucideIcon } from "./Icon.js";
 export type { IconProps, IconName } from "./Icon.js";
 
 export { StarRating } from "./StarRating.js";
 export type { StarRatingProps } from "./StarRating.js";
 
-export { TrustChip } from "./TrustChip.js";
-export type { TrustChipProps, TrustLevel } from "./TrustChip.js";
-
-export { TrustStrip } from "./TrustStrip.js";
-export type { TrustStripProps } from "./TrustStrip.js";
-
-export { TopRatedRibbon } from "./TopRatedRibbon.js";
-
 export { Shimmer, ShimmerStyles } from "./Shimmer.js";
 export type { ShimmerProps } from "./Shimmer.js";
 
-export { Sparkline } from "./Sparkline.js";
-export type { SparklineProps } from "./Sparkline.js";
+export { EmptyState } from "./EmptyState.js";
+export type { EmptyStateProps } from "./EmptyState.js";
 
-export { StatCard } from "./StatCard.js";
-export type { StatCardProps } from "./StatCard.js";
-
-export { StepIndicator } from "./StepIndicator.js";
-export type { StepIndicatorProps, StepIndicatorStep } from "./StepIndicator.js";
-
-// ─── D03 photo-forward card system ──────────────────────────────────────────
-
-export { PhotoTile } from "./PhotoTile.js";
-export type { PhotoTileProps, PhotoAspect } from "./PhotoTile.js";
-
-export { FeaturedProviderCard } from "./FeaturedProviderCard.js";
-export type { FeaturedProviderCardProps } from "./FeaturedProviderCard.js";
-
-export { WideProviderCard } from "./WideProviderCard.js";
-export type { WideProviderCardProps } from "./WideProviderCard.js";
-
-export {
-  ProviderShowcaseCard,
-  ProviderShowcaseCardSkeleton,
-} from "./ProviderShowcaseCard.js";
-export type {
-  ProviderShowcaseCardProps,
-  ProviderShowcaseCardSkeletonProps,
-} from "./ProviderShowcaseCard.js";
-
-export { NearbyCard, NearbyRow } from "./NearbyCard.js";
-export type { NearbyCardProps, NearbyRowProps } from "./NearbyCard.js";
-
-export { ProviderHorizontalCard } from "./ProviderHorizontalCard.js";
-export type { ProviderHorizontalCardProps } from "./ProviderHorizontalCard.js";
-
-export { CategoryTile } from "./CategoryTile.js";
-export type { CategoryTileProps, CategoryTileSize } from "./CategoryTile.js";
-
-export { TrendingServiceCard } from "./TrendingServiceCard.js";
-export type { TrendingServiceCardProps } from "./TrendingServiceCard.js";
-
-export {
-  FeaturedProviderCardSkeleton,
-  WideProviderCardSkeleton,
-  NearbyRowSkeleton,
-  NearbyCardSkeleton,
-  CategoryTileSkeleton,
-} from "./CardSkeletons.js";
-
-export {
-  HomeScreenSkeleton,
-  SearchResultsSkeleton,
-  ProviderProfileSkeleton,
-} from "./PageSkeletons.js";
-export type { PageSkeletonProps } from "./PageSkeletons.js";
-
-// ─── D08 Kayou Moment + states ──────────────────────────────────────────────
-
-export {
-  KayouMoment,
-  FIRST_BOOKING_KEY,
-  hasSeenKayouMoment,
-  markKayouMomentSeen,
-} from "./KayouMoment.js";
-export type { KayouMomentProps } from "./KayouMoment.js";
-
-export {
-  EmptyState,
-  NoBookingsEmpty,
-  NoFavoritesEmpty,
-  NoMessagesEmpty,
-  NoSearchResultsEmpty,
-  NoReviewsYetEmpty,
-} from "./EmptyState.js";
-export type { EmptyStateProps, EmptyStateCTA } from "./EmptyState.js";
-
-export {
-  ErrorState,
-  NetworkErrorState,
-  NotFoundState,
-  GenericErrorState,
-  PermissionDeniedState,
-  FormErrorBanner,
-} from "./ErrorState.js";
-export type { ErrorStateProps, ErrorStateCTA, FormErrorBannerProps } from "./ErrorState.js";
+export { ErrorState } from "./ErrorState.js";
+export type { ErrorStateProps } from "./ErrorState.js";
 
 export { InlineAlert } from "./InlineAlert.js";
-export type {
-  InlineAlertAction,
-  InlineAlertProps,
-  InlineAlertVariant,
-} from "./InlineAlert.js";
+export type { InlineAlertAction, InlineAlertProps, InlineAlertVariant } from "./InlineAlert.js";
 
 export { ToastProvider, useToast } from "./Toast.js";
 export type { Toast, ToastVariant, ToastProviderProps } from "./Toast.js";
-
-export { HowItWorksStep } from "./HowItWorksStep.js";
-export type { HowItWorksStepProps } from "./HowItWorksStep.js";
-
-export { TestimonialCard } from "./TestimonialCard.js";
-export type { Testimonial, TestimonialCardProps } from "./TestimonialCard.js";
-
-export { ProviderDashboardPreview } from "./ProviderDashboardPreview.js";
-
-export { AppPhoneMockup } from "./AppPhoneMockup.js";
-export type { AppPhoneMockupProps, AppPhoneMockupVariant } from "./AppPhoneMockup.js";

@@ -1,154 +1,86 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
-import { Button } from "./Button.js";
-import { I, type IconProps } from "./Icon.js";
-
-type KayouIcon = React.ComponentType<IconProps>;
-
-export type EmptyStateCTA = {
-  label: string;
-  onClick?: () => void;
-};
+import { fonts, palette, radii } from "../tokens.js";
+import type { IconProps } from "./Icon.js";
 
 export type EmptyStateProps = {
-  icon?: KayouIcon;
+  icon?: React.ComponentType<IconProps>;
   title: string;
-  subtitle?: string;
-  cta?: EmptyStateCTA;
+  description?: string;
+  /** The single call to action (a Button or a link styled as one). */
+  action?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 };
 
+/** Dashed `rounded-3xl` card with an icon and one CTA; every list renders one when empty. */
 export const EmptyState: React.FC<EmptyStateProps> = ({
   icon: Icon,
   title,
-  subtitle,
-  cta,
+  description,
+  action,
   className,
   style,
 }) => (
   <div
     role="status"
-    aria-live="polite"
     className={className}
     style={{
       display: "flex",
-      flex: 1,
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "center",
       textAlign: "center",
-      padding: "40px 20px",
+      padding: 32,
+      borderRadius: radii.cardLg,
+      border: `2px dashed ${palette.border}`,
+      background: "rgba(255,255,255,.6)",
       ...style,
     }}
   >
     {Icon ? (
-      <div
+      <span
         aria-hidden
         style={{
-          width: 96,
-          height: 96,
-          borderRadius: "50%",
-          background: tokens.color.surfaceMuted,
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: 16,
+          width: 48,
+          height: 48,
+          marginBottom: 14,
+          borderRadius: "50%",
+          background: palette.secondary,
+          color: palette.primary,
         }}
       >
-        <Icon size={44} stroke={1.5} strokeColor={tokens.color.textSubtle} />
-      </div>
+        <Icon size={22} stroke={1.9} />
+      </span>
     ) : null}
     <h3
       style={{
-        fontFamily: tokens.font.display,
-        fontWeight: 600,
-        fontSize: 24,
-        lineHeight: 1.15,
-        letterSpacing: 0,
-        color: tokens.color.textPrimary,
         margin: 0,
+        fontFamily: `var(--font-heading, ${fonts.heading})`,
+        fontSize: 16,
+        fontWeight: 800,
+        lineHeight: 1.3,
+        color: palette.foreground,
       }}
     >
       {title}
     </h3>
-    {subtitle ? (
+    {description ? (
       <p
         style={{
-          fontFamily: tokens.font.body,
-          fontSize: 15,
-          lineHeight: 1.5,
-          color: tokens.color.textMuted,
-          margin: "10px 0 0",
+          margin: "6px 0 0",
           maxWidth: 380,
+          fontSize: 14,
+          lineHeight: 1.5,
+          color: palette.mutedForeground,
         }}
       >
-        {subtitle}
+        {description}
       </p>
     ) : null}
-    {cta ? (
-      <div style={{ marginTop: 24 }}>
-        <Button onClick={cta.onClick}>{cta.label}</Button>
-      </div>
-    ) : null}
+    {action ? <div style={{ marginTop: 18 }}>{action}</div> : null}
   </div>
-);
-
-// ─── Preset variants (D08 §Required empty states) ───────────────────────────
-
-type VariantProps = {
-  onCtaClick?: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-};
-
-export const NoBookingsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
-  <EmptyState
-    icon={I.calendar}
-    title="Pas encore de réservations."
-    subtitle="Trouve un pro et réserve un service en quelques clics."
-    cta={onCtaClick ? { label: "Trouver un pro", onClick: onCtaClick } : undefined}
-    {...rest}
-  />
-);
-
-export const NoFavoritesEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
-  <EmptyState
-    icon={I.heart}
-    title="Aucun favori pour l'instant."
-    subtitle="Enregistre les pros qui t'intéressent pour les retrouver ici."
-    cta={onCtaClick ? { label: "Explorer", onClick: onCtaClick } : undefined}
-    {...rest}
-  />
-);
-
-export const NoMessagesEmpty: React.FC<VariantProps> = (props) => (
-  <EmptyState
-    icon={I.inbox}
-    title="Aucun message."
-    subtitle="Tes échanges avec les pros apparaîtront ici."
-    {...props}
-  />
-);
-
-export const NoSearchResultsEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
-  <EmptyState
-    icon={I.search}
-    title="Aucun pro trouvé."
-    subtitle="Ajuste tes filtres ou élargis ta zone de recherche."
-    cta={onCtaClick ? { label: "Effacer les filtres", onClick: onCtaClick } : undefined}
-    {...rest}
-  />
-);
-
-export const NoReviewsYetEmpty: React.FC<VariantProps> = ({ onCtaClick, ...rest }) => (
-  <EmptyState
-    icon={I.star}
-    title="Pas encore d'avis."
-    subtitle="Sois le premier à évaluer ce pro."
-    cta={onCtaClick ? { label: "Laisser un avis", onClick: onCtaClick } : undefined}
-    {...rest}
-  />
 );

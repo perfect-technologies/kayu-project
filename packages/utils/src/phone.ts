@@ -133,3 +133,33 @@ export function formatPhone(phone: string): string {
 
   return clean;
 }
+
+const E164_RE = /^\+[1-9]\d{6,14}$/;
+const COUNTRY_DIAL = { CD: "243", CG: "242" } as const;
+
+/**
+ * Normalize a typed phone number to E.164, or null when it cannot be one.
+ * RDC numbers drop the trunk 0 (0812… → +243812…); Congo-Brazzaville numbers keep it
+ * (06… → +24206…). Other international numbers only need a valid E.164 shape.
+ */
+export function toE164(value: string, defaultCountry: "CD" | "CG"): string | null {
+  let compact = value.trim().replace(/[\s().-]/g, "");
+  if (compact.startsWith("00")) compact = `+${compact.slice(2)}`;
+  if (!/^\+?\d+$/.test(compact)) return null;
+
+  let dial: string = COUNTRY_DIAL[defaultCountry];
+  let national = compact;
+  if (compact.startsWith("+")) {
+    const known = Object.values(COUNTRY_DIAL).find((code) => compact.startsWith(`+${code}`));
+    if (!known) return E164_RE.test(compact) ? compact : null;
+    dial = known;
+    national = compact.slice(known.length + 1);
+  } else if (compact.startsWith(dial) && compact.length >= dial.length + 9) {
+    national = compact.slice(dial.length);
+  }
+
+  if (dial === COUNTRY_DIAL.CD && national.length === 10 && national.startsWith("0")) {
+    national = national.slice(1);
+  }
+  return /^\d{9}$/.test(national) ? `+${dial}${national}` : null;
+}

@@ -61,6 +61,8 @@ jobs:
       - name: Backend full test suite
         run: pnpm --filter @kayu/backend test
 
+      # @kayu/mobile is not type-checked while the Expo app is frozen:
+      # docs/kyou-ux-refactor/README.md §Mobile freeze
       - name: Type-check (backend, web, shared packages; mobile is out of scope)
         run: pnpm turbo run type-check --filter=@kayu/backend --filter=@kayu/web --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
 

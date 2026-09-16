@@ -1,3 +1,5 @@
+import { toLocalSlot } from "./schedule.js";
+
 const MONTHS_FR = [
   "Jan",
   "Fév",
@@ -54,4 +56,52 @@ export function formatRelativeTime(isoDate: string): string {
   if (diffDay < 7) return `Il y a ${diffDay} j`;
 
   return formatDate(isoDate);
+}
+
+const DAY_MONTH_FR = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+const DAY_MONTH_YEAR_FR = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/**
+ * Lower-case French relative time for feeds and threads.
+ * "à l'instant", "il y a 3 min", "il y a 2 h", "il y a 4 j", then "12 sept." ("12 sept. 2025"
+ * when the year differs from `now`).
+ */
+export function formatRelativeFr(date: Date | string, now: Date = new Date()): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60_000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `il y a ${diffHour} h`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `il y a ${diffDay} j`;
+
+  return d.getFullYear() === now.getFullYear()
+    ? DAY_MONTH_FR.format(d)
+    : DAY_MONTH_YEAR_FR.format(d);
+}
+
+/**
+ * A booking instant as the provider sees it.
+ * formatSlotLocal("2026-09-16T08:00:00Z", "Africa/Kinshasa")
+ *   → { date: "2026-09-16", time: "09:00", label: "mer. 16 sept. · 09:00" }
+ */
+export function formatSlotLocal(
+  iso: Date | string,
+  timezone: string,
+): { date: string; time: string; label: string } {
+  const slot = toLocalSlot(iso, timezone);
+  const day = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(iso));
+  return { ...slot, label: `${day} · ${slot.time}` };
 }

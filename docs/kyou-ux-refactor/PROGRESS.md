@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration A in progress (01 and 02 done; 03 next)**
+Overall status: **Iteration A in progress (01 and 02 done; 03 in review)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -15,7 +15,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 00 — Product And Design Contract | Done | Planning | Frozen 2026-09-16 |
 | 01 — Domain And Schema Reset | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/01-schema` merged into `refactor/kyou-ux`; all acceptance commands pass (see evidence) |
 | 02 — Backend Modules | Done | Claude (agent), 2026-09-16 | Owner-reviewed; `kyou-ux/02-backend` merged into `refactor/kyou-ux`; every doc endpoint implemented and exercised over HTTP on Postgres; contract handed over in `handover/02-backend-contract.md` |
-| 03 — Shared Packages | Not started | TBD | After 02 contract is fixed |
+| 03 — Shared Packages | In review | Claude (agent), 2026-09-16 | Branch `kyou-ux/03-packages`, uncommitted for owner review; every package gate green; web type-check red until 04–08 as planned; contract handed over in `handover/03-shared-packages.md` |
 | 04 — Web Shell And Design System | Not started | TBD | After 03 |
 | 05 — Web Public Screens | Not started | TBD | Parallel with 06–08 after 02, 03, 04 |
 | 06 — Web Auth And Provider Onboarding | Not started | TBD | Parallel with 05, 07, 08 |
@@ -87,6 +87,21 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-16 | (02) `GET /geocode` takes `?q` or `?placeId` and returns 404 when nothing is found instead of defaulting to Kinshasa | A silent default puts pins in the wrong city |
 | 2026-09-16 | (02) The launch harness runs the real modules over HTTP on a disposable Postgres database (`LAUNCH_HARNESS_DATABASE_URL`, name `kayu_(ci|test)_launch_harness`), faking only Supabase; it skips without the URL like the launch-lead integration specs | An in-memory Prisma fake cannot prove transactions, row locks, the partial slot index or JSON attachment queries; CI must set the URL (handed to 10) |
 | 2026-09-16 | (02) Removed and rewritten module sources were moved out of the tree, not edited in place; account deletion also recomputes `completedJobs` for other affected providers | Clean rewrite on the new schema; K-YOU only recomputed ratings, which left job counts stale |
+| 2026-09-16 | (03) The K-YOU palette is exported as `palette` (hex), `paletteHsl` (§9 HSL verbatim) and `themeCssVariables` (04's `@theme` entries), not as `colors` | `colors` is the frozen v1 alias that `apps/mobile/src/lib/theme.ts` imports; two exports cannot share the name |
+| 2026-09-16 | (03) The legacy block in `tokens.ts` also keeps the v2 `tokens` object (with `portfolio`, `categoryTint`), `CategorySlug` and the photo-forward card helpers moved out of the deleted `cards.ts` | `apps/mobile` and `packages/ui/src/mobile` import them from `@kayu/ui`; the only mobile edits are three `../cards.js` → `../tokens.js` imports. Mobile type errors mentioning `@kayu/ui`: 0 |
+| 2026-09-16 | (03) `elevation.brand` is `0 16px 40px -12px hsl(172 60% 32% / .5)` | §9 (primary glow) and 04 agree; the 03 doc's `rgba(21,89,76,.5)` is a different, darker colour |
+| 2026-09-16 | (03) CSS variables use §9's HSL; `palette` keeps the 03 doc's hex values for inline styles; violet and blue status tones get a `-200` border like the other tones | The hexes are close approximations of the HSL, not exact conversions; one `{ bg, fg, border }` shape per tone |
+| 2026-09-16 | (03) Request schemas are 02's drafted contract under the same names, including where they differ from the 03 doc (Admin-prefixed category DTOs, extra query schemas, `MediaInputSchema` with `id` keep, optional booking address, `q` on the verification queue) | 02 implemented and tested those; JSON Schema output is identical for all 110 schemas |
+| 2026-09-16 | (03) `SCHEDULE_LIMITS`, `YOUTUBE_HOSTS`, `validateSchedule` and `parseYouTubeUrl` live in `@kayu/utils` and are re-exported by `@kayu/schemas`, whose `ScheduleInputSchema` calls `validateSchedule`; `@kayu/schemas` now depends on `@kayu/utils` | One implementation for the backend pipe, the backend services and the web schedule editor; utils is the lowest layer |
+| 2026-09-16 | (03) `localSlotToInstant` returns an ISO string | 03 doc signature; 02 wraps it in `new Date()` when it swaps (noted in the handover) |
+| 2026-09-16 | (03) A DTO or params name used as a type is `Wire<typeof Schema>` (optional when the schema accepts it missing, parsed value type); `…Input` / `…Query` stay 02's parsed types | `z.input` types every coerced field (`page`, `lat`, boolean flags) as `unknown`, which would leave the typed client untyped |
+| 2026-09-16 | (03) The lead DTOs keep a file-local `IdSchema = z.string().min(1)`; marketplace `IdSchema` adopts 02's `trim().min(1).max(64)` | The lead contract stays byte-for-byte and behaviour-identical |
+| 2026-09-16 | (03) `KIN_COMMUNES`, `KIN_COMMUNES_TUPLE` and `KinCommune` stay exported from `launch-leads.ts` | The 03 doc moves them there and the campaign form imports them; the acceptance grep's `KIN_COMMUNES` term therefore matches that file only |
+| 2026-09-16 | (03) `ApiErrorResponseSchema` is the real error body (`statusCode?`, `code?`, `message`, `error?`, `errors?` plus extras) and `API_ERROR_CODES` lists 02's 22 codes; `ApiError.code` is typed with them | The old `{ success: false, error }` shape was never returned |
+| 2026-09-16 | (03) `@kayu/api` adds `adminApi.place`, `reference`, `subcategories`, `subcategory`, and `referencesApi.list` takes an optional `params` third argument | 02's extra admin reads; reference lists need `q` and paging |
+| 2026-09-16 | (03) Web primitives drop the presets with inline French copy (`NoBookingsEmpty`…, `NetworkErrorState`…, `FormErrorBanner`); `EmptyState` / `ErrorState` take `description` and an `action` node; `Input.label` is required (`hideLabel` for search bars); `Button` defaults to `type="button"`; `I.badgeCheck` is `I.verified` (Lucide's `Verified` alias) | Contract §12 keeps copy in `apps/web/src/copy`; §11 rule 8 requires visible labels; the old icon name tripped the removed-domain grep |
+| 2026-09-16 | (03) Button radii follow §9: primary and gold are pills, secondary, ghost and danger use the 14 px field radius | 04 describes `.secondary-action` as a pill; flagged below |
+| 2026-09-16 | (03) The root `package.json` comment about the mobile freeze is a top-level `"//"` key | JSON has no comments; `"//"` is the npm convention |
 
 ## Open Questions
 
@@ -102,6 +117,11 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (02) Should unsuspending a user also unhide their provider automatically? Today the admin unhides explicitly.
 - (02) Should the recommended search sort ignore expired premium tiers? It currently orders by the stored tier.
 - (02 → 08) Deactivating a category or level-2 node does not cascade `isActive` to its children in the admin tree (the public tree hides them anyway). Confirm this is the wanted admin view.
+- (03 → 02) Swap `contractPipe` to `@kayu/schemas` and move `providers/schedule.ts` / `youtube.ts` to `@kayu/utils` (steps and the `localSlotToInstant` ISO change in `handover/03-shared-packages.md`).
+- (03 → 04) Secondary actions: §9 says 14 px radius, 04 §A says a bordered pill. The `@kayu/ui` Button follows §9; 04 decides and either side adjusts.
+- (03 → 04) Primitives read `var(--font-heading)` / `var(--font-body)` before the token font stacks; `next/font` family names are hashed, so 04's `@theme` must keep defining those two variables.
+- (03 → 10) `pnpm test:launch` and the CI "Type-check" and "Web production build" steps stay red at `@kayu/web` until 04–08 replace the old API calls (387 web type errors after 03, expected per README Iteration A).
+- (03) `packages/ui/package.json` still lists `@kayu/schemas` although no UI file imports it any more; left alone because the file is outside 03's owned paths.
 
 ## How To Update This File
 
@@ -247,7 +267,42 @@ OTP user provisioned → accepts terms → signs a media upload → publishes a 
 
 ### 03 — Shared Packages
 
-Status: Not started
+Status: In review (2026-09-16). Branch `kyou-ux/03-packages` from `refactor/kyou-ux` at `18aafba`; changes are uncommitted for the owner's review. Contract hand-over: [`handover/03-shared-packages.md`](./handover/03-shared-packages.md).
+
+#### What changed
+
+- **`@kayu/utils`**: new `schedule.ts` (port of 02's `providers/schedule.ts` plus `validateSchedule` and `SCHEDULE_LIMITS`) and `youtube.ts` (`parseYouTubeUrl`, `YOUTUBE_HOSTS`); `toE164`, `formatMoney`, `formatRelativeFr`, `formatSlotLocal`; `getDistanceStatus` / `getDistanceColor` deleted. Tests: `schedule.test.mjs` (the seven K-YOU cases, the seeded demo provider against K-YOU `availableSlots` output, validation), `youtube.test.mjs`, `date.test.mjs`, `toE164` cases in `phone.test.mjs`.
+- **`@kayu/schemas`**: `job-requests.ts`, `quotes.ts`, `tasks.ts`, `communes.ts` deleted; `common.ts`, `enums.ts`, `models.ts`, `dto.ts`, `verification.ts` rewritten; `schedule.ts`, `media.ts`, `taxonomy.ts`, `launch-leads.ts` added; depends on `@kayu/utils`.
+- **`@kayu/api`**: `endpoints.ts` and `query-keys.ts` rewritten (21 groups, one method per 02 route); `ApiError.code`; query arrays joined with commas.
+- **`@kayu/ui`**: `tokens.ts` rewritten (§9/§10 values above a fenced legacy block); `cards.ts` and 22 web components deleted; `Button`, `Input`, `Avatar`, `Icon`, `StarRating`, `Shimmer`, `EmptyState`, `ErrorState`, `InlineAlert`, `Toast` restyled; `index.ts` re-exports tokens only; three `src/mobile` imports re-pointed.
+- **Gate**: root `test:launch` per the 03 doc (utils, schemas, api, ui, backend, web; no mobile) with a `"//"` note; CI type-check step commented.
+- `pnpm-lock.yaml`: the `@kayu/utils` workspace link for `@kayu/schemas`.
+
+#### Commands and results (2026-09-16)
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @kayu/utils test` | 20/20 pass |
+| `pnpm --filter @kayu/{utils,schemas,api,ui} type-check` and `build` (from deleted `dist`) | Pass |
+| `pnpm test:launch` | Every step passes (utils, schemas, api, ui, backend `test:launch` 221 tests: 220 pass, 0 fail, 1 skipped; backend type-check), then stops at `@kayu/web type-check` with 387 errors on removed API methods and components, expected until 04–08 |
+| All 173 bodies of `02-example-responses.json` through the response schemas | 173/173 parse; no returned field is stripped |
+| The 110 Zod schemas of `apps/backend/src/common/contract` vs `@kayu/schemas` (`z.toJSONSchema`, input and output) | 220/220 identical, 0 missing; limits and site-setting constants deep-equal |
+| `ScheduleInputSchema` refinement on 13 payloads vs 02's draft | Identical on valid and rule-breaking payloads; on the two payloads with a bad time or date format, 03 no longer adds the overlap or duplicate issue computed from the bad value |
+| Every `@kayu/api` method called against a recording `fetch`, compared with the 02 route table | 111/111 routes covered, 0 extra, 0 duplicates (`GET /places` serves `list` and `byIds`) |
+| `LAUNCH_LEADS_TEST_DATABASE_URL=…/kayu_test_launch_leads_03 pnpm --filter @kayu/backend test:launch-leads:ci` (disposable database, `0_init` applied, dropped afterwards) | 1/1 pass |
+| `node --test … launch-leads.contract.spec.ts` | 5/5 pass |
+| Lead DTO block, lead types, communes and lead enums vs `main` | Byte-identical |
+| `TaxonomySeedSchema` on K-YOU `shared/taxonomy.json` | Valid: 19 roots, 213 nodes |
+| Removed-domain grep of the 03 doc over `packages/schemas/src packages/api/src packages/ui/src/web packages/ui/src/tokens.ts` | Only `KIN_COMMUNES*` in `launch-leads.ts` (see Decisions Log) |
+| `grep -nE "Inter\|JetBrains\|#0EA5E9\|#FB7185" packages/ui/src/tokens.ts` above the legacy banner | None |
+| `git diff main --stat -- apps/mobile` | Empty |
+| `pnpm --filter @kayu/mobile type-check` | Before 03: 6 errors. After: 181, none mentioning `@kayu/ui`; the 175 new ones are removed `@kayu/api` / `@kayu/schemas` names (accepted by the mobile freeze) |
+
+#### Risks and follow-ups
+
+- **Web does not compile** against the new packages until 04–08; `test:launch` and CI stay red at the web step until then.
+- **02 still validates with its local contract copy** until it swaps `contractPipe`; the parity checks above show no behaviour change on valid or rule-breaking input.
+- **`Wire` types** mirror the schemas; a new coerced or defaulted field needs no manual type, but a schema with a top-level `.default({})` (`CompleteBookingDto`, `CancelBookingDto`) types as an object, so the client methods default the argument to `{}`.
 
 ### 04 — Web Shell And Design System
 

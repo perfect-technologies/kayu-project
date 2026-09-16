@@ -1,191 +1,333 @@
 import type {
-  // DTOs
-  CompleteProfileDto,
+  AcceptTermsResponse,
+  AddressResponse,
+  AddressesQueryParams,
+  AddressesResponse,
+  AdminAuditResponse,
+  AdminBookingSearchParams,
+  AdminBookingsResponse,
+  AdminCancelBookingDto,
+  AdminCancelBookingResponse,
+  AdminCategoriesResponse,
+  AdminCategoryResponse,
+  AdminContactResponse,
+  AdminContactSearchParams,
+  AdminContactsResponse,
+  AdminConversationMessagesResponse,
+  AdminConversationSearchParams,
+  AdminConversationsResponse,
+  AdminCreateCategoryDto,
+  AdminCreatePlaceDto,
+  AdminCreateReferenceDto,
+  AdminCreateSubcategoryDto,
+  AdminHealthResponse,
+  AdminMergeDto,
+  AdminMessagesQueryParams,
+  AdminOverviewResponse,
+  AdminPlaceDetail,
+  AdminPlaceMergeResponse,
+  AdminPlaceResponse,
+  AdminPlaceSearchParams,
+  AdminPlacesResponse,
+  AdminProviderResponse,
+  AdminProviderSearchParams,
+  AdminProvidersResponse,
+  AdminReferenceMergeResponse,
+  AdminReferenceResponse,
+  AdminReferenceSearchParams,
+  AdminReferencesResponse,
+  AdminReportResponse,
+  AdminReportSearchParams,
+  AdminReportsResponse,
+  AdminResolveReportDto,
+  AdminReviewResponse,
+  AdminReviewSearchParams,
+  AdminReviewVerificationDocDto,
+  AdminReviewVerificationDocResponse,
+  AdminReviewsResponse,
+  AdminSettingsResponse,
+  AdminSubcategoriesQueryParams,
+  AdminSubcategoriesResponse,
+  AdminSubcategoryResponse,
+  AdminSuggestionSearchParams,
+  AdminSuggestionsResponse,
+  AdminUpdateCategoryDto,
+  AdminUpdateContactDto,
+  AdminUpdatePlaceDto,
+  AdminUpdateProviderDto,
+  AdminUpdateReferenceDto,
+  AdminUpdateReviewDto,
+  AdminUpdateSettingsDto,
+  AdminUpdateSubcategoryDto,
+  AdminUpdateUserDto,
+  AdminUserCvResponse,
+  AdminUserResponse,
+  AdminUserSearchParams,
+  AdminUsersResponse,
+  AdminVerificationQueueResponse,
+  AdminVerificationQueueSearchParams,
+  AvailabilityResponse,
+  BlockResponse,
+  BlocksQueryParams,
+  BlocksResponse,
+  BookingResponse,
+  BookingsQueryParams,
+  BookingsResponse,
+  CancelBookingDto,
+  CategoryTreeResponse,
+  ClientDashboardResponse,
+  ClientRatingSummaryResponse,
+  ClientReviewResponse,
+  CompleteBookingDto,
+  ConfirmAvatarDto,
+  ConfirmAvatarResponse,
+  ConversationsQueryParams,
+  ConversationsResponse,
+  CreateAddressDto,
+  CreateBookingDto,
   CreateClientLeadDtoType,
+  CreateClientReviewDto,
+  CreateContactMessageDto,
+  CreateContactMessageResponse,
   CreateLaunchFunnelEventDtoType,
   CreateLaunchFunnelEventResponse,
-  ProviderOnboardingDto,
-  UpdateProviderDto,
-  CreateBookingDto,
-  UpdateBookingDto,
-  CreateFinalOfferDtoType,
-  CreateReviewDto,
-  CreateClientReviewDto,
-  CreateMessageDto,
+  CreateLaunchLeadResponse,
+  CreatePlaceSuggestionDto,
   CreateProviderLeadDtoType,
-  UpdateVisibilityDto,
-  AdminUpdateUserDto,
-  AdminUpdateProviderDto,
-  CreateCategoryDto,
-  UpdateCategoryDto,
-  CreateSubcategoryDto,
-  UpdateSubcategoryDto,
-  AdminModerateReviewDto,
-  FavoriteProviderDto,
-  // Search params
-  ProviderSearchParams,
-  BookingSearchParams,
-  FinalOfferSearchParams,
-  ReviewSearchParams,
-  MessageSearchParams,
-  NotificationSearchParams,
-  CategorySearchParams,
-  AdminUserSearchParams,
-  AdminProviderSearchParams,
-  AdminReviewSearchParams,
-  AdminCategorySearchParams,
-  AdminSupportBookingSearchParams,
-  AdminSupportBookingsResponse,
-  AdminDisputeSearchParams,
-  AdminDisputesResponse,
-  AdminCreateDisputeDto,
-  AdminUpdateDisputeDto,
-  AdminDisputeMutationResponse,
-  AdminVerificationQueueSearchParams,
+  CreateReportDto,
+  CreateReviewDto,
+  DeleteAccountResponse,
   DistanceParams,
-  GeocodeParams,
-  // Response types
-  Booking,
-  ClientReview,
-  MeResponse,
-  CategoriesResponse,
-  CategoryHierarchyResponse,
-  ProvidersResponse,
-  ProviderProfileResponse,
-  BookingsResponse,
-  FinalOfferAcceptResponse,
-  FinalOfferResponse,
-  FinalOffersResponse,
-  Review,
-  ReviewsResponse,
-  ConversationsResponse,
-  MessagesResponse,
-  SendMessageResponse,
-  NotificationsResponse,
-  FavoritesResponse,
-  VisibilitySettingsResponse,
-  DashboardProviderResponse,
-  DashboardClientResponse,
-  DashboardAdminResponse,
-  PublicStatsResponse,
-  TrendingServicesResponse,
   DistanceResponse,
-  GeocodeResponse,
-  CreateJobRequestDtoType,
-  JobRequestResponse,
-  JobRequestsListResponse,
-  JobRequestForProResponse,
-  JobRequestsInboxResponse,
-  JobRequestMutationResponse,
-  // Quotes (I05)
-  CreateQuoteDtoType,
-  UpdateQuoteDtoType,
-  QuoteResponse,
-  QuotesListResponse,
-  QuoteAcceptResponse,
-  // Earnings (I06)
-  CreatePayoutDto,
-  EarningsTransactionSearchParams,
   EarningsSummaryResponse,
+  EarningsTransactionsQueryParams,
   EarningsTransactionsResponse,
-  PayoutsResponse,
-  CreatePayoutResponse,
-  // Onboarding (I07)
-  ProviderDraftDto,
-  DraftResponse,
-  ProviderPublishResponse,
-  ProviderStrengthResponse,
-  // Storage (I09)
-  UploadSignRequestDtoType,
+  GeocodeParams,
+  GeocodeResponse,
+  MarkAllNotificationsReadResponse,
+  MeResponse,
+  MessagesQueryParams,
+  MessagesResponse,
+  MyReviewsResponse,
+  NotificationResponse,
+  NotificationsQueryParams,
+  NotificationsResponse,
+  OkResponse,
+  PlaceAncestorsResponse,
+  PlaceSuggestionResponse,
+  PlacesQueryParams,
+  PlacesResponse,
+  ProviderDashboardResponse,
+  ProviderPublicResponse,
+  ProviderReviewsQueryParams,
+  ProviderReviewsResponse,
+  ProviderSearchParams,
+  ProviderSearchResponse,
+  PublicSettingsResponse,
+  PublicStatsResponse,
+  PublishProviderDto,
+  PublishProviderResponse,
+  PutMediaDto,
+  PutMediaResponse,
+  PutScheduleDto,
+  PutScheduleResponse,
+  ReferenceType,
+  ReferencesQueryParams,
+  ReferencesResponse,
+  RemoveVerificationDocResponse,
+  ReplyReviewDto,
+  ReportResponse,
+  ReviewResponse,
+  SendMessageDto,
+  SendMessageResponse,
+  SignReadResponse,
+  StartConversationDto,
+  StartConversationResponse,
+  SubmitVerificationResponse,
+  UpdateAddressDto,
+  UpdateAvailabilityResponse,
+  UpdateBookingNotesDto,
+  UpdateProfileDto,
+  UpdateProfileResponse,
+  UpdateProviderDto,
+  UpdateProviderResponse,
+  UploadSignRequestDto,
   UploadSignResponse,
-  ConfirmAvatarDtoType,
-  // Portfolio (I06)
-  PortfolioProjectInputDtoType,
-  PortfolioListResponse,
-  PortfolioMutationResponse,
-  // Verification (I08)
-  UploadVerificationDocDtoType,
+  UploadVerificationDocDto,
   UploadVerificationDocResponse,
   VerificationStateResponse,
-  SubmitVerificationResponse,
-  DisputeEnvelopeResponse,
-  RespondDisputeDtoType,
-  RespondDisputeResponse,
-  AdminReviewVerificationDocDtoType,
-  AdminReviewVerificationDocResponse,
-  AdminVerificationQueueResponse,
-  AvailabilityResponse,
-  RecentAddressItem,
-  CreateLaunchLeadResponse,
 } from "@kayu/schemas";
 import type { ApiClient } from "./client.js";
 
-type BookingMutationResponse = { success: boolean; booking: Booking };
-type ReviewMutationResponse = { success: boolean; review: Review };
-type ClientReviewMutationResponse = {
-  success: boolean;
-  clientReview: ClientReview;
-};
+const id = encodeURIComponent;
 
-export type AdminCategoryDetail = {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  icon: string | null;
-  image: string | null;
-  color: string | null;
-  order: number;
-  isActive: boolean;
-  createdAt: string;
-  subcategories: Array<{
-    id: string;
-    categoryId: string;
-    name: string;
-    slug: string;
-    description: string | null;
-    icon: string | null;
-    order: number;
-    isActive: boolean;
-    createdAt: string;
-  }>;
-  stats: {
-    providerCount: number;
-    subcategoryCount: number;
-  };
-};
+// ---------- Public discovery ----------
 
-type AdminCategoryDetailResponse = {
-  success: boolean;
-  category: AdminCategoryDetail;
-};
+export const settingsApi = (client: ApiClient) => ({
+  getPublic: () => client.get<PublicSettingsResponse>("/settings/public"),
+});
 
-type AdminCategoryCreateResponse = {
-  success: boolean;
-  category: { id: string };
-};
+export const statsApi = (client: ApiClient) => ({
+  getGlobal: () => client.get<PublicStatsResponse>("/stats"),
+});
 
-// ---------- Identity ----------
+export const categoriesApi = (client: ApiClient) => ({
+  getTree: () => client.get<CategoryTreeResponse>("/categories/tree"),
+});
+
+export const placesApi = (client: ApiClient) => ({
+  list: (params?: PlacesQueryParams) => client.get<PlacesResponse>("/places", params),
+  byIds: (ids: string[]) =>
+    client.get<PlacesResponse>("/places", { ids, limit: Math.min(Math.max(ids.length, 1), 100) }),
+  ancestors: (placeId: string) =>
+    client.get<PlaceAncestorsResponse>(`/places/${id(placeId)}/ancestors`),
+  suggest: (dto: CreatePlaceSuggestionDto) =>
+    client.post<PlaceSuggestionResponse>("/places/suggestions", dto),
+});
+
+export const referencesApi = (client: ApiClient) => ({
+  list: (
+    type: ReferenceType,
+    categoryId?: string,
+    params?: Omit<ReferencesQueryParams, "type" | "categoryId">,
+  ) => client.get<ReferencesResponse>("/references", { ...params, type, categoryId }),
+});
+
+export const contactApi = (client: ApiClient) => ({
+  send: (dto: CreateContactMessageDto) =>
+    client.post<CreateContactMessageResponse>("/contact", dto),
+});
+
+export const geoApi = (client: ApiClient) => ({
+  geocode: (params: GeocodeParams) => client.get<GeocodeResponse>("/geocode", params),
+  distance: (params: DistanceParams) => client.get<DistanceResponse>("/distance", params),
+});
+
+// ---------- Providers ----------
+
+export const providersApi = (client: ApiClient) => ({
+  search: (params?: ProviderSearchParams) =>
+    client.get<ProviderSearchResponse>("/providers", params),
+  getPublic: (providerId: string) =>
+    client.get<ProviderPublicResponse>(`/providers/${id(providerId)}`),
+  availability: (providerId: string, date: string) =>
+    client.get<AvailabilityResponse>(`/providers/${id(providerId)}/availability`, { date }),
+  reviews: (providerId: string, params?: ProviderReviewsQueryParams) =>
+    client.get<ProviderReviewsResponse>(`/providers/${id(providerId)}/reviews`, params),
+  publish: (dto: PublishProviderDto) => client.post<PublishProviderResponse>("/me/provider", dto),
+  updateMe: (dto: UpdateProviderDto) => client.patch<UpdateProviderResponse>("/providers/me", dto),
+  putSchedule: (dto: PutScheduleDto) =>
+    client.put<PutScheduleResponse>("/providers/me/schedule", dto),
+  putMedia: (dto: PutMediaDto) => client.put<PutMediaResponse>("/providers/me/media", dto),
+  setAvailability: (isAvailable: boolean) =>
+    client.patch<UpdateAvailabilityResponse>("/providers/me/availability", { isAvailable }),
+});
+
+// ---------- Identity and media ----------
 
 export const identityApi = (client: ApiClient) => ({
   me: () => client.get<MeResponse>("/me"),
-  recentAddresses: (params?: { limit?: number }) =>
-    client.get<RecentAddressItem[]>("/me/recent-addresses", params),
-  completeProfile: (data: CompleteProfileDto) =>
-    client.patch<MeResponse>("/me/profile", data),
-  setRole: (data: { role: string }) =>
-    client.patch<MeResponse>("/me/role", data),
-  providerOnboarding: (data: ProviderOnboardingDto) =>
-    client.post<MeResponse>("/me/provider-onboarding", data),
+  updateProfile: (dto: UpdateProfileDto) =>
+    client.patch<UpdateProfileResponse>("/me/profile", dto),
+  acceptTerms: () => client.post<AcceptTermsResponse>("/me/accept-terms"),
+  deleteAccount: () => client.delete<DeleteAccountResponse>("/me"),
 });
 
-// ---------- Categories ----------
+export const mediaApi = (client: ApiClient) => ({
+  sign: (dto: UploadSignRequestDto) => client.post<UploadSignResponse>("/me/uploads/sign", dto),
+  signRead: (path: string) => client.get<SignReadResponse>("/me/media/sign-read", { path }),
+  setAvatar: (dto: ConfirmAvatarDto) => client.post<ConfirmAvatarResponse>("/me/avatar", dto),
+});
 
-export const categoriesApi = (client: ApiClient) => ({
-  getAll: (params?: CategorySearchParams) =>
-    client.get<CategoriesResponse>("/categories", params as Record<string, string | number | boolean | undefined>),
-  getHierarchy: () =>
-    client.get<CategoryHierarchyResponse>("/categories/hierarchy"),
+// ---------- Bookings and reviews ----------
+
+export const bookingsApi = (client: ApiClient) => ({
+  create: (dto: CreateBookingDto) => client.post<BookingResponse>("/bookings", dto),
+  list: (params?: BookingsQueryParams) => client.get<BookingsResponse>("/bookings", params),
+  get: (bookingId: string) => client.get<BookingResponse>(`/bookings/${id(bookingId)}`),
+  confirm: (bookingId: string) =>
+    client.post<BookingResponse>(`/bookings/${id(bookingId)}/confirm`),
+  complete: (bookingId: string, dto: CompleteBookingDto = {}) =>
+    client.post<BookingResponse>(`/bookings/${id(bookingId)}/complete`, dto),
+  cancel: (bookingId: string, dto: CancelBookingDto = {}) =>
+    client.post<BookingResponse>(`/bookings/${id(bookingId)}/cancel`, dto),
+  updateNotes: (bookingId: string, dto: UpdateBookingNotesDto) =>
+    client.patch<BookingResponse>(`/bookings/${id(bookingId)}/notes`, dto),
+});
+
+export const reviewsApi = (client: ApiClient) => ({
+  create: (dto: CreateReviewDto) => client.post<ReviewResponse>("/reviews", dto),
+  mine: () => client.get<MyReviewsResponse>("/reviews/mine"),
+  reply: (reviewId: string, dto: ReplyReviewDto) =>
+    client.post<ReviewResponse>(`/reviews/${id(reviewId)}/reply`, dto),
+  createClientReview: (dto: CreateClientReviewDto) =>
+    client.post<ClientReviewResponse>("/reviews/clients", dto),
+  clientSummary: (clientId: string) =>
+    client.get<ClientRatingSummaryResponse>(`/reviews/clients/${id(clientId)}/summary`),
+});
+
+// ---------- Messaging and safety ----------
+
+export const conversationsApi = (client: ApiClient) => ({
+  list: (params?: ConversationsQueryParams) =>
+    client.get<ConversationsResponse>("/conversations", params),
+  start: (dto: StartConversationDto) =>
+    client.post<StartConversationResponse>("/conversations", dto),
+  messages: (conversationId: string, params?: MessagesQueryParams) =>
+    client.get<MessagesResponse>(`/conversations/${id(conversationId)}/messages`, params),
+  send: (conversationId: string, dto: SendMessageDto) =>
+    client.post<SendMessageResponse>(`/conversations/${id(conversationId)}/messages`, dto),
+  deleteMessage: (conversationId: string, messageId: string) =>
+    client.delete<OkResponse>(
+      `/conversations/${id(conversationId)}/messages/${id(messageId)}`,
+    ),
+});
+
+export const safetyApi = (client: ApiClient) => ({
+  report: (dto: CreateReportDto) => client.post<ReportResponse>("/reports", dto),
+  block: (userId: string) => client.post<BlockResponse>("/blocks", { userId }),
+  unblock: (userId: string) => client.delete<OkResponse>(`/blocks/${id(userId)}`),
+  blocks: (params?: BlocksQueryParams) => client.get<BlocksResponse>("/blocks", params),
+});
+
+// ---------- Client utilities ----------
+
+export const addressesApi = (client: ApiClient) => ({
+  list: (params?: AddressesQueryParams) => client.get<AddressesResponse>("/addresses", params),
+  create: (dto: CreateAddressDto) => client.post<AddressResponse>("/addresses", dto),
+  update: (addressId: string, dto: UpdateAddressDto) =>
+    client.patch<AddressResponse>(`/addresses/${id(addressId)}`, dto),
+  remove: (addressId: string) => client.delete<OkResponse>(`/addresses/${id(addressId)}`),
+});
+
+export const notificationsApi = (client: ApiClient) => ({
+  list: (params?: NotificationsQueryParams) =>
+    client.get<NotificationsResponse>("/notifications", params),
+  markRead: (notificationId: string) =>
+    client.patch<NotificationResponse>(`/notifications/${id(notificationId)}/read`),
+  markAllRead: () => client.patch<MarkAllNotificationsReadResponse>("/notifications/read-all"),
+});
+
+export const dashboardApi = (client: ApiClient) => ({
+  provider: () => client.get<ProviderDashboardResponse>("/dashboard/provider"),
+  client: () => client.get<ClientDashboardResponse>("/dashboard/client"),
+});
+
+// ---------- Provider back office ----------
+
+export const earningsApi = (client: ApiClient) => ({
+  summary: () => client.get<EarningsSummaryResponse>("/pro/earnings/summary"),
+  transactions: (params?: EarningsTransactionsQueryParams) =>
+    client.get<EarningsTransactionsResponse>("/pro/earnings/transactions", params),
+});
+
+export const verificationApi = (client: ApiClient) => ({
+  state: () => client.get<VerificationStateResponse>("/pro/verification/state"),
+  uploadDoc: (dto: UploadVerificationDocDto) =>
+    client.post<UploadVerificationDocResponse>("/pro/verification/documents", dto),
+  removeDoc: (docId: string) =>
+    client.delete<RemoveVerificationDocResponse>(`/pro/verification/documents/${id(docId)}`),
+  submit: () => client.post<SubmitVerificationResponse>("/pro/verification/submit"),
 });
 
 // ---------- Public launch lead intake ----------
@@ -202,319 +344,110 @@ export const launchLeadsApi = (client: ApiClient) => ({
     ),
 });
 
-// ---------- Providers ----------
-
-export const providersApi = (client: ApiClient) => ({
-  search: (params?: Partial<ProviderSearchParams>) =>
-    client.get<ProvidersResponse>("/providers", params as Record<string, string | number | boolean | undefined>),
-  getById: (id: string) =>
-    client.get<ProviderProfileResponse>(`/providers/${id}`),
-  availability: (id: string, params: { from: string; to: string }) =>
-    client.get<AvailabilityResponse>(`/providers/${encodeURIComponent(id)}/availability`, params),
-  updateMe: (data: UpdateProviderDto) =>
-    client.patch<{ success: boolean }>("/providers/me", data),
-  updateAvailability: (data: { isAvailable: boolean }) =>
-    client.patch<{ success: boolean; isAvailable: boolean }>(
-      "/providers/me/availability",
-      data,
-    ),
-  getStrength: () =>
-    client.get<ProviderStrengthResponse>("/providers/me/strength"),
-  listPortfolio: () =>
-    client.get<PortfolioListResponse>("/providers/me/portfolio"),
-  createPortfolio: (data: PortfolioProjectInputDtoType) =>
-    client.post<PortfolioMutationResponse>("/providers/me/portfolio", data),
-  updatePortfolio: (id: string, data: PortfolioProjectInputDtoType) =>
-    client.patch<PortfolioMutationResponse>(`/providers/me/portfolio/${id}`, data),
-  deletePortfolio: (id: string) =>
-    client.delete<{ success: boolean }>(`/providers/me/portfolio/${id}`),
-});
-
-// ---------- Bookings ----------
-
-export const bookingsApi = (client: ApiClient) => ({
-  getAll: (params?: Partial<BookingSearchParams>) =>
-    client.get<BookingsResponse>("/bookings", params as Record<string, string | number | boolean | undefined>),
-  create: (data: CreateBookingDto) =>
-    client.post<BookingMutationResponse>("/bookings", data),
-  getById: (id: string) =>
-    client.get<BookingMutationResponse>(`/bookings/${id}`),
-  update: (id: string, data: UpdateBookingDto) =>
-    client.patch<BookingMutationResponse>(`/bookings/${id}`, data),
-  cancel: (id: string) =>
-    client.delete<BookingMutationResponse>(`/bookings/${id}`),
-});
-
-// ---------- Final Offers ----------
-
-export const finalOffersApi = (client: ApiClient) => ({
-  getAll: (params?: Partial<FinalOfferSearchParams>) =>
-    client.get<FinalOffersResponse>(
-      "/final-offers",
-      params as Record<string, string | number | boolean | undefined>,
-    ),
-  create: (data: CreateFinalOfferDtoType) =>
-    client.post<FinalOfferAcceptResponse>("/final-offers", data),
-  getById: (id: string) =>
-    client.get<FinalOfferResponse>(`/final-offers/${id}`),
-  accept: (id: string) =>
-    client.post<FinalOfferAcceptResponse>(`/final-offers/${id}/accept`),
-  decline: (id: string) =>
-    client.post<FinalOfferResponse>(`/final-offers/${id}/decline`),
-});
-
-// ---------- Reviews ----------
-
-export const reviewsApi = (client: ApiClient) => ({
-  getByProvider: (providerId: string, params?: Partial<Omit<ReviewSearchParams, "providerId">>) =>
-    client.get<ReviewsResponse>("/reviews", {
-      providerId,
-      ...params,
-    } as Record<string, string | number | boolean | undefined>),
-  create: (data: CreateReviewDto) =>
-    client.post<ReviewMutationResponse>("/reviews", data),
-  createClient: (data: CreateClientReviewDto) =>
-    client.post<ClientReviewMutationResponse>("/reviews/clients", data),
-});
-
-// ---------- Messages ----------
-
-export const messagesApi = (client: ApiClient) => ({
-  getConversations: (params?: Partial<MessageSearchParams>) =>
-    client.get<ConversationsResponse>("/messages", params as Record<string, string | number | boolean | undefined>),
-  getMessages: (conversationId: string, params?: { page?: number; limit?: number }) =>
-    client.get<MessagesResponse>("/messages", {
-      conversationId,
-      ...params,
-    } as Record<string, string | number | boolean | undefined>),
-  send: (data: CreateMessageDto) =>
-    client.post<SendMessageResponse>("/messages", data),
-});
-
-// ---------- Notifications ----------
-
-export const notificationsApi = (client: ApiClient) => ({
-  getAll: (params?: Partial<NotificationSearchParams>) =>
-    client.get<NotificationsResponse>("/notifications", params as Record<string, string | number | boolean | undefined>),
-  markRead: (id: string) =>
-    client.patch<{ success: boolean }>(`/notifications/${id}/read`),
-  markAllRead: () =>
-    client.patch<{ success: boolean }>("/notifications/read-all"),
-});
-
-// ---------- Favorites ----------
-
-export const favoritesApi = (client: ApiClient) => ({
-  getAll: () => client.get<FavoritesResponse>("/favorites"),
-  check: (providerId: string) =>
-    client.get<FavoritesResponse>("/favorites", { providerId }),
-  add: (data: FavoriteProviderDto) =>
-    client.post<{ success: boolean }>("/favorites", data),
-  remove: (providerId: string) =>
-    client.delete<{ success: boolean }>("/favorites", { providerId }),
-});
-
-// ---------- Settings ----------
-
-export const settingsApi = (client: ApiClient) => ({
-  getVisibility: () =>
-    client.get<VisibilitySettingsResponse>("/settings/visibility"),
-  updateVisibility: (data: UpdateVisibilityDto) =>
-    client.put<{ success: boolean }>("/settings/visibility", data),
-});
-
-// ---------- Dashboard ----------
-
-export const dashboardApi = (client: ApiClient) => ({
-  getProviderDashboard: () =>
-    client.get<DashboardProviderResponse>("/dashboard/provider"),
-  getClientDashboard: () =>
-    client.get<DashboardClientResponse>("/dashboard/client"),
-  getAdminDashboard: () =>
-    client.get<DashboardAdminResponse>("/dashboard/admin"),
-});
-
-// ---------- Stats ----------
-
-export const statsApi = (client: ApiClient) => ({
-  getGlobal: () => client.get<PublicStatsResponse>("/stats"),
-  getTrending: () =>
-    client.get<TrendingServicesResponse>("/stats/trending-services"),
-});
-
-// ---------- Geo ----------
-
-export const geoApi = (client: ApiClient) => ({
-  geocode: (params: GeocodeParams) =>
-    client.get<GeocodeResponse>("/geocode", params as Record<string, string | number | boolean | undefined>),
-  distance: (params: DistanceParams) =>
-    client.get<DistanceResponse>("/distance", params as Record<string, string | number | boolean | undefined>),
-});
-
-// ---------- Earnings ----------
-
-export const earningsApi = (client: ApiClient) => ({
-  summary: () => client.get<EarningsSummaryResponse>("/pro/earnings/summary"),
-  transactions: (params?: Partial<EarningsTransactionSearchParams>) =>
-    client.get<EarningsTransactionsResponse>(
-      "/pro/earnings/transactions",
-      params as Record<string, string | number | boolean | undefined>,
-    ),
-  createPayout: (data: CreatePayoutDto) =>
-    client.post<CreatePayoutResponse>("/pro/earnings/payouts", data),
-  payouts: () => client.get<PayoutsResponse>("/pro/earnings/payouts"),
-});
-
-// ---------- Job Requests ----------
-
-export const jobRequestsApi = (client: ApiClient) => ({
-  // Client side
-  create: (data: CreateJobRequestDtoType) =>
-    client.post<JobRequestResponse>("/job-requests", data),
-  mine: () => client.get<JobRequestsListResponse>("/job-requests/mine"),
-  cancel: (id: string) =>
-    client.post<JobRequestMutationResponse>(`/job-requests/${id}/cancel`),
-
-  // Pro side
-  inbox: () => client.get<JobRequestsInboxResponse>("/pro/requests"),
-  getById: (id: string) =>
-    client.get<JobRequestForProResponse>(`/pro/requests/${id}`),
-  dismiss: (id: string) =>
-    client.post<JobRequestMutationResponse>(`/pro/requests/${id}/dismiss`),
-});
-
-// ---------- Quotes ----------
-
-export const quotesApi = (client: ApiClient) => ({
-  // Pro side
-  listMine: () => client.get<QuotesListResponse>("/pro/quotes"),
-  create: (data: CreateQuoteDtoType) =>
-    client.post<QuoteResponse>("/pro/quotes", data),
-  update: (id: string, data: UpdateQuoteDtoType) =>
-    client.patch<QuoteResponse>(`/pro/quotes/${id}`, data),
-  send: (id: string) =>
-    client.post<QuoteResponse>(`/pro/quotes/${id}/send`),
-  getByIdForPro: (id: string) =>
-    client.get<QuoteResponse>(`/pro/quotes/${id}`),
-
-  // Client side
-  listForJobRequest: (jobRequestId: string) =>
-    client.get<QuotesListResponse>(`/job-requests/${jobRequestId}/quotes`),
-  getByIdForClient: (id: string) =>
-    client.get<QuoteResponse>(`/quotes/${id}`),
-  accept: (id: string) =>
-    client.post<QuoteAcceptResponse>(`/quotes/${id}/accept`),
-  decline: (id: string) =>
-    client.post<QuoteResponse>(`/quotes/${id}/decline`),
-});
-
-// ---------- Onboarding (I07) ----------
-
-export const onboardingApi = (client: ApiClient) => ({
-  getDraft: () => client.get<DraftResponse>("/me/provider-draft"),
-  patchDraft: (data: ProviderDraftDto) =>
-    client.patch<DraftResponse>("/me/provider-draft", data),
-  publish: () => client.post<ProviderPublishResponse>("/me/provider-publish"),
-});
-
-// ---------- Storage / Media (I09) ----------
-
-export const mediaApi = (client: ApiClient) => ({
-  sign: (data: UploadSignRequestDtoType) =>
-    client.post<UploadSignResponse>("/me/uploads/sign", data),
-  setAvatar: (data: ConfirmAvatarDtoType) =>
-    client.post<{ success: boolean; avatarUrl: string }>("/me/avatar", data),
-});
-
-// ---------- Verification (I08) ----------
-
-export const verificationApi = (client: ApiClient) => ({
-  getState: () =>
-    client.get<VerificationStateResponse>("/pro/verification/state"),
-  uploadDoc: (data: UploadVerificationDocDtoType) =>
-    client.post<UploadVerificationDocResponse>(
-      "/pro/verification/documents",
-      data,
-    ),
-  removeDoc: (id: string) =>
-    client.delete<{ success: true }>(`/pro/verification/documents/${id}`),
-  submit: () =>
-    client.post<SubmitVerificationResponse>("/pro/verification/submit"),
-  getDispute: () =>
-    client.get<DisputeEnvelopeResponse>("/pro/verification/dispute"),
-  respondDispute: (id: string, data: RespondDisputeDtoType) =>
-    client.post<RespondDisputeResponse>(
-      `/pro/verification/dispute/${id}/respond`,
-      data,
-    ),
-});
-
 // ---------- Admin ----------
 
 export const adminApi = (client: ApiClient) => ({
-  // Users
-  getUsers: (params?: Partial<AdminUserSearchParams>) =>
-    client.get<{ users: unknown[]; pagination: unknown }>("/admin/users", params as Record<string, string | number | boolean | undefined>),
-  updateUser: (data: AdminUpdateUserDto) =>
-    client.put<{ success: boolean }>("/admin/users", data),
+  overview: () => client.get<AdminOverviewResponse>("/admin/overview"),
 
-  // Providers
-  getProviders: (params?: Partial<AdminProviderSearchParams>) =>
-    client.get<{ providers: unknown[]; pagination: unknown }>("/admin/providers", params as Record<string, string | number | boolean | undefined>),
-  updateProvider: (data: AdminUpdateProviderDto) =>
-    client.put<{ success: boolean }>("/admin/providers", data),
-  getVerificationSubmissions: (
-    params?: Partial<AdminVerificationQueueSearchParams>,
-  ) =>
-    client.get<AdminVerificationQueueResponse>(
-      "/admin/verification/submissions",
-      params as Record<string, string | number | boolean | undefined>,
-    ),
-  reviewVerificationDoc: (data: AdminReviewVerificationDocDtoType) =>
-    client.put<AdminReviewVerificationDocResponse>(
-      "/admin/verification/documents",
-      data,
-    ),
+  users: (params?: AdminUserSearchParams) => client.get<AdminUsersResponse>("/admin/users", params),
+  updateUser: (userId: string, dto: AdminUpdateUserDto) =>
+    client.patch<AdminUserResponse>(`/admin/users/${id(userId)}`, dto),
+  userCv: (userId: string) => client.get<AdminUserCvResponse>(`/admin/users/${id(userId)}/cv`),
 
-  // Categories
-  getCategories: (params?: Partial<AdminCategorySearchParams>) =>
-    client.get<{ categories: unknown[] }>("/admin/categories", params as Record<string, string | number | boolean | undefined>),
-  getCategory: (id: string) =>
-    client.get<AdminCategoryDetailResponse>(`/admin/categories/${id}`),
-  createCategory: (data: CreateCategoryDto) =>
-    client.post<AdminCategoryCreateResponse>("/admin/categories", data),
-  updateCategory: (data: UpdateCategoryDto) =>
-    client.put<{ success: boolean }>("/admin/categories", data),
-  deleteCategory: (id: string) =>
-    client.delete<{ success: boolean }>("/admin/categories", { id }),
-  createSubcategory: (data: CreateSubcategoryDto) =>
-    client.post<{ success: boolean }>("/admin/categories/subcategories", data),
-  updateSubcategory: (data: UpdateSubcategoryDto) =>
-    client.put<{ success: boolean }>("/admin/categories/subcategories", data),
-  deleteSubcategory: (id: string) =>
-    client.delete<{ success: boolean }>("/admin/categories/subcategories", { id }),
+  providers: (params?: AdminProviderSearchParams) =>
+    client.get<AdminProvidersResponse>("/admin/providers", params),
+  updateProvider: (providerId: string, dto: AdminUpdateProviderDto) =>
+    client.patch<AdminProviderResponse>(`/admin/providers/${id(providerId)}`, dto),
 
-  // Reviews
-  getReviews: (params?: Partial<AdminReviewSearchParams>) =>
-    client.get<{ reviews: unknown[]; pagination: unknown }>("/admin/reviews", params as Record<string, string | number | boolean | undefined>),
-  moderateReview: (data: AdminModerateReviewDto) =>
-    client.put<{ success: boolean }>("/admin/reviews", data),
-  deleteReview: (id: string) =>
-    client.delete<{ success: boolean }>("/admin/reviews", { reviewId: id }),
+  verificationQueue: (params?: AdminVerificationQueueSearchParams) =>
+    client.get<AdminVerificationQueueResponse>("/admin/verification/submissions", params),
+  reviewVerificationDoc: (dto: AdminReviewVerificationDocDto) =>
+    client.put<AdminReviewVerificationDocResponse>("/admin/verification/documents", dto),
 
-  // Support / disputes
-  getSupportBookings: (params?: Partial<AdminSupportBookingSearchParams>) =>
-    client.get<AdminSupportBookingsResponse>(
-      "/admin/bookings/support",
-      params as Record<string, string | number | boolean | undefined>,
+  bookings: (params?: AdminBookingSearchParams) =>
+    client.get<AdminBookingsResponse>("/admin/bookings", params),
+  cancelBooking: (bookingId: string, dto: AdminCancelBookingDto) =>
+    client.post<AdminCancelBookingResponse>(`/admin/bookings/${id(bookingId)}/cancel`, dto),
+
+  reviews: (params?: AdminReviewSearchParams) =>
+    client.get<AdminReviewsResponse>("/admin/reviews", params),
+  updateReview: (reviewId: string, dto: AdminUpdateReviewDto) =>
+    client.patch<AdminReviewResponse>(`/admin/reviews/${id(reviewId)}`, dto),
+  deleteReview: (reviewId: string) => client.delete<OkResponse>(`/admin/reviews/${id(reviewId)}`),
+
+  conversations: (params?: AdminConversationSearchParams) =>
+    client.get<AdminConversationsResponse>("/admin/conversations", params),
+  conversationMessages: (conversationId: string, params?: AdminMessagesQueryParams) =>
+    client.get<AdminConversationMessagesResponse>(
+      `/admin/conversations/${id(conversationId)}/messages`,
+      params,
     ),
-  getDisputes: (params?: Partial<AdminDisputeSearchParams>) =>
-    client.get<AdminDisputesResponse>(
-      "/admin/disputes",
-      params as Record<string, string | number | boolean | undefined>,
-    ),
-  createDispute: (data: AdminCreateDisputeDto) =>
-    client.post<AdminDisputeMutationResponse>("/admin/disputes", data),
-  updateDispute: (data: AdminUpdateDisputeDto) =>
-    client.put<AdminDisputeMutationResponse>("/admin/disputes", data),
+  deleteConversation: (conversationId: string) =>
+    client.delete<OkResponse>(`/admin/conversations/${id(conversationId)}`),
+  deleteMessage: (messageId: string) =>
+    client.delete<OkResponse>(`/admin/messages/${id(messageId)}`),
+
+  contacts: (params?: AdminContactSearchParams) =>
+    client.get<AdminContactsResponse>("/admin/contacts", params),
+  updateContact: (contactId: string, dto: AdminUpdateContactDto) =>
+    client.patch<AdminContactResponse>(`/admin/contacts/${id(contactId)}`, dto),
+  deleteContact: (contactId: string) =>
+    client.delete<OkResponse>(`/admin/contacts/${id(contactId)}`),
+
+  reports: (params?: AdminReportSearchParams) =>
+    client.get<AdminReportsResponse>("/admin/reports", params),
+  resolveReport: (reportId: string, dto: AdminResolveReportDto) =>
+    client.patch<AdminReportResponse>(`/admin/reports/${id(reportId)}`, dto),
+
+  settings: () => client.get<AdminSettingsResponse>("/admin/settings"),
+  updateSettings: (dto: AdminUpdateSettingsDto) =>
+    client.put<AdminSettingsResponse>("/admin/settings", dto),
+  audit: () => client.get<AdminAuditResponse>("/admin/audit"),
+  health: () => client.get<AdminHealthResponse>("/admin/health"),
+
+  categories: () => client.get<AdminCategoriesResponse>("/admin/categories"),
+  category: (categoryId: string) =>
+    client.get<AdminCategoryResponse>(`/admin/categories/${id(categoryId)}`),
+  createCategory: (dto: AdminCreateCategoryDto) =>
+    client.post<AdminCategoryResponse>("/admin/categories", dto),
+  updateCategory: (categoryId: string, dto: AdminUpdateCategoryDto) =>
+    client.patch<AdminCategoryResponse>(`/admin/categories/${id(categoryId)}`, dto),
+  deleteCategory: (categoryId: string) =>
+    client.delete<OkResponse>(`/admin/categories/${id(categoryId)}`),
+  subcategories: (params?: AdminSubcategoriesQueryParams) =>
+    client.get<AdminSubcategoriesResponse>("/admin/subcategories", params),
+  subcategory: (subcategoryId: string) =>
+    client.get<AdminSubcategoryResponse>(`/admin/subcategories/${id(subcategoryId)}`),
+  createSubcategory: (dto: AdminCreateSubcategoryDto) =>
+    client.post<AdminSubcategoryResponse>("/admin/subcategories", dto),
+  updateSubcategory: (subcategoryId: string, dto: AdminUpdateSubcategoryDto) =>
+    client.patch<AdminSubcategoryResponse>(`/admin/subcategories/${id(subcategoryId)}`, dto),
+  deleteSubcategory: (subcategoryId: string) =>
+    client.delete<OkResponse>(`/admin/subcategories/${id(subcategoryId)}`),
+
+  places: (params?: AdminPlaceSearchParams) =>
+    client.get<AdminPlacesResponse>("/admin/places", params),
+  place: (placeId: string) => client.get<AdminPlaceDetail>(`/admin/places/${id(placeId)}`),
+  createPlace: (dto: AdminCreatePlaceDto) => client.post<AdminPlaceResponse>("/admin/places", dto),
+  updatePlace: (placeId: string, dto: AdminUpdatePlaceDto) =>
+    client.patch<AdminPlaceResponse>(`/admin/places/${id(placeId)}`, dto),
+  mergePlaces: (dto: AdminMergeDto) =>
+    client.post<AdminPlaceMergeResponse>("/admin/places/merge", dto),
+  placeSuggestions: (params?: AdminSuggestionSearchParams) =>
+    client.get<AdminSuggestionsResponse>("/admin/places/suggestions", params),
+  approveSuggestion: (suggestionId: string) =>
+    client.post<PlaceSuggestionResponse>(`/admin/places/suggestions/${id(suggestionId)}/approve`),
+  rejectSuggestion: (suggestionId: string) =>
+    client.post<PlaceSuggestionResponse>(`/admin/places/suggestions/${id(suggestionId)}/reject`),
+
+  references: (params?: AdminReferenceSearchParams) =>
+    client.get<AdminReferencesResponse>("/admin/references", params),
+  reference: (referenceId: string) =>
+    client.get<AdminReferenceResponse>(`/admin/references/${id(referenceId)}`),
+  createReference: (dto: AdminCreateReferenceDto) =>
+    client.post<AdminReferenceResponse>("/admin/references", dto),
+  updateReference: (referenceId: string, dto: AdminUpdateReferenceDto) =>
+    client.patch<AdminReferenceResponse>(`/admin/references/${id(referenceId)}`, dto),
+  mergeReferences: (dto: AdminMergeDto) =>
+    client.post<AdminReferenceMergeResponse>("/admin/references/merge", dto),
 });

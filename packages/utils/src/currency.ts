@@ -16,3 +16,13 @@ export function formatNumber(amount: number): string {
   const integerPart = parts[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   return integerPart;
 }
+
+const CURRENCY_SUFFIX = { CDF: "FC", USD: "$", XAF: "FCFA" } as const;
+
+/**
+ * Format an integer amount in one of the marketplace currencies.
+ * formatMoney(25000, "CDF") → "25 000 FC", formatMoney(40, "USD") → "40 $"
+ */
+export function formatMoney(amount: number, currency: "CDF" | "USD" | "XAF"): string {
+  return `${formatNumber(amount)} ${CURRENCY_SUFFIX[currency]}`;
+}
