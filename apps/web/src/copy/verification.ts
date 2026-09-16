@@ -1,0 +1,66 @@
+// KYC verification screen copy (workstream 06).
+
+export const verificationCopy = {
+  meta: {
+    title: "Vérification",
+    description: "Vérifiez votre identité pour obtenir le badge « Vérifié » sur KAYOU.",
+  },
+  title: "Vérification",
+  subtitle: "Obtenez le badge « Vérifié » et inspirez confiance à vos clients.",
+  back: "Retour à mon espace",
+  states: {
+    NOT_STARTED: { label: "Non commencée", next: "Ajoutez vos documents pour commencer." },
+    IN_PROGRESS: { label: "En cours", next: "Complétez les documents manquants puis envoyez votre dossier." },
+    IN_REVIEW: { label: "En cours d'examen", next: "Notre équipe examine votre dossier. Vous serez notifié." },
+    VERIFIED: { label: "Vérifié", next: "Votre profil affiche le badge « Vérifié »." },
+    REJECTED: { label: "Refusé", next: "Remplacez les documents refusés puis renvoyez votre dossier." },
+  },
+  progress: (pct: number) => `${pct} % complété`,
+  submittedOn: (date: string) => `Envoyé le ${date}`,
+  reviewedOn: (date: string) => `Examiné le ${date}`,
+  rejectionReason: "Motif",
+  edit: "Modifier mes documents",
+  kinds: {
+    ID_FRONT: { title: "Pièce d'identité (recto)", hint: "Carte d'électeur, passeport ou permis." },
+    ID_BACK: { title: "Pièce d'identité (verso)", hint: "Le dos de la même pièce." },
+    SELFIE: { title: "Selfie", hint: "Votre visage, bien éclairé, sans lunettes de soleil." },
+    ADDRESS: { title: "Justificatif d'adresse", hint: "Facture ou attestation de moins de 3 mois." },
+    CERT_OPTIONAL: { title: "Certificat ou diplôme", hint: "Facultatif. Renforce votre profil." },
+  },
+  required: "Obligatoire",
+  optional: "Facultatif",
+  upload: {
+    add: "Ajouter un fichier",
+    replace: "Remplacer",
+    remove: "Retirer",
+    hint: "JPEG, PNG, WebP ou PDF · 10 Mo max",
+    uploading: (pct: number) => `Envoi : ${pct} %`,
+    tooLarge: "Fichier trop volumineux (10 Mo maximum).",
+    badType: "Format non pris en charge. Utilisez une image ou un PDF.",
+    failed: "L'envoi a échoué. Réessayez.",
+    uploadedOn: (date: string) => `Ajouté le ${date}`,
+  },
+  decisions: {
+    APPROVED: "Approuvé",
+    REJECTED: "Refusé",
+    pending: "En attente",
+  },
+  submit: "Envoyer pour vérification",
+  submitting: "Envoi…",
+  submitted: "Dossier envoyé. Merci !",
+  missing: (n: number) => (n === 1 ? "1 document obligatoire manquant" : `${n} documents obligatoires manquants`),
+  benefits: {
+    title: "Pourquoi se faire vérifier ?",
+    items: [
+      { title: "Badge « Vérifié »", body: "Affiché sur votre carte et votre profil." },
+      { title: "Plus de demandes", body: "Les clients choisissent d'abord les profils vérifiés." },
+      { title: "Meilleur classement", body: "Les profils vérifiés remontent dans les résultats." },
+    ],
+  },
+  security: {
+    title: "Vos documents sont privés",
+    body: "Ils sont stockés dans un espace chiffré, visibles uniquement par notre équipe de vérification, et jamais publiés.",
+  },
+  loadError: "Impossible de charger votre vérification.",
+  retry: "Réessayer",
+} as const;

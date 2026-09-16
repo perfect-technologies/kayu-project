@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Image as ImageIcon, Mic, Square, X } from "lucide-react";
 import { MEDIA_LIMITS, type MessageAttachmentInput } from "@kayu/schemas";
 import { providerCopy } from "@/copy/provider";
-import { uploadFile } from "@/lib/upload";
+import { uploadFile } from "@/lib/media-upload";
 
 const copy = providerCopy.composer.attachments;
 

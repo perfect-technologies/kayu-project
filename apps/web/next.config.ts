@@ -33,7 +33,7 @@ const legacyRedirects: Redirect[] = [
   permanent("/dashboard/provider", "/mon-espace"),
   permanent("/pro/earnings", "/revenus"),
   permanent("/pro/verify", "/verification"),
-  permanent("/pro/profile/:rest*", "/compte"),
+  permanent("/pro/profile/:rest*", "/prestataire/me/modifier"),
   permanent("/dashboard", "/mes-reservations"),
   permanent("/dashboard/client", "/mes-reservations"),
   permanent("/bookings", "/mes-reservations"),
