@@ -1,4 +1,7 @@
 import type {
+  AssistantConversationDetailResponse,
+  AssistantConversationResponse,
+  AssistantConversationsResponse,
   AcceptTermsResponse,
   AddressResponse,
   AddressesQueryParams,
@@ -342,6 +345,21 @@ export const launchLeadsApi = (client: ApiClient) => ({
       "/launch/funnel-events",
       data,
     ),
+});
+
+// ---------- Assistant (agent concierge) ----------
+
+export const assistantApi = (client: ApiClient) => ({
+  createConversation: () =>
+    client.post<AssistantConversationResponse>("/assistant/conversations"),
+  listConversations: () =>
+    client.get<AssistantConversationsResponse>("/assistant/conversations"),
+  getConversation: (id: string) =>
+    client.get<AssistantConversationDetailResponse>(
+      `/assistant/conversations/${encodeURIComponent(id)}`,
+    ),
+  // The turn itself streams through the AI SDK transport; this is the path it posts to.
+  messagesPath: (id: string) => `/assistant/conversations/${encodeURIComponent(id)}/messages`,
 });
 
 // ---------- Admin ----------

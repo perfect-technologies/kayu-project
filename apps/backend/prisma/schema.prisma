@@ -45,18 +45,19 @@ model User {
   updatedAt       DateTime  @updatedAt
 
   provider              Provider?
-  bookingsAsClient      Booking[]         @relation("ClientBookings")
+  bookingsAsClient      Booking[]           @relation("ClientBookings")
   reviewsGiven          Review[]
   clientReviewsReceived ClientReview[]
-  conversationsAsClient Conversation[]    @relation("ClientConversations")
+  conversationsAsClient Conversation[]      @relation("ClientConversations")
   messages              Message[]
   notifications         Notification[]
   addresses             Address[]
-  reportsFiled          Report[]          @relation("ReportsFiled")
-  blocksGiven           Block[]           @relation("BlocksGiven")
-  blocksReceived        Block[]           @relation("BlocksReceived")
+  reportsFiled          Report[]            @relation("ReportsFiled")
+  blocksGiven           Block[]             @relation("BlocksGiven")
+  blocksReceived        Block[]             @relation("BlocksReceived")
   suggestions           PlaceSuggestion[]
   activityLogs          ActivityLog[]
+  agentConversations    AgentConversation[]
 
   @@index([role])
   @@index([placeId])
@@ -995,4 +996,46 @@ model SystemSetting {
   description String?
 
   updatedAt DateTime @updatedAt
+}
+
+// ==================== AGENT CONCIERGE ====================
+// docs/ai-agents/RFC-001-agent-concierge.md §6. Messages are stored as the AI SDK UIMessage shape.
+
+enum AgentConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AgentMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model AgentConversation {
+  id            String                  @id @default(cuid())
+  userId        String
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        AgentConversationStatus @default(ACTIVE)
+  title         String?
+  summary       String?
+  stepCount     Int                     @default(0)
+  lastMessageAt DateTime                @default(now())
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  messages      AgentMessage[]
+
+  @@index([userId, lastMessageAt])
+}
+
+model AgentMessage {
+  id             String            @id
+  conversationId String
+  conversation   AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AgentMessageRole
+  parts          Json
+  metadata       Json?
+  createdAt      DateTime          @default(now())
+
+  @@index([conversationId, createdAt])
 }

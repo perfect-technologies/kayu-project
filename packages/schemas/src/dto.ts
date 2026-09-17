@@ -6,6 +6,7 @@ import {
   DateTimeSchema,
   HttpsUrlSchema,
   IdSchema,
+  JsonObjectSchema,
   LatitudeSchema,
   LongitudeSchema,
   NullableDateTimeSchema,
@@ -592,6 +593,73 @@ export const CreatePlaceSuggestionDto = z.object({
   parentId: IdSchema,
 });
 export const PlaceSuggestionResponseSchema = PlaceSuggestionSchema;
+
+// =====================================================================================
+// Assistant (agent concierge, docs/ai-agents/RFC-001-agent-concierge.md)
+// =====================================================================================
+
+export const AssistantConversationStatus = z.enum(["ACTIVE", "ARCHIVED"]);
+
+export const AssistantConversationSummarySchema = z.object({
+  id: IdSchema,
+  title: z.string().nullable(),
+  status: AssistantConversationStatus,
+  lastMessageAt: DateTimeSchema,
+  createdAt: DateTimeSchema,
+});
+export const AssistantConversationsResponseSchema = z.object({
+  items: z.array(AssistantConversationSummarySchema),
+});
+export const AssistantConversationResponseSchema = AssistantConversationSummarySchema;
+
+// Messages travel as the AI SDK UIMessage shape; the SDK owns the part shapes, the API checks the envelope.
+export const AssistantUIMessagePartSchema = z.looseObject({ type: z.string().min(1).max(80) });
+export const AssistantMessageMetadataSchema = z.object({
+  providerId: IdSchema.optional(),
+  date: DateOnlySchema.optional(),
+  time: TimeOfDaySchema.optional(),
+});
+export const AssistantUIMessageSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  role: z.enum(["user", "assistant", "system"]),
+  parts: z.array(AssistantUIMessagePartSchema),
+  metadata: JsonObjectSchema.optional(),
+});
+export const AssistantClientLocationSchema = z.object({ placeId: IdSchema, label: z.string() });
+export const AssistantConversationDetailResponseSchema = AssistantConversationSummarySchema.extend({
+  clientLocation: AssistantClientLocationSchema.nullable(),
+  messages: z.array(AssistantUIMessageSchema),
+});
+
+export const AssistantUserMessageDto = z.object({
+  message: z.object({
+    id: z.string().trim().min(1).max(64),
+    role: z.literal("user"),
+    parts: z.array(AssistantUIMessagePartSchema).min(1).max(8),
+    metadata: AssistantMessageMetadataSchema.optional(),
+  }),
+});
+
+export const AssistantFindPlaceInput = z.object({
+  q: z.string().trim().min(1).max(100),
+  kind: PlaceKind.optional(),
+});
+export const AssistantSearchProvidersSort = z.enum(["recommended", "rating", "newest"]);
+export const AssistantSearchProvidersInput = z.object({
+  placeId: IdSchema,
+  subcategoryId: IdSchema.optional(),
+  categoryId: IdSchema.optional(),
+  q: z.string().trim().min(1).max(120).optional(),
+  minRating: z.number().min(0).max(5).optional(),
+  verifiedOnly: z.boolean().optional(),
+  sort: AssistantSearchProvidersSort.default("recommended"),
+  limit: z.number().int().min(1).max(6).default(3),
+});
+export const AssistantGetProviderInput = z.object({ providerId: IdSchema });
+export const AssistantProviderAvailabilityInput = z.object({
+  providerId: IdSchema,
+  dates: z.array(DateOnlySchema).min(1).max(7),
+});
 
 // =====================================================================================
 // Admin
@@ -1312,3 +1380,16 @@ export type AdminPlace = z.infer<typeof AdminPlaceSchema>;
 export type AdminPlaceDetail = z.infer<typeof AdminPlaceDetailSchema>;
 export type AdminPlaceSuggestion = z.infer<typeof AdminPlaceSuggestionSchema>;
 export type AdminReference = z.infer<typeof AdminReferenceSchema>;
+
+export type AssistantConversationSummary = z.infer<typeof AssistantConversationSummarySchema>;
+export type AssistantConversationsResponse = z.infer<typeof AssistantConversationsResponseSchema>;
+export type AssistantConversationResponse = z.infer<typeof AssistantConversationResponseSchema>;
+export type AssistantConversationDetailResponse = z.infer<typeof AssistantConversationDetailResponseSchema>;
+export type AssistantClientLocation = z.infer<typeof AssistantClientLocationSchema>;
+export type AssistantUIMessageWire = z.infer<typeof AssistantUIMessageSchema>;
+export type AssistantMessageMetadata = z.infer<typeof AssistantMessageMetadataSchema>;
+export type AssistantUserMessageDto = z.infer<typeof AssistantUserMessageDto>;
+export type AssistantFindPlaceInput = z.infer<typeof AssistantFindPlaceInput>;
+export type AssistantSearchProvidersInput = z.infer<typeof AssistantSearchProvidersInput>;
+export type AssistantGetProviderInput = z.infer<typeof AssistantGetProviderInput>;
+export type AssistantProviderAvailabilityInput = z.infer<typeof AssistantProviderAvailabilityInput>;

@@ -24,6 +24,20 @@ Working rules: branch agent/01-foundation from main; implement every task end to
 End with: what was built, what was verified by running it, what you could not verify and why.
 ```
 
+## Phase 1 amendment: default location
+
+For the agent that built Phase 1 on `agent/01-foundation`, before review.
+
+```
+Amend Phase 1 of the KAYOU agent concierge on agent/01-foundation with the default-location rule.
+
+Read: docs/ai-agents/RFC-001-agent-concierge.md §4.3 and §8, docs/ai-agents/execution/phase-1-foundation.md task 3b and the updated acceptance criteria.
+
+The change: "je veux un plombier" must search near the client's own location without asking. Resolve the location server-side before each turn (default address place chain, else User.placeId chain, else unknown) and inject it into the turn facts with ids and labels. Update the prompt rules exactly as task 3b lists them: search at the known place and mention it in passing, a place named in the message wins for that request, a correction sticks for the conversation, ask only when nothing is known. Add the "près de chez moi" chip variants. Keep everything else as built.
+
+Verify with three real turns against the seeded data and record them in PROGRESS.md: a client with a default address in Gombe sending "je veux un plombier" (cards, no question, place mentioned); a client with no address and no place sending the same (one short question); the Gombe client sending "un électricien à Limete" (Limete searched, stored default untouched). Add specs for resolveDefaultLocation and the turn facts line. Run the agent specs, type-check and the web build and report real output. No commits.
+```
+
 ## Phase 2
 
 ```

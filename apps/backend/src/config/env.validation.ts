@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 const noPlaceholder = (v: string) => !v.includes("<");
+const blankOrPlaceholder = (v: unknown) =>
+  typeof v === "string" && (v.trim() === "" || v.includes("<")) ? undefined : v;
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -17,6 +19,12 @@ const schema = z.object({
     .min(1)
     .refine(noPlaceholder, "SUPABASE_SERVICE_KEY is not configured"),
   CORS_ORIGINS: z.string().default("http://localhost:3000"),
+  // Both are optional: an empty value or a copied placeholder means "not configured", not a boot failure.
+  AI_GATEWAY_API_KEY: z.preprocess(blankOrPlaceholder, z.string().min(1).optional()),
+  AGENT_MODEL_ID: z.preprocess(
+    blankOrPlaceholder,
+    z.string().regex(/^[a-z0-9.-]+\/[a-z0-9.-]+$/, "AGENT_MODEL_ID must be a gateway model id").optional(),
+  ),
   STORAGE_ENV_PREFIX: z.string().optional(),
   SEED_SUPABASE_USERS: z.enum(["true", "false"]).default("false"),
   E2E_TEST_MODE: z.enum(["true", "false"]).default("false"),
