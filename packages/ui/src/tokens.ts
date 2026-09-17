@@ -1,6 +1,174 @@
-// KAYOU Design System v2 — canonical tokens.
-// Source of truth mirrored by apps/web (Tailwind + globals.css) and apps/mobile (theme.ts).
-// See docs/DESIGN_SYSTEM.md §14 for the contract.
+// KAYOU design tokens: the K-YOU visual system frozen in
+// docs/kyou-ux-refactor/00-product-and-design-contract.md §9 (values) and §10 (motion).
+// `paletteHsl` / `themeCssVariables` feed apps/web globals.css; `palette` (hex) is for inline styles.
+
+export const paletteHsl = {
+  background: "48 20% 97%",
+  foreground: "172 60% 12%",
+  card: "0 0% 100%",
+  popover: "0 0% 100%",
+  primary: "165 74% 14%",
+  primaryForeground: "60 14% 97%",
+  secondary: "150 14% 95%",
+  muted: "150 14% 94%",
+  mutedForeground: "165 10% 40%",
+  accent: "43 100% 57%",
+  accentForeground: "165 74% 14%",
+  destructive: "0 72% 45%",
+  border: "155 21% 88%",
+  input: "150 14% 92%",
+  ring: "165 74% 14%",
+  brandGlow: "172 60% 32%",
+} as const;
+
+// Status tints use Tailwind's scale: confirmed/verified emerald, pending/boosted amber,
+// cancelled red, completed neutral, elite violet, messages blue.
+export const palette = {
+  background: "#F8F8F3",
+  foreground: "#0D2A25",
+  card: "#FFFFFF",
+  popover: "#FFFFFF",
+  primary: "#0A3D36",
+  primaryForeground: "#F8F8F3",
+  secondary: "#E9F0EB",
+  muted: "#EDF2EC",
+  mutedForeground: "#5C7971",
+  accent: "#FFBD25",
+  accentForeground: "#0A3D36",
+  destructive: "#C41E1E",
+  border: "#DCE5DF",
+  input: "#E8EEE9",
+  ring: "#0A3D36",
+  adminCanvas: "#F4F6F3",
+  authCanvas: "#F8FAF7",
+  authCanvasMobile: "#F8F8F3",
+  star: "#FBBF24",
+  focusRing: "#E8AE29",
+  // Hover and skeleton shades from the K-YOU stylesheet (not part of §9).
+  primaryHover: "#15594C",
+  secondaryHover: "#F0F6F1",
+  skeleton: "#E7EEE8",
+  status: {
+    confirmed: { bg: "#ECFDF5", fg: "#047857", border: "#A7F3D0" },
+    pending: { bg: "#FFFBEB", fg: "#B45309", border: "#FDE68A" },
+    cancelled: { bg: "#FEF2F2", fg: "#B91C1C", border: "#FECACA" },
+    completed: { bg: "#EDF2EC", fg: "#5C7971", border: "#DCE5DF" },
+    elite: { bg: "#F5F3FF", fg: "#7C3AED", border: "#DDD6FE" },
+    messages: { bg: "#EFF6FF", fg: "#2563EB", border: "#BFDBFE" },
+  },
+} as const;
+
+export type StatusTone = keyof typeof palette.status;
+
+export const fonts = {
+  heading: "'Sora Variable', system-ui, sans-serif",
+  body: "'Plus Jakarta Sans Variable', system-ui, sans-serif",
+  mono: "ui-monospace, SFMono-Regular, Menlo, monospace",
+} as const;
+
+// Tailwind class strings for the type scale in §9.
+export const textStyles = {
+  pageTitle: "text-2xl sm:text-3xl font-extrabold tracking-tight",
+  hero: "text-3xl sm:text-4xl md:text-5xl leading-[1.15]",
+  sectionTitle: "text-base sm:text-lg font-extrabold",
+  body: "text-sm",
+  caption: "text-xs",
+  captionSm: "text-[11px]",
+  eyebrow: "text-[10px] font-extrabold tracking-[.19em]",
+} as const;
+
+/** Pixels. `base` is shadcn's `--radius` (1.25rem); primary actions are pills. */
+export const radii = { base: 20, field: 14, card: 16, cardLg: 24, hero: 32, pill: 9999 } as const;
+
+export const elevation = {
+  soft: "0 4px 24px -8px rgba(15,23,42,.12)",
+  softLg: "0 16px 48px -12px rgba(15,23,42,.18)",
+  brand: "0 16px 40px -12px hsl(172 60% 32% / .5)",
+} as const;
+
+/** Max content widths in pixels (Tailwind 7xl, 5xl, 4xl, 3xl, md). Side padding 16 / 24. */
+export const containers = {
+  marketing: 1280,
+  content: 1024,
+  dashboard: 896,
+  utility: 768,
+  auth: 448,
+  admin: 1500,
+} as const;
+
+export const motion = {
+  screenEnterMs: 240,
+  screenEnterFromOpacity: 0.45,
+  screenEnterRisePx: 7,
+  easeScreen: "cubic-bezier(.2,.75,.3,1)",
+  pressMs: 140,
+  pressScale: 0.975,
+  dockIconScale: 0.87,
+  pulseMs: 420,
+  pulseSizePx: 38,
+  pulseMaxLive: 6,
+  sheenMs: 1400,
+  sheetSpring: { damping: 28, stiffness: 280 },
+  dockSpring: { stiffness: 450, damping: 34 },
+  wizard: { offsetPx: 24, durationMs: 280 },
+  focusRing: { widthPx: 3, offsetPx: 4 },
+} as const;
+
+/** `Category.color` per K-YOU root category slug (src/lib/taxonomy.jsx). */
+export const categoryColors: Record<string, string> = {
+  batiment_construction: "bg-amber-500",
+  beaute_bien_etre: "bg-pink-500",
+  cuisine_restauration: "bg-orange-500",
+  maison_entretien: "bg-teal-500",
+  garde_assistance: "bg-rose-500",
+  transport_logistique: "bg-blue-500",
+  mecanique_auto: "bg-slate-600",
+  technologie_numerique: "bg-indigo-500",
+  sante: "bg-red-500",
+  agriculture_elevage: "bg-green-600",
+  education_formation: "bg-cyan-600",
+  evenementiel: "bg-fuchsia-500",
+  securite: "bg-gray-700",
+  energie: "bg-yellow-500",
+  textile_mode: "bg-purple-500",
+  communication_impression: "bg-sky-600",
+  metiers_artisanat: "bg-stone-600",
+  services_admin_juridique: "bg-emerald-700",
+  autres: "bg-slate-400",
+};
+
+/** Tailwind v4 `@theme` variables for apps/web globals.css (04 §A). */
+export const themeCssVariables = {
+  "--color-background": `hsl(${paletteHsl.background})`,
+  "--color-foreground": `hsl(${paletteHsl.foreground})`,
+  "--color-card": `hsl(${paletteHsl.card})`,
+  "--color-popover": `hsl(${paletteHsl.popover})`,
+  "--color-primary": `hsl(${paletteHsl.primary})`,
+  "--color-primary-foreground": `hsl(${paletteHsl.primaryForeground})`,
+  "--color-secondary": `hsl(${paletteHsl.secondary})`,
+  "--color-muted": `hsl(${paletteHsl.muted})`,
+  "--color-muted-foreground": `hsl(${paletteHsl.mutedForeground})`,
+  "--color-accent": `hsl(${paletteHsl.accent})`,
+  "--color-accent-foreground": `hsl(${paletteHsl.accentForeground})`,
+  "--color-destructive": `hsl(${paletteHsl.destructive})`,
+  "--color-border": `hsl(${paletteHsl.border})`,
+  "--color-input": `hsl(${paletteHsl.input})`,
+  "--color-ring": `hsl(${paletteHsl.ring})`,
+  "--radius": `${radii.base / 16}rem`,
+  "--radius-field": `${radii.field}px`,
+  "--radius-card": `${radii.card}px`,
+  "--radius-card-lg": `${radii.cardLg}px`,
+  "--radius-hero": `${radii.hero}px`,
+  "--shadow-soft": elevation.soft,
+  "--shadow-soft-lg": elevation.softLg,
+  "--shadow-brand": elevation.brand,
+  "--ease-screen": motion.easeScreen,
+} as const;
+
+// ─── Legacy exports (frozen Expo app) ─────────────────────────────────────────
+// Everything below keeps apps/mobile and packages/ui/src/mobile compiling during the
+// K-YOU refactor (docs/kyou-ux-refactor/README.md §Mobile freeze). Values are the
+// pre-refactor ones. Do NOT add new usages; the mobile workstream deletes this block.
 
 export const tokens = {
   color: {
@@ -153,6 +321,68 @@ export const tokens = {
 
 export type Tokens = typeof tokens;
 export type CategorySlug = keyof typeof tokens.portfolio;
+
+// Photo-forward card helpers, moved from the deleted cards.ts for the frozen mobile cards.
+
+// Minimum data shape every D03 card consumes. Real provider records will be a
+// superset; the cards only read these fields.
+export type ProviderCardData = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  initials?: string;
+  profession: string;
+  commune?: string;
+  city?: string;
+  categories: CategorySlug[];
+  categoryName?: string;
+  categoryIconName?: string;
+  categoryColor?: string;
+  secondaryCategories?: Array<{
+    name: string;
+    iconName?: string;
+    color?: string;
+  }>;
+  avatarBg?: string;
+  avatarUrl?: string;
+  rating: number;
+  reviews: number;
+  /** "15 min" | "1h" | "3h" — the bare time string. */
+  response: string;
+  /** Provider starting price in FC (fixed base price, not hourly). Field kept as `hourly` while DB column rename is deferred. */
+  hourly: number;
+  /** Distance in km. Omit on cards that don't show it. */
+  distance?: number;
+  verified?: boolean;
+  topRated?: boolean;
+  online?: boolean;
+  /** Years of experience, used as a trust chip on the showcase card. */
+  experienceYears?: number;
+  /** Short verbatim review used as a quote on the showcase card. */
+  testimonial?: string;
+};
+
+// Resolve the portfolio category for a provider, defaulting to plomberie when
+// the provider has no categories (mirrors the prototype's defensive fallback).
+export const portfolioSlug = (
+  categories: readonly CategorySlug[] | undefined,
+): CategorySlug => categories?.[0] ?? "plomberie";
+
+// Format a price in Congolese francs — "15 000 FC" with French thousand
+// separators (NBSP), separator handled by Intl.
+export const formatMoneyFc = (amount: number): string =>
+  `${amount.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} FC`;
+
+// Format a starting price for the wide/featured card meta — "15 000" with
+// French thousand separators (NBSP), separator handled by Intl.
+// Function name kept as `formatHourly` to avoid widespread call-site churn;
+// semantically this is the provider starting price.
+export const formatHourly = (hourly: number): string =>
+  hourly.toLocaleString("fr-FR");
+
+// Compact form for nearby rows — "15k FC".
+export const formatHourlyCompact = (hourly: number): string =>
+  `${Math.round(hourly / 1000)}k FC`;
 
 // ─── Legacy v1 exports ───────────────────────────────────────────────────────
 // Retained so existing mobile screens (33 consumers) keep compiling while

@@ -1,374 +1,373 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { ForbiddenException, HttpStatus, Injectable } from "@nestjs/common";
+import type { Message, Prisma } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
+import type {
+  ConversationsQuery,
+  MessageAttachmentInput,
+  MessagesQuery,
+  SendMessageInput,
+  StartConversationInput,
+} from "../../common/contract";
+import { apiError, forbidden, notFound } from "../../common/http/errors";
+import { pageArgs, toPage } from "../../common/http/pagination";
+import { lockRow } from "../../common/util/db";
+import { fullName } from "../../common/util/people";
 import { PrismaService } from "../../database/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SafetyService } from "../safety/safety.service";
+import { StorageService } from "../storage/storage.service";
 
-type MessageQuery = {
-  conversationId?: string;
-  page: number;
-  limit: number;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-};
+const PREVIEW_LENGTH = 120;
+const ATTACHMENT_PREVIEW = "Pièce jointe";
+const DELETED_PREVIEW = "Message supprimé";
 
-type CreateMessageBody = {
-  recipientId: string;
-  content: string;
-  type: "TEXT" | "IMAGE" | "FILE" | "LOCATION" | "BOOKING_REQUEST" | "QUOTE";
-  fileUrl?: string;
-};
-
-const senderSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  avatar: true,
-} satisfies Prisma.UserSelect;
-
-const conversationUserSelect = {
-  id: true,
-  firstName: true,
-  lastName: true,
-  avatar: true,
-  role: true,
-} satisfies Prisma.UserSelect;
-
-const messageInclude = {
-  sender: {
-    select: senderSelect,
+const conversationInclude = {
+  client: { select: { id: true, firstName: true, lastName: true, avatar: true, isActive: true } },
+  provider: {
+    select: {
+      id: true,
+      userId: true,
+      displayName: true,
+      profilePhoto: true,
+      user: { select: { isActive: true } },
+    },
   },
-} satisfies Prisma.MessageInclude;
+} satisfies Prisma.ConversationInclude;
 
-type MessageRecord = Prisma.MessageGetPayload<{
-  include: typeof messageInclude;
-}>;
+type ConversationRecord = Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>;
+type Side = "client" | "provider";
 
-type ConversationRecord = Prisma.ConversationGetPayload<{
-  include: {
-    user1: {
-      select: typeof conversationUserSelect;
-    };
-    user2: {
-      select: typeof conversationUserSelect;
-    };
-    messages: {
-      select: {
-        content: true;
-        createdAt: true;
-        senderId: true;
-        sender: {
-          select: {
-            firstName: true;
-            lastName: true;
-          };
-        };
-      };
-    };
-    _count: {
-      select: {
-        messages: true;
-      };
-    };
-  };
-}>;
+export type ConversationItem = {
+  id: string;
+  subject: string | null;
+  lastMessageAt: Date;
+  lastPreview: string | null;
+  unread: number;
+  side: Side;
+  counterpart: { userId: string; providerId: string | null; name: string; photo: string | null };
+  blocked: boolean;
+  createdAt: Date;
+};
+
+export type MessageItem = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  mine: boolean;
+  body: string | null;
+  attachments: MessageAttachmentInput[];
+  createdAt: Date;
+  deletedAt: Date | null;
+};
 
 @Injectable()
 export class MessagingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly safety: SafetyService,
+    private readonly storage: StorageService,
   ) {}
 
-  async findAll(actor: Actor, query: MessageQuery) {
-    if (query.conversationId) {
-      return this.getMessages(actor, query);
-    }
-
-    return this.getConversations(actor);
-  }
-
-  async sendMessage(actor: Actor, body: CreateMessageBody) {
-    const recipient = await this.prisma.user.findUnique({
-      where: {
-        id: body.recipientId,
-      },
-      select: {
-        id: true,
-        visibilitySettings: {
-          select: {
-            allowMessages: true,
-          },
-        },
-      },
-    });
-
-    if (!recipient) {
-      throw new NotFoundException("Recipient not found");
-    }
-
-    if (recipient.id === actor.id) {
-      throw new BadRequestException("You cannot message yourself");
-    }
-
-    if (recipient.visibilitySettings?.allowMessages === false) {
-      throw new BadRequestException("This user is not accepting messages");
-    }
-
-    const result = await this.prisma.$transaction(async (tx) => {
-      const [user1Id, user2Id] = this.getOrderedParticipantIds(actor.id, recipient.id);
-
-      const conversation = await tx.conversation.upsert({
-        where: {
-          user1Id_user2Id: {
-            user1Id,
-            user2Id,
-          },
-        },
-        update: {},
-        create: {
-          user1Id,
-          user2Id,
-        },
-      });
-
-      const created = await tx.message.create({
-        data: {
-          conversationId: conversation.id,
-          senderId: actor.id,
-          content: body.content,
-          type: body.type,
-          fileUrl: body.fileUrl ?? null,
-        },
-        include: messageInclude,
-      });
-
-      await tx.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageAt: created.createdAt,
-        },
-      });
-
-      await this.notifications.create(
-        {
-          userId: recipient.id,
-          type: "NEW_MESSAGE",
-          title: "Nouveau message",
-          message: `${this.getDisplayName(actor)} vous a envoye un message`,
-          data: {
-            conversationId: conversation.id,
-            messageId: created.id,
-          },
-        },
-        tx,
-      );
-
-      return {
-        conversationId: conversation.id,
-        message: created,
-      };
-    });
-
-    return {
-      success: true as const,
-      conversationId: result.conversationId,
-      message: this.mapMessage(result.message),
+  async list(actor: Actor, query: ConversationsQuery) {
+    const providerId = await this.ownProviderId(actor.id);
+    const where: Prisma.ConversationWhereInput = {
+      OR: [{ clientId: actor.id }, ...(providerId ? [{ providerId }] : [])],
     };
-  }
 
-  private async getMessages(actor: Actor, query: MessageQuery) {
-    if (!query.conversationId) {
-      throw new BadRequestException("conversationId is required");
-    }
-
-    const conversation = await this.prisma.conversation.findFirst({
-      where: {
-        id: query.conversationId,
-        OR: [{ user1Id: actor.id }, { user2Id: actor.id }],
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!conversation) {
-      throw new NotFoundException("Conversation not found");
-    }
-
-    const page = query.page;
-    const limit = query.limit;
-    const skip = (page - 1) * limit;
-
-    const [total, messages] = await Promise.all([
-      this.prisma.message.count({
-        where: {
-          conversationId: query.conversationId,
-          isDeleted: false,
-        },
+    const [total, rows, blockedIds, clientUnread, providerUnread] = await Promise.all([
+      this.prisma.conversation.count({ where }),
+      this.prisma.conversation.findMany({
+        where,
+        include: conversationInclude,
+        orderBy: [{ lastMessageAt: "desc" }, { id: "desc" }],
+        ...pageArgs(query),
       }),
-      this.prisma.message.findMany({
-        where: {
-          conversationId: query.conversationId,
-          isDeleted: false,
-        },
-        skip,
-        take: limit,
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: messageInclude,
+      this.safety.blockedUserIds(actor.id),
+      this.prisma.conversation.aggregate({
+        where: { clientId: actor.id },
+        _sum: { clientUnread: true },
       }),
+      providerId
+        ? this.prisma.conversation.aggregate({
+            where: { providerId },
+            _sum: { providerUnread: true },
+          })
+        : Promise.resolve(null),
     ]);
 
-    await this.prisma.message.updateMany({
-      where: {
-        conversationId: query.conversationId,
-        senderId: {
-          not: actor.id,
-        },
-        isRead: false,
-        isDeleted: false,
-      },
-      data: {
-        isRead: true,
-        readAt: new Date(),
-      },
-    });
-
+    const blocked = new Set(blockedIds);
     return {
-      success: true as const,
-      messages: messages.reverse().map((message) => this.mapMessage(message)),
-      pagination: this.buildPagination(page, limit, total),
+      ...toPage(
+        rows.map((row) => this.toItem(row, actor.id, blocked)),
+        total,
+        query,
+      ),
+      unreadTotal: (clientUnread._sum.clientUnread ?? 0) + (providerUnread?._sum.providerUnread ?? 0),
     };
   }
 
-  private async getConversations(actor: Actor) {
-    const conversations = await this.prisma.conversation.findMany({
-      where: {
-        OR: [{ user1Id: actor.id }, { user2Id: actor.id }],
-      },
-      orderBy: {
-        lastMessageAt: "desc",
-      },
-      include: {
-        user1: {
-          select: conversationUserSelect,
-        },
-        user2: {
-          select: conversationUserSelect,
-        },
-        messages: {
-          where: {
-            isDeleted: false,
-          },
-          take: 1,
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            content: true,
-            createdAt: true,
-            senderId: true,
-            sender: {
-              select: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: {
-            messages: {
-              where: {
-                senderId: {
-                  not: actor.id,
-                },
-                isRead: false,
-                isDeleted: false,
-              },
-            },
-          },
-        },
-      },
+  async start(actor: Actor, input: StartConversationInput) {
+    const provider = await this.prisma.provider.findUnique({
+      where: { id: input.providerId },
+      select: { id: true, userId: true, hidden: true, user: { select: { isActive: true } } },
+    });
+    if (!provider || provider.hidden) throw notFound("Prestataire introuvable");
+    if (provider.userId === actor.id) {
+      throw apiError(HttpStatus.BAD_REQUEST, "SELF_ACTION", "Vous ne pouvez pas vous écrire à vous-même.");
+    }
+    if (await this.safety.isBlocked(actor.id, provider.userId)) throw this.blockedError();
+    if (!provider.user.isActive) throw this.recipientUnavailable();
+    this.assertAttachmentsOwned(actor.id, input.attachments);
+
+    const { conversationId, message } = await this.prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.upsert({
+        where: { clientId_providerId: { clientId: actor.id, providerId: provider.id } },
+        create: { clientId: actor.id, providerId: provider.id, subject: input.subject || null },
+        update: {},
+        include: conversationInclude,
+      });
+      const message = await this.sendInTransaction(tx, actor, conversation, input);
+      return { conversationId: conversation.id, message };
     });
 
+    const conversation = await this.prisma.conversation.findUniqueOrThrow({
+      where: { id: conversationId },
+      include: conversationInclude,
+    });
     return {
-      success: true as const,
-      conversations: conversations.map((conversation) =>
-        this.mapConversation(conversation, actor.id),
+      conversation: this.toItem(conversation, actor.id, new Set()),
+      message: this.toMessage(message, actor.id),
+    };
+  }
+
+  async messages(actor: Actor, conversationId: string, query: MessagesQuery) {
+    const conversation = await this.findParticipantConversation(actor.id, conversationId);
+    const side = this.sideOf(conversation, actor.id);
+
+    const [total, rows, blocked] = await Promise.all([
+      this.prisma.message.count({ where: { conversationId } }),
+      this.prisma.message.findMany({
+        where: { conversationId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...pageArgs(query),
+      }),
+      this.safety.isBlocked(actor.id, this.counterpartUserId(conversation, side)),
+    ]);
+
+    const unreadField = side === "client" ? "clientUnread" : "providerUnread";
+    if (conversation[unreadField] > 0) {
+      await this.prisma.conversation.update({
+        where: { id: conversationId },
+        data: { [unreadField]: 0 },
+      });
+      conversation[unreadField] = 0;
+    }
+
+    return {
+      ...toPage(
+        rows.reverse().map((row) => this.toMessage(row, actor.id)),
+        total,
+        query,
+      ),
+      conversation: this.toItem(
+        conversation,
+        actor.id,
+        new Set(blocked ? [this.counterpartUserId(conversation, side)] : []),
       ),
     };
   }
 
-  private mapConversation(conversation: ConversationRecord, actorId: string) {
-    const otherUser = conversation.user1Id === actorId ? conversation.user2 : conversation.user1;
-    const lastMessage = conversation.messages[0];
+  async send(actor: Actor, conversationId: string, input: SendMessageInput): Promise<MessageItem> {
+    const conversation = await this.findParticipantConversation(actor.id, conversationId);
+    const side = this.sideOf(conversation, actor.id);
+    const counterpartId = this.counterpartUserId(conversation, side);
 
+    this.assertAttachmentsOwned(actor.id, input.attachments);
+    if (await this.safety.isBlocked(actor.id, counterpartId)) throw this.blockedError();
+    const counterpartActive =
+      side === "client" ? conversation.provider.user.isActive : conversation.client.isActive;
+    if (!counterpartActive) throw this.recipientUnavailable();
+
+    const message = await this.prisma.$transaction((tx) =>
+      this.sendInTransaction(tx, actor, conversation, input),
+    );
+    return this.toMessage(message, actor.id);
+  }
+
+  async deleteMessage(actor: Actor, conversationId: string, messageId: string) {
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, conversationId },
+      include: { conversation: { select: { clientId: true, provider: { select: { userId: true } } } } },
+    });
+    if (!message) throw notFound("Message introuvable");
+
+    if (actor.role !== "ADMIN") {
+      const participant =
+        message.conversation.clientId === actor.id || message.conversation.provider.userId === actor.id;
+      if (!participant) throw notFound("Message introuvable");
+      if (message.senderId !== actor.id) throw forbidden("Seul l'auteur peut supprimer ce message");
+    }
+    if (message.deletedAt) return { ok: true as const };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.message.update({ where: { id: messageId }, data: { deletedAt: new Date() } });
+      const latest = await tx.message.findFirst({
+        where: { conversationId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true },
+      });
+      if (latest?.id === messageId) {
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: { lastPreview: DELETED_PREVIEW },
+        });
+      }
+    });
+    return { ok: true as const };
+  }
+
+  private async sendInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: Actor,
+    conversation: ConversationRecord,
+    input: SendMessageInput,
+  ): Promise<Message> {
+    await lockRow(tx, "Conversation", conversation.id);
+    const side = this.sideOf(conversation, actor.id);
+    const body = input.body?.trim() ? input.body.trim() : null;
+
+    const message = await tx.message.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: actor.id,
+        body,
+        attachments: input.attachments as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    await tx.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageAt: message.createdAt,
+        lastPreview: body ? body.slice(0, PREVIEW_LENGTH) : ATTACHMENT_PREVIEW,
+        ...(side === "client"
+          ? { clientUnread: 0, providerUnread: { increment: 1 } }
+          : { providerUnread: 0, clientUnread: { increment: 1 } }),
+      },
+    });
+
+    const senderName = side === "client" ? fullName(actor) : conversation.provider.displayName;
+    await this.notifications.create(
+      {
+        userId: this.counterpartUserId(conversation, side),
+        type: "NEW_MESSAGE",
+        title: "Nouveau message",
+        message: `${senderName} vous a envoyé un message.`,
+        data: { conversationId: conversation.id, messageId: message.id },
+      },
+      tx,
+    );
+
+    return message;
+  }
+
+  private async findParticipantConversation(userId: string, conversationId: string) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: conversationInclude,
+    });
+    if (
+      !conversation ||
+      (conversation.clientId !== userId && conversation.provider.userId !== userId)
+    ) {
+      throw notFound("Conversation introuvable");
+    }
+    return conversation;
+  }
+
+  private assertAttachmentsOwned(userId: string, attachments: MessageAttachmentInput[]) {
+    for (const attachment of attachments) {
+      try {
+        this.storage.assertOwnedPath("attachments", userId, attachment.path);
+      } catch {
+        throw new ForbiddenException("Cette pièce jointe ne vous appartient pas");
+      }
+    }
+  }
+
+  private async ownProviderId(userId: string): Promise<string | null> {
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return provider?.id ?? null;
+  }
+
+  private sideOf(conversation: ConversationRecord, userId: string): Side {
+    return conversation.clientId === userId ? "client" : "provider";
+  }
+
+  private counterpartUserId(conversation: ConversationRecord, side: Side): string {
+    return side === "client" ? conversation.provider.userId : conversation.clientId;
+  }
+
+  private toItem(conversation: ConversationRecord, userId: string, blocked: Set<string>): ConversationItem {
+    const side = this.sideOf(conversation, userId);
+    const counterpart =
+      side === "client"
+        ? {
+            userId: conversation.provider.userId,
+            providerId: conversation.provider.id,
+            name: conversation.provider.displayName,
+            photo: conversation.provider.profilePhoto,
+          }
+        : {
+            userId: conversation.client.id,
+            providerId: null,
+            name: fullName(conversation.client),
+            photo: conversation.client.avatar,
+          };
     return {
       id: conversation.id,
-      otherUser: {
-        id: otherUser.id,
-        firstName: otherUser.firstName,
-        lastName: otherUser.lastName,
-        avatar: otherUser.avatar,
-        role: otherUser.role,
-      },
-      lastMessage: lastMessage
-        ? {
-            content: lastMessage.content,
-            createdAt: lastMessage.createdAt,
-            senderId: lastMessage.senderId,
-            senderName: this.getName(lastMessage.sender.firstName, lastMessage.sender.lastName),
-          }
-        : null,
+      subject: conversation.subject,
       lastMessageAt: conversation.lastMessageAt,
-      unreadCount: conversation._count.messages,
+      lastPreview: conversation.lastPreview,
+      unread: side === "client" ? conversation.clientUnread : conversation.providerUnread,
+      side,
+      counterpart,
+      blocked: blocked.has(counterpart.userId),
       createdAt: conversation.createdAt,
     };
   }
 
-  private mapMessage(message: MessageRecord) {
+  toMessage(message: Message, userId: string): MessageItem {
+    const deleted = Boolean(message.deletedAt);
     return {
       id: message.id,
       conversationId: message.conversationId,
       senderId: message.senderId,
-      content: message.content,
-      type: message.type,
-      fileUrl: message.fileUrl,
-      isRead: message.isRead,
-      readAt: message.readAt,
-      isDeleted: message.isDeleted,
+      mine: message.senderId === userId,
+      body: deleted ? null : message.body,
+      attachments: deleted
+        ? []
+        : Array.isArray(message.attachments)
+          ? (message.attachments as unknown as MessageAttachmentInput[])
+          : [],
       createdAt: message.createdAt,
-      sender: message.sender,
+      deletedAt: message.deletedAt,
     };
   }
 
-  private getOrderedParticipantIds(left: string, right: string): [string, string] {
-    return [left, right].sort((a, b) => a.localeCompare(b)) as [string, string];
+  private blockedError() {
+    return apiError(HttpStatus.FORBIDDEN, "BLOCKED", "Cette conversation est bloquée.");
   }
 
-  private buildPagination(page: number, limit: number, total: number) {
-    return {
-      page,
-      limit,
-      total,
-      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
-      hasMore: page * limit < total,
-    };
-  }
-
-  private getDisplayName(actor: Actor) {
-    return this.getName(actor.firstName, actor.lastName) ?? "Un utilisateur";
-  }
-
-  private getName(firstName?: string | null, lastName?: string | null) {
-    const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
-    return fullName || undefined;
+  private recipientUnavailable() {
+    return apiError(
+      HttpStatus.FORBIDDEN,
+      "RECIPIENT_UNAVAILABLE",
+      "Ce destinataire n'est pas disponible.",
+    );
   }
 }

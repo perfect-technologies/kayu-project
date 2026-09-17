@@ -1,10 +1,11 @@
 import { Global, Module } from "@nestjs/common";
 import { ACTOR_RESOLVER } from "../../common/auth/actor-resolver.interface";
 import { ActorGuard } from "../../common/guards/actor.guard";
+import { OptionalActorGuard } from "../../common/guards/optional-actor.guard";
+import { AccountService } from "./account.service";
 import { IdentityController } from "./identity.controller";
 import { IdentityRepository } from "./identity.repository";
 import { IdentityService } from "./identity.service";
-import { RecentAddressesService } from "./recent-addresses.service";
 
 @Global()
 @Module({
@@ -12,13 +13,14 @@ import { RecentAddressesService } from "./recent-addresses.service";
   providers: [
     IdentityRepository,
     IdentityService,
-    RecentAddressesService,
+    AccountService,
     ActorGuard,
+    OptionalActorGuard,
     {
       provide: ACTOR_RESOLVER,
       useExisting: IdentityService,
     },
   ],
-  exports: [IdentityService, ActorGuard, ACTOR_RESOLVER],
+  exports: [IdentityService, ActorGuard, OptionalActorGuard, ACTOR_RESOLVER],
 })
 export class IdentityModule {}

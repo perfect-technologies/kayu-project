@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
+import { elevation, palette, radii, type StatusTone } from "../tokens.js";
 import { I, type IconProps } from "./Icon.js";
 
 export type ToastVariant = "success" | "info" | "error";
@@ -12,14 +12,14 @@ export type Toast = {
   message: string;
   /** Auto-dismiss timeout in ms. Default 4000. Set 0 to disable. */
   durationMs?: number;
-  /** Hide the close X. */
+  /** Show the close button. Default true. */
   dismissible?: boolean;
 };
 
 type ShowToastInput = Omit<Toast, "id"> & { id?: string };
 
 type ToastContextValue = {
-  show: (t: ShowToastInput) => string;
+  show: (toast: ShowToastInput) => string;
   dismiss: (id: string) => void;
 };
 
@@ -33,32 +33,41 @@ export const useToast = (): ToastContextValue => {
 
 export type ToastProviderProps = {
   children: React.ReactNode;
-  /** Offset from the top edge — bump past sticky headers. Default 24. */
+  /** Offset from the top edge, past sticky headers. Default 24. */
   topOffset?: number;
+  /** Accessible label of the close button. */
+  closeLabel?: string;
 };
 
-export const ToastProvider: React.FC<ToastProviderProps> = ({ children, topOffset = 24 }) => {
+export const ToastProvider: React.FC<ToastProviderProps> = ({
+  children,
+  topOffset = 24,
+  closeLabel = "Fermer",
+}) => {
   const [current, setCurrent] = React.useState<Toast | null>(null);
   const timerRef = React.useRef<number | null>(null);
 
   const dismiss = React.useCallback((id: string) => {
-    setCurrent((c) => (c && c.id === id ? null : c));
+    setCurrent((toast) => (toast && toast.id === id ? null : toast));
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   }, []);
 
-  const show = React.useCallback((t: ShowToastInput): string => {
-    const id = t.id ?? `t_${Math.random().toString(36).slice(2, 9)}`;
-    const toast: Toast = { dismissible: true, durationMs: 4000, ...t, id };
-    setCurrent(toast);
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    if (toast.durationMs && toast.durationMs > 0) {
-      timerRef.current = window.setTimeout(() => dismiss(id), toast.durationMs);
-    }
-    return id;
-  }, [dismiss]);
+  const show = React.useCallback(
+    (input: ShowToastInput): string => {
+      const id = input.id ?? `t_${Math.random().toString(36).slice(2, 9)}`;
+      const toast: Toast = { dismissible: true, durationMs: 4000, ...input, id };
+      setCurrent(toast);
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      if (toast.durationMs && toast.durationMs > 0) {
+        timerRef.current = window.setTimeout(() => dismiss(id), toast.durationMs);
+      }
+      return id;
+    },
+    [dismiss],
+  );
 
   React.useEffect(
     () => () => {
@@ -72,96 +81,88 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children, topOffse
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <ToastViewport toast={current} onDismiss={dismiss} topOffset={topOffset} />
+      <ToastViewport toast={current} onDismiss={dismiss} topOffset={topOffset} closeLabel={closeLabel} />
     </ToastContext.Provider>
   );
 };
 
-// ─── Viewport ───────────────────────────────────────────────────────────────
-
-const VARIANT_ICON: Record<ToastVariant, React.ComponentType<IconProps>> = {
-  success: I.checkCircle,
-  info: I.info,
-  error: I.alertCircle,
-};
-
-const VARIANT_COLOR: Record<ToastVariant, string> = {
-  success: tokens.color.success,
-  info: tokens.color.primary,
-  error: tokens.color.danger,
+const VARIANT: Record<ToastVariant, { tone: StatusTone; Icon: React.ComponentType<IconProps> }> = {
+  success: { tone: "confirmed", Icon: I.checkCircle },
+  info: { tone: "messages", Icon: I.info },
+  error: { tone: "cancelled", Icon: I.alertCircle },
 };
 
 type ViewportProps = {
   toast: Toast | null;
   onDismiss: (id: string) => void;
   topOffset: number;
+  closeLabel: string;
 };
 
-const ToastViewport: React.FC<ViewportProps> = ({ toast, onDismiss, topOffset }) => {
+const ToastViewport: React.FC<ViewportProps> = ({ toast, onDismiss, topOffset, closeLabel }) => {
   if (!toast) return null;
-  const Icon = VARIANT_ICON[toast.variant];
-  const tint = VARIANT_COLOR[toast.variant];
+  const { tone, Icon } = VARIANT[toast.variant];
   return (
     <>
       <style>{TOAST_KEYFRAMES}</style>
       <div
-        role="status"
-        aria-live="polite"
+        role={toast.variant === "error" ? "alert" : "status"}
+        aria-live={toast.variant === "error" ? "assertive" : "polite"}
         style={{
           position: "fixed",
           top: topOffset,
           left: 0,
           right: 0,
+          zIndex: 1000,
           display: "flex",
           justifyContent: "center",
           pointerEvents: "none",
-          zIndex: 1000,
         }}
       >
         <div
+          data-kayu-toast=""
           style={{
             pointerEvents: "auto",
             display: "flex",
             alignItems: "center",
             gap: 12,
-            padding: "12px 16px",
-            maxWidth: 360,
             width: "calc(100% - 32px)",
-            background: tokens.color.surface,
-            borderRadius: tokens.radius.md,
-            boxShadow: tokens.shadow.e3,
-            animation: "kayu-toast-in 200ms cubic-bezier(0.3, 0, 0, 1) both",
+            maxWidth: 380,
+            padding: "12px 16px",
+            borderRadius: radii.card,
+            border: `1px solid ${palette.border}`,
+            background: palette.card,
+            boxShadow: elevation.softLg,
+            animation: "kayu-toast-in 200ms cubic-bezier(.2,.75,.3,1) both",
           }}
         >
-          <Icon size={18} strokeColor={tint} stroke={2} />
-          <span
-            style={{
-              flex: 1,
-              fontFamily: tokens.font.body,
-              fontWeight: 500,
-              fontSize: 14,
-              lineHeight: 1.45,
-              color: tokens.color.textPrimary,
-            }}
-          >
+          <span aria-hidden style={{ display: "inline-flex", color: palette.status[tone].fg }}>
+            <Icon size={18} stroke={2} />
+          </span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, lineHeight: 1.45, color: palette.foreground }}>
             {toast.message}
           </span>
           {toast.dismissible ? (
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              aria-label="Fermer"
+              aria-label={closeLabel}
               style={{
-                border: 0,
-                background: "transparent",
-                padding: 4,
-                margin: -4,
-                cursor: "pointer",
-                color: tokens.color.textMuted,
                 display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                margin: -6,
+                padding: 0,
+                border: 0,
+                borderRadius: "50%",
+                background: "transparent",
+                color: palette.mutedForeground,
+                cursor: "pointer",
               }}
             >
-              <I.x size={16} stroke={1.75} />
+              <I.x size={16} stroke={2} />
             </button>
           ) : null}
         </div>
@@ -170,6 +171,5 @@ const ToastViewport: React.FC<ViewportProps> = ({ toast, onDismiss, topOffset })
   );
 };
 
-const TOAST_KEYFRAMES = `
-@keyframes kayu-toast-in { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: translateY(0) } }
-`;
+const TOAST_KEYFRAMES = `@keyframes kayu-toast-in { from { opacity: 0; transform: translateY(-8px) } to { opacity: 1; transform: translateY(0) } }
+@media (prefers-reduced-motion: reduce) { [data-kayu-toast] { animation: none !important } }`;

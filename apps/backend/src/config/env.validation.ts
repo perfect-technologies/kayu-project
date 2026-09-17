@@ -6,6 +6,7 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
   DATABASE_URL: z.string().min(1).refine(noPlaceholder, "DATABASE_URL is not configured"),
+  DIRECT_URL: z.string().min(1).refine(noPlaceholder, "DIRECT_URL is not configured").optional(),
   SUPABASE_URL: z.string().url().refine(noPlaceholder, "SUPABASE_URL is not configured"),
   SUPABASE_JWT_ISSUER: z
     .string()
@@ -18,6 +19,8 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default("http://localhost:3000"),
   STORAGE_ENV_PREFIX: z.string().optional(),
   SEED_SUPABASE_USERS: z.enum(["true", "false"]).default("false"),
+  E2E_TEST_MODE: z.enum(["true", "false"]).default("false"),
+  E2E_SEED_PASSWORD: z.string().optional(),
   LAUNCH_PUBLIC_INTAKE_ENABLED: z.enum(["true", "false"]).default("false"),
   LAUNCH_FUNNEL_EVENTS_ENABLED: z.enum(["true", "false"]).default("false"),
   LAUNCH_PRIVACY_NOTICE_VERSION: z.string().default(""),
@@ -54,6 +57,22 @@ const schema = z.object({
     .max(100_000)
     .default(10_000),
 }).superRefine((config, ctx) => {
+  if (config.E2E_TEST_MODE === "true" && config.NODE_ENV === "production") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["E2E_TEST_MODE"],
+      message: "must never be enabled in production",
+    });
+  }
+
+  if (config.E2E_TEST_MODE === "true" && !config.E2E_SEED_PASSWORD?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["E2E_SEED_PASSWORD"],
+      message: "must be configured when E2E_TEST_MODE is enabled",
+    });
+  }
+
   if (
     config.LAUNCH_PUBLIC_INTAKE_ENABLED === "true" &&
     !config.LAUNCH_PRIVACY_NOTICE_VERSION.trim()
@@ -89,5 +108,8 @@ export function validateEnv(config: Record<string, unknown>): Env {
       .join("; ");
     throw new Error(`Invalid environment configuration: ${issues}`);
   }
-  return result.data;
+  const env = { ...result.data, DIRECT_URL: result.data.DIRECT_URL ?? result.data.DATABASE_URL };
+  // Prisma CLI reads directUrl from process.env; one DATABASE_URL keeps local Docker and CI working.
+  process.env.DIRECT_URL ??= env.DIRECT_URL;
+  return env;
 }

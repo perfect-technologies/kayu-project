@@ -5,27 +5,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-[12px] font-sans text-[14px] font-semibold transition-[background,color,border-color,box-shadow,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-[var(--k-primary)] focus-visible:ring-[3px] focus-visible:ring-[rgba(14,165,233,0.15)] aria-invalid:border-[var(--k-danger)] aria-invalid:ring-[rgba(225,29,72,0.16)]",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap font-bold transition-[background-color,color,border-color,box-shadow,scale] active:scale-[0.975] motion-reduce:active:scale-100 disabled:pointer-events-none disabled:opacity-55 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none",
   {
     variants: {
       variant: {
         default:
-          "border border-transparent bg-[var(--k-primary)] text-[var(--k-text-inverse)] shadow-[var(--k-e-brand)] hover:bg-[var(--k-primary-hover)]",
-        destructive:
-          "border border-transparent bg-[var(--k-danger)] text-white shadow-[var(--k-e1)] hover:bg-[#BE123C] focus-visible:ring-[rgba(225,29,72,0.16)]",
-        outline:
-          "border border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-primary)] shadow-none hover:bg-[var(--k-surface-muted)]",
-        secondary:
-          "border border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-primary)] shadow-none hover:bg-[var(--k-surface-muted)]",
-        ghost:
-          "border border-transparent bg-transparent text-[var(--k-primary-hover)] shadow-none hover:bg-[var(--k-primary-subtle)]",
-        link: "h-auto border border-transparent bg-transparent px-0 text-[var(--k-primary-hover)] underline-offset-4 shadow-none hover:underline active:scale-100",
+          "rounded-full bg-primary text-primary-foreground shadow-[0_6px_20px_-9px_#0a3d3660] hover:bg-[#15594C]",
+        gold: "rounded-full bg-accent text-accent-foreground shadow-[0_6px_20px_-9px_#0a3d3660] hover:brightness-95",
+        secondary: "rounded-[14px] border border-border bg-white text-foreground hover:bg-[#F0F6F1]",
+        outline: "rounded-[14px] border border-border bg-white text-foreground hover:bg-[#F0F6F1]",
+        ghost: "rounded-[14px] text-primary hover:bg-secondary",
+        destructive: "rounded-[14px] border border-red-200 bg-white text-destructive hover:bg-red-50",
+        link: "h-auto rounded-none px-0 text-primary underline-offset-4 hover:underline active:scale-100",
       },
       size: {
-        default: "h-10 px-[18px] py-0 has-[>svg]:px-4",
-        sm: "h-8 gap-1.5 px-3 py-0 text-[13px] has-[>svg]:px-2.5",
-        lg: "h-12 px-[22px] py-0 text-[15px] has-[>svg]:px-5",
-        icon: "size-10 p-0",
+        default: "min-h-11 px-[18px] text-sm",
+        sm: "min-h-9 px-3.5 text-[13px]",
+        lg: "min-h-[54px] px-6 text-[15px]",
+        icon: "size-11 rounded-full",
       },
     },
     defaultVariants: {
@@ -40,6 +37,7 @@ function Button({
   variant,
   size,
   asChild = false,
+  type,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -50,6 +48,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      type={asChild ? type : (type ?? "button")}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

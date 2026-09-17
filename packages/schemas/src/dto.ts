@@ -1,924 +1,246 @@
 import { z } from "zod";
-import { KIN_COMMUNES_TUPLE } from "./communes.js";
 import {
-  BooleanQueryParamSchema,
+  BooleanQuerySchema,
+  CountrySchema,
+  DateOnlySchema,
   DateTimeSchema,
+  HttpsUrlSchema,
   IdSchema,
-  JsonObjectSchema,
-  PaginationMetaSchema,
-  PaginationParams,
-  createApiSuccessResponseSchema,
+  LatitudeSchema,
+  LongitudeSchema,
+  NullableDateTimeSchema,
+  OkResponseSchema,
+  PhoneE164Schema,
+  StoragePathSchema,
+  type Wire,
+  createPaginatedResponseSchema,
+  csvIds,
+  optionalText,
+  pagination,
 } from "./common.js";
 import {
+  AddressLabel,
   BookingStatus,
-  ClientLeadTiming,
-  FinalOfferStatus,
-  LeadPreferredContact,
-  MessageType,
-  PayoutOperator,
-  ProviderLeadExperienceBand,
-  TransactionType,
+  ContactStatus,
+  PlaceKind,
+  PremiumTier,
+  ReferenceType,
+  ReportStatus,
+  ReportTargetKind,
+  SuggestionStatus,
+  UploadPurpose,
   UserRole,
   VerificationStatus,
 } from "./enums.js";
+import { MEDIA_LIMITS, MediaListInputSchema, MessageAttachmentInput } from "./media.js";
 import {
-  AuthUserSchema,
-  BookingSchema,
-  CategoryHierarchySchema,
-  CategorySchema,
+  ActivityLogSchema,
+  AddressSchema,
+  BlockSchema,
+  BookingCardSchema,
+  BookingDetailSchema,
+  CategoryChainItemSchema,
+  CategoryTreeNodeSchema,
+  ClientReviewSchema,
+  ContactMessageSchema,
   ConversationSchema,
-  EarningsSummarySchema,
-  FavoriteSchema,
-  FinalOfferSchema,
+  LocalSlotSchema,
+  MessageAttachmentSchema,
   MessageSchema,
   NotificationSchema,
-  PayoutSchema,
-  ProviderDetailSchema,
-  ProviderSchema,
-  ProviderSubcategorySchema,
+  PersonRefSchema,
+  PlaceSchema,
+  PlaceSuggestionSchema,
+  PlaceSummarySchema,
+  ProviderCardSchema,
+  ProviderContactsSchema,
+  ProviderMediaSchema,
+  ProviderPricingSchema,
+  ProviderPublicSchema,
+  PublicReviewSchema,
+  RatingSummarySchema,
+  ReferenceItemSchema,
+  ReferenceItemSummarySchema,
+  ReportSchema,
   ReviewSchema,
-  ServiceZoneSchema,
-  SkillSchema,
-  SubcategorySchema,
+  ScheduleSchema,
+  ScheduleSummarySchema,
+  SiteSettingsSchema,
+  SocialLinksSchema,
+  TaxonomyLevelSchema,
   TransactionSchema,
   UserSchema,
-  VisibilitySettingsSchema,
 } from "./models.js";
-import {
-  DisputeOrigin,
-  DisputeSchema,
-  DisputeSeverity,
-  DisputeStatus,
-} from "./verification.js";
+import { ScheduleInputSchema, TimeOfDaySchema } from "./schedule.js";
 
-const RatingSchema = z.number().int().min(1).max(5);
+const Count = z.number().int().min(0);
+const search = z.string().trim().min(1).max(120).optional();
+const noEmptyPatch = { message: "Aucun champ à mettre à jour" };
+const coordinatesTogether = (value: { latitude?: number | null; longitude?: number | null }) =>
+  (value.latitude === undefined || value.latitude === null) ===
+  (value.longitude === undefined || value.longitude === null);
 
-const launchAttributionKeySchema = (maxLength: number) =>
-  z
-    .string()
-    .trim()
-    .min(1)
-    .max(maxLength)
-    .regex(
-      /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
-      "Use a stable attribution key containing only letters, numbers, dot, underscore, or hyphen",
-    )
-    .refine(
-      (value) => !/@/.test(value) && !/(?:\D*\d){8}/.test(value),
-      "Attribution keys must not contain contact or other personal data",
-    )
-    .transform((value) => value.toLowerCase());
+// =====================================================================================
+// Public discovery
+// =====================================================================================
 
-export const LEAD_ATTRIBUTION_SOURCES = [
-  "direct",
-  "facebook",
-  "instagram",
-  "whatsapp",
-  "referral",
-  "partner",
-  "community",
-  "google",
-  "tiktok",
-  "other",
-] as const;
+export const PublicSettingsResponseSchema = SiteSettingsSchema;
 
-export const LEAD_ATTRIBUTION_MEDIA = [
-  "direct",
-  "organic_social",
-  "paid_social",
-  "referral",
-  "partner",
-  "community",
-  "qr",
-] as const;
-
-const ReferrerHostSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(253)
-  .refine(
-    (value) =>
-      /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(
-        value,
-      ),
-    "Must be a hostname without a scheme, path, query, or port",
-  )
-  .refine(
-    (value) => !/(?:\D*\d){8}/.test(value),
-    "Referrer host must not contain contact or other personal data",
-  );
-
-export const LeadAttributionDto = z
-  .object({
-    source: z.enum(LEAD_ATTRIBUTION_SOURCES).optional(),
-    medium: z.enum(LEAD_ATTRIBUTION_MEDIA).optional(),
-    campaign: launchAttributionKeySchema(100).optional(),
-    content: launchAttributionKeySchema(100).optional(),
-    referrerHost: ReferrerHostSchema.optional(),
-  })
-  .strict();
-
-const LaunchLeadBaseDto = z
-  .object({
-    firstName: z.string().trim().min(2).max(80),
-    phone: z.string().trim().min(8).max(32),
-    email: z
-      .string()
-      .trim()
-      .email()
-      .max(254)
-      .transform((value) => value.toLowerCase())
-      .optional(),
-    operationalConsent: z.literal(true),
-    marketingConsent: z.boolean().default(false),
-    privacyNoticeVersion: z.string().trim().min(1).max(100),
-    attribution: LeadAttributionDto.optional(),
-    website: z.string().trim().max(200).optional(),
-    formStartedAt: z.string().datetime({ offset: true }).optional(),
-  })
-  .strict();
-
-export const CreateProviderLeadDto = LaunchLeadBaseDto.extend({
-  primarySubcategoryId: IdSchema,
-  additionalSubcategoryIds: z.array(IdSchema).max(2).default([]),
-  experienceBand: ProviderLeadExperienceBand,
-  homeCommune: z.enum(KIN_COMMUNES_TUPLE),
-  serviceCommunes: z.array(z.enum(KIN_COMMUNES_TUPLE)).max(5).default([]),
-  hasWhatsApp: z.boolean().optional(),
-  summary: z.string().trim().max(300).optional(),
-})
-  .strict()
-  .superRefine((value, ctx) => {
-    const allIds = [
-      value.primarySubcategoryId,
-      ...value.additionalSubcategoryIds,
-    ];
-    if (new Set(allIds).size !== allIds.length) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["additionalSubcategoryIds"],
-        message: "Subcategory IDs must be distinct",
-      });
-    }
-    if (new Set(value.serviceCommunes).size !== value.serviceCommunes.length) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["serviceCommunes"],
-        message: "Service communes must be distinct",
-      });
-    }
-  });
-
-export const CreateClientLeadDto = LaunchLeadBaseDto.extend({
-  commune: z.enum(KIN_COMMUNES_TUPLE),
-  neededSubcategoryIds: z.array(IdSchema).min(1).max(3),
-  timing: ClientLeadTiming,
-  needSummary: z.string().trim().max(300).optional(),
-  preferredContact: LeadPreferredContact.optional(),
-})
-  .strict()
-  .superRefine((value, ctx) => {
-    if (
-      new Set(value.neededSubcategoryIds).size !==
-      value.neededSubcategoryIds.length
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["neededSubcategoryIds"],
-        message: "Subcategory IDs must be distinct",
-      });
-    }
-  });
-
-export const CreateLaunchLeadResponseSchema = z.object({
-  accepted: z.literal(true),
-  message: z.literal("Merci. Votre intérêt a bien été reçu."),
+export const PublicStatsResponseSchema = z.object({
+  categories: Count,
+  countries: Count,
+  providers: Count,
+  verifiedProviders: Count,
 });
 
-export const LAUNCH_FUNNEL_EVENT_NAMES = [
-  "launch_landing_viewed",
-  "launch_role_selected",
-  "launch_form_started",
-  "launch_form_validation_failed",
-  "launch_lead_submitted",
-] as const;
+export const CategoryTreeResponseSchema = z.object({ items: z.array(CategoryTreeNodeSchema) });
 
-export const LAUNCH_FUNNEL_DEVICE_CLASSES = [
-  "mobile",
-  "tablet",
-  "desktop",
-  "unknown",
-] as const;
-
-export const LAUNCH_FUNNEL_ROUTES = [
-  "/launch",
-  "/launch/providers",
-  "/launch/clients",
-] as const;
-
-export const LAUNCH_FUNNEL_VALIDATION_FIELDS = [
-  "form",
-  "firstName",
-  "phone",
-  "email",
-  "primarySubcategoryId",
-  "additionalSubcategoryIds",
-  "experienceBand",
-  "homeCommune",
-  "serviceCommunes",
-  "hasWhatsApp",
-  "summary",
-  "commune",
-  "neededSubcategoryIds",
-  "timing",
-  "needSummary",
-  "preferredContact",
-  "operationalConsent",
-  "marketingConsent",
-  "privacyNoticeVersion",
-  "attribution",
-] as const;
-
-export const LAUNCH_FUNNEL_VALIDATION_ERROR_CODES = [
-  "required",
-  "invalid_format",
-  "too_short",
-  "too_long",
-  "invalid_option",
-  "duplicate_option",
-  "consent_required",
-  "rate_limited",
-  "network",
-  "server",
-  "unknown",
-] as const;
-
-export const CreateLaunchFunnelEventDto = z
-  .object({
-    schemaVersion: z.literal(1),
-    eventName: z.enum(LAUNCH_FUNNEL_EVENT_NAMES),
-    occurredAt: z.string().datetime({ offset: true }),
-    route: z.enum(LAUNCH_FUNNEL_ROUTES),
-    deviceClass: z.enum(LAUNCH_FUNNEL_DEVICE_CLASSES),
-    leadType: z.enum(["PROVIDER", "CLIENT"]).optional(),
-    validationField: z.enum(LAUNCH_FUNNEL_VALIDATION_FIELDS).optional(),
-    validationErrorCode: z
-      .enum(LAUNCH_FUNNEL_VALIDATION_ERROR_CODES)
-      .optional(),
-    attribution: LeadAttributionDto.optional(),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    const needsLeadType = value.eventName !== "launch_landing_viewed";
-    if (needsLeadType && !value.leadType) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["leadType"],
-        message: "leadType is required for this event",
-      });
-    }
-
-    const isValidationFailure =
-      value.eventName === "launch_form_validation_failed";
-    if (
-      isValidationFailure &&
-      (!value.validationField || !value.validationErrorCode)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["validationField"],
-        message:
-          "validationField and validationErrorCode are required for validation failures",
-      });
-    }
-    if (
-      !isValidationFailure &&
-      (value.validationField || value.validationErrorCode)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["validationField"],
-        message: "validation details are allowed only for validation failures",
-      });
-    }
-  });
-
-export const CreateLaunchFunnelEventResponseSchema = z
-  .object({
-    accepted: z.literal(true),
-  })
-  .strict();
-
-export const ServiceZoneInputSchema = ServiceZoneSchema.pick({
-  city: true,
-  commune: true,
+export const PlacesQueryParams = pagination(100).extend({
+  kind: PlaceKind.optional(),
+  parentId: IdSchema.optional(),
+  q: z.string().trim().min(1).max(100).optional(),
+  ids: csvIds.optional(),
 });
+export const PlacesResponseSchema = createPaginatedResponseSchema(PlaceSummarySchema);
+export const PlaceAncestorsResponseSchema = z.object({ items: z.array(PlaceSummarySchema) });
 
-export const SkillInputSchema = z.object({
-  name: z.string().min(1),
-  level: z.number().int().min(1).max(5).optional(),
-});
-
-export const CompleteProfileDto = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  role: z.enum(["CLIENT", "PROVIDER"]).optional(),
-  city: z.string().optional(),
-  country: z.string().default("RDC"),
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
-  avatar: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-});
-
-export const RegisterDto = CompleteProfileDto.extend({
-  email: z.string().email(),
-  role: z.enum(["CLIENT", "PROVIDER"]),
-  password: z.string().min(6).optional(),
-  profession: z.string().optional(),
-  categoryIds: z.array(IdSchema).optional(),
-  experience: z.number().int().min(0).max(50).optional(),
-  description: z.string().max(500).optional(),
-  hourlyRate: z.number().min(0).optional(),
-  skills: z.array(z.string()).optional(),
-  serviceZones: z.array(ServiceZoneInputSchema).optional(),
-  subcategoryIds: z.array(IdSchema).max(3).optional(),
-});
-
-export const LoginDto = z.object({
-  email: z.string().email().optional(),
-  phone: z.string().min(8).optional(),
-  password: z.string().min(1).optional(),
-});
-
-export const ForgotPasswordDto = z.object({
-  email: z.string().email(),
-});
-
-export const ProviderOnboardingDto = z.object({
-  profession: z.string().min(2),
-  categoryIds: z.array(IdSchema).default([]),
-  skills: z.array(z.string().min(1)).default([]),
-  serviceZones: z.array(ServiceZoneInputSchema).default([]),
-  subcategoryIds: z.array(IdSchema).max(3).default([]),
-  experience: z.number().int().min(0).max(50).optional(),
-  hourlyRate: z.number().min(0).optional(),
-  description: z.string().max(1000).optional(),
-});
-
-export const UpdateProviderDto = z.object({
-  profession: z.string().min(2).optional(),
-  description: z.string().max(1000).nullable().optional(),
-  experience: z.number().int().min(0).max(50).nullable().optional(),
-  hourlyRate: z.number().min(0).nullable().optional(),
-  isAvailable: z.boolean().optional(),
-  languages: z.array(z.string()).optional(),
-  categoryIds: z.array(IdSchema).max(3).optional(),
-  subcategoryIds: z.array(IdSchema).max(3).optional(),
-  skills: z.array(SkillInputSchema).optional(),
-  serviceZones: z.array(ServiceZoneInputSchema).optional(),
-});
-
-export const CreateBookingDto = z.object({
-  providerId: IdSchema,
-  title: z.string().min(1),
-  description: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  scheduledDate: z.coerce.date(),
-  duration: z.number().int().positive().optional(),
-  price: z.number().min(0).optional(),
-  clientNotes: z.string().optional(),
-  subcategoryId: IdSchema.optional(),
-  commune: z.enum(KIN_COMMUNES_TUPLE).optional(),
-});
-
-export const UpdateBookingDto = z.object({
-  status: BookingStatus.optional(),
-  cancelReason: z.string().optional(),
-  providerNotes: z.string().optional(),
-  isPaid: z.literal(true).optional(),
-  paymentMethod: z.literal("cash").optional(),
-});
-
-export const CreateFinalOfferDto = z.object({
-  providerId: IdSchema,
-  clientId: IdSchema,
-  conversationId: IdSchema.optional(),
-  bookingId: IdSchema.optional(),
-  title: z.string().trim().min(1),
-  description: z.string().trim().min(1).optional(),
-  price: z.number().nonnegative(),
-  duration: z.number().int().positive().optional(),
-  scheduledDate: z.coerce.date(),
-  address: z.string().trim().min(1).optional(),
-  city: z.string().trim().min(1).optional(),
-  notes: z.string().trim().min(1).optional(),
-  paymentMethod: z.literal("cash").default("cash"),
-  expiresAt: z.coerce.date().optional(),
-});
-
-export const CreateReviewDto = z.object({
-  bookingId: IdSchema,
-  providerId: IdSchema,
-  rating: RatingSchema,
-  punctuality: RatingSchema.optional(),
-  quality: RatingSchema.optional(),
-  communication: RatingSchema.optional(),
-  value: RatingSchema.optional(),
-  professionalism: RatingSchema.optional(),
-  satisfactionTags: z.array(z.string().min(1)).max(10).default([]),
-  comment: z.string().max(2000).optional(),
-  isPublic: z.boolean().default(true),
-});
-
-export const CreateClientReviewDto = z.object({
-  bookingId: IdSchema,
-  clientId: IdSchema,
-  paymentRating: z
-    .enum(["PREPAID", "ONTIME", "LATE", "PARTIAL", "DISPUTED"])
-    .default("ONTIME"),
-  communication: RatingSchema.optional(),
-  respectfulness: RatingSchema.optional(),
-  tags: z.array(z.string()).default([]),
-  comment: z.string().max(2000).optional(),
-  isPublic: z.boolean().default(true),
-});
-
-export const CreateMessageDto = z.object({
-  recipientId: IdSchema,
-  content: z.string().min(1),
-  type: MessageType.default("TEXT"),
-  fileUrl: z.string().optional(),
-});
-
-export const UpdateVisibilityDto = VisibilitySettingsSchema.pick({
-  profileVisible: true,
-  showEmail: true,
-  showPhone: true,
-  showExactLocation: true,
-  showHourlyRate: true,
-  showPastWork: true,
-  showReviews: true,
-  showAvailability: true,
-  showCertifications: true,
-  showClientHistory: true,
-  showClientReviews: true,
-  allowDirectContact: true,
-  allowMessages: true,
-  appearInSearch: true,
-  appearInCategory: true,
-}).partial();
-
-export const UpdateUserDto = z.object({
-  firstName: z.string().min(2).optional(),
-  lastName: z.string().min(2).optional(),
-  phone: z.string().nullable().optional(),
-  city: z.string().nullable().optional(),
-  avatar: z.string().nullable().optional(),
-});
-
-export const AdminUpdateUserDto = UpdateUserDto.extend({
-  userId: IdSchema,
-  isActive: z.boolean().optional(),
-  isVerified: z.boolean().optional(),
-  role: UserRole.optional(),
-});
-
-export const AdminUpdateProviderDto = z.object({
-  providerId: IdSchema,
-  verificationStatus: VerificationStatus.optional(),
-  isPremium: z.boolean().optional(),
-  isAvailable: z.boolean().optional(),
-  rejectionReason: z.string().optional(),
-});
-
-export const CategorySubcategoryInputSchema = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  order: z.number().int().min(0).optional(),
-});
-
-export const CreateCategoryDto = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  image: z.string().optional(),
-  color: z.string().optional(),
-  order: z.number().int().min(0).optional(),
-  subcategories: z.array(CategorySubcategoryInputSchema).optional(),
-});
-
-export const UpdateCategoryDto = CreateCategoryDto.partial().extend({
-  id: IdSchema.optional(),
+export const ReferencesQueryParams = pagination(100).extend({
+  type: ReferenceType,
   categoryId: IdSchema.optional(),
-  isActive: z.boolean().optional(),
+  q: z.string().trim().min(1).max(100).optional(),
 });
+export const ReferencesResponseSchema = createPaginatedResponseSchema(ReferenceItemSummarySchema);
 
-export const CreateSubcategoryDto = z.object({
-  categoryId: IdSchema,
-  name: z.string().min(1),
-  slug: z.string().min(1),
-  description: z.string().optional(),
-  icon: z.string().optional(),
-  order: z.number().int().min(0).optional(),
-});
+export const ProviderSearchSort = z.enum(["recommended", "rating", "distance", "newest"]);
 
-export const UpdateSubcategoryDto = CreateSubcategoryDto.partial().extend({
-  id: IdSchema,
-  isActive: z.boolean().optional(),
-});
-
-export const AdminModerateReviewDto = z.object({
-  reviewId: IdSchema,
-  isPublic: z.boolean().optional(),
-  isEdited: z.boolean().optional(),
-  reply: z.string().nullable().optional(),
-});
-
-export const FavoriteProviderDto = z.object({
-  providerId: IdSchema,
-});
-
-export const ProviderSearchParams = PaginationParams.extend({
-  q: z.string().optional(),
-  category: z.string().optional(),
-  subcategory: z.string().optional(),
-  city: z.string().optional(),
-  minRating: z.coerce.number().min(0).max(5).optional(),
-  minPrice: z.coerce.number().min(0).optional(),
-  maxPrice: z.coerce.number().min(0).optional(),
-  available: BooleanQueryParamSchema.optional(),
-  verified: BooleanQueryParamSchema.optional(),
-  // "hourlyRate" sort key is kept for wire compatibility; it sorts on the
-  // provider starting price (the underlying column has not been renamed yet).
-  sortBy: z.enum(["recommended", "createdAt", "hourlyRate"]).optional(),
-  sortOrder: z.enum(["asc", "desc"]).optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(12),
-});
-
-export const BookingSearchParams = PaginationParams.extend({
-  status: BookingStatus.optional(),
-  role: z.enum(["client", "provider"]).default("client"),
-});
-
-export const FinalOfferSearchParams = PaginationParams.extend({
-  status: FinalOfferStatus.optional(),
-  conversationId: IdSchema.optional(),
-  bookingId: IdSchema.optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const ReviewSearchParams = PaginationParams.extend({
-  providerId: IdSchema,
-  sortBy: z.enum(["recent", "highest", "lowest"]).default("recent"),
-});
-
-export const MessageSearchParams = PaginationParams.extend({
-  conversationId: IdSchema.optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const NotificationSearchParams = PaginationParams.extend({
-  unreadOnly: BooleanQueryParamSchema.optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const CategorySearchParams = z.object({
-  withSubcategories: BooleanQueryParamSchema.optional(),
-  categoryId: IdSchema.optional(),
-  categorySlug: z.string().optional(),
-});
-
-export const AdminUserSearchParams = PaginationParams.extend({
-  role: UserRole.optional(),
-  status: z.enum(["active", "inactive", "verified", "unverified"]).optional(),
-  search: z.string().optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const AdminProviderSearchParams = PaginationParams.extend({
-  status: z.enum(["premium", "available", "unavailable"]).optional(),
-  verificationStatus: VerificationStatus.optional(),
-  search: z.string().optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const AdminReviewSearchParams = PaginationParams.extend({
-  isPublic: BooleanQueryParamSchema.optional(),
-  minRating: z.coerce.number().min(0).max(5).optional(),
-  maxRating: z.coerce.number().min(0).max(5).optional(),
-  search: z.string().optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const AdminCategorySearchParams = z.object({
-  includeInactive: BooleanQueryParamSchema.optional(),
-});
-
-export const AdminSupportBookingSearchParams = PaginationParams.extend({
-  status: BookingStatus.optional(),
-  search: z.string().optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const AdminSupportBookingSummarySchema = z.object({
-  id: IdSchema,
-  title: z.string(),
-  status: BookingStatus,
-  scheduledDate: DateTimeSchema.nullable().optional(),
-  createdAt: DateTimeSchema,
-  price: z.number().nullable().optional(),
-  city: z.string().nullable().optional(),
-  address: z.string().nullable().optional(),
-  isPaid: z.boolean(),
-  paymentMethod: z.string().nullable().optional(),
-  client: z.object({
-    id: IdSchema,
-    name: z.string(),
-    email: z.string().nullable(),
-    phone: z.string().nullable(),
-  }),
-  provider: z.object({
-    id: IdSchema,
-    userId: IdSchema,
-    name: z.string(),
-    profession: z.string(),
-    email: z.string().nullable(),
-    phone: z.string().nullable(),
-  }),
-  support: z.object({
-    disputeCount: z.number().int().min(0),
-    activeDisputeId: IdSchema.nullable(),
-    activeDisputeStatus: DisputeStatus.nullable(),
-    activeDisputeSeverity: DisputeSeverity.nullable(),
-    lastDisputeAt: DateTimeSchema.nullable(),
-  }),
-});
-
-export const AdminSupportBookingsResponseSchema = z.object({
-  success: z.literal(true),
-  bookings: z.array(AdminSupportBookingSummarySchema),
-  pagination: PaginationMetaSchema,
-});
-
-export const AdminDisputeSearchParams = PaginationParams.extend({
-  status: DisputeStatus.optional(),
-  severity: DisputeSeverity.optional(),
-  search: z.string().optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const AdminDisputeSummarySchema = DisputeSchema.extend({
-  booking: z
-    .object({
-      id: IdSchema,
-      title: z.string(),
-      status: BookingStatus,
-      price: z.number().nullable().optional(),
-      scheduledDate: DateTimeSchema.nullable().optional(),
-      client: z.object({
-        id: IdSchema,
-        name: z.string(),
-        email: z.string().nullable(),
-        phone: z.string().nullable(),
-      }),
-      provider: z.object({
-        id: IdSchema,
-        userId: IdSchema,
-        name: z.string(),
-        profession: z.string(),
-        email: z.string().nullable(),
-        phone: z.string().nullable(),
-      }),
-    })
-    .nullable(),
-});
-
-export const AdminDisputesResponseSchema = z.object({
-  success: z.literal(true),
-  disputes: z.array(AdminDisputeSummarySchema),
-  pagination: PaginationMetaSchema,
-  stats: z.object({
-    open: z.number().int().min(0),
-    escalated: z.number().int().min(0),
-    resolved: z.number().int().min(0),
-  }),
-});
-
-export const AdminCreateDisputeDto = z.object({
-  bookingId: IdSchema,
-  reporterRole: DisputeOrigin,
-  reason: z.string().trim().min(10).max(500),
-  statement: z.string().trim().min(10).max(2000),
-  severity: DisputeSeverity.default("MEDIUM"),
-});
-
-export const AdminUpdateDisputeDto = z
-  .object({
-    disputeId: IdSchema,
-    status: DisputeStatus.optional(),
-    severity: DisputeSeverity.optional(),
-    resolution: z.string().trim().min(3).max(2000).nullable().optional(),
-    resolutionPct: z.number().int().min(0).max(100).nullable().optional(),
-    deadlineAt: DateTimeSchema.nullable().optional(),
+// `subcategoryId` and `placeId` match descendants; `sort=distance` requires `lat` and `lng`.
+export const ProviderSearchParams = pagination(20)
+  .extend({
+    q: z.string().trim().min(1).max(120).optional(),
+    categoryId: IdSchema.optional(),
+    categorySlug: z.string().trim().min(1).max(120).optional(),
+    subcategoryId: IdSchema.optional(),
+    placeId: IdSchema.optional(),
+    languageId: IdSchema.optional(),
+    modeId: IdSchema.optional(),
+    minRating: z.coerce.number().min(0).max(5).optional(),
+    verifiedOnly: BooleanQuerySchema.optional(),
+    premiumOnly: BooleanQuerySchema.optional(),
+    sort: ProviderSearchSort.default("recommended"),
+    lat: LatitudeSchema.optional(),
+    lng: LongitudeSchema.optional(),
   })
-  .superRefine((value, ctx) => {
-    if (
-      value.status === undefined &&
-      value.severity === undefined &&
-      value.resolution === undefined &&
-      value.resolutionPct === undefined &&
-      value.deadlineAt === undefined
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "At least one dispute field must be updated",
-      });
+  .superRefine((params, ctx) => {
+    if ((params.lat === undefined) !== (params.lng === undefined)) {
+      ctx.addIssue({ code: "custom", path: ["lat"], message: "lat et lng vont ensemble" });
     }
-
-    if (value.status === "RESOLVED" && !value.resolution?.trim()) {
+    if (params.sort === "distance" && params.lat === undefined) {
       ctx.addIssue({
         code: "custom",
-        path: ["resolution"],
-        message: "Resolution note is required when resolving a dispute",
+        path: ["sort"],
+        message: "Le tri par distance exige lat et lng",
       });
     }
   });
+export const ProviderSearchResponseSchema = createPaginatedResponseSchema(ProviderCardSchema);
 
-export const AdminDisputeMutationResponseSchema = z.object({
-  success: z.literal(true),
-  dispute: AdminDisputeSummarySchema,
+export const ProviderPublicResponseSchema = ProviderPublicSchema;
+
+export const AvailabilityQueryParams = z.object({ date: DateOnlySchema });
+export const AvailabilityResponseSchema = z.object({
+  date: z.string(),
+  timezone: ScheduleSchema.shape.timezone,
+  slotDurationMin: z.number().int(),
+  slotBufferMin: z.number().int(),
+  slots: z.array(z.string()),
+});
+
+export const ProviderReviewsQueryParams = pagination(10);
+export const ProviderReviewsResponseSchema = createPaginatedResponseSchema(PublicReviewSchema);
+
+export const CreateContactMessageDto = z.object({
+  name: z.string().trim().min(2).max(160),
+  email: z.string().trim().toLowerCase().max(254).email("Adresse e-mail invalide"),
+  phone: z.string().trim().max(40).nullable().optional(),
+  subject: z.string().trim().min(2).max(160),
+  message: z.string().trim().min(10).max(5000),
+});
+export const CreateContactMessageResponseSchema = OkResponseSchema;
+
+export const GeocodeParams = z
+  .object({
+    q: z.string().trim().min(2).max(200).optional(),
+    placeId: IdSchema.optional(),
+  })
+  .refine((params) => Boolean(params.q) !== Boolean(params.placeId), {
+    message: "Fournir q ou placeId",
+  });
+export const GeocodeResponseSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  label: z.string(),
+  source: z.enum(["place", "nominatim"]),
 });
 
 export const DistanceParams = z.object({
-  lat: z.coerce.number(),
-  lng: z.coerce.number(),
-  providerLat: z.coerce.number().optional(),
-  providerLng: z.coerce.number().optional(),
+  lat: LatitudeSchema,
+  lng: LongitudeSchema,
+  providerLat: LatitudeSchema.optional(),
+  providerLng: LongitudeSchema.optional(),
 });
+export const DistanceResponseSchema = z.union([
+  z.object({
+    success: z.literal(true),
+    distance: z.number(),
+    formatted: z.string(),
+    status: z.enum(["close", "medium", "far"]),
+  }),
+  z.object({ success: z.literal(true), message: z.string(), hint: z.string() }),
+]);
 
-export const GeocodeParams = z.object({
-  city: z.string().min(1),
-  commune: z.string().optional(),
-  country: z.string().default("RDC"),
-});
+// =====================================================================================
+// Identity and account
+// =====================================================================================
 
-export const AuthResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string().optional(),
-  user: AuthUserSchema.optional(),
-  userId: IdSchema.optional(),
-  role: UserRole.optional(),
-  error: z.string().optional(),
-});
-
-export const MeResponseSchema = z.object({
-  success: z.boolean(),
-  user: UserSchema.extend({
-    profileComplete: z.boolean(),
-    provider: ProviderSchema.optional().nullable(),
-  }).optional(),
-  error: z.string().optional(),
-});
-
-export const ProviderStatsResponseSchema = z.object({
-  totalBookings: z.number().int().min(0),
-  completedBookings: z.number().int().min(0),
-  pendingBookings: z.number().int().min(0),
-  totalEarnings: z.number().min(0),
-  rating: z.number().min(0),
-  totalReviews: z.number().int().min(0),
-  totalJobs: z.number().int().min(0).optional(),
-});
-
-export const AdminStatsResponseSchema = z.object({
-  totalUsers: z.number().int().min(0),
-  totalProviders: z.number().int().min(0),
-  totalClients: z.number().int().min(0).optional(),
-  totalAdmins: z.number().int().min(0).optional(),
-  totalBookings: z.number().int().min(0),
-  totalReviews: z.number().int().min(0).optional(),
-  pendingBookings: z.number().int().min(0).optional(),
-  confirmedBookings: z.number().int().min(0).optional(),
-  inProgressBookings: z.number().int().min(0).optional(),
-  completedBookings: z.number().int().min(0).optional(),
-  cancelledBookings: z.number().int().min(0).optional(),
-  activeUsers: z.number().int().min(0).optional(),
-  verifiedUsers: z.number().int().min(0).optional(),
-  verifiedProviders: z.number().int().min(0).optional(),
-  premiumProviders: z.number().int().min(0).optional(),
-  pendingCertifications: z.number().int().min(0).optional(),
-  totalRevenue: z.number().min(0).optional(),
-  revenueToday: z.number().min(0).optional(),
-  monthlyRevenue: z.number().min(0).optional(),
-  newUsersToday: z.number().int().min(0).optional(),
-  newUsersThisWeek: z.number().int().min(0).optional(),
-  newUsersThisMonth: z.number().int().min(0).optional(),
-  newBookingsToday: z.number().int().min(0).optional(),
-  bookingsByDay: z.array(JsonObjectSchema).optional(),
-  trustLevels: z.record(z.string(), z.number()).optional(),
-});
-
-export const DashboardBookingSchema = BookingSchema.extend({
-  client: z
-    .object({
-      id: IdSchema,
-      name: z.string(),
-      avatar: z.string().nullable().optional(),
-    })
-    .optional(),
+export const MeUserSchema = UserSchema.extend({
+  profileComplete: z.boolean(),
   provider: z
-    .object({
-      id: IdSchema,
-      name: z.string(),
-      avatar: z.string().nullable().optional(),
-      profession: z.string(),
-    })
-    .optional(),
+    .object({ id: IdSchema, hidden: z.boolean(), verificationStatus: VerificationStatus })
+    .nullable(),
+});
+export const MeResponseSchema = z.object({ success: z.literal(true), user: MeUserSchema });
+
+export const UpdateProfileDto = z
+  .object({
+    firstName: z.string().trim().min(1).max(80).optional(),
+    lastName: z.string().trim().min(1).max(80).optional(),
+    avatar: HttpsUrlSchema.nullable().optional(),
+    bio: optionalText(1000),
+    gender: optionalText(30),
+    birthdate: DateOnlySchema.nullable().optional(),
+    placeId: IdSchema.nullable().optional(),
+    country: CountrySchema.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch);
+export const UpdateProfileResponseSchema = MeResponseSchema;
+
+export const AcceptTermsResponseSchema = MeResponseSchema;
+export const DeleteAccountResponseSchema = OkResponseSchema;
+
+export const ConfirmAvatarDto = z.object({ path: StoragePathSchema });
+export const ConfirmAvatarResponseSchema = z.object({
+  success: z.literal(true),
+  avatarUrl: z.string(),
 });
 
-export const TodayJobClientSchema = z.object({
-  id: IdSchema,
-  name: z.string(),
-  avatar: z.string().nullable().optional(),
-});
-
-export const TodayJobSchema = z.object({
-  id: IdSchema,
-  time: z.string(),
-  duration: z.string(),
-  kind: z.string(),
-  client: TodayJobClientSchema,
-  address: z.string(),
-  distance: z.number(),
-  status: z.enum(["confirmed", "en_route", "completed"]),
-  fee: z.number(),
-});
-
-export const RequestPreviewClientSchema = TodayJobClientSchema;
-
-export const RequestPreviewSchema = z.object({
-  id: IdSchema,
-  client: RequestPreviewClientSchema,
-  newClient: z.boolean().default(false),
-  clientRating: z.number().nullable().optional(),
-  clientJobs: z.number().int().min(0).default(0),
-  service: z.string(),
-  message: z.string(),
-  when: z.string(),
-  address: z.string(),
-  distance: z.number(),
-  matchScore: z.number().min(0).max(100),
-  receivedAt: z.string(),
-  urgent: z.boolean().default(false),
-});
-
-export const OnboardingStatusSchema = z.object({
-  isComplete: z.boolean(),
-  currentStep: z.number().int().min(0).max(2).nullable(),
-  totalSteps: z.number().int().min(1).default(3),
-  missingForPublish: z.array(z.string()).default([]),
-});
-
-// Mirrors ProviderStrengthResult in apps/backend/src/modules/providers/provider-strength.ts
-// (parallel definition: CJS backend can't statically import this ESM schema — keep in sync).
-export const ProviderStrengthItemSchema = z.object({
-  key: z.enum(["photo", "portfolio", "description", "verification", "depth"]),
-  label: z.string(),
-  done: z.boolean(),
-  points: z.number().int(),
-  earned: z.number().int(),
-});
-
-export const ProviderStrengthResponseSchema = z.object({
-  score: z.number().int().min(0).max(100),
-  tier: z.enum(["base", "solide", "remarquable"]),
-  items: z.array(ProviderStrengthItemSchema),
-});
-
-export const UploadPurposeSchema = z.enum(["avatar", "portfolio", "verification"]);
-
+// Per purpose — avatar: jpeg/png/webp ≤ 8 MB; media: images ≤ 8 MB, mp4/quicktime/webm ≤ 25 MB;
+// attachments: images and webm/mp4/mpeg/ogg audio ≤ 8 MB; verification: images or PDF ≤ 10 MB.
 export const UploadSignRequestDto = z.object({
-  purpose: UploadPurposeSchema,
-  fileName: z.string().min(1).max(255),
-  mimeType: z.string().min(1).max(120),
+  purpose: UploadPurpose,
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  bytes: z.number().int().positive().optional(),
 });
-
 export const UploadSignResponseSchema = z.object({
   bucket: z.string(),
   path: z.string(),
@@ -926,755 +248,1067 @@ export const UploadSignResponseSchema = z.object({
   signedUrl: z.string(),
 });
 
-export const ConfirmAvatarDto = z.object({
-  path: z
-    .string()
-    .min(1)
-    .max(512)
-    .regex(/^avatar\/[^/]+\/[A-Za-z0-9._-]+$/, "Invalid upload path"),
+export const SignReadQueryParams = z.object({ path: StoragePathSchema });
+export const SignReadResponseSchema = z.object({ url: z.string(), expiresAt: DateTimeSchema });
+
+// =====================================================================================
+// Provider self-service
+// =====================================================================================
+
+const uniqueIds = (max: number) =>
+  z
+    .array(IdSchema)
+    .max(max)
+    .refine((ids) => new Set(ids).size === ids.length, "Choix en double");
+
+export const PricingInputSchema = z.object({
+  amount: z.number().int().min(0).max(1_000_000_000),
+  currencyId: IdSchema,
+  unitId: IdSchema,
 });
 
-export const PortfolioImageInputSchema = z.object({
-  imageType: z.enum(["BEFORE", "DURING", "AFTER", "GENERAL", "DETAIL", "PLAN"]).default("GENERAL"),
-  path: z.string().min(1),
-  caption: z.string().max(200).optional(),
-  displayOrder: z.number().int().min(0).default(0),
+export const SocialLinksInputSchema = z.object({
+  youtubeUrl: HttpsUrlSchema.nullable().optional(),
+  instagramUrl: HttpsUrlSchema.nullable().optional(),
+  tiktokUrl: HttpsUrlSchema.nullable().optional(),
+  facebookUrl: HttpsUrlSchema.nullable().optional(),
 });
 
-export const PortfolioProjectInputDto = z.object({
-  title: z.string().min(2).max(120),
-  description: z.string().max(1000).optional(),
-  categoryId: IdSchema.optional(),
-  duration: z.number().int().min(0).optional(),
-  price: z.number().min(0).optional(),
-  images: z.array(PortfolioImageInputSchema).min(1).max(12),
-});
+const providerFields = {
+  displayName: z.string().trim().min(2).max(120),
+  phone: PhoneE164Schema,
+  whatsapp: PhoneE164Schema.nullable().optional(),
+  email: z.string().trim().toLowerCase().max(254).email().nullable().optional(),
+  profilePhoto: z.union([StoragePathSchema, HttpsUrlSchema]).nullable().optional(),
+  subcategoryId: IdSchema,
+  yearsExperience: z.number().int().min(0).max(80).nullable().optional(),
+  skillIds: uniqueIds(30).default([]),
+  freeSkills: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  description: optionalText(2000),
+  placeId: IdSchema,
+  addressLine: optionalText(200),
+  latitude: LatitudeSchema.nullable().optional(),
+  longitude: LongitudeSchema.nullable().optional(),
+  languageIds: uniqueIds(20).default([]),
+  modeIds: uniqueIds(10).default([]),
+  pricing: PricingInputSchema.nullable().optional(),
+  schedule: ScheduleInputSchema,
+  media: MediaListInputSchema.default([]),
+  social: SocialLinksInputSchema.optional(),
+};
 
-const PortfolioImageResSchema = z.object({
-  id: z.string(),
-  imageType: z.enum(["BEFORE", "DURING", "AFTER", "GENERAL", "DETAIL", "PLAN"]),
-  imageUrl: z.string(),
-  caption: z.string().nullable(),
-  displayOrder: z.number().int(),
-});
+// The full wizard payload for `POST /me/provider`.
+export const PublishProviderDto = z
+  .object({
+    ...providerFields,
+    acceptTerms: z.literal(true, { message: "Les conditions doivent être acceptées" }),
+  })
+  .refine(coordinatesTogether, { path: ["latitude"], message: "Latitude et longitude vont ensemble" });
+export const PublishProviderResponseSchema = ProviderPublicSchema;
 
-const PortfolioProjectResSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().nullable(),
-  categoryId: z.string().nullable(),
-  duration: z.number().int().nullable(),
-  price: z.number().nullable(),
-  isFeatured: z.boolean(),
-  isPublished: z.boolean(),
-  images: z.array(PortfolioImageResSchema),
-  createdAt: z.string(),
-});
+export const UpdateProviderDto = z
+  .object({
+    displayName: providerFields.displayName.optional(),
+    phone: providerFields.phone.optional(),
+    whatsapp: providerFields.whatsapp,
+    email: providerFields.email,
+    profilePhoto: providerFields.profilePhoto,
+    subcategoryId: providerFields.subcategoryId.optional(),
+    yearsExperience: providerFields.yearsExperience,
+    skillIds: uniqueIds(30).optional(),
+    freeSkills: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    description: providerFields.description,
+    placeId: providerFields.placeId.optional(),
+    addressLine: providerFields.addressLine,
+    latitude: providerFields.latitude,
+    longitude: providerFields.longitude,
+    languageIds: uniqueIds(20).optional(),
+    modeIds: uniqueIds(10).optional(),
+    pricing: providerFields.pricing,
+    schedule: ScheduleInputSchema.optional(),
+    media: MediaListInputSchema.optional(),
+    social: SocialLinksInputSchema.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch)
+  .refine(
+    (body) =>
+      (body.latitude === undefined && body.longitude === undefined) || coordinatesTogether(body),
+    { path: ["latitude"], message: "Latitude et longitude vont ensemble" },
+  );
+export const UpdateProviderResponseSchema = ProviderPublicSchema;
 
-export const PortfolioListResponseSchema = z.object({
-  projects: z.array(PortfolioProjectResSchema),
-});
+export const PutScheduleDto = ScheduleInputSchema;
+export const PutScheduleResponseSchema = ScheduleSchema;
 
-export const PortfolioMutationResponseSchema = z.object({
-  success: z.boolean(),
-  project: PortfolioProjectResSchema,
-});
+export const PutMediaDto = z.object({ items: MediaListInputSchema });
+export const PutMediaResponseSchema = z.object({ items: z.array(ProviderMediaSchema) });
 
-export const AvailabilityStatusSchema = z.object({
-  isAvailable: z.boolean(),
-  zoneCity: z.string().nullable(),
-  zoneRadiusKm: z.number().nullable(),
-});
+export const UpdateAvailabilityDto = z.object({ isAvailable: z.boolean() });
+export const UpdateAvailabilityResponseSchema = UpdateAvailabilityDto;
 
-export const StatSparklineSchema = z.object({
-  value: z.number(),
-  deltaPct: z.number(),
-  sparkline: z.array(z.number()).default([]),
-});
-
-export const StatResponseRateSchema = z.object({
-  value: z.number().min(0).max(100),
-  label: z.enum(["Excellent", "Bon", "À améliorer"]),
-});
-
-export const StatAvgRatingSchema = z.object({
-  value: z.number().min(0).max(5),
-  delta: z.number(),
-});
-
-export const ProviderDashboardStatsSchema = z.object({
-  period: z.enum(["month", "week"]).default("month"),
-  revenue: StatSparklineSchema,
-  missions: StatSparklineSchema,
-  responseRate: StatResponseRateSchema,
-  avgRating: StatAvgRatingSchema,
-});
-
-export const ProviderDashboardMessageTodoSchema = z.object({
-  conversationId: IdSchema,
-  unreadCount: z.number().int().min(1),
-  lastMessageAt: z.string(),
-  lastMessagePreview: z.string().nullable(),
-  client: z.object({
-    id: IdSchema,
-    firstName: z.string(),
-    lastName: z.string(),
-  }),
-});
-
-export const ProviderDashboardCloseTodoSchema = z.object({
-  bookingId: IdSchema,
-  title: z.string(),
-  scheduledDate: z.string(),
-  price: z.number().min(0),
-  client: z.object({
-    firstName: z.string(),
-  }),
-});
-
-export const ProviderDashboardTodosSchema = z.object({
-  unreadMessages: z.array(ProviderDashboardMessageTodoSchema),
-  bookingsToClose: z.array(ProviderDashboardCloseTodoSchema),
-});
-
-export const DashboardProviderResponseSchema = z.object({
-  provider: ProviderSchema.partial().extend({
-    id: IdSchema,
-    profession: z.string(),
-    totalJobs: z.number().int().min(0).optional(),
-    rating: z.number().min(0).optional(),
-    isAvailable: z.boolean().optional(),
-    completionPercentage: z.number().int().min(0).max(100).optional(),
-    completionItems: z.record(z.string(), z.boolean()).optional(),
-    categories: z.array(z.string()).optional(),
-  }),
-  onboarding: OnboardingStatusSchema,
-  availability: AvailabilityStatusSchema,
-  today: z.object({
-    jobs: z.array(TodayJobSchema),
-    estimatedRecette: z.number(),
-  }),
-  newRequests: z.array(RequestPreviewSchema),
-  bookingRequests: z.array(DashboardBookingSchema).default([]),
-  stats: ProviderDashboardStatsSchema,
-  notifications: z.object({
-    unreadCount: z.number().int().min(0),
-  }),
-  todos: ProviderDashboardTodosSchema,
-  hasAnyBookingEver: z.boolean(),
-
-  // Legacy compatibility fields (still consumed by the v1 `/dashboard/provider`
-  // page until its retirement). Optional so new consumers can ignore them.
-  user: UserSchema.pick({
-    firstName: true,
-    lastName: true,
-    avatar: true,
-    city: true,
-  }).optional(),
-  recentBookings: z.array(DashboardBookingSchema).optional(),
-  upcomingBookings: z.array(DashboardBookingSchema).optional(),
-  recentReviews: z.array(ReviewSchema).optional(),
-  viewsData: z
-    .array(z.object({ name: z.string(), views: z.number().int().min(0) }))
-    .optional(),
-});
-
-export const UpdateProviderAvailabilityDto = z.object({
-  isAvailable: z.boolean(),
-});
-
-const ClientDashboardProviderShortSchema = z.object({
-  id: IdSchema,
-  firstName: z.string(),
-  lastName: z.string(),
-  profession: z.string(),
-  avatar: z.string().nullable(),
-  rating: z.number().min(0).max(5),
-  verified: z.boolean(),
-});
-
-export const ClientDashboardUpcomingBookingSchema = z.object({
-  id: IdSchema,
-  status: z.enum(["PENDING", "CONFIRMED", "IN_PROGRESS"]),
-  title: z.string(),
-  scheduledDate: z.string(),
-  durationMinutes: z.number().int().min(0).nullable(),
-  price: z.number().min(0),
-  hasOffer: z.boolean(),
-  commune: z.string().nullable(),
-  ref: z.string(),
-  provider: ClientDashboardProviderShortSchema,
-});
-
-export const ClientDashboardCompletedBookingSchema = z.object({
-  id: IdSchema,
-  title: z.string(),
-  completedAt: z.string(),
-  price: z.number().min(0),
+export const ProviderDashboardResponseSchema = z.object({
   provider: z.object({
     id: IdSchema,
-    firstName: z.string(),
-    lastName: z.string(),
+    displayName: z.string(),
+    profilePhoto: z.string().nullable(),
+    isAvailable: z.boolean(),
+    hidden: z.boolean(),
+    verificationStatus: VerificationStatus,
+    premiumTier: PremiumTier,
+    ratingAvg: z.number(),
+    ratingCount: Count,
+    completedJobs: Count,
   }),
-  hasReview: z.boolean(),
-  reviewScore: z.number().int().min(1).max(5).nullable(),
-});
-
-export const ClientDashboardProviderRowSchema = z.object({
-  id: IdSchema,
-  firstName: z.string(),
-  lastName: z.string(),
-  profession: z.string(),
-  avatar: z.string().nullable(),
-  rating: z.number().min(0).max(5),
-  verified: z.boolean(),
-  isFavorite: z.boolean(),
-  bookingCount: z.number().int().min(0),
-});
-
-export const ClientDashboardReviewTodoSchema = z.object({
-  bookingId: IdSchema,
-  title: z.string(),
-  completedAt: z.string(),
-  price: z.number().min(0),
-  provider: z.object({ firstName: z.string() }),
-});
-
-export const ClientDashboardMessageTodoSchema = z.object({
-  conversationId: IdSchema,
-  unreadCount: z.number().int().min(1),
-  lastMessageAt: z.string(),
-  lastMessagePreview: z.string().nullable(),
-  provider: z.object({
-    id: IdSchema,
-    firstName: z.string(),
-    lastName: z.string(),
+  metrics: z.object({
+    pending: Count,
+    completed: Count,
+    ratingAvg: z.number(),
+    ratingCount: Count,
+    acceptanceRate: z.number().int().min(0).max(100).nullable(),
   }),
-});
-
-export const DashboardClientResponseSchema = z.object({
-  // Legacy fields — kept for backward-compat with non-web callers
-  stats: z.object({
-    totalBookings: z.number().int().min(0),
-    completedBookings: z.number().int().min(0),
-    pendingBookings: z.number().int().min(0),
-    favoritesCount: z.number().int().min(0),
-    reviewsCount: z.number().int().min(0),
-  }),
-  recentBookings: z.array(DashboardBookingSchema),
-  favoriteProviders: z.array(ProviderSchema).optional(),
-  favorites: z.array(ProviderSchema.partial()).optional(),
-  notifications: z.array(NotificationSchema),
-  user: UserSchema.pick({ firstName: true, lastName: true }).optional(),
-
-  // New fields consumed by the redesigned client dashboard
-  upcoming: z.array(ClientDashboardUpcomingBookingSchema),
-  completed: z.array(ClientDashboardCompletedBookingSchema),
-  providers: z.array(ClientDashboardProviderRowSchema),
-  todos: z.object({
-    reviews: z.array(ClientDashboardReviewTodoSchema),
-    unreadMessages: z.array(ClientDashboardMessageTodoSchema),
-  }),
-  hasAnyBookingEver: z.boolean(),
-});
-
-export const DashboardAdminResponseSchema = z.object({
-  stats: AdminStatsResponseSchema,
-  providers: z.array(
-    ProviderSchema.partial().extend({
-      id: IdSchema,
-      userId: IdSchema.optional(),
-      firstName: z.string().nullable().optional(),
-      lastName: z.string().nullable().optional(),
-      email: z.string().email().nullable().optional(),
-      phone: z.string().nullable().optional(),
-      city: z.string().nullable().optional(),
-      avatar: z.string().nullable().optional(),
-      categories: z.array(z.string()).optional(),
-      totalBookings: z.number().int().min(0).optional(),
-    }),
-  ),
-  recentBookings: z.array(
-    BookingSchema.partial().extend({
-      id: IdSchema,
-      clientName: z.string().optional(),
-      clientAvatar: z.string().nullable().optional(),
-      providerName: z.string().optional(),
-      providerAvatar: z.string().nullable().optional(),
-    }),
-  ),
-  topCategories: z.array(
-    CategorySchema.pick({ id: true, name: true, slug: true }).extend({
-      providerCount: z.number().int().min(0),
-      subcategoryCount: z.number().int().min(0),
-      icon: z.string().nullable().optional(),
-      color: z.string().nullable().optional(),
-    }),
-  ),
-  topCities: z.array(z.object({ name: z.string(), count: z.number().int().min(0) })),
-  allCategories: z.array(
-    CategorySchema.pick({ id: true, name: true, slug: true }).extend({
-      providerCount: z.number().int().min(0),
-    }),
-  ),
-});
-
-export const DistanceResponseSchema = z.object({
-  distance: z.number(),
-  formatted: z.string(),
-  status: z.enum(["close", "medium", "far"]),
-});
-
-export const GeocodeResponseSchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
-  city: z.string(),
-  commune: z.string().nullable().optional(),
-  country: z.string(),
-  display_name: z.string().optional(),
-  source: z.enum(["local", "nominatim", "default"]).optional(),
-});
-
-export const PublicStatsResponseSchema = z.object({
-  totalProviders: z.number().int().min(0),
-  totalClients: z.number().int().min(0),
-  totalUsers: z.number().int().min(0),
-  totalCategories: z.number().int().min(0),
-  totalBookings: z.number().int().min(0),
-  totalReviews: z.number().int().min(0),
-  verifiedProviders: z.number().int().min(0),
-  premiumProviders: z.number().int().min(0),
-  averageRating: z.union([z.string(), z.number()]),
-  providersByCity: z.array(z.object({ city: z.string(), count: z.number() })),
-  topCategories: z.array(
-    CategorySchema.pick({ id: true, name: true, slug: true }).extend({
-      providersCount: z.number().int().min(0).optional(),
-      providerCount: z.number().int().min(0).optional(),
-    }),
-  ),
-});
-
-export const TrendingBadgeSchema = z.union([
-  z.object({
-    kind: z.literal("growth"),
-    pct: z.number().int(),
-  }),
-  z.object({
-    kind: z.literal("top"),
-    rank: z.number().int().min(1),
-  }),
-]);
-
-export const TrendingServiceItemSchema = z.object({
-  categoryId: IdSchema,
-  categorySlug: z.string(),
-  categoryName: z.string(),
-  categoryImage: z.string(),
-  categoryColor: z.string().nullable(),
-  description: z.string().nullable(),
-  startingPrice: z.number().int().nullable(),
-  trendBadge: TrendingBadgeSchema.nullable(),
-});
-
-export const TrendingServicesResponseSchema = z.object({
-  mode: z.enum(["trending", "discovery"]),
-  items: z.array(TrendingServiceItemSchema),
-});
-
-export const CategoriesResponseSchema = z.object({
-  categories: z.array(
-    CategorySchema.extend({
-      subcategories: z.array(SubcategorySchema).optional(),
-    }),
-  ).optional().default([]),
-  subcategories: z.array(SubcategorySchema).optional(),
-});
-
-export const CategoryHierarchyResponseSchema = z.array(CategoryHierarchySchema);
-
-export const ProvidersResponseSchema = z.object({
-  providers: z.array(ProviderSchema),
-  pagination: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasMore: z.boolean().optional(),
-  }),
-});
-
-export const ProviderRatingBreakdownSchema = z.object({
-  "1": z.number().int().min(0),
-  "2": z.number().int().min(0),
-  "3": z.number().int().min(0),
-  "4": z.number().int().min(0),
-  "5": z.number().int().min(0),
-});
-
-export const ProviderRatingAveragesSchema = z.object({
-  overall: z.number().min(0),
-  punctuality: z.number().min(0),
-  quality: z.number().min(0),
-  communication: z.number().min(0),
-  value: z.number().min(0),
-  professionalism: z.number().min(0),
-});
-
-export const ProviderProfileStatsSchema = z.object({
-  totalReviews: z.number().int().min(0),
-  totalBookings: z.number().int().min(0),
-  ratingBreakdown: ProviderRatingBreakdownSchema,
-  ratingAverages: ProviderRatingAveragesSchema,
-});
-
-export const ProviderProfileResponseSchema = ProviderDetailSchema.extend({
-  subcategories: z.array(ProviderSubcategorySchema).default([]),
-  recentReviews: z.array(ReviewSchema).default([]),
-  stats: ProviderProfileStatsSchema,
-  hasAccess: z.boolean(),
-  accessDeniedReason: z.string().nullable().optional(),
-});
-
-export const BookingsResponseSchema = z.object({
-  bookings: z.array(BookingSchema),
-  pagination: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasMore: z.boolean().optional(),
-  }),
-});
-
-export const FinalOffersResponseSchema = z.object({
-  success: z.literal(true),
-  finalOffers: z.array(FinalOfferSchema),
-  pagination: PaginationMetaSchema,
-});
-
-export const FinalOfferResponseSchema = z.object({
-  success: z.literal(true),
-  finalOffer: FinalOfferSchema,
-});
-
-export const FinalOfferAcceptResponseSchema = z.object({
-  success: z.literal(true),
-  finalOffer: FinalOfferSchema,
-  booking: BookingSchema,
-});
-
-export const ReviewsResponseSchema = z.object({
-  reviews: z.array(ReviewSchema),
-  pagination: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasMore: z.boolean().optional(),
-  }),
-});
-
-export const ConversationsResponseSchema = z.object({
-  conversations: z.array(ConversationSchema),
-});
-
-export const MessagesResponseSchema = z.object({
-  messages: z.array(
-    z.object({
-      id: IdSchema,
-      conversationId: IdSchema.optional(),
-      senderId: IdSchema.optional(),
-      content: z.string(),
-      type: MessageType.optional(),
-      fileUrl: z.string().nullable().optional(),
-      isRead: z.boolean().optional(),
-      createdAt: DateTimeSchema,
-      sender: AuthUserSchema.pick({
-        id: true,
-        firstName: true,
-        lastName: true,
-        avatar: true,
-      }).optional(),
-    }),
-  ),
-  pagination: z
-    .object({
-      page: z.number(),
-      limit: z.number(),
-      total: z.number(),
-      totalPages: z.number(),
-      hasMore: z.boolean().optional(),
-    })
-    .optional(),
-});
-
-export const SendMessageResponseSchema = z.object({
-  success: z.boolean(),
-  conversationId: IdSchema,
-  message: MessageSchema,
-});
-
-export const NotificationsResponseSchema = z.object({
-  notifications: z.array(NotificationSchema),
-  unreadCount: z.number().int().min(0),
-  pagination: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasMore: z.boolean().optional(),
-  }),
-});
-
-export const FavoritesResponseSchema = z.object({
-  favorites: z.array(FavoriteSchema),
-});
-export const VisibilitySettingsResponseSchema = z.object({
-  settings: VisibilitySettingsSchema,
-});
-
-// ---------- Earnings / Payouts (I06) ----------
-
-export const EarningsTransactionSearchParams = PaginationParams.extend({
-  type: TransactionType.optional(),
-}).extend({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
-
-export const CreatePayoutDto = z.object({
-  operator: PayoutOperator,
-  amount: z.number().int().positive(),
-  phone: z.string().min(8),
+  pendingBookings: z.array(BookingCardSchema),
+  history: z.array(BookingCardSchema),
+  /** Seven entries, Monday first, in the provider timezone. */
+  weekCompletedByDay: z.array(Count),
 });
 
 export const EarningsSummaryResponseSchema = z.object({
-  summary: EarningsSummarySchema,
+  total: z.number().int(),
+  thisWeek: z.number().int(),
+  /** Seven entries, Monday first, net CDF per day of the current week. */
+  byDay: z.array(z.number().int()),
+  completedThisWeek: Count,
+  acceptanceRate: z.number().int().min(0).max(100).nullable(),
+  ratingAvg: z.number(),
+  ratingCount: Count,
+  currency: z.literal("CDF"),
 });
 
-export const EarningsTransactionsResponseSchema = z.object({
-  transactions: z.array(TransactionSchema),
-  pagination: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-    hasMore: z.boolean().optional(),
+export const EarningsTransactionsQueryParams = pagination(20);
+export const EarningsTransactionSchema = TransactionSchema.extend({
+  booking: z
+    .object({
+      id: IdSchema,
+      scheduledAt: DateTimeSchema,
+      scheduledLocal: LocalSlotSchema,
+      clientName: z.string(),
+      categoryLabel: z.string().nullable(),
+    })
+    .nullable(),
+});
+export const EarningsTransactionsResponseSchema = createPaginatedResponseSchema(EarningsTransactionSchema);
+
+// =====================================================================================
+// Bookings
+// =====================================================================================
+
+// Address is optional: a saved `addressId` or inline place/address/coordinates, never both.
+export const CreateBookingDto = z
+  .object({
+    providerId: IdSchema,
+    date: DateOnlySchema,
+    time: TimeOfDaySchema,
+    clientPhone: PhoneE164Schema,
+    clientNotes: optionalText(2000),
+    addressId: IdSchema.optional(),
+    placeId: IdSchema.optional(),
+    addressLine: optionalText(200),
+    latitude: LatitudeSchema.optional(),
+    longitude: LongitudeSchema.optional(),
+  })
+  .refine(
+    (body) =>
+      !body.addressId ||
+      (body.placeId === undefined &&
+        (body.addressLine === undefined || body.addressLine === null) &&
+        body.latitude === undefined &&
+        body.longitude === undefined),
+    { path: ["addressId"], message: "Choisir une adresse enregistrée ou en saisir une, pas les deux" },
+  )
+  .refine((body) => (body.latitude === undefined) === (body.longitude === undefined), {
+    path: ["latitude"],
+    message: "Latitude et longitude vont ensemble",
+  });
+
+export const BookingsQueryParams = pagination(20).extend({ status: BookingStatus.optional() });
+export const BookingsResponseSchema = createPaginatedResponseSchema(BookingCardSchema);
+export const BookingResponseSchema = BookingDetailSchema;
+
+export const CompleteBookingDto = z
+  .object({
+    agreedPrice: z.number().int().min(0).max(1_000_000_000).optional(),
+    isPaid: z.boolean().optional(),
+  })
+  .default({});
+
+// `reason` is required when the provider cancels (400 REASON_REQUIRED).
+export const CancelBookingDto = z
+  .object({ reason: z.string().trim().max(500).optional() })
+  .default({});
+
+export const UpdateBookingNotesDto = z.object({
+  providerNotes: z.string().trim().max(2000).nullable(),
+});
+
+// =====================================================================================
+// Reviews
+// =====================================================================================
+
+export const CreateReviewDto = z.object({
+  bookingId: IdSchema,
+  rating: z.number().int().min(1).max(5),
+  comment: optionalText(500),
+});
+export const ReviewResponseSchema = ReviewSchema;
+
+export const MyReviewSchema = ReviewSchema.extend({
+  provider: z.object({ id: IdSchema, displayName: z.string(), profilePhoto: z.string().nullable() }),
+  booking: z.object({ id: IdSchema, scheduledAt: DateTimeSchema, scheduledLocal: LocalSlotSchema }),
+});
+export const MyReviewsResponseSchema = z.object({
+  reviews: z.array(MyReviewSchema),
+  toReview: z.array(BookingCardSchema),
+});
+
+export const ReplyReviewDto = z.object({ reply: z.string().trim().min(1).max(500) });
+
+export const CreateClientReviewDto = CreateReviewDto;
+export const ClientReviewResponseSchema = ClientReviewSchema;
+
+export const ClientRatingSummaryResponseSchema = RatingSummarySchema.extend({ clientId: IdSchema });
+
+// =====================================================================================
+// Messaging and safety
+// =====================================================================================
+
+const messageBody = z.string().trim().max(4000).optional();
+const attachments = z.array(MessageAttachmentInput).max(MEDIA_LIMITS.maxAttachments).default([]);
+const hasContent = (body: { body?: string; attachments: unknown[] }) =>
+  Boolean(body.body && body.body.length > 0) || body.attachments.length > 0;
+
+export const ConversationsQueryParams = pagination(20);
+export const ConversationsResponseSchema = createPaginatedResponseSchema(ConversationSchema).extend({
+  unreadTotal: Count,
+});
+
+export const StartConversationDto = z
+  .object({
+    providerId: IdSchema,
+    subject: z.string().trim().max(160).optional(),
+    body: messageBody,
+    attachments,
+  })
+  .refine(hasContent, { path: ["body"], message: "Écrivez un message ou joignez un fichier" });
+export const StartConversationResponseSchema = z.object({
+  conversation: ConversationSchema,
+  message: MessageSchema,
+});
+
+export const SendMessageDto = z
+  .object({ body: messageBody, attachments })
+  .refine(hasContent, { path: ["body"], message: "Écrivez un message ou joignez un fichier" });
+export const SendMessageResponseSchema = MessageSchema;
+
+// Page 1 is the newest page; items are oldest-first within a page.
+export const MessagesQueryParams = pagination(30);
+export const MessagesResponseSchema = createPaginatedResponseSchema(MessageSchema).extend({
+  conversation: ConversationSchema,
+});
+
+export const CreateReportDto = z.object({
+  targetKind: ReportTargetKind,
+  targetId: IdSchema,
+  reason: z.string().trim().min(3).max(1000),
+});
+export const ReportResponseSchema = ReportSchema;
+
+export const CreateBlockDto = z.object({ userId: IdSchema });
+export const BlockResponseSchema = BlockSchema;
+
+export const BlocksQueryParams = pagination(50);
+export const BlockListItemSchema = z.object({
+  user: z.object({ id: IdSchema, name: z.string(), avatar: z.string().nullable() }),
+  createdAt: DateTimeSchema,
+});
+export const BlocksResponseSchema = createPaginatedResponseSchema(BlockListItemSchema);
+
+// =====================================================================================
+// Client utilities
+// =====================================================================================
+
+export const ClientDashboardResponseSchema = z.object({
+  bookingsByStatus: z.object({
+    PENDING: Count,
+    CONFIRMED: Count,
+    COMPLETED: Count,
+    CANCELLED: Count,
+  }),
+  clientRating: RatingSummarySchema,
+  unreadMessages: Count,
+});
+
+export const CreateAddressDto = z
+  .object({
+    label: AddressLabel.default("HOME"),
+    recipient: optionalText(120),
+    addressLine: z.string().trim().min(1).max(200),
+    placeId: IdSchema.nullable().optional(),
+    country: CountrySchema.optional(),
+    latitude: LatitudeSchema.nullable().optional(),
+    longitude: LongitudeSchema.nullable().optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .refine(coordinatesTogether, { path: ["latitude"], message: "Latitude et longitude vont ensemble" });
+
+export const UpdateAddressDto = z
+  .object({
+    label: AddressLabel.optional(),
+    recipient: optionalText(120),
+    addressLine: z.string().trim().min(1).max(200).optional(),
+    placeId: IdSchema.nullable().optional(),
+    country: CountrySchema.optional(),
+    latitude: LatitudeSchema.nullable().optional(),
+    longitude: LongitudeSchema.nullable().optional(),
+    isDefault: z.boolean().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch);
+
+export const AddressesQueryParams = pagination(50);
+export const AddressesResponseSchema = createPaginatedResponseSchema(AddressSchema);
+export const AddressResponseSchema = AddressSchema;
+
+export const NotificationsQueryParams = pagination(20).extend({
+  unreadOnly: BooleanQuerySchema.optional(),
+});
+export const NotificationsResponseSchema = createPaginatedResponseSchema(NotificationSchema).extend({
+  unreadCount: Count,
+});
+export const NotificationResponseSchema = NotificationSchema;
+export const MarkAllNotificationsReadResponseSchema = z.object({ updatedCount: Count });
+
+export const CreatePlaceSuggestionDto = z.object({
+  kind: PlaceKind.exclude(["COUNTRY"]),
+  label: z.string().trim().min(2).max(100),
+  parentId: IdSchema,
+});
+export const PlaceSuggestionResponseSchema = PlaceSuggestionSchema;
+
+// =====================================================================================
+// Admin
+// =====================================================================================
+
+export const AdminOverviewResponseSchema = z.object({
+  users: z.object({ total: Count, suspended: Count }),
+  providers: Count,
+  bookings: Count,
+  openReports: Count,
+  pendingSuggestions: Count,
+  pendingVerifications: Count,
+});
+
+// ---------- Users ----------
+
+export const AdminUserSearchParams = pagination(50).extend({
+  q: search,
+  role: UserRole.optional(),
+  suspended: BooleanQuerySchema.optional(),
+});
+
+export const AdminUserSchema = z.object({
+  id: IdSchema,
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  name: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  avatar: z.string().nullable(),
+  role: UserRole,
+  isActive: z.boolean(),
+  suspendedAt: NullableDateTimeSchema,
+  suspendedReason: z.string().nullable(),
+  placeId: IdSchema.nullable(),
+  placeLabel: z.string().nullable(),
+  createdAt: DateTimeSchema,
+  lastLoginAt: NullableDateTimeSchema,
+  provider: z
+    .object({
+      id: IdSchema,
+      displayName: z.string(),
+      hidden: z.boolean(),
+      verificationStatus: VerificationStatus,
+    })
+    .nullable(),
+});
+export const AdminUsersResponseSchema = createPaginatedResponseSchema(AdminUserSchema);
+
+// Role changes are limited to CLIENT ⇄ ADMIN on users without a provider row.
+export const AdminUpdateUserDto = z
+  .object({
+    role: UserRole.optional(),
+    suspended: z.boolean().optional(),
+    suspendedReason: z.string().trim().min(1).max(500).nullable().optional(),
+  })
+  .refine((body) => body.role !== undefined || body.suspended !== undefined, noEmptyPatch)
+  .refine((body) => body.suspended !== true || Boolean(body.suspendedReason), {
+    path: ["suspendedReason"],
+    message: "Le motif de suspension est obligatoire",
+  });
+export const AdminUserResponseSchema = AdminUserSchema;
+
+const statusCounts = z.object({
+  PENDING: Count,
+  CONFIRMED: Count,
+  COMPLETED: Count,
+  CANCELLED: Count,
+});
+
+export const AdminUserCvResponseSchema = z.object({
+  user: AdminUserSchema.extend({
+    bio: z.string().nullable(),
+    gender: z.string().nullable(),
+    birthdate: NullableDateTimeSchema,
+    country: z.string(),
+    roleSelectedAt: NullableDateTimeSchema,
+    termsAcceptedAt: NullableDateTimeSchema,
+    placeChain: z.array(PlaceSummarySchema),
+  }),
+  provider: z
+    .object({
+      id: IdSchema,
+      displayName: z.string(),
+      description: z.string().nullable(),
+      yearsExperience: z.number().int().nullable(),
+      profilePhoto: z.string().nullable(),
+      contacts: ProviderContactsSchema,
+      categoryChain: z.array(CategoryChainItemSchema),
+      placeChain: z.array(PlaceSummarySchema),
+      skills: z.array(z.object({ id: IdSchema, label: z.string() })),
+      freeSkills: z.array(z.string()),
+      languages: z.array(z.object({ id: IdSchema, label: z.string() })),
+      interventionModes: z.array(z.object({ id: IdSchema, label: z.string() })),
+      pricing: ProviderPricingSchema.nullable(),
+      media: z.array(ProviderMediaSchema),
+      social: SocialLinksSchema,
+      timezone: ScheduleSchema.shape.timezone,
+      scheduleSummary: ScheduleSummarySchema,
+      isAvailable: z.boolean(),
+      verificationStatus: VerificationStatus,
+      hidden: z.boolean(),
+      premiumTier: PremiumTier,
+      effectivePremiumTier: PremiumTier,
+      premiumUntil: NullableDateTimeSchema,
+      ratingAvg: z.number(),
+      ratingCount: Count,
+      completedJobs: Count,
+      publishedAt: DateTimeSchema,
+    })
+    .nullable(),
+  activity: z.object({
+    bookingsAsClient: statusCounts,
+    bookingsAsProvider: statusCounts,
+    reviewsGiven: Count,
+    reviewsReceived: RatingSummarySchema,
+    clientRating: RatingSummarySchema,
+    reportsFiled: Count,
+    reportsAgainst: Count,
+    lastLoginAt: NullableDateTimeSchema,
+    earningsNet: z.number().int(),
+  }),
+  recentActivity: z.array(ActivityLogSchema),
+});
+
+// ---------- Providers ----------
+
+export const AdminProviderSearchParams = pagination(50).extend({
+  q: search,
+  verificationStatus: VerificationStatus.optional(),
+  premiumTier: PremiumTier.optional(),
+  hidden: BooleanQuerySchema.optional(),
+});
+
+export const AdminProviderSchema = z.object({
+  id: IdSchema,
+  userId: IdSchema,
+  displayName: z.string(),
+  profilePhoto: z.string().nullable(),
+  phone: z.string().nullable(),
+  categoryLabel: z.string().nullable(),
+  placeLabel: z.string().nullable(),
+  verificationStatus: VerificationStatus,
+  premiumTier: PremiumTier,
+  premiumUntil: NullableDateTimeSchema,
+  hidden: z.boolean(),
+  isAvailable: z.boolean(),
+  ratingAvg: z.number(),
+  ratingCount: Count,
+  completedJobs: Count,
+  publishedAt: DateTimeSchema,
+  owner: z.object({ id: IdSchema, name: z.string(), isActive: z.boolean() }),
+});
+export const AdminProvidersResponseSchema = createPaginatedResponseSchema(AdminProviderSchema);
+
+// A manual VERIFIED override needs the four required KYC documents (409 DOCS_MISSING).
+export const AdminUpdateProviderDto = z
+  .object({
+    hidden: z.boolean().optional(),
+    premiumTier: PremiumTier.optional(),
+    premiumUntil: z.coerce.date().nullable().optional(),
+    verificationStatus: VerificationStatus.optional(),
+    rejectionReason: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch)
+  .refine((body) => body.verificationStatus !== "REJECTED" || Boolean(body.rejectionReason), {
+    path: ["rejectionReason"],
+    message: "Le motif de refus est obligatoire",
+  });
+export const AdminProviderResponseSchema = AdminProviderSchema;
+
+// ---------- Bookings ----------
+
+export const AdminBookingSearchParams = pagination(50).extend({
+  q: search,
+  status: BookingStatus.optional(),
+});
+
+export const AdminBookingSchema = z.object({
+  id: IdSchema,
+  status: BookingStatus,
+  scheduledAt: DateTimeSchema,
+  scheduledLocal: LocalSlotSchema,
+  timezone: ScheduleSchema.shape.timezone,
+  client: z.object({ id: IdSchema, name: z.string(), phone: z.string().nullable() }),
+  provider: z.object({ id: IdSchema, displayName: z.string(), phone: z.string().nullable() }),
+  clientPhone: z.string(),
+  agreedPrice: z.number().int().nullable(),
+  createdAt: DateTimeSchema,
+  cancelReason: z.string().nullable(),
+});
+export const AdminBookingsResponseSchema = createPaginatedResponseSchema(AdminBookingSchema);
+
+export const AdminCancelBookingDto = z.object({ reason: z.string().trim().min(3).max(500) });
+export const AdminCancelBookingResponseSchema = BookingDetailSchema;
+
+// ---------- Reviews ----------
+
+export const AdminReviewSearchParams = pagination(50).extend({
+  q: search,
+  rating: z.coerce.number().int().min(1).max(5).optional(),
+  isPublic: BooleanQuerySchema.optional(),
+});
+
+export const AdminReviewSchema = z.object({
+  id: IdSchema,
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().nullable(),
+  reply: z.string().nullable(),
+  isPublic: z.boolean(),
+  createdAt: DateTimeSchema,
+  bookingId: IdSchema,
+  client: PersonRefSchema,
+  provider: z.object({ id: IdSchema, displayName: z.string() }),
+});
+export const AdminReviewsResponseSchema = createPaginatedResponseSchema(AdminReviewSchema);
+
+export const AdminUpdateReviewDto = z.object({ isPublic: z.boolean() });
+export const AdminReviewResponseSchema = AdminReviewSchema;
+
+// ---------- Conversations ----------
+
+export const AdminConversationSearchParams = pagination(50).extend({ q: search });
+
+export const AdminConversationSchema = z.object({
+  id: IdSchema,
+  subject: z.string().nullable(),
+  lastMessageAt: DateTimeSchema,
+  lastPreview: z.string().nullable(),
+  client: PersonRefSchema,
+  provider: z.object({ id: IdSchema, userId: IdSchema, displayName: z.string() }),
+  messageCount: Count,
+  createdAt: DateTimeSchema,
+});
+export const AdminConversationsResponseSchema = createPaginatedResponseSchema(AdminConversationSchema);
+
+export const AdminMessagesQueryParams = pagination(100);
+export const AdminMessageSchema = z.object({
+  id: IdSchema,
+  conversationId: IdSchema,
+  senderId: IdSchema,
+  sender: PersonRefSchema.extend({ side: z.enum(["client", "provider"]) }),
+  body: z.string().nullable(),
+  attachments: z.array(MessageAttachmentSchema),
+  createdAt: DateTimeSchema,
+  deletedAt: NullableDateTimeSchema,
+});
+export const AdminConversationMessagesResponseSchema = createPaginatedResponseSchema(
+  AdminMessageSchema,
+).extend({ conversation: AdminConversationSchema });
+
+// ---------- Contact inbox ----------
+
+export const AdminContactSearchParams = pagination(50).extend({
+  q: search,
+  status: ContactStatus.optional(),
+});
+export const AdminContactsResponseSchema = createPaginatedResponseSchema(ContactMessageSchema);
+
+export const AdminUpdateContactDto = z.object({ status: ContactStatus });
+export const AdminContactResponseSchema = ContactMessageSchema;
+
+// ---------- Reports ----------
+
+export const AdminReportSearchParams = pagination(50).extend({
+  status: ReportStatus.optional(),
+  targetKind: ReportTargetKind.optional(),
+});
+
+export const AdminReportSchema = ReportSchema.extend({
+  resolution: z.string().nullable(),
+  resolvedById: IdSchema.nullable(),
+  resolvedAt: NullableDateTimeSchema,
+  reporter: PersonRefSchema,
+  target: z.object({
+    kind: ReportTargetKind,
+    id: IdSchema,
+    label: z.string(),
+    exists: z.boolean(),
+  }),
+});
+export const AdminReportsResponseSchema = createPaginatedResponseSchema(AdminReportSchema);
+
+export const AdminResolveReportDto = z.object({
+  status: z.literal("RESOLVED").default("RESOLVED"),
+  resolution: z.string().trim().min(1).max(1000),
+});
+export const AdminReportResponseSchema = AdminReportSchema;
+
+// ---------- Settings, audit, health ----------
+
+export const AdminSettingsResponseSchema = SiteSettingsSchema;
+
+export const AdminUpdateSettingsDto = SiteSettingsSchema.partial()
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, { message: "Aucun paramètre à mettre à jour" });
+
+export const AdminAuditResponseSchema = z.object({ items: z.array(ActivityLogSchema) });
+
+export const AdminHealthResponseSchema = z.object({
+  database: z.enum(["ok", "error"]),
+  storage: z.enum(["ok", "error"]),
+  email: z.literal("not configured"),
+  version: z.string(),
+  commit: z.string().nullable(),
+});
+
+// ---------- Taxonomy ----------
+
+export const ReferenceCountsSchema = z.object({ providers: Count, bookings: Count, leads: Count });
+
+export const AdminCategoryNodeSchema = z.object({
+  id: IdSchema,
+  slug: z.string(),
+  name: z.string(),
+  level: TaxonomyLevelSchema,
+  description: z.string().nullable(),
+  icon: z.string().nullable(),
+  color: z.string().nullable(),
+  image: z.string().nullable(),
+  order: z.number().int(),
+  isActive: z.boolean(),
+  categoryId: IdSchema.nullable(),
+  parentId: IdSchema.nullable(),
+  counts: ReferenceCountsSchema,
+  get children(): z.ZodArray<typeof AdminCategoryNodeSchema> {
+    return z.array(AdminCategoryNodeSchema);
+  },
+});
+export const AdminCategoriesResponseSchema = z.object({ items: z.array(AdminCategoryNodeSchema) });
+export const AdminCategoryResponseSchema = AdminCategoryNodeSchema;
+
+export const AdminSubcategoriesQueryParams = z.object({ categoryId: IdSchema.optional() });
+export const AdminSubcategoriesResponseSchema = z.object({ items: z.array(AdminCategoryNodeSchema) });
+export const AdminSubcategoryResponseSchema = AdminCategoryNodeSchema;
+
+const slug = z.string().trim().min(2).max(120).regex(/^[a-z0-9_-]+$/);
+
+export const AdminCreateCategoryDto = z.object({
+  name: z.string().trim().min(2).max(120),
+  slug,
+  description: optionalText(500),
+  icon: optionalText(60),
+  image: optionalText(500),
+  color: optionalText(60),
+  order: z.number().int().min(0).max(10_000).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const AdminUpdateCategoryDto = AdminCreateCategoryDto.partial().refine(
+  (body) => Object.keys(body).length > 0,
+  noEmptyPatch,
+);
+
+// `parentId` set creates a level-3 node under that level-2 node.
+export const AdminCreateSubcategoryDto = z.object({
+  categoryId: IdSchema,
+  parentId: IdSchema.nullable().optional(),
+  name: z.string().trim().min(2).max(120),
+  slug,
+  description: optionalText(500),
+  icon: optionalText(60),
+  order: z.number().int().min(0).max(10_000).optional(),
+  isActive: z.boolean().optional(),
+});
+
+// Nodes do not move: no `categoryId` or `parentId`.
+export const AdminUpdateSubcategoryDto = AdminCreateSubcategoryDto.omit({
+  categoryId: true,
+  parentId: true,
+})
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch);
+
+// ---------- Places ----------
+
+const aliases = z.array(z.string().trim().min(1).max(100)).max(20);
+
+export const AdminPlaceSearchParams = pagination(100).extend({
+  q: search,
+  kind: PlaceKind.optional(),
+  parentId: IdSchema.optional(),
+  active: BooleanQuerySchema.optional(),
+});
+
+export const AdminPlaceSchema = PlaceSchema.extend({ hasChildren: z.boolean(), childCount: Count });
+export const AdminPlaceDetailSchema = AdminPlaceSchema.extend({ chain: z.array(PlaceSummarySchema) });
+export const AdminPlacesResponseSchema = createPaginatedResponseSchema(AdminPlaceSchema);
+export const AdminPlaceResponseSchema = AdminPlaceSchema;
+
+export const AdminCreatePlaceDto = z.object({
+  kind: PlaceKind,
+  label: z.string().trim().min(2).max(100),
+  parentId: IdSchema.nullable().optional(),
+  aliases: aliases.default([]),
+  source: optionalText(500),
+  latitude: LatitudeSchema.nullable().optional(),
+  longitude: LongitudeSchema.nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export const AdminUpdatePlaceDto = z
+  .object({
+    label: z.string().trim().min(2).max(100).optional(),
+    aliases: aliases.optional(),
+    source: optionalText(500),
+    latitude: LatitudeSchema.nullable().optional(),
+    longitude: LongitudeSchema.nullable().optional(),
+    active: z.boolean().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch);
+
+export const AdminMergeDto = z
+  .object({ fromId: IdSchema, intoId: IdSchema })
+  .refine((body) => body.fromId !== body.intoId, {
+    path: ["intoId"],
+    message: "Choisissez deux éléments différents",
+  });
+
+export const AdminPlaceMergeResponseSchema = z.object({
+  from: AdminPlaceSchema,
+  into: AdminPlaceSchema,
+  repointed: z.object({
+    users: Count,
+    providers: Count,
+    addresses: Count,
+    bookings: Count,
+    suggestions: Count,
   }),
 });
 
-export const PayoutsResponseSchema = z.object({
-  payouts: z.array(PayoutSchema),
+export const AdminSuggestionSearchParams = pagination(50).extend({
+  status: SuggestionStatus.optional(),
+});
+export const AdminPlaceSuggestionSchema = PlaceSuggestionSchema.extend({
+  parentChain: z.array(PlaceSummarySchema),
+  user: PersonRefSchema,
+});
+export const AdminSuggestionsResponseSchema = createPaginatedResponseSchema(AdminPlaceSuggestionSchema);
+
+// ---------- References ----------
+
+export const AdminReferenceSearchParams = pagination(100).extend({
+  q: search,
+  type: ReferenceType.optional(),
+  categoryId: IdSchema.optional(),
+  active: BooleanQuerySchema.optional(),
 });
 
-export const CreatePayoutResponseSchema = z.object({
-  success: z.boolean(),
-  payout: PayoutSchema,
-  transaction: TransactionSchema,
+export const AdminReferenceSchema = ReferenceItemSchema.extend({ usageCount: Count });
+export const AdminReferencesResponseSchema = createPaginatedResponseSchema(AdminReferenceSchema);
+export const AdminReferenceResponseSchema = AdminReferenceSchema;
+
+export const AdminCreateReferenceDto = z.object({
+  type: ReferenceType,
+  label: z.string().trim().min(1).max(100),
+  aliases: aliases.default([]),
+  categoryId: IdSchema.nullable().optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+  active: z.boolean().optional(),
+  suggested: z.boolean().optional(),
+  source: optionalText(500),
 });
 
-// ---------- Provider onboarding draft (I07) ----------
+export const AdminUpdateReferenceDto = z
+  .object({
+    label: z.string().trim().min(1).max(100).optional(),
+    aliases: aliases.optional(),
+    categoryId: IdSchema.nullable().optional(),
+    order: z.number().int().min(0).max(10_000).optional(),
+    active: z.boolean().optional(),
+    suggested: z.boolean().optional(),
+    source: optionalText(500),
+  })
+  .refine((body) => Object.keys(body).length > 0, noEmptyPatch);
 
-export const ProviderDraftSkillSchema = z.object({
-  name: z.string().min(1),
-  level: z.number().int().min(1).max(5).default(3),
+export const AdminReferenceMergeResponseSchema = z.object({
+  from: AdminReferenceSchema,
+  into: AdminReferenceSchema,
+  repointed: z.object({ providerSkills: Count, providerReferences: Count, pricing: Count }),
 });
 
-export const ProviderDraftDto = z.object({
-  onboardingStep: z.number().int().min(0).max(2).optional(),
+// =====================================================================================
+// Types. A DTO or params name used as a type is what a client sends (see `Wire`);
+// `…Input` / `…Query` is what the server holds after parsing.
+// =====================================================================================
 
-  // Step 1 — Toi & ton métier
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  phone: z.string().optional(),
+export type PlacesQueryParams = Wire<typeof PlacesQueryParams>;
+export type ReferencesQueryParams = Wire<typeof ReferencesQueryParams>;
+export type ProviderSearchParams = Wire<typeof ProviderSearchParams>;
+export type AvailabilityQueryParams = Wire<typeof AvailabilityQueryParams>;
+export type ProviderReviewsQueryParams = Wire<typeof ProviderReviewsQueryParams>;
+export type CreateContactMessageDto = Wire<typeof CreateContactMessageDto>;
+export type GeocodeParams = Wire<typeof GeocodeParams>;
+export type DistanceParams = Wire<typeof DistanceParams>;
+export type UpdateProfileDto = Wire<typeof UpdateProfileDto>;
+export type ConfirmAvatarDto = Wire<typeof ConfirmAvatarDto>;
+export type UploadSignRequestDto = Wire<typeof UploadSignRequestDto>;
+export type SignReadQueryParams = Wire<typeof SignReadQueryParams>;
+export type PublishProviderDto = Wire<typeof PublishProviderDto>;
+export type UpdateProviderDto = Wire<typeof UpdateProviderDto>;
+export type PutScheduleDto = Wire<typeof PutScheduleDto>;
+export type PutMediaDto = Wire<typeof PutMediaDto>;
+export type UpdateAvailabilityDto = Wire<typeof UpdateAvailabilityDto>;
+export type EarningsTransactionsQueryParams = Wire<typeof EarningsTransactionsQueryParams>;
+export type CreateBookingDto = Wire<typeof CreateBookingDto>;
+export type BookingsQueryParams = Wire<typeof BookingsQueryParams>;
+export type CompleteBookingDto = Wire<typeof CompleteBookingDto>;
+export type CancelBookingDto = Wire<typeof CancelBookingDto>;
+export type UpdateBookingNotesDto = Wire<typeof UpdateBookingNotesDto>;
+export type CreateReviewDto = Wire<typeof CreateReviewDto>;
+export type ReplyReviewDto = Wire<typeof ReplyReviewDto>;
+export type CreateClientReviewDto = Wire<typeof CreateClientReviewDto>;
+export type ConversationsQueryParams = Wire<typeof ConversationsQueryParams>;
+export type StartConversationDto = Wire<typeof StartConversationDto>;
+export type SendMessageDto = Wire<typeof SendMessageDto>;
+export type MessagesQueryParams = Wire<typeof MessagesQueryParams>;
+export type CreateReportDto = Wire<typeof CreateReportDto>;
+export type CreateBlockDto = Wire<typeof CreateBlockDto>;
+export type BlocksQueryParams = Wire<typeof BlocksQueryParams>;
+export type CreateAddressDto = Wire<typeof CreateAddressDto>;
+export type UpdateAddressDto = Wire<typeof UpdateAddressDto>;
+export type AddressesQueryParams = Wire<typeof AddressesQueryParams>;
+export type NotificationsQueryParams = Wire<typeof NotificationsQueryParams>;
+export type CreatePlaceSuggestionDto = Wire<typeof CreatePlaceSuggestionDto>;
+export type AdminUserSearchParams = Wire<typeof AdminUserSearchParams>;
+export type AdminUpdateUserDto = Wire<typeof AdminUpdateUserDto>;
+export type AdminProviderSearchParams = Wire<typeof AdminProviderSearchParams>;
+export type AdminUpdateProviderDto = Wire<typeof AdminUpdateProviderDto>;
+export type AdminBookingSearchParams = Wire<typeof AdminBookingSearchParams>;
+export type AdminCancelBookingDto = Wire<typeof AdminCancelBookingDto>;
+export type AdminReviewSearchParams = Wire<typeof AdminReviewSearchParams>;
+export type AdminUpdateReviewDto = Wire<typeof AdminUpdateReviewDto>;
+export type AdminConversationSearchParams = Wire<typeof AdminConversationSearchParams>;
+export type AdminMessagesQueryParams = Wire<typeof AdminMessagesQueryParams>;
+export type AdminContactSearchParams = Wire<typeof AdminContactSearchParams>;
+export type AdminUpdateContactDto = Wire<typeof AdminUpdateContactDto>;
+export type AdminReportSearchParams = Wire<typeof AdminReportSearchParams>;
+export type AdminResolveReportDto = Wire<typeof AdminResolveReportDto>;
+export type AdminUpdateSettingsDto = Wire<typeof AdminUpdateSettingsDto>;
+export type AdminSubcategoriesQueryParams = Wire<typeof AdminSubcategoriesQueryParams>;
+export type AdminCreateCategoryDto = Wire<typeof AdminCreateCategoryDto>;
+export type AdminUpdateCategoryDto = Wire<typeof AdminUpdateCategoryDto>;
+export type AdminCreateSubcategoryDto = Wire<typeof AdminCreateSubcategoryDto>;
+export type AdminUpdateSubcategoryDto = Wire<typeof AdminUpdateSubcategoryDto>;
+export type AdminPlaceSearchParams = Wire<typeof AdminPlaceSearchParams>;
+export type AdminCreatePlaceDto = Wire<typeof AdminCreatePlaceDto>;
+export type AdminUpdatePlaceDto = Wire<typeof AdminUpdatePlaceDto>;
+export type AdminMergeDto = Wire<typeof AdminMergeDto>;
+export type AdminSuggestionSearchParams = Wire<typeof AdminSuggestionSearchParams>;
+export type AdminReferenceSearchParams = Wire<typeof AdminReferenceSearchParams>;
+export type AdminCreateReferenceDto = Wire<typeof AdminCreateReferenceDto>;
+export type AdminUpdateReferenceDto = Wire<typeof AdminUpdateReferenceDto>;
 
-  primaryCategoryId: IdSchema.optional(),
-  categoryIds: z.array(IdSchema).max(3).optional(),
-  subcategoryIds: z.array(IdSchema).optional(),
-  profession: z.string().min(2).optional(),
-  skills: z.array(ProviderDraftSkillSchema).optional(),
-  yearsOfExperience: z.number().int().min(0).max(60).optional(),
-  description: z.string().max(1000).optional(),
+export type PlacesQuery = z.infer<typeof PlacesQueryParams>;
+export type ReferencesQuery = z.infer<typeof ReferencesQueryParams>;
+export type ProviderSearchQuery = z.infer<typeof ProviderSearchParams>;
+export type AvailabilityQuery = z.infer<typeof AvailabilityQueryParams>;
+export type ProviderReviewsQuery = z.infer<typeof ProviderReviewsQueryParams>;
+export type CreateContactMessageInput = z.infer<typeof CreateContactMessageDto>;
+export type GeocodeQuery = z.infer<typeof GeocodeParams>;
+export type DistanceQuery = z.infer<typeof DistanceParams>;
+export type UpdateProfileInput = z.infer<typeof UpdateProfileDto>;
+export type ConfirmAvatarInput = z.infer<typeof ConfirmAvatarDto>;
+export type UploadSignRequestInput = z.infer<typeof UploadSignRequestDto>;
+export type SignReadQuery = z.infer<typeof SignReadQueryParams>;
+export type PublishProviderInput = z.infer<typeof PublishProviderDto>;
+export type UpdateProviderInput = z.infer<typeof UpdateProviderDto>;
+export type PutScheduleInput = z.infer<typeof PutScheduleDto>;
+export type PutMediaInput = z.infer<typeof PutMediaDto>;
+export type UpdateAvailabilityInput = z.infer<typeof UpdateAvailabilityDto>;
+export type EarningsTransactionsQuery = z.infer<typeof EarningsTransactionsQueryParams>;
+export type CreateBookingInput = z.infer<typeof CreateBookingDto>;
+export type BookingsQuery = z.infer<typeof BookingsQueryParams>;
+export type CompleteBookingInput = z.infer<typeof CompleteBookingDto>;
+export type CancelBookingInput = z.infer<typeof CancelBookingDto>;
+export type UpdateBookingNotesInput = z.infer<typeof UpdateBookingNotesDto>;
+export type CreateReviewInput = z.infer<typeof CreateReviewDto>;
+export type ReplyReviewInput = z.infer<typeof ReplyReviewDto>;
+export type CreateClientReviewInput = z.infer<typeof CreateClientReviewDto>;
+export type ConversationsQuery = z.infer<typeof ConversationsQueryParams>;
+export type StartConversationInput = z.infer<typeof StartConversationDto>;
+export type SendMessageInput = z.infer<typeof SendMessageDto>;
+export type MessagesQuery = z.infer<typeof MessagesQueryParams>;
+export type CreateReportInput = z.infer<typeof CreateReportDto>;
+export type CreateBlockInput = z.infer<typeof CreateBlockDto>;
+export type BlocksQuery = z.infer<typeof BlocksQueryParams>;
+export type CreateAddressInput = z.infer<typeof CreateAddressDto>;
+export type UpdateAddressInput = z.infer<typeof UpdateAddressDto>;
+export type AddressesQuery = z.infer<typeof AddressesQueryParams>;
+export type NotificationsQuery = z.infer<typeof NotificationsQueryParams>;
+export type CreatePlaceSuggestionInput = z.infer<typeof CreatePlaceSuggestionDto>;
+export type AdminUserSearchQuery = z.infer<typeof AdminUserSearchParams>;
+export type AdminUpdateUserInput = z.infer<typeof AdminUpdateUserDto>;
+export type AdminProviderSearchQuery = z.infer<typeof AdminProviderSearchParams>;
+export type AdminUpdateProviderInput = z.infer<typeof AdminUpdateProviderDto>;
+export type AdminBookingSearchQuery = z.infer<typeof AdminBookingSearchParams>;
+export type AdminCancelBookingInput = z.infer<typeof AdminCancelBookingDto>;
+export type AdminReviewSearchQuery = z.infer<typeof AdminReviewSearchParams>;
+export type AdminUpdateReviewInput = z.infer<typeof AdminUpdateReviewDto>;
+export type AdminConversationSearchQuery = z.infer<typeof AdminConversationSearchParams>;
+export type AdminMessagesQuery = z.infer<typeof AdminMessagesQueryParams>;
+export type AdminContactSearchQuery = z.infer<typeof AdminContactSearchParams>;
+export type AdminUpdateContactInput = z.infer<typeof AdminUpdateContactDto>;
+export type AdminReportSearchQuery = z.infer<typeof AdminReportSearchParams>;
+export type AdminResolveReportInput = z.infer<typeof AdminResolveReportDto>;
+export type AdminUpdateSettingsInput = z.infer<typeof AdminUpdateSettingsDto>;
+export type AdminSubcategoriesQuery = z.infer<typeof AdminSubcategoriesQueryParams>;
+export type AdminCreateCategoryInput = z.infer<typeof AdminCreateCategoryDto>;
+export type AdminUpdateCategoryInput = z.infer<typeof AdminUpdateCategoryDto>;
+export type AdminCreateSubcategoryInput = z.infer<typeof AdminCreateSubcategoryDto>;
+export type AdminUpdateSubcategoryInput = z.infer<typeof AdminUpdateSubcategoryDto>;
+export type AdminPlaceSearchQuery = z.infer<typeof AdminPlaceSearchParams>;
+export type AdminCreatePlaceInput = z.infer<typeof AdminCreatePlaceDto>;
+export type AdminUpdatePlaceInput = z.infer<typeof AdminUpdatePlaceDto>;
+export type AdminMergeInput = z.infer<typeof AdminMergeDto>;
+export type AdminSuggestionSearchQuery = z.infer<typeof AdminSuggestionSearchParams>;
+export type AdminReferenceSearchQuery = z.infer<typeof AdminReferenceSearchParams>;
+export type AdminCreateReferenceInput = z.infer<typeof AdminCreateReferenceDto>;
+export type AdminUpdateReferenceInput = z.infer<typeof AdminUpdateReferenceDto>;
 
-  // Step 2 — Où tu interviens
-  serviceZones: z.array(ServiceZoneInputSchema).optional(),
-
-  // Step 3 — Ton prix de départ
-  hourlyRate: z.number().int().positive().optional(),
-
-  // Profile media (set post-publish via dedicated endpoints, kept here so the
-  // draft response can echo the current avatar)
-  avatar: z.string().optional(),
-  languages: z.array(z.string()).optional(),
-});
-
-export const DraftResponseSchema = z.object({
-  draft: ProviderDraftDto,
-  step: z.number().int().min(0).max(2).nullable(),
-  isComplete: z.boolean(),
-  missingForPublish: z.array(z.string()).default([]),
-});
-
-export const ProviderPublishResponseSchema = z.object({
-  success: z.boolean(),
-  provider: ProviderDetailSchema,
-});
-
-export const UnknownApiSuccessResponseSchema = createApiSuccessResponseSchema(z.unknown());
-
-export type ServiceZoneInput = z.infer<typeof ServiceZoneInputSchema>;
-export type CompleteProfileDto = z.infer<typeof CompleteProfileDto>;
-export type RegisterDto = z.infer<typeof RegisterDto>;
-export type LoginDto = z.infer<typeof LoginDto>;
-export type ForgotPasswordDto = z.infer<typeof ForgotPasswordDto>;
-export type ProviderOnboardingDto = z.infer<typeof ProviderOnboardingDto>;
-export type UpdateProviderDto = z.infer<typeof UpdateProviderDto>;
-export type CreateBookingDto = z.infer<typeof CreateBookingDto>;
-export type UpdateBookingDto = z.infer<typeof UpdateBookingDto>;
-export type CreateFinalOfferDtoType = z.infer<typeof CreateFinalOfferDto>;
-export type CreateReviewDto = z.infer<typeof CreateReviewDto>;
-export type CreateClientReviewDto = z.infer<typeof CreateClientReviewDto>;
-export type CreateMessageDto = z.infer<typeof CreateMessageDto>;
-export type UpdateVisibilityDto = z.infer<typeof UpdateVisibilityDto>;
-export type UpdateUserDto = z.infer<typeof UpdateUserDto>;
-export type AdminUpdateUserDto = z.infer<typeof AdminUpdateUserDto>;
-export type AdminUpdateProviderDto = z.infer<typeof AdminUpdateProviderDto>;
-export type CategorySubcategoryInput = z.infer<typeof CategorySubcategoryInputSchema>;
-export type CreateCategoryDto = z.infer<typeof CreateCategoryDto>;
-export type UpdateCategoryDto = z.infer<typeof UpdateCategoryDto>;
-export type CreateSubcategoryDto = z.infer<typeof CreateSubcategoryDto>;
-export type UpdateSubcategoryDto = z.infer<typeof UpdateSubcategoryDto>;
-export type AdminModerateReviewDto = z.infer<typeof AdminModerateReviewDto>;
-export type FavoriteProviderDto = z.infer<typeof FavoriteProviderDto>;
-export type ProviderSearchParams = z.infer<typeof ProviderSearchParams>;
-export type BookingSearchParams = z.infer<typeof BookingSearchParams>;
-export type FinalOfferSearchParams = z.infer<typeof FinalOfferSearchParams>;
-export type ReviewSearchParams = z.infer<typeof ReviewSearchParams>;
-export type MessageSearchParams = z.infer<typeof MessageSearchParams>;
-export type NotificationSearchParams = z.infer<typeof NotificationSearchParams>;
-export type CategorySearchParams = z.infer<typeof CategorySearchParams>;
-export type AdminUserSearchParams = z.infer<typeof AdminUserSearchParams>;
-export type AdminProviderSearchParams = z.infer<typeof AdminProviderSearchParams>;
-export type AdminReviewSearchParams = z.infer<typeof AdminReviewSearchParams>;
-export type AdminCategorySearchParams = z.infer<typeof AdminCategorySearchParams>;
-export type AdminSupportBookingSearchParams = z.infer<
-  typeof AdminSupportBookingSearchParams
->;
-export type AdminSupportBookingSummary = z.infer<
-  typeof AdminSupportBookingSummarySchema
->;
-export type AdminSupportBookingsResponse = z.infer<
-  typeof AdminSupportBookingsResponseSchema
->;
-export type AdminDisputeSearchParams = z.infer<typeof AdminDisputeSearchParams>;
-export type AdminDisputeSummary = z.infer<typeof AdminDisputeSummarySchema>;
-export type AdminDisputesResponse = z.infer<typeof AdminDisputesResponseSchema>;
-export type AdminCreateDisputeDto = z.infer<typeof AdminCreateDisputeDto>;
-export type AdminUpdateDisputeDto = z.infer<typeof AdminUpdateDisputeDto>;
-export type AdminDisputeMutationResponse = z.infer<
-  typeof AdminDisputeMutationResponseSchema
->;
-export type DistanceParams = z.infer<typeof DistanceParams>;
-export type GeocodeParams = z.infer<typeof GeocodeParams>;
-export type AuthResponse = z.infer<typeof AuthResponseSchema>;
-export type MeResponse = z.infer<typeof MeResponseSchema>;
-export type ProviderStatsResponse = z.infer<typeof ProviderStatsResponseSchema>;
-export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
-export type DashboardBooking = z.infer<typeof DashboardBookingSchema>;
-export type DashboardProviderResponse = z.infer<typeof DashboardProviderResponseSchema>;
-export type TodayJob = z.infer<typeof TodayJobSchema>;
-export type RequestPreview = z.infer<typeof RequestPreviewSchema>;
-export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
-export type AvailabilityStatus = z.infer<typeof AvailabilityStatusSchema>;
-export type ProviderDashboardStats = z.infer<typeof ProviderDashboardStatsSchema>;
-export type UpdateProviderAvailabilityDto = z.infer<typeof UpdateProviderAvailabilityDto>;
-export type ClientDashboardUpcomingBooking = z.infer<typeof ClientDashboardUpcomingBookingSchema>;
-export type ClientDashboardCompletedBooking = z.infer<typeof ClientDashboardCompletedBookingSchema>;
-export type ClientDashboardProviderRow = z.infer<typeof ClientDashboardProviderRowSchema>;
-export type ClientDashboardReviewTodo = z.infer<typeof ClientDashboardReviewTodoSchema>;
-export type ClientDashboardMessageTodo = z.infer<typeof ClientDashboardMessageTodoSchema>;
-export type DashboardClientResponse = z.infer<typeof DashboardClientResponseSchema>;
-export type DashboardAdminResponse = z.infer<typeof DashboardAdminResponseSchema>;
-export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
-export type GeocodeResponse = z.infer<typeof GeocodeResponseSchema>;
+export type ProviderSearchSort = z.infer<typeof ProviderSearchSort>;
+export type PublicSettingsResponse = z.infer<typeof PublicSettingsResponseSchema>;
 export type PublicStatsResponse = z.infer<typeof PublicStatsResponseSchema>;
-export type TrendingBadge = z.infer<typeof TrendingBadgeSchema>;
-export type TrendingServiceItem = z.infer<typeof TrendingServiceItemSchema>;
-export type TrendingServicesResponse = z.infer<typeof TrendingServicesResponseSchema>;
-export type CategoriesResponse = z.infer<typeof CategoriesResponseSchema>;
-export type CategoryHierarchyResponse = z.infer<typeof CategoryHierarchyResponseSchema>;
-export type ProvidersResponse = z.infer<typeof ProvidersResponseSchema>;
-export type ProviderProfileResponse = z.infer<typeof ProviderProfileResponseSchema>;
-export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
-export type FinalOffersResponse = z.infer<typeof FinalOffersResponseSchema>;
-export type FinalOfferResponse = z.infer<typeof FinalOfferResponseSchema>;
-export type FinalOfferAcceptResponse = z.infer<
-  typeof FinalOfferAcceptResponseSchema
->;
-export type ReviewsResponse = z.infer<typeof ReviewsResponseSchema>;
-export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;
-export type MessagesResponse = z.infer<typeof MessagesResponseSchema>;
-export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>;
-export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>;
-export type FavoritesResponse = z.infer<typeof FavoritesResponseSchema>;
-export type VisibilitySettingsResponse = z.infer<typeof VisibilitySettingsResponseSchema>;
-export type UnknownApiSuccessResponse = z.infer<typeof UnknownApiSuccessResponseSchema>;
-export type EarningsTransactionSearchParams = z.infer<typeof EarningsTransactionSearchParams>;
-export type CreatePayoutDto = z.infer<typeof CreatePayoutDto>;
+export type CategoryTreeResponse = z.infer<typeof CategoryTreeResponseSchema>;
+export type PlacesResponse = z.infer<typeof PlacesResponseSchema>;
+export type PlaceAncestorsResponse = z.infer<typeof PlaceAncestorsResponseSchema>;
+export type ReferencesResponse = z.infer<typeof ReferencesResponseSchema>;
+export type ProviderSearchResponse = z.infer<typeof ProviderSearchResponseSchema>;
+export type ProviderPublicResponse = z.infer<typeof ProviderPublicResponseSchema>;
+export type AvailabilityResponse = z.infer<typeof AvailabilityResponseSchema>;
+export type ProviderReviewsResponse = z.infer<typeof ProviderReviewsResponseSchema>;
+export type CreateContactMessageResponse = z.infer<typeof CreateContactMessageResponseSchema>;
+export type GeocodeResponse = z.infer<typeof GeocodeResponseSchema>;
+export type DistanceResponse = z.infer<typeof DistanceResponseSchema>;
+export type MeResponse = z.infer<typeof MeResponseSchema>;
+export type UpdateProfileResponse = z.infer<typeof UpdateProfileResponseSchema>;
+export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
+export type DeleteAccountResponse = z.infer<typeof DeleteAccountResponseSchema>;
+export type ConfirmAvatarResponse = z.infer<typeof ConfirmAvatarResponseSchema>;
+export type UploadSignResponse = z.infer<typeof UploadSignResponseSchema>;
+export type SignReadResponse = z.infer<typeof SignReadResponseSchema>;
+export type PublishProviderResponse = z.infer<typeof PublishProviderResponseSchema>;
+export type UpdateProviderResponse = z.infer<typeof UpdateProviderResponseSchema>;
+export type PutScheduleResponse = z.infer<typeof PutScheduleResponseSchema>;
+export type PutMediaResponse = z.infer<typeof PutMediaResponseSchema>;
+export type UpdateAvailabilityResponse = z.infer<typeof UpdateAvailabilityResponseSchema>;
+export type ProviderDashboardResponse = z.infer<typeof ProviderDashboardResponseSchema>;
 export type EarningsSummaryResponse = z.infer<typeof EarningsSummaryResponseSchema>;
 export type EarningsTransactionsResponse = z.infer<typeof EarningsTransactionsResponseSchema>;
-export type PayoutsResponse = z.infer<typeof PayoutsResponseSchema>;
-export type CreatePayoutResponse = z.infer<typeof CreatePayoutResponseSchema>;
-export type ProviderDraftSkill = z.infer<typeof ProviderDraftSkillSchema>;
-export type ProviderDraftDto = z.infer<typeof ProviderDraftDto>;
-export type DraftResponse = z.infer<typeof DraftResponseSchema>;
-export type ProviderPublishResponse = z.infer<typeof ProviderPublishResponseSchema>;
-export type ProviderStrengthResponse = z.infer<typeof ProviderStrengthResponseSchema>;
-export type UploadPurpose = z.infer<typeof UploadPurposeSchema>;
-export type UploadSignRequestDtoType = z.infer<typeof UploadSignRequestDto>;
-export type UploadSignResponse = z.infer<typeof UploadSignResponseSchema>;
-export type ConfirmAvatarDtoType = z.infer<typeof ConfirmAvatarDto>;
-export type PortfolioProjectInputDtoType = z.infer<typeof PortfolioProjectInputDto>;
-export type PortfolioListResponse = z.infer<typeof PortfolioListResponseSchema>;
-export type PortfolioMutationResponse = z.infer<typeof PortfolioMutationResponseSchema>;
+export type BookingsResponse = z.infer<typeof BookingsResponseSchema>;
+export type BookingResponse = z.infer<typeof BookingResponseSchema>;
+export type ReviewResponse = z.infer<typeof ReviewResponseSchema>;
+export type MyReviewsResponse = z.infer<typeof MyReviewsResponseSchema>;
+export type ClientReviewResponse = z.infer<typeof ClientReviewResponseSchema>;
+export type ClientRatingSummaryResponse = z.infer<typeof ClientRatingSummaryResponseSchema>;
+export type ConversationsResponse = z.infer<typeof ConversationsResponseSchema>;
+export type StartConversationResponse = z.infer<typeof StartConversationResponseSchema>;
+export type SendMessageResponse = z.infer<typeof SendMessageResponseSchema>;
+export type MessagesResponse = z.infer<typeof MessagesResponseSchema>;
+export type ReportResponse = z.infer<typeof ReportResponseSchema>;
+export type BlockResponse = z.infer<typeof BlockResponseSchema>;
+export type BlocksResponse = z.infer<typeof BlocksResponseSchema>;
+export type ClientDashboardResponse = z.infer<typeof ClientDashboardResponseSchema>;
+export type AddressesResponse = z.infer<typeof AddressesResponseSchema>;
+export type AddressResponse = z.infer<typeof AddressResponseSchema>;
+export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>;
+export type NotificationResponse = z.infer<typeof NotificationResponseSchema>;
+export type MarkAllNotificationsReadResponse = z.infer<typeof MarkAllNotificationsReadResponseSchema>;
+export type PlaceSuggestionResponse = z.infer<typeof PlaceSuggestionResponseSchema>;
+export type AdminOverviewResponse = z.infer<typeof AdminOverviewResponseSchema>;
+export type AdminUsersResponse = z.infer<typeof AdminUsersResponseSchema>;
+export type AdminUserResponse = z.infer<typeof AdminUserResponseSchema>;
+export type AdminUserCvResponse = z.infer<typeof AdminUserCvResponseSchema>;
+export type AdminProvidersResponse = z.infer<typeof AdminProvidersResponseSchema>;
+export type AdminProviderResponse = z.infer<typeof AdminProviderResponseSchema>;
+export type AdminBookingsResponse = z.infer<typeof AdminBookingsResponseSchema>;
+export type AdminCancelBookingResponse = z.infer<typeof AdminCancelBookingResponseSchema>;
+export type AdminReviewsResponse = z.infer<typeof AdminReviewsResponseSchema>;
+export type AdminReviewResponse = z.infer<typeof AdminReviewResponseSchema>;
+export type AdminConversationsResponse = z.infer<typeof AdminConversationsResponseSchema>;
+export type AdminConversationMessagesResponse = z.infer<typeof AdminConversationMessagesResponseSchema>;
+export type AdminContactsResponse = z.infer<typeof AdminContactsResponseSchema>;
+export type AdminContactResponse = z.infer<typeof AdminContactResponseSchema>;
+export type AdminReportsResponse = z.infer<typeof AdminReportsResponseSchema>;
+export type AdminReportResponse = z.infer<typeof AdminReportResponseSchema>;
+export type AdminSettingsResponse = z.infer<typeof AdminSettingsResponseSchema>;
+export type AdminAuditResponse = z.infer<typeof AdminAuditResponseSchema>;
+export type AdminHealthResponse = z.infer<typeof AdminHealthResponseSchema>;
+export type AdminCategoriesResponse = z.infer<typeof AdminCategoriesResponseSchema>;
+export type AdminCategoryResponse = z.infer<typeof AdminCategoryResponseSchema>;
+export type AdminSubcategoriesResponse = z.infer<typeof AdminSubcategoriesResponseSchema>;
+export type AdminSubcategoryResponse = z.infer<typeof AdminSubcategoryResponseSchema>;
+export type AdminPlacesResponse = z.infer<typeof AdminPlacesResponseSchema>;
+export type AdminPlaceResponse = z.infer<typeof AdminPlaceResponseSchema>;
+export type AdminPlaceMergeResponse = z.infer<typeof AdminPlaceMergeResponseSchema>;
+export type AdminSuggestionsResponse = z.infer<typeof AdminSuggestionsResponseSchema>;
+export type AdminReferencesResponse = z.infer<typeof AdminReferencesResponseSchema>;
+export type AdminReferenceResponse = z.infer<typeof AdminReferenceResponseSchema>;
+export type AdminReferenceMergeResponse = z.infer<typeof AdminReferenceMergeResponseSchema>;
 
-export const AvailabilityQuery = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "from must be YYYY-MM-DD"),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "to must be YYYY-MM-DD"),
-});
-
-export const AvailabilityDay = z.object({
-  date: z.string(),
-  status: z.enum(["available", "off", "full", "past"]),
-  slots: z.array(z.string()),
-});
-
-export const AvailabilityResponse = z.object({
-  days: z.array(AvailabilityDay),
-  workWindow: z.object({ start: z.string(), end: z.string() }).nullable(),
-});
-
-export const RecentAddressItem = z.object({
-  commune: z.string().nullable(),
-  street: z.string().nullable(),
-  raw: z.string(),
-  lastUsedAt: z.string(),
-});
-
-export const RecentAddressesResponse = z.array(RecentAddressItem);
-
-export type AvailabilityQuery = z.infer<typeof AvailabilityQuery>;
-export type AvailabilityDay = z.infer<typeof AvailabilityDay>;
-export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>;
-export type RecentAddressItem = z.infer<typeof RecentAddressItem>;
-export type LeadAttributionDtoType = z.infer<typeof LeadAttributionDto>;
-export type CreateProviderLeadDtoType = z.input<typeof CreateProviderLeadDto>;
-export type CreateClientLeadDtoType = z.input<typeof CreateClientLeadDto>;
-export type CreateLaunchLeadResponse = z.infer<
-  typeof CreateLaunchLeadResponseSchema
->;
-export type CreateLaunchFunnelEventDtoType = z.input<
-  typeof CreateLaunchFunnelEventDto
->;
-export type CreateLaunchFunnelEventResponse = z.infer<
-  typeof CreateLaunchFunnelEventResponseSchema
->;
+export type MeUser = z.infer<typeof MeUserSchema>;
+export type PricingInput = z.infer<typeof PricingInputSchema>;
+export type SocialLinksInput = z.infer<typeof SocialLinksInputSchema>;
+export type EarningsTransaction = z.infer<typeof EarningsTransactionSchema>;
+export type MyReview = z.infer<typeof MyReviewSchema>;
+export type BlockListItem = z.infer<typeof BlockListItemSchema>;
+export type AdminUser = z.infer<typeof AdminUserSchema>;
+export type AdminProvider = z.infer<typeof AdminProviderSchema>;
+export type AdminBooking = z.infer<typeof AdminBookingSchema>;
+export type AdminReview = z.infer<typeof AdminReviewSchema>;
+export type AdminConversation = z.infer<typeof AdminConversationSchema>;
+export type AdminMessage = z.infer<typeof AdminMessageSchema>;
+export type AdminReport = z.infer<typeof AdminReportSchema>;
+export type ReferenceCounts = z.infer<typeof ReferenceCountsSchema>;
+export type AdminCategoryNode = z.infer<typeof AdminCategoryNodeSchema>;
+export type AdminPlace = z.infer<typeof AdminPlaceSchema>;
+export type AdminPlaceDetail = z.infer<typeof AdminPlaceDetailSchema>;
+export type AdminPlaceSuggestion = z.infer<typeof AdminPlaceSuggestionSchema>;
+export type AdminReference = z.infer<typeof AdminReferenceSchema>;

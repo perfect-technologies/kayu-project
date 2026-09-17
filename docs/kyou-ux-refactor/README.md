@@ -23,7 +23,8 @@ The Expo mobile app is **frozen** during this refactor (see Mobile freeze below)
 | Language | French only. Copy is centralised so a locale layer can be added later. |
 | Campaign | `/launch` pages are restyled in this refactor (workstream 09). Lead endpoints and data are untouched. |
 | Agent concierge | Lives on the branch `feat/agent-concierge-phase-1` (commit `6bb6dca`), **not on `main`**. Excluded from this refactor. It is rebased onto the new contract in its own later workstream; its `ProvidersService.search` tool binding will need the new search signature at that time. |
-| Data policy | **Full reset allowed.** Migrations are squashed into a new baseline. Dev and prod databases are reset on deploy (workstream 10). |
+| Data policy | **Full reset allowed.** Migrations are squashed into a new baseline. The hosted database is provisioned fresh on Supabase (workstream 10). |
+| Hosting | **Railway** (backend + web services, one environment) and **Supabase Postgres** in the existing Supabase project. Render is deleted at the end of workstream 10. Decided 2026-09-17. |
 | Routes | French route slugs from K-YOU become canonical (`/rechercher`, `/prestataire/:id`, `/mes-reservations`, `/mon-espace`, `/messagerie`, `/compte`, `/admin` …). Old English paths get permanent redirects for one release. |
 
 ## Non-goals
@@ -50,7 +51,7 @@ The Expo mobile app is **frozen** during this refactor (see Mobile freeze below)
 | 07 | [`07-web-client-and-provider-spaces.md`](./07-web-client-and-provider-spaces.md) | Bookings, provider dashboard, earnings, reviews, notifications, help, addresses, account, messaging | 02, 04 | XL |
 | 08 | [`08-web-admin-console.md`](./08-web-admin-console.md) | Admin rail with the 13 K-YOU sections plus KYC verification queue | 02, 04 | L |
 | 09 | [`09-launch-campaign-restyle.md`](./09-launch-campaign-restyle.md) | `/launch*` pages on the new tokens, behaviour unchanged | 04 | S |
-| 10 | [`10-qa-migration-and-release.md`](./10-qa-migration-and-release.md) | Test suite updates, browser smoke, database reset runbook, mobile freeze, launch gate | all | M |
+| 10 | [`10-qa-migration-and-release.md`](./10-qa-migration-and-release.md) | Test suite updates, browser smoke, Railway + Supabase provisioning, Render deletion, mobile freeze, launch gate | all | M |
 
 Sizes: S under 2 days, M 2–4 days, L 1–2 weeks, XL 2–3 weeks for one engineer or one agent stream. Workstreams 05, 06, 07 and 08 can run in parallel once 02, 03 and 04 are merged.
 
@@ -62,13 +63,13 @@ Sizes: S under 2 days, M 2–4 days, L 1–2 weeks, XL 2–3 weeks for one engin
 
 **Iteration C — screens (05, 06, 07, 08 in parallel).** Each workstream owns a route group and the components under it. Merge into the integration branch as each passes its checklist.
 
-**Iteration D — release (10).** End-to-end smoke at 320 / 390 / 1440 px, database reset on Render dev, then prod, mobile freeze notice, `PROGRESS.md` sign-off.
+**Iteration D — release (10).** End-to-end smoke at 320 / 390 / 1440 px, fresh hosting on Railway + Supabase Postgres, Render deleted, mobile freeze notice, `PROGRESS.md` sign-off.
 
 ## Branch and merge policy
 
 - Integration branch: `refactor/kyou-ux` from `main` at the commit that adds this folder (the first commit after `3b74f38`). `feat/agent-concierge-phase-1` stays a separate branch and is not merged during this refactor.
 - Each workstream lands as one or more PRs into `refactor/kyou-ux`. Commit per workstream, not per task, following the existing repo habit.
-- `main` stays deployable for the campaign in the meantime. Point `kayou-backend-dev` and `kayou-web-dev` at `refactor/kyou-ux` once Iteration A is merged so QA happens on Render dev.
+- Hosting decision (2026-09-17): Render is replaced by Railway for compute and Supabase Postgres for the database, provisioned fresh in workstream 10. Render stays alive only until the Railway smoke passes.
 - `refactor/kyou-ux` merges into `main` only when workstream 10 is Done.
 
 ## Mobile freeze

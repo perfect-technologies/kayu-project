@@ -16,11 +16,11 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  LoaderCircle,
   RefreshCw,
 } from "lucide-react";
 
 import type { CampaignCategory } from "./campaign-data";
+import { FormError, Spinner } from "@/components/forms/Field";
 import {
   createEmptyCampaignFormValues,
   type CampaignFormValues,
@@ -39,6 +39,7 @@ import {
   type LeadAttribution,
   type ProviderExperienceBand,
 } from "@/lib/campaign-leads";
+import { cn } from "@/lib/utils";
 
 type CampaignFormProps = {
   role: CampaignLeadType;
@@ -85,7 +86,7 @@ function FieldError({
 }) {
   if (!children) return null;
   return (
-    <p id={id} className="mt-1.5 text-[13px] text-[var(--k-danger)]">
+    <p id={id} className="mt-1.5 text-xs font-semibold text-destructive">
       {children}
     </p>
   );
@@ -101,7 +102,7 @@ function FieldLabel({
   return (
     <label
       htmlFor={htmlFor}
-      className="mb-1.5 block text-[14px] font-semibold text-[var(--k-text-primary)]"
+      className="mb-1.5 block text-xs font-bold text-foreground"
     >
       {children}
     </label>
@@ -124,7 +125,12 @@ function SelectField({
   disabled?: boolean;
 }) {
   return (
-    <div className="relative">
+    <div
+      className={cn(
+        "field relative has-[select:disabled]:bg-muted",
+        error && "border-destructive",
+      )}
+    >
       <select
         id={id}
         value={value}
@@ -132,13 +138,13 @@ function SelectField({
         disabled={disabled}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="h-12 w-full appearance-none rounded-[12px] border border-[var(--k-border)] bg-[var(--k-surface)] px-3.5 pr-10 text-[15px] text-[var(--k-text-primary)] outline-none transition-[border-color,box-shadow] focus:border-[var(--k-primary)] focus:ring-3 focus:ring-[rgba(14,165,233,0.15)] disabled:cursor-not-allowed disabled:bg-[var(--k-surface-muted)] disabled:text-[var(--k-text-muted)] aria-invalid:border-[var(--k-danger)]"
+        className="appearance-none pr-8 text-base disabled:cursor-not-allowed disabled:text-muted-foreground"
       >
         {children}
       </select>
       <ChevronDown
         aria-hidden
-        className="pointer-events-none absolute right-3.5 top-3.5 h-5 w-5 text-[var(--k-text-muted)]"
+        className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
       />
     </div>
   );
@@ -437,25 +443,25 @@ export function CampaignForm({
     return (
       <section
         id="interest-form"
-        className="scroll-mt-6 rounded-[20px] border border-[var(--k-border)] bg-[var(--k-surface)] p-5 shadow-[var(--k-e2)] sm:p-7"
+        className="scroll-mt-6 rounded-3xl bg-white p-5 shadow-soft sm:p-7"
       >
         <div
           id="campaign-confirmation"
           tabIndex={-1}
           className="outline-none"
         >
-          <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--k-success-subtle)] text-[var(--k-success)]">
-            <CheckCircle2 aria-hidden className="h-6 w-6" />
+          <span className="mb-5 flex size-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <CheckCircle2 aria-hidden className="size-7" />
           </span>
-          <p className="k-overline mb-2 text-[var(--k-success)]">
+          <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[.19em] text-emerald-700">
             Préinscription reçue
           </p>
-          <h2 className="k-display-m mb-3">
+          <h2 className="mb-4 text-xl font-extrabold leading-tight tracking-tight sm:text-2xl">
             {role === "provider"
               ? "Vous êtes préinscrit parmi les premiers pros."
               : "Vous êtes préinscrit pour le lancement."}
           </h2>
-          <div className="mb-4 grid gap-2 text-[14px] text-[var(--k-text-body)]">
+          <div className="mb-4 grid gap-2.5 text-sm text-foreground/80">
             {(role === "provider"
               ? [
                   "Votre activité est enregistrée pour le lancement.",
@@ -473,19 +479,19 @@ export function CampaignForm({
               <span key={item} className="flex items-start gap-2">
                 <Check
                   aria-hidden
-                  className="mt-0.5 h-4 w-4 shrink-0 text-[var(--k-success)]"
+                  className="mt-0.5 size-4 shrink-0 text-emerald-600"
                 />
                 {item}
               </span>
             ))}
           </div>
-          <p className="mb-6 max-w-xl text-[13px] leading-5 text-[var(--k-text-muted)]">
+          <p className="mb-6 max-w-xl text-[13px] leading-5 text-muted-foreground">
             En cas de prestation : paiement en espèces, directement entre
             client et prestataire.
           </p>
           <button
             type="button"
-            className="k-btn k-btn-secondary min-h-12 whitespace-normal"
+            className="secondary-action min-h-12 whitespace-normal rounded-full text-center"
             onClick={onChooseOtherRole}
           >
             {role === "provider"
@@ -500,17 +506,17 @@ export function CampaignForm({
   return (
     <section
       id="interest-form"
-      className="scroll-mt-6 rounded-[20px] border border-[var(--k-border)] bg-[var(--k-surface)] p-4 shadow-[var(--k-e2)] sm:p-7"
+      className="scroll-mt-6 rounded-3xl bg-white p-4 shadow-soft sm:p-7"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <p className="k-overline mb-2 text-[var(--k-primary-hover)]">
+          <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[.19em] text-primary">
             {roleLabel}
           </p>
           <h2
             id="campaign-form-heading"
             tabIndex={-1}
-            className="k-display-m outline-none"
+            className="text-xl font-extrabold leading-tight tracking-tight outline-none sm:text-2xl"
           >
             {step === 1
               ? role === "provider"
@@ -519,7 +525,7 @@ export function CampaignForm({
               : "Finalisez votre préinscription gratuite"}
           </h2>
         </div>
-        <span className="k-caption shrink-0 pt-1">
+        <span className="shrink-0 pt-0.5 text-xs font-semibold text-muted-foreground">
           Étape {step} sur 2
         </span>
       </div>
@@ -528,46 +534,42 @@ export function CampaignForm({
         aria-hidden
         className="mb-6 grid grid-cols-2 gap-2"
       >
-        <span className="h-1 rounded-full bg-[var(--k-primary)]" />
+        <span className="h-1.5 rounded-full bg-primary" />
         <span
-          className={`h-1 rounded-full ${
-            step === 2
-              ? "bg-[var(--k-primary)]"
-              : "bg-[var(--k-border)]"
-          }`}
+          className={cn(
+            "h-1.5 rounded-full",
+            step === 2 ? "bg-primary" : "bg-border",
+          )}
         />
       </div>
 
       <form ref={formRef} onSubmit={handleSubmit} onFocusCapture={markStarted}>
-        {errors.form && (
-          <div
-            role="alert"
-            className="mb-5 rounded-[12px] border border-[var(--k-danger)] bg-[var(--k-danger-subtle)] p-3.5 text-[14px] text-[var(--k-danger)]"
-          >
-            {errors.form}
-          </div>
-        )}
+        <FormError message={errors.form} className="mb-5" />
 
         {step === 1 ? (
           <div className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <FieldLabel htmlFor="firstName">Prénom</FieldLabel>
-                <input
-                  id="firstName"
-                  value={values.firstName}
-                  onChange={(event) =>
-                    updateValue("firstName", event.target.value)
-                  }
-                  className="k-input h-12 text-[16px]"
-                  autoComplete="given-name"
-                  maxLength={80}
-                  aria-invalid={Boolean(errors.firstName)}
-                  aria-describedby={
-                    errors.firstName ? "firstName-error" : undefined
-                  }
-                  placeholder="Votre prénom"
-                />
+                <div
+                  className={cn("field", errors.firstName && "border-destructive")}
+                >
+                  <input
+                    id="firstName"
+                    value={values.firstName}
+                    onChange={(event) =>
+                      updateValue("firstName", event.target.value)
+                    }
+                    className="text-base"
+                    autoComplete="given-name"
+                    maxLength={80}
+                    aria-invalid={Boolean(errors.firstName)}
+                    aria-describedby={
+                      errors.firstName ? "firstName-error" : undefined
+                    }
+                    placeholder="Votre prénom"
+                  />
+                </div>
                 <FieldError id="firstName-error">
                   {errors.firstName}
                 </FieldError>
@@ -575,24 +577,26 @@ export function CampaignForm({
 
               <div>
                 <FieldLabel htmlFor="phone">Téléphone</FieldLabel>
-                <input
-                  id="phone"
-                  type="tel"
-                  inputMode="tel"
-                  value={values.phone}
-                  onChange={(event) => updateValue("phone", event.target.value)}
-                  onBlur={() => {
-                    const normalized = normalizeCampaignPhone(values.phone);
-                    if (normalized) updateValue("phone", normalized);
-                  }}
-                  className="k-input h-12 text-[16px]"
-                  autoComplete="tel"
-                  maxLength={24}
-                  aria-invalid={Boolean(errors.phone)}
-                  aria-describedby={errors.phone ? "phone-error" : "phone-help"}
-                  placeholder="+243 …"
-                />
-                <p id="phone-help" className="mt-1.5 text-[12px] text-[var(--k-text-muted)]">
+                <div className={cn("field", errors.phone && "border-destructive")}>
+                  <input
+                    id="phone"
+                    type="tel"
+                    inputMode="tel"
+                    value={values.phone}
+                    onChange={(event) => updateValue("phone", event.target.value)}
+                    onBlur={() => {
+                      const normalized = normalizeCampaignPhone(values.phone);
+                      if (normalized) updateValue("phone", normalized);
+                    }}
+                    className="text-base"
+                    autoComplete="tel"
+                    maxLength={24}
+                    aria-invalid={Boolean(errors.phone)}
+                    aria-describedby={errors.phone ? "phone-error" : "phone-help"}
+                    placeholder="+243 …"
+                  />
+                </div>
+                <p id="phone-help" className="mt-1.5 text-xs text-muted-foreground">
                   Le numéro où KAYOU peut vous joindre.
                 </p>
                 <FieldError id="phone-error">{errors.phone}</FieldError>
@@ -636,13 +640,13 @@ export function CampaignForm({
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="mt-2 inline-flex min-h-11 items-center gap-2 text-left text-[13px] font-semibold text-[var(--k-primary-hover)]"
+                  className="secondary-action mt-2 rounded-full"
                 >
-                  <RefreshCw aria-hidden className="h-4 w-4" />
+                  <RefreshCw aria-hidden className="size-4" />
                   Recharger les services
                 </button>
               ) : (
-                <p className="mt-1.5 text-[12px] text-[var(--k-text-muted)]">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   Toutes les catégories KAYOU actives sont proposées.
                 </p>
               )}
@@ -679,10 +683,10 @@ export function CampaignForm({
               type="button"
               onClick={goToStepTwo}
               disabled={subcategoryCount === 0}
-              className="k-btn k-btn-primary mt-1 min-h-12 w-full text-[15px] sm:w-auto sm:justify-self-end"
+              className="primary-action mt-1 sm:w-auto sm:justify-self-end sm:px-8"
             >
               Continuer
-              <ArrowRight aria-hidden className="h-4 w-4" />
+              <ArrowRight aria-hidden className="size-[18px]" />
             </button>
           </div>
         ) : (
@@ -694,7 +698,7 @@ export function CampaignForm({
                   errors.experienceBand ? "experienceBand-error" : undefined
                 }
               >
-                <legend className="mb-2 text-[14px] font-semibold text-[var(--k-text-primary)]">
+                <legend className="mb-2 text-xs font-bold text-foreground">
                   Votre expérience
                 </legend>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -705,11 +709,12 @@ export function CampaignForm({
                   ].map(([value, label]) => (
                     <label
                       key={value}
-                      className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-[12px] border px-3 py-2.5 text-[14px] font-medium ${
+                      className={cn(
+                        "flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[14px] border px-3.5 py-2.5 text-sm font-semibold",
                         values.experienceBand === value
-                          ? "border-[var(--k-primary)] bg-[var(--k-primary-subtle)] text-[var(--k-primary-hover)]"
-                          : "border-[var(--k-border)] text-[var(--k-text-body)]"
-                      }`}
+                          ? "border-primary bg-secondary text-primary"
+                          : "border-border bg-white text-foreground",
+                      )}
                     >
                       <input
                         id={
@@ -725,7 +730,7 @@ export function CampaignForm({
                             value as ProviderExperienceBand,
                           )
                         }
-                        className="h-4 w-4 accent-[var(--k-primary)]"
+                        className="size-4 shrink-0 accent-primary"
                       />
                       {label}
                     </label>
@@ -740,7 +745,7 @@ export function CampaignForm({
                 aria-invalid={Boolean(errors.timing)}
                 aria-describedby={errors.timing ? "timing-error" : undefined}
               >
-                <legend className="mb-2 text-[14px] font-semibold text-[var(--k-text-primary)]">
+                <legend className="mb-2 text-xs font-bold text-foreground">
                   Quand avez-vous besoin du service ?
                 </legend>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -752,11 +757,12 @@ export function CampaignForm({
                   ].map(([value, label]) => (
                     <label
                       key={value}
-                      className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-[12px] border px-3 py-2.5 text-[14px] font-medium ${
+                      className={cn(
+                        "flex min-h-12 cursor-pointer items-center gap-2.5 rounded-[14px] border px-3.5 py-2.5 text-sm font-semibold",
                         values.timing === value
-                          ? "border-[var(--k-primary)] bg-[var(--k-primary-subtle)] text-[var(--k-primary-hover)]"
-                          : "border-[var(--k-border)] text-[var(--k-text-body)]"
-                      }`}
+                          ? "border-primary bg-secondary text-primary"
+                          : "border-border bg-white text-foreground",
+                      )}
                     >
                       <input
                         id={value === "WITHIN_7_DAYS" ? "timing" : undefined}
@@ -767,7 +773,7 @@ export function CampaignForm({
                         onChange={() =>
                           updateValue("timing", value as ClientTiming)
                         }
-                        className="h-4 w-4 accent-[var(--k-primary)]"
+                        className="size-4 shrink-0 accent-primary"
                       />
                       {label}
                     </label>
@@ -777,49 +783,51 @@ export function CampaignForm({
               </fieldset>
             )}
 
-            <details className="group rounded-[12px] border border-[var(--k-border)] bg-[var(--k-bg)]">
-              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-semibold text-[var(--k-text-primary)] [&::-webkit-details-marker]:hidden">
+            <details className="group rounded-2xl border border-border bg-background">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-foreground [&::-webkit-details-marker]:hidden">
                 Ajouter des informations facultatives
                 <ChevronDown
                   aria-hidden
-                  className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
+                  className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
                 />
               </summary>
-              <div className="grid gap-4 border-t border-[var(--k-border)] p-4">
+              <div className="grid gap-4 border-t border-border p-4">
                 <div>
                   <FieldLabel htmlFor="email">E-mail (facultatif)</FieldLabel>
-                  <input
-                    id="email"
-                    type="email"
-                    value={values.email}
-                    onChange={(event) =>
-                      updateValue("email", event.target.value)
-                    }
-                    className="k-input h-12 text-[16px]"
-                    autoComplete="email"
-                    maxLength={254}
-                    aria-invalid={Boolean(errors.email)}
-                    aria-describedby={errors.email ? "email-error" : undefined}
-                    placeholder="vous@exemple.cd"
-                  />
+                  <div className={cn("field", errors.email && "border-destructive")}>
+                    <input
+                      id="email"
+                      type="email"
+                      value={values.email}
+                      onChange={(event) =>
+                        updateValue("email", event.target.value)
+                      }
+                      className="text-base"
+                      autoComplete="email"
+                      maxLength={254}
+                      aria-invalid={Boolean(errors.email)}
+                      aria-describedby={errors.email ? "email-error" : undefined}
+                      placeholder="vous@exemple.cd"
+                    />
+                  </div>
                   <FieldError id="email-error">{errors.email}</FieldError>
                 </div>
 
                 {role === "provider" ? (
-                  <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[14px] text-[var(--k-text-body)]">
+                  <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-foreground/80">
                     <input
                       type="checkbox"
                       checked={values.hasWhatsApp}
                       onChange={(event) =>
                         updateValue("hasWhatsApp", event.target.checked)
                       }
-                      className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--k-primary)]"
+                      className="mt-0.5 size-5 shrink-0 accent-primary"
                     />
                     Ce numéro utilise WhatsApp
                   </label>
                 ) : (
                   <fieldset>
-                    <legend className="mb-2 text-[14px] font-semibold text-[var(--k-text-primary)]">
+                    <legend className="mb-2 text-xs font-bold text-foreground">
                       Contact préféré
                     </legend>
                     <div className="flex flex-wrap gap-4">
@@ -829,7 +837,7 @@ export function CampaignForm({
                       ].map(([value, label]) => (
                         <label
                           key={value}
-                          className="flex min-h-11 cursor-pointer items-center gap-2 text-[14px] text-[var(--k-text-body)]"
+                          className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-foreground/80"
                         >
                           <input
                             type="radio"
@@ -842,7 +850,7 @@ export function CampaignForm({
                                 value as "PHONE" | "WHATSAPP",
                               )
                             }
-                            className="h-4 w-4 accent-[var(--k-primary)]"
+                            className="size-4 shrink-0 accent-primary"
                           />
                           {label}
                         </label>
@@ -852,39 +860,43 @@ export function CampaignForm({
                 )}
 
                 <div>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                  <div className="flex items-baseline justify-between gap-3">
                     <FieldLabel htmlFor="summary">
                       {role === "provider"
                         ? "Un mot sur votre service (facultatif)"
                         : "Précision sur le besoin (facultatif)"}
                     </FieldLabel>
-                    <span className="k-caption">{values.summary.length}/300</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {values.summary.length}/300
+                    </span>
                   </div>
-                  <textarea
-                    id="summary"
-                    value={values.summary}
-                    onChange={(event) =>
-                      updateValue("summary", event.target.value)
-                    }
-                    maxLength={300}
-                    rows={3}
-                    className="min-h-24 w-full resize-y rounded-[12px] border border-[var(--k-border)] bg-[var(--k-surface)] px-3.5 py-3 text-[16px] text-[var(--k-text-primary)] outline-none focus:border-[var(--k-primary)] focus:ring-3 focus:ring-[rgba(14,165,233,0.15)]"
-                    placeholder={
-                      role === "provider"
-                        ? "Ex. types de travaux réalisés"
-                        : "Sans adresse exacte ni information sensible"
-                    }
-                  />
+                  <div className="field h-auto py-3">
+                    <textarea
+                      id="summary"
+                      value={values.summary}
+                      onChange={(event) =>
+                        updateValue("summary", event.target.value)
+                      }
+                      maxLength={300}
+                      rows={3}
+                      className="min-h-20 resize-y text-base"
+                      placeholder={
+                        role === "provider"
+                          ? "Ex. types de travaux réalisés"
+                          : "Sans adresse exacte ni information sensible"
+                      }
+                    />
+                  </div>
                 </div>
 
-                <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[13px] text-[var(--k-text-body)]">
+                <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[13px] leading-5 text-foreground/80">
                   <input
                     type="checkbox"
                     checked={values.marketingConsent}
                     onChange={(event) =>
                       updateValue("marketingConsent", event.target.checked)
                     }
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--k-primary)]"
+                    className="mt-0.5 size-5 shrink-0 accent-primary"
                   />
                   J’accepte aussi de recevoir les nouvelles du lancement KAYOU.
                   Cet accord est facultatif et n’est pas précoché.
@@ -893,19 +905,26 @@ export function CampaignForm({
             </details>
 
             <div>
-              <p className="mb-2 text-[13px] leading-5 text-[var(--k-text-body)]">
+              <p className="mb-2 text-[13px] leading-5 text-muted-foreground">
                 Avant de donner votre accord, consultez la{" "}
                 <a
                   href="/launch/confidentialite"
                   target="_blank"
                   rel="noreferrer"
-                  className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"
+                  className="font-semibold text-primary underline underline-offset-2"
                 >
                   notice de confidentialité
                 </a>{" "}
                 (version {privacyNoticeVersion}).
               </p>
-              <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[var(--k-border)] p-3.5 text-[13px] leading-5 text-[var(--k-text-body)]">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-2xl border bg-white p-3.5 text-[13px] leading-5 text-foreground/80",
+                  errors.operationalConsent
+                    ? "border-destructive"
+                    : "border-border",
+                )}
+              >
                 <input
                   id="operationalConsent"
                   type="checkbox"
@@ -919,7 +938,7 @@ export function CampaignForm({
                       ? "operationalConsent-error"
                       : undefined
                   }
-                  className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--k-primary)]"
+                  className="mt-0.5 size-5 shrink-0 accent-primary"
                 />
                 <span>
                   J’ai lu cette notice et j’autorise KAYOU à utiliser ces
@@ -942,11 +961,11 @@ export function CampaignForm({
               className="absolute left-[-9999px] h-px w-px opacity-0"
             />
 
-            <p className="text-[12px] leading-5 text-[var(--k-text-muted)]">
+            <p className="text-xs leading-5 text-muted-foreground">
               Pour consulter, corriger ou retirer votre demande, écrivez à{" "}
               <a
                 href={`mailto:${privacyContact}`}
-                className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"
+                className="font-semibold text-primary underline underline-offset-2"
               >
                 {privacyContact}
               </a>
@@ -960,27 +979,24 @@ export function CampaignForm({
                   setStep(1);
                   setErrors({});
                 }}
-                className="k-btn k-btn-ghost min-h-12"
+                className="secondary-action min-h-12 rounded-full"
               >
-                <ArrowLeft aria-hidden className="h-4 w-4" />
+                <ArrowLeft aria-hidden className="size-[18px]" />
                 Retour
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="k-btn k-btn-primary min-h-12 w-full text-[15px] sm:w-auto"
+                className="primary-action primary-action--gold whitespace-normal text-center sm:w-auto sm:px-8"
               >
                 {submitting ? (
                   <>
-                    <LoaderCircle
-                      aria-hidden
-                      className="k-campaign-spinner h-4 w-4 animate-spin"
-                    />
+                    <Spinner className="k-campaign-spinner animate-spin" />
                     Envoi…
                   </>
                 ) : (
                   <>
-                    <Check aria-hidden className="h-4 w-4" />
+                    <Check aria-hidden className="size-[18px]" />
                     {primaryAction}
                   </>
                 )}

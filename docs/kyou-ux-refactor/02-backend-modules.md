@@ -1,5 +1,7 @@
 # 02 - Backend Modules
 
+Status: **Done** (2026-09-16). The contract as implemented, including the deviations from this doc, is in [`handover/02-backend-contract.md`](./handover/02-backend-contract.md); decisions are logged in `PROGRESS.md` with the prefix "(02)".
+
 ## Objective
 
 Rebuild `apps/backend/src/modules` so the API serves exactly the K-YOU product on the schema from workstream 01, with KAYOU's guards, Zod validation, transactional writes, notifications and `node:test` conventions.

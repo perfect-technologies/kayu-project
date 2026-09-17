@@ -1,0 +1,42 @@
+/* Member sheet print stylesheet: only #member-sheet prints, on one A4 page with its colours. */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #member-sheet,
+  #member-sheet * {
+    visibility: visible;
+  }
+  #member-sheet {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 190mm;
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    font-size: 11px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #member-sheet .grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+  }
+  #member-sheet aside {
+    margin-top: -3rem;
+  }
+  #member-sheet a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

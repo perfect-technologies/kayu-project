@@ -8,7 +8,6 @@ import {
   MapPin,
   Star,
   Heart,
-  BadgeCheck,
   ShieldCheck,
   Award,
   Clock,
@@ -72,6 +71,7 @@ import {
   TrendingDown,
   MoreVertical,
   Server,
+  Verified,
   type LucideProps,
 } from "lucide-react";
 
@@ -159,7 +159,7 @@ export const I = {
   mapPin: wrap(MapPin),
   star: wrap(Star),
   heart: wrap(Heart),
-  badgeCheck: wrap(BadgeCheck),
+  verified: wrap(Verified),
   shieldCheck: wrap(ShieldCheck),
   award: wrap(Award),
   clock: wrap(Clock),

@@ -1,299 +1,167 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { HttpException } from "@nestjs/common";
+import type { VerificationDoc } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
 import { VerificationService } from "./verification.service";
 
-function makeActor(overrides: Partial<Actor> = {}): Actor {
+const actor = { id: "user_provider_1", role: "PROVIDER", isActive: true } as Actor;
+
+function doc(overrides: Partial<VerificationDoc>): VerificationDoc {
   return {
-    id: "user_provider_1",
-    authUserId: "auth_provider_1",
-    email: "pro@example.com",
-    phone: "+243810000111",
-    firstName: "Jean",
-    lastName: "Kasongo",
-    role: "PROVIDER",
-    isActive: true,
+    id: `doc_${overrides.kind ?? "x"}`,
+    providerId: "provider_1",
+    kind: "ID_FRONT",
+    storagePath: `verification/user_provider_1/${(overrides.kind ?? "x").toLowerCase()}.jpg`,
+    fileName: "file.jpg",
+    mime: "image/jpeg",
+    bytes: 1000,
+    uploadedAt: new Date("2026-09-10T09:00:00.000Z"),
+    reviewedAt: null,
+    reviewedById: null,
+    decision: null,
+    rejectionReason: null,
     ...overrides,
-  } as Actor;
+  };
 }
 
-test("uploadDoc resets a REJECTED provider to PENDING and persists a Supabase-backed URL", async () => {
-  const calls: Record<string, unknown> = {};
+const approvedRequired = (["ID_FRONT", "ID_BACK", "SELFIE", "ADDRESS"] as const).map((kind) =>
+  doc({ kind, decision: "APPROVED", reviewedAt: new Date("2026-09-11T09:00:00.000Z"), reviewedById: "admin_1" }),
+);
 
+function setup(options: { status?: string; docs?: VerificationDoc[]; existingPath?: string | null } = {}) {
+  const calls: Record<string, unknown> = { removed: [] as unknown[] };
+  let docs = [...(options.docs ?? [])];
   const tx = {
-    verificationDoc: {
-      findFirst: async (args: unknown) => {
-        calls.findExistingDoc = args;
-        return null;
-      },
-      findMany: async () => [
-        {
-          id: "doc_1",
-          providerId: "provider_1",
-          kind: "SELFIE",
-          url: "launch-stub://verification/provider_1/selfie/original",
-          fileName: "selfie-face.jpg",
-          fileSize: 123456,
-          mimeType: "image/jpeg",
-          uploadedAt: new Date("2026-04-22T10:00:00.000Z"),
-          reviewedAt: null,
-          reviewedBy: null,
-          decision: null,
-          rejectionReason: null,
-        },
-      ],
-      create: async (args: { data: Record<string, unknown> }) => {
-        calls.createDoc = args;
-        return {
-          id: "doc_1",
-          providerId: "provider_1",
-          kind: "SELFIE",
-          url: args.data.url,
-          fileName: args.data.fileName,
-          fileSize: args.data.fileSize ?? null,
-          mimeType: args.data.mimeType ?? null,
-          uploadedAt: new Date("2026-04-22T10:00:00.000Z"),
-          reviewedAt: null,
-          reviewedBy: null,
-          decision: null,
-          rejectionReason: null,
-        };
-      },
-    },
     provider: {
-      findUniqueOrThrow: async () => ({ verificationStatus: "REJECTED" }),
+      findUniqueOrThrow: async () => ({ verificationStatus: options.status ?? "PENDING" }),
       update: async (args: unknown) => {
         calls.providerUpdate = args;
       },
     },
+    verificationDoc: {
+      findUnique: async ({ where }: { where: { id?: string; providerId_kind?: unknown } }) => {
+        if (where.providerId_kind) return options.existingPath ? { storagePath: options.existingPath } : null;
+        return docs.find((item) => item.id === where.id) ?? null;
+      },
+      upsert: async (args: { create: Partial<VerificationDoc>; update: Partial<VerificationDoc> }) => {
+        calls.upsert = args;
+        const saved = doc({ ...args.create, id: "doc_saved" });
+        docs = [...docs.filter((item) => item.kind !== saved.kind), saved];
+        return saved;
+      },
+      findMany: async () => docs,
+      delete: async ({ where }: { where: { id: string } }) => {
+        calls.deleted = where;
+        docs = docs.filter((item) => item.id !== where.id);
+      },
+    },
   };
-
   const prisma = {
     provider: {
       findUnique: async () => ({ id: "provider_1" }),
+      findUniqueOrThrow: tx.provider.findUniqueOrThrow,
+      update: async (args: unknown) => {
+        calls.providerUpdate = args;
+        return { verificationStatus: "UNDER_REVIEW" };
+      },
     },
-    $transaction: async <T>(
-      callback: (client: typeof tx) => Promise<T>,
-    ) => callback(tx),
+    verificationDoc: { findMany: async () => docs },
+    $transaction: async <T>(cb: (client: typeof tx) => Promise<T>) => cb(tx),
   };
-
   const storage = {
-    assertOwnedPath: () => true as const,
-    resolveStoredUrl: (_p: string, path: string) =>
-      `storage://verification-docs/${path}`,
+    assertOwnedPath: (_purpose: string, userId: string, path: string) => {
+      if (!path.startsWith(`verification/${userId}/`)) throw new HttpException("foreign", 403);
+      return true;
+    },
+    assertUploadAllowed: (_purpose: string, mime: string) => {
+      if (!["image/jpeg", "application/pdf"].includes(mime)) throw new HttpException("mime", 400);
+    },
+    removeObjects: async (objects: unknown[]) => {
+      (calls.removed as unknown[]).push(...objects);
+    },
   };
-  const service = new VerificationService(prisma as never, storage as never);
-  const result = await service.uploadDoc(makeActor(), {
+  return { service: new VerificationService(prisma as never, storage as never), calls };
+}
+
+test("uploadDoc upserts on (provider, kind) with the new columns and resets the review", async () => {
+  const { service, calls } = setup({ status: "REJECTED", docs: [doc({ kind: "SELFIE", decision: "REJECTED" })] });
+  const result = await service.uploadDoc(actor, {
     kind: "SELFIE",
-    path: "verification/user_provider_1/selfie-face.jpg",
+    path: "verification/user_provider_1/abc-selfie face.jpg",
     fileName: "selfie face.jpg",
-    fileSize: 123456,
-    mimeType: "image/jpeg",
+    mime: "image/jpeg",
+    bytes: 123456,
   });
 
-  const created = calls.createDoc as { data: Record<string, unknown> };
-  assert.equal(created.data.fileName, "selfie-face.jpg");
-  assert.match(String(created.data.url), /^storage:\/\/verification-docs\//);
-  assert.deepEqual(calls.providerUpdate, {
-    where: { id: "provider_1" },
-    data: { verificationStatus: "PENDING" },
-  });
+  const upsert = calls.upsert as { update: Record<string, unknown> };
+  assert.equal(upsert.update.fileName, "selfie-face.jpg");
+  assert.equal(upsert.update.bytes, 123456);
+  assert.equal(upsert.update.mime, "image/jpeg");
+  assert.equal(upsert.update.decision, null);
+  assert.equal(upsert.update.reviewedById, null);
+  assert.deepEqual(calls.providerUpdate, { where: { id: "provider_1" }, data: { verificationStatus: "PENDING" } });
+  assert.equal(result.success, true);
   assert.equal(result.doc.storagePolicy, "SUPABASE_PRIVATE");
-  assert.equal(result.doc.fileName, "selfie-face.jpg");
+  assert.equal(result.doc.storagePath, "verification/user_provider_1/abc-selfie face.jpg");
+  assert.deepEqual(calls.removed, []);
 });
 
-test("removing a required verification document downgrades a verified provider back to pending", async () => {
-  const calls: Record<string, unknown> = {};
-
-  const tx = {
-    provider: {
-      findUniqueOrThrow: async () => ({ verificationStatus: "VERIFIED" }),
-      update: async (args: unknown) => {
-        calls.providerUpdate = args;
-      },
-    },
-    verificationDoc: {
-      findUnique: async () => ({
-        id: "doc_selfie",
-        providerId: "provider_1",
-      }),
-      delete: async (args: unknown) => {
-        calls.deletedDoc = args;
-      },
-      findMany: async () => [
-        {
-          id: "doc_front",
-          providerId: "provider_1",
-          kind: "ID_FRONT",
-          url: "launch-stub://front",
-          fileName: "front.jpg",
-          fileSize: null,
-          mimeType: "image/jpeg",
-          uploadedAt: new Date("2026-04-22T09:00:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-        {
-          id: "doc_back",
-          providerId: "provider_1",
-          kind: "ID_BACK",
-          url: "launch-stub://back",
-          fileName: "back.jpg",
-          fileSize: null,
-          mimeType: "image/jpeg",
-          uploadedAt: new Date("2026-04-22T09:01:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-        {
-          id: "doc_address",
-          providerId: "provider_1",
-          kind: "ADDRESS",
-          url: "launch-stub://address",
-          fileName: "address.pdf",
-          fileSize: null,
-          mimeType: "application/pdf",
-          uploadedAt: new Date("2026-04-22T09:02:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-      ],
-    },
-  };
-
-  const prisma = {
-    provider: {
-      findUnique: async () => ({ id: "provider_1" }),
-    },
-    $transaction: async <T>(
-      callback: (client: typeof tx) => Promise<T>,
-    ) => callback(tx),
-  };
-
-  const service = new VerificationService(prisma as never, {} as never);
-  await service.removeDoc(makeActor(), "doc_selfie");
-
-  assert.deepEqual(calls.deletedDoc, { where: { id: "doc_selfie" } });
-  assert.deepEqual(calls.providerUpdate, {
-    where: { id: "provider_1" },
-    data: { verificationStatus: "PENDING" },
+test("replacing a document removes the previous object after the commit", async () => {
+  const { service, calls } = setup({ existingPath: "verification/user_provider_1/old-front.jpg" });
+  await service.uploadDoc(actor, {
+    kind: "ID_FRONT",
+    path: "verification/user_provider_1/new-front.jpg",
+    mime: "image/jpeg",
+    bytes: 10,
   });
+  assert.deepEqual(calls.removed, [{ purpose: "verification", path: "verification/user_provider_1/old-front.jpg" }]);
 });
 
-test("verification state does not stay verified when required documents are missing", async () => {
-  const prisma = {
-    provider: {
-      findUnique: async () => ({ id: "provider_1" }),
-      findUniqueOrThrow: async () => ({
-        verificationStatus: "VERIFIED",
-        updatedAt: new Date("2026-04-22T11:00:00.000Z"),
-      }),
-    },
-    verificationDoc: {
-      findMany: async () => [
-        {
-          id: "doc_front",
-          providerId: "provider_1",
-          kind: "ID_FRONT",
-          url: "launch-stub://front",
-          fileName: "front.jpg",
-          fileSize: null,
-          mimeType: "image/jpeg",
-          uploadedAt: new Date("2026-04-22T09:00:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-        {
-          id: "doc_back",
-          providerId: "provider_1",
-          kind: "ID_BACK",
-          url: "launch-stub://back",
-          fileName: "back.jpg",
-          fileSize: null,
-          mimeType: "image/jpeg",
-          uploadedAt: new Date("2026-04-22T09:01:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-        {
-          id: "doc_address",
-          providerId: "provider_1",
-          kind: "ADDRESS",
-          url: "launch-stub://address",
-          fileName: "address.pdf",
-          fileSize: null,
-          mimeType: "application/pdf",
-          uploadedAt: new Date("2026-04-22T09:02:00.000Z"),
-          reviewedAt: new Date("2026-04-22T09:30:00.000Z"),
-          reviewedBy: "admin_1",
-          decision: "APPROVED",
-          rejectionReason: null,
-        },
-      ],
-    },
-  };
+test("uploadDoc refuses foreign paths and unsupported types", async () => {
+  const { service } = setup();
+  await assert.rejects(
+    () => service.uploadDoc(actor, { kind: "ID_FRONT", path: "verification/someone/x.jpg", mime: "image/jpeg", bytes: 1 }),
+    (error: unknown) => error instanceof HttpException && error.getStatus() === 403,
+  );
+  await assert.rejects(
+    () => service.uploadDoc(actor, { kind: "ID_FRONT", path: "verification/user_provider_1/x.exe", mime: "application/x-msdownload", bytes: 1 }),
+    (error: unknown) => error instanceof HttpException && error.getStatus() === 400,
+  );
+});
 
-  const service = new VerificationService(prisma as never, {} as never);
-  const state = await service.getState(makeActor());
+test("removing a required document downgrades a verified provider and deletes the object", async () => {
+  const { service, calls } = setup({ status: "VERIFIED", docs: approvedRequired });
+  await service.removeDoc(actor, "doc_SELFIE");
+  assert.deepEqual(calls.deleted, { id: "doc_SELFIE" });
+  assert.deepEqual(calls.providerUpdate, { where: { id: "provider_1" }, data: { verificationStatus: "PENDING" } });
+  assert.deepEqual(calls.removed, [{ purpose: "verification", path: "verification/user_provider_1/selfie.jpg" }]);
 
+  await assert.rejects(() => service.removeDoc(actor, "doc_missing"), (error: unknown) => error instanceof HttpException && error.getStatus() === 404);
+});
+
+test("state does not stay verified when a required document is missing", async () => {
+  const { service } = setup({ status: "VERIFIED", docs: approvedRequired.filter((item) => item.kind !== "SELFIE") });
+  const state = await service.getState(actor);
   assert.equal(state.state, "IN_PROGRESS");
   assert.deepEqual(state.missingKinds, ["SELFIE"]);
+  assert.equal(state.docs[0]!.reviewedById, "admin_1");
 });
 
-test("uploadDoc stores the resolved Supabase storage URL, not a launch stub", async () => {
-  const calls: Record<string, unknown> = {};
-  const tx = {
-    provider: {
-      findUniqueOrThrow: async () => ({ verificationStatus: "PENDING" }),
-    },
-    verificationDoc: {
-      findFirst: async () => null,
-      create: async (args: { data: { url: string } }) => {
-        calls.create = args;
-        return {
-          id: "doc_1",
-          kind: "ID_FRONT",
-          url: args.data.url,
-          fileName: "id.jpg",
-          fileSize: null,
-          mimeType: null,
-          uploadedAt: new Date("2026-05-16T00:00:00.000Z"),
-          reviewedAt: null,
-          reviewedBy: null,
-          decision: null,
-          rejectionReason: null,
-        };
-      },
-      findMany: async () => [{ kind: "ID_FRONT", decision: null }],
-    },
-  };
-  const prisma = {
-    provider: { findUnique: async () => ({ id: "provider_1" }) },
-    $transaction: async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
-  };
-  const storage = {
-    assertOwnedPath: () => true,
-    resolveStoredUrl: (_p: string, path: string) => `storage://verification-docs/${path}`,
-  };
-  const service = new VerificationService(prisma as never, storage as never);
+test("submit requires every required kind, then moves to UNDER_REVIEW", async () => {
+  const incomplete = setup({ docs: [doc({ kind: "ID_FRONT" })] });
+  await assert.rejects(() => incomplete.service.submit(actor), (error: unknown) => error instanceof HttpException && error.getStatus() === 400);
 
-  const result = await service.uploadDoc({ id: "user_1", role: "PROVIDER" } as never, {
-    kind: "ID_FRONT",
-    path: "verification/user_1/abc-id.jpg",
-  });
+  const complete = setup({ docs: (["ID_FRONT", "ID_BACK", "SELFIE", "ADDRESS"] as const).map((kind) => doc({ kind })) });
+  const state = await complete.service.submit(actor);
+  assert.equal(state.state, "IN_REVIEW");
+  assert.equal(state.progress, 75);
+});
 
-  const created = (calls.create as { data: { url: string } }).data.url;
-  assert.equal(created.startsWith("storage://verification-docs/"), true);
-  assert.equal(created.includes("launch-stub://"), false);
-  assert.equal(result.success, true);
+test("non-providers are refused", async () => {
+  const { service } = setup();
+  await assert.rejects(
+    () => service.getState({ id: "client", role: "CLIENT" } as Actor),
+    (error: unknown) => error instanceof HttpException && error.getStatus() === 403,
+  );
 });

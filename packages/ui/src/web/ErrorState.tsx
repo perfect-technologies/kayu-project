@@ -1,27 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { tokens } from "../tokens.js";
-import { Button } from "./Button.js";
+import { fonts, palette, radii } from "../tokens.js";
 import { I } from "./Icon.js";
-
-export type ErrorStateCTA = {
-  label: string;
-  onClick?: () => void;
-};
 
 export type ErrorStateProps = {
   title: string;
-  subtitle?: string;
-  cta?: ErrorStateCTA;
+  description?: string;
+  /** Usually a retry Button. */
+  action?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 };
 
 export const ErrorState: React.FC<ErrorStateProps> = ({
   title,
-  subtitle,
-  cta,
+  description,
+  action,
   className,
   style,
 }) => (
@@ -30,166 +25,57 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
     className={className}
     style={{
       display: "flex",
-      flex: 1,
       flexDirection: "column",
       alignItems: "center",
-      justifyContent: "center",
       textAlign: "center",
-      padding: "40px 20px",
+      padding: 32,
+      borderRadius: radii.cardLg,
+      border: `1px solid ${palette.border}`,
+      background: palette.card,
       ...style,
     }}
   >
-    <div
+    <span
       aria-hidden
       style={{
-        width: 96,
-        height: 96,
-        borderRadius: "50%",
-        background: tokens.color.dangerSubtle,
-        display: "flex",
+        display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: 16,
+        width: 48,
+        height: 48,
+        marginBottom: 14,
+        borderRadius: "50%",
+        background: palette.status.cancelled.bg,
+        color: palette.destructive,
       }}
     >
-      <I.alertCircle size={44} stroke={1.75} strokeColor={tokens.color.danger} />
-    </div>
+      <I.alertCircle size={22} stroke={1.9} />
+    </span>
     <h3
       style={{
-        fontFamily: tokens.font.display,
-        fontWeight: 600,
-        fontSize: 24,
-        lineHeight: 1.15,
-        letterSpacing: 0,
-        color: tokens.color.textPrimary,
         margin: 0,
+        fontFamily: `var(--font-heading, ${fonts.heading})`,
+        fontSize: 16,
+        fontWeight: 800,
+        lineHeight: 1.3,
+        color: palette.foreground,
       }}
     >
       {title}
     </h3>
-    {subtitle ? (
+    {description ? (
       <p
         style={{
-          fontFamily: tokens.font.body,
-          fontSize: 15,
-          lineHeight: 1.5,
-          color: tokens.color.textBody,
-          margin: "10px 0 0",
+          margin: "6px 0 0",
           maxWidth: 380,
+          fontSize: 14,
+          lineHeight: 1.5,
+          color: palette.mutedForeground,
         }}
       >
-        {subtitle}
+        {description}
       </p>
     ) : null}
-    {cta ? (
-      <div style={{ marginTop: 24 }}>
-        <Button onClick={cta.onClick}>{cta.label}</Button>
-      </div>
-    ) : null}
-  </div>
-);
-
-type VariantProps = {
-  onRetry?: () => void;
-  onHome?: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-};
-
-export const NetworkErrorState: React.FC<VariantProps> = ({ onRetry, ...rest }) => (
-  <ErrorState
-    title="Connexion perdue."
-    subtitle="Vérifie ton internet et réessaie."
-    cta={onRetry ? { label: "Réessayer", onClick: onRetry } : undefined}
-    {...rest}
-  />
-);
-
-export const NotFoundState: React.FC<VariantProps> = ({ onHome, ...rest }) => (
-  <ErrorState
-    title="Introuvable."
-    subtitle="Cette page ou ce pro n'existe plus."
-    cta={onHome ? { label: "Retour à l'accueil", onClick: onHome } : undefined}
-    {...rest}
-  />
-);
-
-export const GenericErrorState: React.FC<VariantProps> = ({ onRetry, ...rest }) => (
-  <ErrorState
-    title="Une erreur est survenue."
-    subtitle="On travaille dessus. Réessaie dans un instant."
-    cta={onRetry ? { label: "Réessayer", onClick: onRetry } : undefined}
-    {...rest}
-  />
-);
-
-export const PermissionDeniedState: React.FC<Omit<VariantProps, "onRetry">> = (props) => (
-  <ErrorState
-    title="Accès restreint."
-    subtitle="Tu n'as pas les droits pour voir cette page."
-    {...props}
-  />
-);
-
-// ─── Inline form error banner ───────────────────────────────────────────────
-
-export type FormErrorBannerProps = {
-  message: string;
-  onRetry?: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-};
-
-export const FormErrorBanner: React.FC<FormErrorBannerProps> = ({
-  message,
-  onRetry,
-  className,
-  style,
-}) => (
-  <div
-    role="alert"
-    className={className}
-    style={{
-      display: "flex",
-      alignItems: "flex-start",
-      gap: 10,
-      background: tokens.color.dangerSubtle,
-      borderLeft: `2px solid ${tokens.color.danger}`,
-      borderRadius: tokens.radius.md,
-      padding: "12px 14px",
-      ...style,
-    }}
-  >
-    <I.alertCircle size={18} strokeColor={tokens.color.danger} stroke={1.75} />
-    <span
-      style={{
-        flex: 1,
-        fontFamily: tokens.font.body,
-        fontWeight: 500,
-        fontSize: 14,
-        lineHeight: 1.45,
-        color: tokens.color.textPrimary,
-      }}
-    >
-      {message}
-    </span>
-    {onRetry ? (
-      <button
-        type="button"
-        onClick={onRetry}
-        style={{
-          background: "transparent",
-          border: 0,
-          color: tokens.color.danger,
-          fontFamily: tokens.font.body,
-          fontWeight: 600,
-          fontSize: 14,
-          cursor: "pointer",
-          padding: 0,
-        }}
-      >
-        Réessayer
-      </button>
-    ) : null}
+    {action ? <div style={{ marginTop: 18 }}>{action}</div> : null}
   </div>
 );

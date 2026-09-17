@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import {
   Clock3,
@@ -9,6 +8,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 
+import { CampaignHeader } from "../CampaignHeader";
 import { campaignPublicConfig } from "../campaign-data";
 
 export const metadata: Metadata = {
@@ -44,29 +44,24 @@ export default function CampaignPrivacyPage() {
   const { privacyContact, privacyNoticeVersion } = campaignPublicConfig;
 
   return (
-    <div className="k-campaign min-h-screen bg-[var(--k-bg)] text-[var(--k-text-primary)]">
-      <header className="border-b border-[var(--k-border)] bg-[var(--k-surface)]">
-        <div className="mx-auto flex max-w-[760px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link
-            href="/launch"
-            aria-label="KAYOU — retour à la préinscription"
-            className="inline-flex min-h-11 items-center gap-2.5"
-          >
-            <Image src="/logo.svg" alt="" width={30} height={30} priority />
-            <span className="font-[var(--k-font-display)] text-[20px] font-extrabold">
-              KAYOU
-            </span>
-          </Link>
-          <span className="k-caption">Version {privacyNoticeVersion}</span>
-        </div>
-      </header>
+    <div className="k-campaign flex min-h-dvh flex-col text-foreground">
+      <CampaignHeader
+        label="KAYOU — retour à la préinscription"
+        className="max-w-3xl"
+      >
+        <span className="text-xs font-semibold text-muted-foreground">
+          Version {privacyNoticeVersion}
+        </span>
+      </CampaignHeader>
 
-      <main className="mx-auto max-w-[760px] px-4 py-8 sm:px-6 sm:py-12">
-        <p className="k-overline mb-3 text-[var(--k-primary-hover)]">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-12 pt-6 sm:px-6 sm:pt-10">
+        <p className="mb-3 text-[10px] font-extrabold uppercase tracking-[.19em] text-primary">
           Préinscription
         </p>
-        <h1 className="k-display-l mb-3">Vos informations, en clair</h1>
-        <p className="k-body-l mb-7 max-w-[620px] text-[var(--k-text-body)]">
+        <h1 className="mb-3 text-2xl font-extrabold tracking-tight sm:text-3xl">
+          Vos informations, en clair
+        </h1>
+        <p className="mb-7 max-w-[620px] text-base leading-relaxed text-muted-foreground">
           Cette notice s’applique aux deux parcours de préinscription KAYOU.
         </p>
 
@@ -74,36 +69,34 @@ export default function CampaignPrivacyPage() {
           {NOTICE_ITEMS.map(({ icon: Icon, title, text }) => (
             <section
               key={title}
-              className="rounded-[16px] border border-[var(--k-border)] bg-[var(--k-surface)] p-4"
+              className="rounded-2xl bg-white p-5 shadow-soft"
             >
-              <Icon
-                aria-hidden
-                className="mb-3 h-5 w-5 text-[var(--k-primary-hover)]"
-              />
+              <span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-secondary text-primary">
+                <Icon aria-hidden className="size-5" />
+              </span>
               <h2 className="mb-1.5 text-[15px] font-bold">{title}</h2>
-              <p className="text-[13px] leading-5 text-[var(--k-text-body)]">
+              <p className="text-[13px] leading-5 text-muted-foreground">
                 {text}
               </p>
             </section>
           ))}
         </div>
 
-        <section className="mt-4 rounded-[16px] border border-[var(--k-border)] bg-[var(--k-primary-subtle)] p-4">
+        <section className="mt-4 rounded-2xl bg-secondary p-5">
           <div className="flex items-start gap-3">
-            <Mail
-              aria-hidden
-              className="mt-0.5 h-5 w-5 shrink-0 text-[var(--k-primary-hover)]"
-            />
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
+              <Mail aria-hidden className="size-5" />
+            </span>
             <div>
               <h2 className="mb-1 text-[15px] font-bold">
                 Vos choix restent les vôtres
               </h2>
-              <p className="text-[13px] leading-5 text-[var(--k-text-body)]">
+              <p className="text-[13px] leading-5 text-foreground/80">
                 Vous pouvez demander une copie, une correction, le retrait de
                 votre demande ou sa suppression à{" "}
                 <a
                   href={`mailto:${privacyContact}`}
-                  className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"
+                  className="font-semibold text-primary underline underline-offset-2"
                 >
                   {privacyContact}
                 </a>
@@ -116,7 +109,7 @@ export default function CampaignPrivacyPage() {
 
         <Link
           href="/launch"
-          className="k-btn k-btn-primary mt-6 min-h-12 w-full sm:w-auto"
+          className="primary-action mt-7 sm:w-auto sm:px-8"
         >
           Retour à la préinscription
         </Link>

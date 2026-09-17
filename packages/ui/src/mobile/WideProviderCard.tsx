@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Pressable, Text, View, type ViewStyle } from "react-native";
-import { portfolioSlug, type ProviderCardData } from "../cards.js";
+import { portfolioSlug, type ProviderCardData } from "../tokens.js";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
 import { _featuredInternals } from "./FeaturedProviderCard.js";

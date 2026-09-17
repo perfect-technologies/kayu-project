@@ -1,7 +1,8 @@
 // ============================================================================
-// KAYOU Application - Prisma Schema
-// Application de mise en relation Prestataires - Clients (RDC & Congo-Brazzaville)
-// Version: 2.0 - Optimisé pour 4 millions d'utilisateurs
+// KAYOU - Prisma Schema
+// Mise en relation clients - prestataires (RDC & Congo-Brazzaville)
+// Modèle produit K-YOU : docs/kyou-ux-refactor/01-domain-and-schema-reset.md
+// Montants en CDF entiers. Heures du jour en "HH:mm".
 // ============================================================================
 
 generator client {
@@ -9,73 +10,57 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ==================== UTILISATEURS ====================
 
 model User {
-  id             String    @id @default(cuid())
-  authUserId     String    @unique
-  email          String?   @unique
-  phone          String?   @unique
-  firstName      String?
-  lastName       String?
-  avatar         String?
-  role           UserRole  @default(CLIENT)
-  roleSelectedAt DateTime?
-  city           String?
-  country        String    @default("RDC")
-  address        String?
-  latitude       Float?
-  longitude      Float?
-
-  // Vérification
-  isVerified      Boolean   @default(false)
+  id              String    @id @default(cuid())
+  authUserId      String    @unique
+  email           String?   @unique
+  phone           String?   @unique
+  firstName       String?
+  lastName        String?
+  avatar          String?
+  role            UserRole  @default(CLIENT)
+  roleSelectedAt  DateTime?
+  bio             String?
+  gender          String?
+  birthdate       DateTime?
+  placeId         String?
+  place           Place?    @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  country         String    @default("RDC")
+  // false = suspended
+  isActive        Boolean   @default(true)
+  suspendedAt     DateTime?
+  suspendedReason String?
   emailVerifiedAt DateTime?
   phoneVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  termsAcceptedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  // Sécurité
-  isActive    Boolean   @default(true)
-  lastLoginAt DateTime?
-
-  // Réputation client (noté par prestataires)
-  clientScore      Float            @default(0)
-  clientTrustLevel ClientTrustLevel @default(NEW_CLIENT)
-
-  // Provider onboarding progress (null when not started or complete; 0-5 mapping to steps 1-6)
-  onboardingStep  Int?
-  // Overflow draft payload for fields not yet on Provider/User (bio,
-  // idFront/idBack upload flags, visitFee, zoneRadiusKm, subcategoryIds, primaryCategoryId).
-  onboardingDraft Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
   provider              Provider?
-  bookingsAsClient      Booking[]           @relation("ClientBookings")
-  quotesAsClient        Quote[]             @relation("ClientQuotes")
-  reviewsGiven          Review[]            @relation("ReviewsGiven")
-  clientReviewsReceived ClientReview[]      @relation("ClientReceivedReviews")
+  bookingsAsClient      Booking[]         @relation("ClientBookings")
+  reviewsGiven          Review[]
+  clientReviewsReceived ClientReview[]
+  conversationsAsClient Conversation[]    @relation("ClientConversations")
   messages              Message[]
-  conversations1        Conversation[]      @relation("User1Conversations")
-  conversations2        Conversation[]      @relation("User2Conversations")
   notifications         Notification[]
-  finalOffersAsClient   FinalOffer[]        @relation("ClientFinalOffers")
-  favorites             Favorite[]
-  visibilitySettings    VisibilitySettings?
+  addresses             Address[]
+  reportsFiled          Report[]          @relation("ReportsFiled")
+  blocksGiven           Block[]           @relation("BlocksGiven")
+  blocksReceived        Block[]           @relation("BlocksReceived")
+  suggestions           PlaceSuggestion[]
   activityLogs          ActivityLog[]
-  jobRequests           JobRequest[]        @relation("ClientJobRequests")
 
-  // Indexes pour performance
-  @@index([email])
-  @@index([phone])
   @@index([role])
-  @@index([roleSelectedAt])
-  @@index([city, country])
-  @@index([isVerified, isActive])
+  @@index([placeId])
+  @@index([isActive])
   @@index([createdAt])
 }
 
@@ -85,208 +70,133 @@ enum UserRole {
   ADMIN
 }
 
-enum ClientTrustLevel {
-  NEW_CLIENT // 🆕 Nouveau client
-  REGULAR // 👤 Client régulier
-  GOOD_CLIENT // 👍 Bon client
-  VIP_CLIENT // 💎 Client VIP
-}
-
 // ==================== PRESTATAIRES ====================
 
 model Provider {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Informations professionnelles
-  profession  String
-  description String?
-  experience  Int? // Années d'expérience
-  hourlyRate  Float? // Prix de départ (FC) - fixed starting price, NOT an hourly rate. Column name kept for backward compatibility (v1 deferred rename).
-  videoUrl    String? // Vidéo de présentation
-  languages   String[] @default([])
-
-  // Statistiques
-  totalReviews Int @default(0)
-  totalJobs    Int @default(0)
-  responseTime Int @default(0) // Temps de réponse moyen en minutes
-
-  // Premium
-  isPremium     Boolean   @default(false)
-  premiumExpiry DateTime?
-
-  // Disponibilité
-  isAvailable Boolean @default(true)
-
-  // État de vérification
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName        String
+  description        String?
+  yearsExperience    Int?
+  phone              String?
+  whatsapp           String?
+  email              String?
+  profilePhoto       String?
+  // Deepest chosen taxonomy node; ancestors are derived.
+  subcategoryId      String
+  subcategory        Subcategory        @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  // Deepest chosen place; ancestors are derived.
+  placeId            String?
+  place              Place?             @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  addressLine        String?
+  latitude           Float?
+  longitude          Float?
+  freeSkills         String[]           @default([])
+  pricingAmount      Int?
+  // ReferenceItem of type CURRENCY
+  pricingCurrencyId  String?
+  // ReferenceItem of type PRICE_UNIT
+  pricingUnitId      String?
+  timezone           String             @default("Africa/Kinshasa")
+  slotDurationMin    Int                @default(60)
+  slotBufferMin      Int                @default(0)
+  youtubeUrl         String?
+  instagramUrl       String?
+  tiktokUrl          String?
+  facebookUrl        String?
+  isAvailable        Boolean            @default(true)
+  // Admin unpublish
+  hidden             Boolean            @default(false)
   verificationStatus VerificationStatus @default(PENDING)
+  premiumTier        PremiumTier        @default(FREE)
+  premiumUntil       DateTime?
+  ratingAvg          Decimal            @default(0) @db.Decimal(2, 1)
+  ratingCount        Int                @default(0)
+  completedJobs      Int                @default(0)
+  publishedAt        DateTime           @default(now())
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  // Onboarding publish timestamp (null while drafting; set once published)
-  onboardingCompleteAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  categories             ProviderCategory[]
-  skills                 Skill[]
-  portfolio              PortfolioItem[]
-  portfolioProjects      PortfolioProject[]
-  bookings               Booking[]               @relation("ProviderBookings")
-  reviews                Review[]                @relation("ProviderReviews")
-  clientReviewsGiven     ClientReview[]          @relation("ProviderGivenReviews")
-  serviceZones           ServiceZone[]
-  favorites              Favorite[]
-  subscription           Subscription?
-  trustScore             TrustScore?
-  certifications         Certification[]
-  availabilitySchedules  AvailabilitySchedule[]
+  skills                 ProviderSkill[]
+  // Languages and intervention modes, discriminated by ProviderReference.kind
+  references             ProviderReference[]
+  media                  ProviderMedia[]
+  availabilityRules      AvailabilityRule[]
   availabilityExceptions AvailabilityException[]
-  subcategories          ProviderSubcategory[]
-  jobRequestMatches      JobRequestMatch[]
+  bookings               Booking[]
+  reviews                Review[]
+  clientReviewsGiven     ClientReview[]
+  conversations          Conversation[]
   transactions           Transaction[]
-  payouts                Payout[]
-  quotes                 Quote[]
-  finalOffers            FinalOffer[]
   verificationDocs       VerificationDoc[]
 
-  // Indexes pour performance
-  @@index([profession])
-  @@index([isAvailable])
-  @@index([isPremium])
+  @@index([subcategoryId])
+  @@index([placeId])
+  @@index([hidden, isAvailable])
   @@index([verificationStatus])
-  @@index([totalJobs])
-  @@index([isPremium, totalJobs])
+  @@index([premiumTier])
+  @@index([ratingAvg])
 }
 
 enum VerificationStatus {
-  PENDING // En attente de vérification
-  UNDER_REVIEW // En cours de vérification
-  VERIFIED // Vérifié
-  REJECTED // Rejeté
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
 }
 
-// ==================== SYSTÈME DE CONFIANCE & BADGES ====================
-
-model TrustScore {
-  id         String   @id @default(cuid())
-  providerId String   @unique
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  // Score composite (algorithme, pas moyenne simple)
-  overallScore Float @default(0) // Échelle 0-100
-
-  // Indicateurs de performance
-  reliability     Float @default(0) // Ponctualité, absence d'annulation
-  quality         Float @default(0) // Qualité du travail
-  communication   Float @default(0) // Temps de réponse, clarté
-  professionalism Float @default(0) // Comportement, apparence
-
-  // Niveau de confiance
-  trustLevel TrustLevel @default(NEWCOMER)
-
-  // Statistiques
-  completedJobs   Int @default(0)
-  cancelledJobs   Int @default(0)
-  avgResponseTime Int @default(0) // En minutes
-
-  updatedAt DateTime @updatedAt
-
-  // Badges
-  badges ProviderBadge[]
-
-  @@index([trustLevel])
-  @@index([overallScore])
-}
-
-enum TrustLevel {
-  NEWCOMER // 🆕 Nouveau prestataire (< 5 travaux)
-  ESTABLISHED // ✅ Établi (5-20 travaux)
-  TRUSTED // ⭐ Fiable (20+ travaux)
-  EXPERT // 🏆 Expert (50+ travaux)
-  TOP_RATED // 👑 Top 10% dans sa catégorie
-}
-
-model ProviderBadge {
-  id         String     @id @default(cuid())
-  providerId String
-  trustScore TrustScore @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  badgeType BadgeType
-  earnedAt  DateTime  @default(now())
-  isVisible Boolean   @default(true)
-
-  @@unique([providerId, badgeType])
-  @@index([badgeType])
-}
-
-enum BadgeType {
-  // Badges de performance
-  PUNCTUAL // ⏰ 95%+ à l'heure
-  QUALITY_WORK // 🔨 Haute qualité de travail
-  FAST_RESPONSE // ⚡ Réponse < 1h en moyenne
-  GREAT_COMMUNICATOR // 💬 Excellente communication
-
-  // Badges de vérification
-  ID_VERIFIED // ✓ Identité vérifiée
-  CERTIFIED // 📜 Certifications validées
-  INSURED // 🛡️ Assuré
-
-  // Badges d'accomplissement
-  SUPER_PRO // 🔥 100+ travaux complétés
-  CLIENT_FAVORITE // ❤️ 50+ favoris
-  REPEAT_CLIENTS // 🔁 Taux de retour élevé
-  TOP_EARNER // 💰 Revenus élevés
+enum PremiumTier {
+  FREE
+  VERIFIED
+  BOOSTED
+  ELITE
 }
 
 // ==================== CATÉGORIES DE SERVICES ====================
 
 model Category {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  icon        String?
-  image       String?
-  color       String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-
-  // Relations
-  subcategories     Subcategory[]
-  providers         ProviderCategory[]
-  certifications    Certification[]
-  portfolioProjects PortfolioProject[]
-  jobRequests       JobRequest[]
-
-  @@index([slug])
-  @@index([isActive, order])
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  description   String?
+  // Lucide icon name
+  icon          String?
+  image         String?
+  // Tailwind colour class from the K-YOU taxonomy
+  color         String?
+  order         Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  subcategories Subcategory[]
+  // SKILL reference items scoped to this category
+  skills        ReferenceItem[]
 }
 
 model Subcategory {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // null = level 2, set = level 3
+  parentId    String?
+  parent      Subcategory?  @relation("SubcategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Subcategory[] @relation("SubcategoryTree")
   name        String
-  slug        String   @unique
+  slug        String        @unique
   description String?
   icon        String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  order       Int           @default(0)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
 
-  // Relations
-  providers                   ProviderSubcategory[]
-  jobRequests                 JobRequest[]
+  providers                   Provider[]
   bookings                    Booking[]
   providerLeadsPrimary        ProviderLead[]                      @relation("ProviderLeadPrimarySubcategory")
   providerLeadAdditionalLinks ProviderLeadAdditionalSubcategory[]
   clientWaitlistLeadLinks     ClientWaitlistLeadSubcategory[]
 
   @@index([categoryId])
-  @@index([slug])
+  @@index([parentId])
   @@index([isActive, order])
 }
 
@@ -564,219 +474,161 @@ model ClientWaitlistLeadSubcategory {
   @@index([subcategoryId])
 }
 
-// ==================== RELATION PRESTATAIRE-CATÉGORIE ====================
+// ==================== LIEUX ====================
 
-model ProviderCategory {
-  id         String   @id @default(cuid())
+enum PlaceKind {
+  COUNTRY
+  PROVINCE
+  CITY
+  TERRITORY
+  COMMUNE
+  SECTOR
+  CHIEFDOM
+  QUARTIER
+  VILLAGE
+}
+
+model Place {
+  id           String            @id @default(cuid())
+  kind         PlaceKind
+  label        String
+  slug         String            @unique
+  parentId     String?
+  parent       Place?            @relation("PlaceTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children     Place[]           @relation("PlaceTree")
+  aliases      String[]          @default([])
+  source       String?
+  latitude     Float?
+  longitude    Float?
+  active       Boolean           @default(true)
+  mergedIntoId String?
+  mergedInto   Place?            @relation("PlaceMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom   Place[]           @relation("PlaceMerge")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  users        User[]
+  providers    Provider[]
+  addresses    Address[]
+  bookings     Booking[]
+  suggestions  PlaceSuggestion[]
+
+  @@unique([parentId, kind, label])
+  @@index([kind, active])
+  @@index([parentId, kind])
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PlaceSuggestion {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind            PlaceKind
+  label           String
+  parentId        String?
+  parent          Place?           @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  status          SuggestionStatus @default(PENDING)
+  resolvedPlaceId String?
+  createdAt       DateTime         @default(now())
+  resolvedAt      DateTime?
+
+  @@index([status, createdAt])
+}
+
+// ==================== LISTES DE RÉFÉRENCE ====================
+
+enum ReferenceType {
+  LANGUAGE
+  INTERVENTION_MODE
+  CURRENCY
+  PRICE_UNIT
+  SKILL
+}
+
+model ReferenceItem {
+  id             String              @id @default(cuid())
+  type           ReferenceType
+  label          String
+  slug           String              @unique
+  aliases        String[]            @default([])
+  // Scope for SKILL items
+  categoryId     String?
+  category       Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  order          Int                 @default(0)
+  active         Boolean             @default(true)
+  // Shown as a choice in forms
+  suggested      Boolean             @default(true)
+  mergedIntoId   String?
+  source         String?
+  createdAt      DateTime            @default(now())
+  providerSkills ProviderSkill[]
+  providerRefs   ProviderReference[]
+
+  @@index([type, active, order])
+}
+
+model ProviderSkill {
   providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
+  provider   Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       ReferenceItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  @@unique([providerId, categoryId])
-  @@index([providerId])
-  @@index([categoryId])
+  @@id([providerId, itemId])
 }
 
-// ==================== RELATION PRESTATAIRE-SOUS-CATÉGORIE ====================
-
-model ProviderSubcategory {
-  id            String      @id @default(cuid())
-  providerId    String
-  provider      Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  subcategoryId String
-  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
-  isPrimary     Boolean     @default(false)
-  experience    Int?
-  createdAt     DateTime    @default(now())
-
-  @@unique([providerId, subcategoryId])
-  @@index([providerId])
-  @@index([subcategoryId])
-}
-
-// ==================== CERTIFICATIONS & DIPLÔMES ====================
-
-model Certification {
-  id         String   @id @default(cuid())
+model ProviderReference {
   providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  itemId     String
+  // LANGUAGE or INTERVENTION_MODE
+  kind       ReferenceType
+  provider   Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  item       ReferenceItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
-  // Détails de la certification
-  title          String // Ex: "Maître Électricien"
-  issuingOrg     String // Ex: "Ministère du Travail"
-  certificateNum String? // Numéro de certificat
-
-  // Fichiers justificatifs
-  documents CertificationDoc[]
-
-  // Vérification
-  status          VerificationStatus @default(PENDING)
-  verifiedAt      DateTime?
-  verifiedBy      String? // ID Admin
-  rejectionReason String?
-
-  // Validité
-  issueDate  DateTime?
-  expiryDate DateTime?
-  isLifetime Boolean   @default(false)
-
-  // Association catégorie
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([providerId])
-  @@index([status])
+  @@id([providerId, itemId])
+  @@index([providerId, kind])
 }
 
-model CertificationDoc {
-  id              String        @id @default(cuid())
-  certificationId String
-  certification   Certification @relation(fields: [certificationId], references: [id], onDelete: Cascade)
+// ==================== MÉDIAS & PLANNING ====================
 
-  type     DocType
-  fileUrl  String
-  fileName String
-
-  uploadedAt DateTime @default(now())
-
-  @@index([certificationId])
+enum MediaKind {
+  IMAGE
+  VIDEO_UPLOAD
+  VIDEO_YOUTUBE
 }
 
-enum DocType {
-  DIPLOMA
-  CERTIFICATE
-  LICENSE
-  INSURANCE
-  ID_DOCUMENT
-  WORK_PERMIT
-  OTHER
-}
-
-// ==================== COMPÉTENCES ====================
-
-model Skill {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  name       String
-  level      Int      @default(1) // 1-5
-  createdAt  DateTime @default(now())
-
-  @@unique([providerId, name])
-  @@index([providerId])
-}
-
-// ==================== PORTFOLIO (SIMPLE - Images individuelles) ====================
-
-model PortfolioItem {
-  id          String   @id @default(cuid())
+model ProviderMedia {
+  id          String    @id @default(cuid())
   providerId  String
-  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  imageUrl    String
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
+  provider    Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  kind        MediaKind
+  // Storage public URL or YouTube watch URL
+  url         String
+  // Set for uploads; used for deletion
+  storagePath String?
+  youtubeId   String?
+  title       String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
 
-  @@index([providerId])
+  @@index([providerId, kind, order])
 }
 
-// ==================== PORTFOLIO PROJETS (Avant/Après) ====================
-
-model PortfolioProject {
+model AvailabilityRule {
   id         String   @id @default(cuid())
   providerId String
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  // 0 Sunday .. 6 Saturday
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  // 0..3: at most 4 ranges per day
+  order      Int      @default(0)
 
-  title       String
-  description String?
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id])
-
-  // Lien vers une réservation terminée (preuve de travail)
-  bookingId String?  @unique
-  booking   Booking? @relation(fields: [bookingId], references: [id])
-
-  // Détails du projet
-  duration Int? // Durée en heures
-  price    Float? // Prix du projet
-
-  // Images multiples
-  images PortfolioImage[]
-
-  // Statistiques
-  viewCount Int @default(0)
-
-  // Visibilité
-  isPublished Boolean @default(true)
-  isFeatured  Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([providerId, isPublished])
-  @@index([categoryId])
-}
-
-model PortfolioImage {
-  id        String           @id @default(cuid())
-  projectId String
-  project   PortfolioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  // Types d'images pour avant/après
-  imageType    PortfolioImageType @default(GENERAL)
-  imageUrl     String
-  thumbnailUrl String?
-  caption      String?
-  displayOrder Int                @default(0)
-
-  uploadedAt DateTime @default(now())
-
-  @@index([projectId])
-}
-
-enum PortfolioImageType {
-  BEFORE // 📷 Avant travail
-  DURING // 🔧 Pendant le travail
-  AFTER // ✨ Après réalisation
-  GENERAL // 📸 Photos générales
-  DETAIL // 🔍 Détails en gros plan
-  PLAN // 📋 Plans/diagrammes
-}
-
-// ==================== ZONES DE SERVICE ====================
-
-model ServiceZone {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  city       String
-  commune    String? // Quartier/Commune
-  createdAt  DateTime @default(now())
-
-  @@unique([providerId, city, commune])
-  @@index([providerId])
-  @@index([city])
-}
-
-// ==================== DISPONIBILITÉ ====================
-
-model AvailabilitySchedule {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  dayOfWeek   Int // 0-6 (Dimanche-Samedi)
-  startTime   String // "08:00"
-  endTime     String // "18:00"
-  isAvailable Boolean @default(true)
-
-  @@unique([providerId, dayOfWeek])
+  @@unique([providerId, dayOfWeek, order])
   @@index([providerId])
 }
 
@@ -784,271 +636,301 @@ model AvailabilityException {
   id         String   @id @default(cuid())
   providerId String
   provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  date        DateTime
-  isAvailable Boolean  @default(false)
-  reason      String? // "Férié", "Vacances"
+  date       DateTime @db.Date
+  // false = closed all day; true = open on the custom range
+  isOpen     Boolean  @default(false)
+  startTime  String?
+  endTime    String?
+  reason     String?
 
   @@unique([providerId, date])
-  @@index([providerId, date])
 }
 
 // ==================== RÉSERVATIONS ====================
 
-model Booking {
-  id         String   @id @default(cuid())
-  clientId   String
-  client     User     @relation("ClientBookings", fields: [clientId], references: [id])
-  providerId String
-  provider   Provider @relation("ProviderBookings", fields: [providerId], references: [id])
-
-  status BookingStatus @default(PENDING)
-
-  // Détails
-  title           String
-  description     String?
-  subcategoryId   String?
-  subcategory     Subcategory? @relation(fields: [subcategoryId], references: [id])
-  commune         String?
-  address         String?
-  city            String?
-  clientLatitude  Float?
-  clientLongitude Float?
-  scheduledDate   DateTime?
-  duration        Int? // Durée en minutes
-  price           Float? // Prix convenu en CDF; gross client amount for v1 economics
-  commissionPct   Int       @default(10)
-  commissionAmt   Int       @default(0)
-  providerNetAmt  Int       @default(0)
-
-  // Notes
-  clientNotes   String?
-  providerNotes String?
-
-  // Paiement
-  paymentMethod String?
-  isPaid        Boolean   @default(false)
-  paidAt        DateTime?
-
-  // Suivi
-  confirmedAt  DateTime?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  cancelReason String?
-  cancelledBy  String? // ID de qui a annulé
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  review           Review?
-  clientReview     ClientReview?
-  portfolioProject PortfolioProject?
-  transactions     Transaction[]
-  quote            Quote?            @relation("BookingFromQuote")
-  finalOffers      FinalOffer[]
-  disputes         Dispute[]
-
-  // Indexes pour performance
-  @@index([clientId])
-  @@index([providerId])
-  @@index([status])
-  @@index([scheduledDate])
-  @@index([providerId, status])
-  @@index([clientId, status])
-  @@index([scheduledDate, status])
-  @@index([subcategoryId])
-}
-
 enum BookingStatus {
-  PENDING // En attente de confirmation
-  CONFIRMED // Confirmé par le prestataire
-  IN_PROGRESS // En cours
-  COMPLETED // Terminé
-  CANCELLED // Annulé
-}
-
-enum FinalOfferStatus {
   PENDING
-  ACCEPTED
-  DECLINED
+  CONFIRMED
+  COMPLETED
   CANCELLED
-  EXPIRED
 }
 
-model FinalOffer {
-  id String @id @default(cuid())
+// A partial unique index on ("providerId", "scheduledAt") for PENDING and
+// CONFIRMED rows lives in the 0_init migration; Prisma cannot express it.
+model Booking {
+  id             String        @id @default(cuid())
+  clientId       String
+  client         User          @relation("ClientBookings", fields: [clientId], references: [id])
+  providerId     String
+  provider       Provider      @relation(fields: [providerId], references: [id])
+  status         BookingStatus @default(PENDING)
+  // UTC instant of the slot start
+  scheduledAt    DateTime
+  // Duration, buffer and timezone are snapshots of the provider schedule
+  durationMin    Int
+  bufferMin      Int
+  timezone       String
+  subcategoryId  String?
+  subcategory    Subcategory?  @relation(fields: [subcategoryId], references: [id])
+  clientPhone    String
+  clientNotes    String?
+  providerNotes  String?
+  placeId        String?
+  place          Place?        @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  addressLine    String?
+  latitude       Float?
+  longitude      Float?
+  // Set by the provider at completion
+  agreedPrice    Int?
+  commissionPct  Int           @default(10)
+  commissionAmt  Int           @default(0)
+  providerNetAmt Int           @default(0)
+  isPaid         Boolean       @default(false)
+  paidAt         DateTime?
+  confirmedAt    DateTime?
+  completedAt    DateTime?
+  cancelledAt    DateTime?
+  cancelledById  String?
+  cancelReason   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  review         Review?
+  clientReview   ClientReview?
+  transactions   Transaction[]
 
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  clientId String
-  client   User   @relation("ClientFinalOffers", fields: [clientId], references: [id])
-
-  conversationId String?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-
-  bookingId String?
-  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-
-  title          String
-  description    String?
-  price          Float // Prix convenu en CDF; gross client amount for v1 economics
-  commissionPct  Int              @default(10)
-  commissionAmt  Int              @default(0)
-  providerNetAmt Int              @default(0)
-  duration       Int?
-  scheduledDate  DateTime
-  address        String?
-  city           String?
-  notes          String?
-  paymentMethod  String           @default("cash")
-  status         FinalOfferStatus @default(PENDING)
-
-  sentAt      DateTime  @default(now())
-  acceptedAt  DateTime?
-  declinedAt  DateTime?
-  cancelledAt DateTime?
-  expiresAt   DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([providerId, status])
+  @@index([providerId, status, scheduledAt])
   @@index([clientId, status])
-  @@index([conversationId, status])
-  @@index([bookingId])
+  @@index([scheduledAt])
 }
 
-// ==================== AVIS CLIENTS SUR PRESTATAIRES ====================
+// ==================== AVIS ====================
 
 model Review {
-  id         String   @id @default(cuid())
-  bookingId  String   @unique
-  booking    Booking  @relation(fields: [bookingId], references: [id])
+  id         String    @id @default(cuid())
+  bookingId  String    @unique
+  booking    Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   clientId   String
-  client     User     @relation("ReviewsGiven", fields: [clientId], references: [id])
+  client     User      @relation(fields: [clientId], references: [id])
   providerId String
-  provider   Provider @relation("ProviderReviews", fields: [providerId], references: [id])
+  provider   Provider  @relation(fields: [providerId], references: [id])
+  // 1..5
+  rating     Int
+  // At most 500 characters
+  comment    String?
+  reply      String?
+  repliedAt  DateTime?
+  isPublic   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  // Notes par critère (icônes significatives au lieu d'étoiles)
-  punctuality     Int? // ⏰ Ponctualité (1-5)
-  quality         Int? // 🔨 Qualité du travail (1-5)
-  communication   Int? // 💬 Communication (1-5)
-  value           Int? // 💰 Rapport qualité/prix (1-5)
-  professionalism Int? // 👔 Professionnalisme (1-5)
-
-  // Score global calculé
-  overallScore Float @default(0)
-
-  // Tags de satisfaction
-  satisfactionTags Json? // JSON: ["RAPIDE", "SOIGNE", "AIMABLE"]
-
-  comment  String?
-  isPublic Boolean @default(true)
-  isEdited Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Réponse du prestataire
-  reply     String?
-  repliedAt DateTime?
-
-  // Indexes
   @@index([providerId, createdAt])
   @@index([clientId])
 }
 
-// ==================== AVIS PRESTATAIRES SUR CLIENTS ====================
-
 model ClientReview {
   id         String   @id @default(cuid())
   bookingId  String   @unique
-  booking    Booking  @relation(fields: [bookingId], references: [id])
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   providerId String
-  provider   Provider @relation("ProviderGivenReviews", fields: [providerId], references: [id])
+  provider   Provider @relation(fields: [providerId], references: [id])
   clientId   String
-  client     User     @relation("ClientReceivedReviews", fields: [clientId], references: [id])
+  client     User     @relation(fields: [clientId], references: [id])
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
 
-  // Évaluation du client par le prestataire
-  paymentTimeliness PaymentRating @default(ONTIME)
-  communication     Int? // 💬 Clarté des besoins (1-5)
-  respectfulness    Int? // 🤝 Respect (1-5)
-
-  // Tags
-  tags Json? // JSON: ["PONCTUEL", "RESPECTUEUX", "PAIEMENT_RAPIDE"]
-
-  comment  String?
-  isPublic Boolean @default(true)
-
-  createdAt DateTime @default(now())
-
-  // Indexes
   @@index([clientId])
-  @@index([providerId])
 }
 
-enum PaymentRating {
-  PREPAID // 💰 Payé à l'avance
-  ONTIME // ✅ Payé à la fin
-  LATE // ⏰ Payé en retard
-  PARTIAL // ⚠️ Paiement partiel
-  DISPUTED // ❌ Paiement contesté
+// ==================== REVENUS ====================
+
+enum TransactionType {
+  EARNING
+  BONUS
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+}
+
+model Transaction {
+  id         String            @id @default(cuid())
+  providerId String
+  provider   Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  bookingId  String?
+  booking    Booking?          @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  type       TransactionType
+  // Gross amount
+  amount     Int
+  feeAmt     Int               @default(0)
+  netAmt     Int
+  status     TransactionStatus @default(PENDING)
+  note       String?
+  occurredAt DateTime          @default(now())
+
+  @@index([providerId, occurredAt])
 }
 
 // ==================== MESSAGERIE ====================
 
 model Conversation {
-  id      String @id @default(cuid())
-  user1Id String
-  user1   User   @relation("User1Conversations", fields: [user1Id], references: [id])
-  user2Id String
-  user2   User   @relation("User2Conversations", fields: [user2Id], references: [id])
+  id             String    @id @default(cuid())
+  clientId       String
+  client         User      @relation("ClientConversations", fields: [clientId], references: [id], onDelete: Cascade)
+  providerId     String
+  provider       Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  subject        String?
+  lastMessageAt  DateTime  @default(now())
+  lastPreview    String?
+  clientUnread   Int       @default(0)
+  providerUnread Int       @default(0)
+  createdAt      DateTime  @default(now())
+  messages       Message[]
 
-  lastMessageAt DateTime @default(now())
-  createdAt     DateTime @default(now())
-
-  // Relations
-  messages    Message[]
-  finalOffers FinalOffer[]
-
-  @@unique([user1Id, user2Id])
-  @@index([user1Id])
-  @@index([user2Id])
-  @@index([lastMessageAt])
+  @@unique([clientId, providerId])
+  @@index([clientId, lastMessageAt])
+  @@index([providerId, lastMessageAt])
 }
 
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User         @relation(fields: [senderId], references: [id])
+  // At most 4000 characters
+  body           String?
+  // [{ kind: "image" | "audio", path, mime, bytes }]
+  attachments    Json         @default("[]")
+  createdAt      DateTime     @default(now())
+  deletedAt      DateTime?
 
-  content   String
-  type      MessageType @default(TEXT)
-  fileUrl   String?
-  isRead    Boolean     @default(false)
-  readAt    DateTime?
-  isDeleted Boolean     @default(false)
-
-  createdAt DateTime @default(now())
-
-  // Indexes
   @@index([conversationId, createdAt])
-  @@index([senderId])
-  @@index([isRead])
 }
 
-enum MessageType {
-  TEXT
-  IMAGE
-  FILE
-  LOCATION
-  BOOKING_REQUEST
-  QUOTE
+// ==================== SÉCURITÉ ====================
+
+enum ReportTargetKind {
+  USER
+  PROVIDER
+  REVIEW
+  MESSAGE
+  CONVERSATION
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+}
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reporter     User             @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetKind   ReportTargetKind
+  targetId     String
+  reason       String
+  status       ReportStatus     @default(OPEN)
+  resolution   String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@index([status, createdAt])
+  @@index([targetKind, targetId])
+}
+
+model Block {
+  blockerId String
+  blocker   User     @relation("BlocksGiven", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// ==================== CONTACT & ADRESSES ====================
+
+enum ContactStatus {
+  NEW
+  READ
+  REPLIED
+  CLOSED
+}
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    ContactStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([status, createdAt])
+}
+
+enum AddressLabel {
+  HOME
+  WORK
+  OTHER
+}
+
+model Address {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       AddressLabel @default(HOME)
+  recipient   String?
+  addressLine String
+  placeId     String?
+  place       Place?       @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  country     String       @default("RDC")
+  latitude    Float?
+  longitude   Float?
+  isDefault   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId, isDefault])
+}
+
+// ==================== VÉRIFICATION (KYC) ====================
+
+enum VerificationDocKind {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+  ADDRESS
+  CERT_OPTIONAL
+}
+
+enum VerificationDecision {
+  APPROVED
+  REJECTED
+}
+
+model VerificationDoc {
+  id              String                @id @default(cuid())
+  providerId      String
+  provider        Provider              @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  kind            VerificationDocKind
+  storagePath     String
+  fileName        String
+  mime            String
+  bytes           Int
+  uploadedAt      DateTime              @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  decision        VerificationDecision?
+  rejectionReason String?
+
+  @@unique([providerId, kind])
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -1075,101 +957,14 @@ model Notification {
 enum NotificationType {
   BOOKING_NEW
   BOOKING_CONFIRMED
-  BOOKING_CANCELLED
   BOOKING_COMPLETED
-  BOOKING_STARTED
+  BOOKING_CANCELLED
   NEW_MESSAGE
   NEW_REVIEW
   NEW_CLIENT_REVIEW
-  PAYMENT_RECEIVED
-  CERTIFICATION_VERIFIED
-  BADGE_EARNED
-  JOB_REQUEST_NEW
-  QUOTE_RECEIVED
-  QUOTE_ACCEPTED
-  QUOTE_DECLINED
-  FINAL_OFFER_RECEIVED
-  FINAL_OFFER_ACCEPTED
-  FINAL_OFFER_DECLINED
+  VERIFICATION_UPDATED
+  PLACE_SUGGESTION_RESOLVED
   SYSTEM
-}
-
-// ==================== FAVORIS ====================
-
-model Favorite {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@unique([userId, providerId])
-  @@index([userId])
-  @@index([providerId])
-}
-
-// ==================== ABONNEMENTS PREMIUM ====================
-
-model Subscription {
-  id         String   @id @default(cuid())
-  providerId String   @unique
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  plan             String // BASIC, STANDARD, PREMIUM
-  startDate        DateTime
-  endDate          DateTime
-  isActive         Boolean  @default(true)
-  autoRenew        Boolean  @default(false)
-  amount           Float
-  paymentMethod    String?
-  paymentReference String?
-
-  createdAt DateTime @default(now())
-
-  @@index([isActive, endDate])
-}
-
-// ==================== PARAMÈTRES DE VISIBILITÉ ====================
-
-model VisibilitySettings {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Visibilité du profil
-  profileVisible    VisibilityLevel @default(PUBLIC)
-  showEmail         Boolean         @default(false)
-  showPhone         Boolean         @default(false)
-  showExactLocation Boolean         @default(false)
-
-  // Ce que les clients peuvent voir sur les prestataires
-  showHourlyRate     Boolean @default(true)
-  showPastWork       Boolean @default(true)
-  showReviews        Boolean @default(true)
-  showAvailability   Boolean @default(true)
-  showCertifications Boolean @default(true)
-
-  // Ce que les prestataires peuvent voir sur les clients
-  showClientHistory Boolean @default(true)
-  showClientReviews Boolean @default(true)
-
-  // Préférences de contact
-  allowDirectContact Boolean @default(true)
-  allowMessages      Boolean @default(true)
-
-  // Visibilité dans les recherches
-  appearInSearch   Boolean @default(true)
-  appearInCategory Boolean @default(true)
-
-  updatedAt DateTime @updatedAt
-}
-
-enum VisibilityLevel {
-  PUBLIC // Visible par tous
-  REGISTERED // Uniquement utilisateurs inscrits
-  CLIENTS_ONLY // Uniquement clients confirmés
-  PRIVATE // Caché
 }
 
 // ==================== JOURNAL D'ACTIVITÉ ====================
@@ -1200,309 +995,4 @@ model SystemSetting {
   description String?
 
   updatedAt DateTime @updatedAt
-}
-
-// ==================== DEMANDES DE MISSION (Job Requests) ====================
-
-enum JobRequestStatus {
-  OPEN
-  MATCHED
-  EXPIRED
-  CANCELLED
-}
-
-model JobRequest {
-  id       String @id @default(cuid())
-  clientId String
-  client   User   @relation("ClientJobRequests", fields: [clientId], references: [id])
-
-  categoryId    String?
-  category      Category?    @relation(fields: [categoryId], references: [id])
-  subcategoryId String?
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
-
-  service     String
-  description String
-  address     String
-  city        String
-  commune     String?
-  latitude    Float?
-  longitude   Float?
-
-  whenPref       String
-  estimatedHours Float?
-  budget         Int?
-  photoCount     Int    @default(0)
-
-  status         JobRequestStatus @default(OPEN)
-  urgent         Boolean          @default(false)
-  competingCount Int              @default(0)
-  expiresAt      DateTime?
-
-  matches JobRequestMatch[]
-  quotes  Quote[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status, categoryId])
-  @@index([clientId, status])
-}
-
-model JobRequestMatch {
-  id           String     @id @default(cuid())
-  jobRequestId String
-  jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
-  providerId   String
-  provider     Provider   @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  matchScore   Int
-  notifiedAt   DateTime   @default(now())
-  dismissedAt  DateTime?
-  viewedAt     DateTime?
-
-  @@unique([jobRequestId, providerId])
-  @@index([providerId, dismissedAt])
-}
-
-// ==================== GAINS & PAIEMENTS (Mobile Money) ====================
-
-enum TransactionType {
-  EARNING
-  PAYOUT
-  BONUS
-  REFUND
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
-enum PayoutOperator {
-  MPESA
-  AIRTEL
-  ORANGE
-  MTN
-}
-
-enum PayoutStatus {
-  READY
-  PENDING
-  COMPLETED
-  FAILED
-  ON_HOLD
-}
-
-model Transaction {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  type      TransactionType
-  bookingId String?
-  booking   Booking?        @relation(fields: [bookingId], references: [id], onDelete: SetNull)
-  payoutId  String?         @unique
-  payout    Payout?         @relation(fields: [payoutId], references: [id], onDelete: SetNull)
-
-  amount        Int // signed: + earnings/bonus, − payouts
-  feeAmt        Int               @default(0)
-  netAmt        Int
-  paymentMethod String? // "cash" | "mpesa" | "airtel" | "orange" | "mtn"
-  status        TransactionStatus @default(PENDING)
-  reference     String? // PSP ref for payouts
-  note          String?
-
-  occurredAt DateTime @default(now())
-  createdAt  DateTime @default(now())
-
-  @@index([providerId, occurredAt])
-  @@index([providerId, type])
-  @@index([providerId, status])
-}
-
-model Payout {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  operator    PayoutOperator
-  phoneMasked String
-  phoneFull   String // stored for future PSP call
-  amount      Int
-  feeAmt      Int
-  netAmt      Int
-  status      PayoutStatus   @default(PENDING)
-  reference   String?
-  holdReason  String?
-
-  requestedAt DateTime     @default(now())
-  completedAt DateTime?
-  transaction Transaction?
-
-  @@index([providerId, status])
-  @@index([status, requestedAt])
-}
-
-// ==================== DEVIS (Quotes) ====================
-
-enum QuoteStatus {
-  DRAFT
-  SENT
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
-
-model Quote {
-  id String @id @default(cuid())
-
-  jobRequestId String?
-  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id], onDelete: SetNull)
-
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  clientId String
-  client   User   @relation("ClientQuotes", fields: [clientId], references: [id])
-
-  message       String
-  validityDays  Int    @default(7)
-  startDateKind String
-  discountPct   Int    @default(0)
-
-  // Server-computed totals (cached for audit/historical)
-  subtotal      Int
-  discountAmt   Int
-  total         Int
-  commissionPct Int @default(10)
-  commissionAmt Int
-  payoutAmt     Int
-
-  status     QuoteStatus @default(DRAFT)
-  sentAt     DateTime?
-  acceptedAt DateTime?
-  declinedAt DateTime?
-  expiresAt  DateTime?
-
-  lines     QuoteLineItem[]
-  bookingId String?         @unique
-  booking   Booking?        @relation("BookingFromQuote", fields: [bookingId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([providerId, status])
-  @@index([clientId, status])
-  @@index([jobRequestId])
-}
-
-model QuoteLineItem {
-  id        String @id @default(cuid())
-  quoteId   String
-  quote     Quote  @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  label     String
-  qty       Float  @default(1)
-  unit      String
-  unitPrice Int
-  order     Int    @default(0)
-
-  @@index([quoteId])
-}
-
-// ==================== VÉRIFICATION (KYC) ====================
-
-enum VerificationDocKind {
-  ID_FRONT
-  ID_BACK
-  SELFIE
-  ADDRESS
-  CERT_OPTIONAL
-}
-
-enum VerificationDecision {
-  APPROVED
-  REJECTED
-}
-
-model VerificationDoc {
-  id         String   @id @default(cuid())
-  providerId String
-  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-  kind     VerificationDocKind
-  url      String
-  fileName String?
-  fileSize Int?
-  mimeType String?
-
-  uploadedAt      DateTime              @default(now())
-  reviewedAt      DateTime?
-  reviewedBy      String?
-  decision        VerificationDecision?
-  rejectionReason String?
-
-  @@index([providerId, kind])
-}
-
-// ==================== LITIGES (Disputes) ====================
-
-enum DisputeStatus {
-  NEW
-  PENDING_PRO
-  PENDING_CLIENT
-  INVESTIGATING
-  ESCALATED
-  RESOLVED
-}
-
-enum DisputeSeverity {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum DisputeOrigin {
-  CLIENT
-  PROVIDER
-}
-
-model Dispute {
-  id         String        @id @default(cuid())
-  bookingId  String
-  booking    Booking       @relation(fields: [bookingId], references: [id])
-  origin     DisputeOrigin
-  openedById String
-  reason     String
-
-  clientStatement String?
-  proStatement    String?
-
-  status   DisputeStatus   @default(NEW)
-  severity DisputeSeverity @default(MEDIUM)
-
-  resolution    String?
-  resolutionPct Int?
-  resolvedAt    DateTime?
-  deadlineAt    DateTime?
-
-  evidences DisputeEvidence[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([bookingId])
-  @@index([status, deadlineAt])
-}
-
-model DisputeEvidence {
-  id           String   @id @default(cuid())
-  disputeId    String
-  dispute      Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
-  uploadedById String
-  url          String
-  note         String?
-  uploadedAt   DateTime @default(now())
-
-  @@index([disputeId])
 }

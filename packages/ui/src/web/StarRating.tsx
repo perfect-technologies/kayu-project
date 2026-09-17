@@ -2,36 +2,24 @@
 
 import * as React from "react";
 import { Star } from "lucide-react";
-import { tokens } from "../tokens.js";
+import { palette } from "../tokens.js";
 
 export type StarRatingProps = {
   value: number;
   count?: number;
   size?: number;
+  className?: string;
 };
 
-// Single amber star + tabular rating + optional review count.
-// Rounded to 1 decimal; no half-stars (DESIGN_SYSTEM §10).
-export const StarRating: React.FC<StarRatingProps> = ({
-  value,
-  count,
-  size = 14,
-}) => (
-  <span
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4,
-      color: tokens.color.warning,
-      fontFamily: tokens.font.body,
-    }}
-  >
-    <Star size={size} fill="currentColor" strokeWidth={0} />
+/** One amber-400 star, the average to one decimal, then the review count as plain text. */
+export const StarRating: React.FC<StarRatingProps> = ({ value, count, size = 14, className }) => (
+  <span className={className} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <Star aria-hidden size={size} fill={palette.star} color={palette.star} strokeWidth={0} />
     <span
       style={{
-        color: tokens.color.textPrimary,
-        fontWeight: 600,
-        fontSize: size,
+        color: palette.foreground,
+        fontWeight: 700,
+        fontSize: Math.max(size, 12),
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -40,9 +28,8 @@ export const StarRating: React.FC<StarRatingProps> = ({
     {count != null ? (
       <span
         style={{
-          color: tokens.color.textMuted,
-          fontWeight: 400,
-          fontSize: size - 1,
+          color: palette.mutedForeground,
+          fontSize: Math.max(size - 1, 12),
           fontVariantNumeric: "tabular-nums",
         }}
       >

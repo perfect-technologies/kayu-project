@@ -3,42 +3,24 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Post,
   UseGuards,
 } from "@nestjs/common";
-import type { VerificationDocKind } from "@prisma/client";
 import type { Actor } from "../../common/auth/types";
-import { CurrentActor, LazyZodValidationPipe } from "../../common";
+import type { UploadVerificationDocInput } from "../../common/contract";
+import { contractPipe } from "../../common/contract/pipe";
+import { CurrentActor } from "../../common/decorators/current-actor.decorator";
+import { Roles } from "../../common/decorators/roles.decorator";
 import { ActorGuard } from "../../common/guards/actor.guard";
+import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { VerificationService } from "./verification.service";
 
-type UploadVerificationDocBody = {
-  kind: VerificationDocKind;
-  path: string;
-  fileName?: string;
-  fileSize?: number;
-  mimeType?: string;
-};
-
-type RespondDisputeBody = {
-  statement: string;
-  evidenceUrls: string[];
-};
-
-const uploadDocPipe = new LazyZodValidationPipe(async () => {
-  const { UploadVerificationDocDto } = await import("@kayu/schemas");
-  return UploadVerificationDocDto;
-});
-
-const respondDisputePipe = new LazyZodValidationPipe(async () => {
-  const { RespondDisputeDto } = await import("@kayu/schemas");
-  return RespondDisputeDto;
-});
-
 @Controller("pro/verification")
-@UseGuards(SupabaseGuard, ActorGuard)
+@Roles("PROVIDER")
+@UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
 export class VerificationController {
   constructor(private readonly verification: VerificationService) {}
 
@@ -48,9 +30,10 @@ export class VerificationController {
   }
 
   @Post("documents")
+  @HttpCode(200)
   uploadDoc(
     @CurrentActor() actor: Actor,
-    @Body(uploadDocPipe) body: UploadVerificationDocBody,
+    @Body(contractPipe("UploadVerificationDocDto")) body: UploadVerificationDocInput,
   ) {
     return this.verification.uploadDoc(actor, body);
   }
@@ -61,21 +44,8 @@ export class VerificationController {
   }
 
   @Post("submit")
+  @HttpCode(200)
   submit(@CurrentActor() actor: Actor) {
     return this.verification.submit(actor);
-  }
-
-  @Get("dispute")
-  getDispute(@CurrentActor() actor: Actor) {
-    return this.verification.getDispute(actor);
-  }
-
-  @Post("dispute/:id/respond")
-  respondDispute(
-    @CurrentActor() actor: Actor,
-    @Param("id") id: string,
-    @Body(respondDisputePipe) body: RespondDisputeBody,
-  ) {
-    return this.verification.respondDispute(actor, id, body);
   }
 }

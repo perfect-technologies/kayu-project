@@ -1,1588 +1,259 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import type {
-  Prisma,
-  Provider,
-  User,
-  VisibilityLevel,
-} from "@prisma/client";
-import type { Request } from "express";
-import { IdentityService } from "../identity/identity.service";
-import { SupabaseJwtService } from "../../common/auth/supabase-jwt.service";
+import { Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
+import type { Actor } from "../../common/auth/types";
+import type { ProviderSearchQuery } from "../../common/contract";
+import { notFound } from "../../common/http/errors";
+import { pageArgs, toPage, type PageQuery } from "../../common/http/pagination";
 import { PrismaService } from "../../database/prisma.service";
-import { StorageService } from "../storage/storage.service";
-import { computeProviderStrength } from "./provider-strength";
+import { PlaceTreeService } from "../places/place-tree.service";
+import { SafetyService } from "../safety/safety.service";
+import { SiteSettingsService } from "../settings/site-settings.service";
+import {
+  pricingReferenceIds,
+  providerCardSelect,
+  providerProfileSelect,
+  publicReviewSelect,
+  referenceSummarySelect,
+  toProviderCard,
+  toProviderPublic,
+  toPublicReview,
+  toReferenceSummary,
+  type ProviderCardRow,
+  type ReferenceSummary,
+} from "./provider-mapper";
+import { ProvidersAvailabilityService } from "./providers-availability.service";
+import {
+  distanceKm,
+  effectiveTier,
+  roundCoordinate,
+  searchableProviderWhere,
+} from "./provider-visibility";
 
-type ProviderSearchQuery = {
-  q?: string;
-  category?: string;
-  subcategory?: string;
-  city?: string;
-  minRating?: number;
-  minPrice?: number;
-  maxPrice?: number;
-  available?: boolean;
-  verified?: boolean;
-  page: number;
-  limit: number;
-  // "hourlyRate" sorts on the provider starting price (the legacy column name
-  // semantically holds the fixed base price for v1).
-  sortBy?: "recommended" | "createdAt" | "hourlyRate";
-  sortOrder?: "asc" | "desc";
-};
+type Viewer = Actor | null | undefined;
 
-type UpdateProviderBody = {
-  profession?: string;
-  description?: string | null;
-  experience?: number | null;
-  hourlyRate?: number | null;
-  languages?: string[];
-  isAvailable?: boolean;
-  categoryIds?: string[];
-  skills?: Array<{
-    name: string;
-    level?: number;
-  }>;
-  serviceZones?: Array<{
-    city: string;
-    commune?: string | null;
-  }>;
-  subcategoryIds?: string[];
-};
-
-type Viewer = User | null;
-
-type ProviderSummaryRecord = Prisma.ProviderGetPayload<{
-  include: {
-    user: {
-      select: {
-        id: true;
-        firstName: true;
-        lastName: true;
-        avatar: true;
-        city: true;
-        country: true;
-        isVerified: true;
-      };
-    };
-    categories: {
-      where: {
-        category: {
-          isActive: true;
-        };
-      };
-      include: {
-        category: true;
-      };
-    };
-    serviceZones: true;
-    subcategories: {
-      include: {
-        subcategory: true;
-      };
-    };
-  };
-}>;
-
-type ProviderDetailRecord = Prisma.ProviderGetPayload<{
-  include: typeof providerDetailInclude;
-}>;
-
-const providerDetailInclude = {
-  user: {
-    include: {
-      visibilitySettings: true,
-    },
-  },
-  categories: {
-    where: {
-      category: {
-        isActive: true,
-      },
-    },
-    include: {
-      category: true,
-    },
-  },
-  subcategories: {
-    include: {
-      subcategory: {
-        include: {
-          category: true,
-        },
-      },
-    },
-  },
-  skills: {
-    orderBy: {
-      name: "asc",
-    },
-  },
-  serviceZones: {
-    orderBy: [{ city: "asc" }, { commune: "asc" }],
-  },
-  trustScore: {
-    include: {
-      badges: {
-        where: {
-          isVisible: true,
-        },
-      },
-    },
-  },
-  certifications: {
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      documents: true,
-    },
-  },
-  portfolio: {
-    orderBy: {
-      order: "asc",
-    },
-  },
-  portfolioProjects: {
-    where: {
-      isPublished: true,
-    },
-    orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-    include: {
-      images: {
-        orderBy: {
-          displayOrder: "asc",
-        },
-      },
-    },
-  },
-  availabilitySchedules: {
-    orderBy: {
-      dayOfWeek: "asc",
-    },
-  },
-  subscription: true,
-  reviews: {
-    take: 5,
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      client: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          avatar: true,
-        },
-      },
-    },
-  },
-  _count: {
-    select: {
-      bookings: true,
-      reviews: true,
-    },
-  },
-} satisfies Prisma.ProviderInclude;
+const insensitive = (value: string) => ({ contains: value, mode: "insensitive" as const });
 
 @Injectable()
 export class ProvidersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jwt: SupabaseJwtService,
-    private readonly identity: IdentityService,
-    private readonly storage: StorageService,
+    private readonly places: PlaceTreeService,
+    private readonly safety: SafetyService,
+    private readonly settings: SiteSettingsService,
+    private readonly availability: ProvidersAvailabilityService,
   ) {}
 
-  async search(query: ProviderSearchQuery) {
-    const baseWhere = this.buildSearchWhere(query);
-    const where = await this.applyMinRatingFilter(baseWhere, query.minRating);
-    const page = Math.max(1, query.page || 1);
-    const limit = Math.max(1, query.limit || 12);
-    const skip = (page - 1) * limit;
-    const orderBy = this.buildSearchOrderBy(query);
+  async search(query: ProviderSearchQuery, viewer?: Viewer) {
+    const now = new Date();
+    const where = await this.buildSearchWhere(query, viewer, now);
+    const origin =
+      query.lat !== undefined && query.lng !== undefined ? { lat: query.lat, lng: query.lng } : null;
 
-    const total = await this.prisma.provider.count({ where });
-    const providers =
-      total === 0
-        ? []
-        : await this.prisma.provider.findMany({
-            where,
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  avatar: true,
-                  city: true,
-                  country: true,
-                  isVerified: true,
-                },
-              },
-              categories: {
-                where: {
-                  category: {
-                    isActive: true,
-                  },
-                },
-                include: {
-                  category: true,
-                },
-              },
-              serviceZones: true,
-              subcategories: {
-                include: {
-                  subcategory: true,
-                },
-              },
-            },
-            orderBy,
-            skip,
-            take: limit,
-          });
+    if (query.sort === "distance" && origin) {
+      const candidates = await this.prisma.provider.findMany({
+        where,
+        select: { id: true, latitude: true, longitude: true },
+      });
+      const ranked = candidates
+        .map((candidate) => {
+          const lat = roundCoordinate(candidate.latitude);
+          const lng = roundCoordinate(candidate.longitude);
+          return {
+            id: candidate.id,
+            distance: lat === null || lng === null ? null : distanceKm(origin.lat, origin.lng, lat, lng),
+          };
+        })
+        .sort((a, b) => {
+          if (a.distance === null && b.distance === null) return a.id.localeCompare(b.id);
+          if (a.distance === null) return 1;
+          if (b.distance === null) return -1;
+          return a.distance - b.distance || a.id.localeCompare(b.id);
+        });
+      const { skip, take } = pageArgs(query);
+      const pageIds = ranked.slice(skip, skip + take).map((item) => item.id);
+      const rows = await this.prisma.provider.findMany({
+        where: { id: { in: pageIds } },
+        select: providerCardSelect,
+      });
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const ordered = pageIds.map((id) => byId.get(id)).filter((row): row is ProviderCardRow => Boolean(row));
+      return toPage(await this.toCards(ordered, origin, now), ranked.length, query);
+    }
 
-    const providerIds = providers.map((provider) => provider.id);
-    const [ratingByProviderId, certifiedProviderIds] = await Promise.all([
-      this.getRatingByProviderId(providerIds),
-      this.getCertifiedProviderIds(providerIds),
+    const [total, rows] = await Promise.all([
+      this.prisma.provider.count({ where }),
+      this.prisma.provider.findMany({
+        where,
+        select: providerCardSelect,
+        orderBy: this.searchOrder(query.sort),
+        ...pageArgs(query),
+      }),
+    ]);
+    return toPage(await this.toCards(rows, origin, now), total, query);
+  }
+
+  async getPublicProfile(id: string, viewer?: Viewer) {
+    const now = new Date();
+    const row = await this.prisma.provider.findUnique({
+      where: { id },
+      select: providerProfileSelect,
+    });
+    if (!row) throw notFound("Prestataire introuvable");
+
+    const isOwner = viewer?.id === row.userId;
+    const isAdmin = viewer?.role === "ADMIN";
+    if ((row.hidden || !row.user.isActive) && !isOwner && !isAdmin) {
+      throw notFound("Prestataire introuvable");
+    }
+
+    const [settings, placeChains, references, blocked] = await Promise.all([
+      this.settings.getAll(),
+      this.places.chains([row.placeId]),
+      this.loadReferences(pricingReferenceIds([row])),
+      viewer && !isOwner ? this.safety.isBlocked(viewer.id, row.userId) : Promise.resolve(false),
     ]);
 
-    const mappedProviders = providers.map((provider) =>
-      this.mapProviderSummary(
-        provider,
-        ratingByProviderId.get(provider.id) ?? 0,
-        certifiedProviderIds.has(provider.id),
-      ),
-    );
+    const contactsVisible =
+      isOwner ||
+      isAdmin ||
+      (Boolean(viewer) &&
+        (!settings.contacts_require_premium || effectiveTier(row, now) !== "FREE"));
 
-    return {
-      success: true as const,
-      providers: mappedProviders,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
-        hasMore: skip + limit < total,
-      },
-    };
+    return toProviderPublic(row, {
+      placeChains,
+      references,
+      now,
+      viewerId: viewer?.id ?? null,
+      contactsVisible,
+      whatsappEnabled: settings.feat_whatsapp,
+      blocked,
+    });
   }
 
-  async findById(id: string, viewer: Viewer) {
-    const provider = await this.prisma.provider.findUnique({
-      where: { id },
-      include: providerDetailInclude,
-    });
+  async getAvailability(id: string, date: string, viewer?: Viewer) {
+    await this.assertVisible(id, viewer);
+    const result = await this.availability.computeForDate(id, date);
+    if (!result) throw notFound("Prestataire introuvable");
+    return result;
+  }
 
-    if (!provider) {
-      throw new NotFoundException("Provider not found");
-    }
-
-    const [ratingStats, certifiedProviderIds, hasAccess] = await Promise.all([
-      this.getProviderRatingStats(provider.id),
-      this.getCertifiedProviderIds([provider.id]),
-      this.canAccessProfile(provider, viewer),
+  async listReviews(id: string, query: PageQuery, viewer?: Viewer) {
+    await this.assertVisible(id, viewer);
+    const where: Prisma.ReviewWhereInput = { providerId: id, isPublic: true };
+    const [total, rows] = await Promise.all([
+      this.prisma.review.count({ where }),
+      this.prisma.review.findMany({
+        where,
+        select: publicReviewSelect,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...pageArgs(query),
+      }),
     ]);
-
-    const detail = this.mapProviderDetail(
-      provider,
-      ratingStats.average,
-      certifiedProviderIds.has(provider.id),
-      ratingStats,
-    );
-
-    const accessDeniedReason = hasAccess
-      ? null
-      : this.getAccessDeniedReason(
-          provider.user.visibilitySettings?.profileVisible ?? "PUBLIC",
-          viewer,
-        );
-
-    const visibleProvider = this.applyVisibility(detail, provider, {
-        hasAccess,
-        isOwner: this.isOwner(provider, viewer),
-      });
-
-    return {
-      ...visibleProvider,
-      success: true as const,
-      hasAccess,
-      accessDeniedReason,
-    };
+    return toPage(rows.map(toPublicReview), total, query);
   }
 
-  async updateMe(actor: User, body: UpdateProviderBody) {
+  async assertVisible(id: string, viewer?: Viewer) {
     const provider = await this.prisma.provider.findUnique({
-      where: {
-        userId: actor.id,
-      },
-      include: {
-        subcategories: true,
-      },
-    });
-
-    if (!provider) {
-      throw new NotFoundException("Provider profile not found");
-    }
-
-    const categoryIds = body.categoryIds ? this.unique(body.categoryIds) : undefined;
-    const subcategoryIds = body.subcategoryIds
-      ? this.unique(body.subcategoryIds)
-      : undefined;
-
-    if (categoryIds && categoryIds.length > 3) {
-      throw new BadRequestException("A provider can have at most 3 service categories");
-    }
-
-    if (subcategoryIds && subcategoryIds.length > 3) {
-      throw new BadRequestException("A provider can have at most 3 service subcategories");
-    }
-
-    await this.validateReferencedRecords({
-      categoryIds,
-      subcategoryIds,
-    });
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.provider.update({
-        where: {
-          id: provider.id,
-        },
-        data: {
-          profession: body.profession,
-          description: body.description,
-          experience: body.experience,
-          hourlyRate: body.hourlyRate,
-          languages: body.languages ? this.unique(body.languages) : undefined,
-          isAvailable: body.isAvailable,
-        },
-      });
-
-      if (categoryIds) {
-        await tx.providerCategory.deleteMany({
-          where: {
-            providerId: provider.id,
-          },
-        });
-
-        if (categoryIds.length > 0) {
-          await tx.providerCategory.createMany({
-            data: categoryIds.map((categoryId) => ({
-              providerId: provider.id,
-              categoryId,
-            })),
-          });
-        }
-      }
-
-      if (body.skills) {
-        const skills = this.uniqueSkills(body.skills);
-        await tx.skill.deleteMany({
-          where: {
-            providerId: provider.id,
-          },
-        });
-
-        if (skills.length > 0) {
-          await tx.skill.createMany({
-            data: skills.map((skill) => ({
-              providerId: provider.id,
-              name: skill.name,
-              level: skill.level ?? 1,
-            })),
-          });
-        }
-      }
-
-      if (body.serviceZones) {
-        const zones = this.uniqueZones(body.serviceZones);
-        await tx.serviceZone.deleteMany({
-          where: {
-            providerId: provider.id,
-          },
-        });
-
-        if (zones.length > 0) {
-          await tx.serviceZone.createMany({
-            data: zones.map((zone) => ({
-              providerId: provider.id,
-              city: zone.city,
-              commune: zone.commune ?? null,
-            })),
-          });
-        }
-      }
-
-      if (subcategoryIds) {
-        const existingSubcategories = await tx.providerSubcategory.findMany({
-          where: {
-            providerId: provider.id,
-          },
-        });
-
-        await tx.providerSubcategory.deleteMany({
-          where: {
-            providerId: provider.id,
-          },
-        });
-
-        if (subcategoryIds.length > 0) {
-          const existingExperienceBySubcategoryId = new Map(
-            existingSubcategories.map((item) => [
-              item.subcategoryId,
-              item.experience,
-            ]),
-          );
-
-          await tx.providerSubcategory.createMany({
-            data: subcategoryIds.map((subcategoryId, index) => ({
-              providerId: provider.id,
-              subcategoryId,
-              isPrimary: index === 0,
-              experience:
-                body.experience ??
-                existingExperienceBySubcategoryId.get(subcategoryId) ??
-                provider.experience ??
-                null,
-            })),
-          });
-        }
-      }
-    });
-
-    const { success: _success, ...updatedProvider } = await this.findById(provider.id, actor);
-    return {
-      success: true as const,
-      provider: updatedProvider,
-      hasAccess: updatedProvider.hasAccess,
-      accessDeniedReason: updatedProvider.accessDeniedReason,
-    };
-  }
-
-  async getStrength(actor: User) {
-    const provider = await this.prisma.provider.findUnique({
-      where: { userId: actor.id },
-      select: {
-        description: true,
-        verificationStatus: true,
-        languages: true,
-        user: { select: { avatar: true } },
-        _count: {
-          select: {
-            portfolioProjects: true,
-            skills: true,
-            serviceZones: true,
-          },
-        },
-      },
-    });
-    if (!provider) {
-      throw new NotFoundException("Provider profile not found");
-    }
-    return computeProviderStrength({
-      hasAvatar: Boolean(provider.user?.avatar),
-      portfolioProjectCount: provider._count.portfolioProjects,
-      hasDescription: Boolean(provider.description && provider.description.trim().length > 0),
-      verificationStatus: provider.verificationStatus,
-      languagesCount: provider.languages.length,
-      skillsCount: provider._count.skills,
-      serviceZonesCount: provider._count.serviceZones,
-    });
-  }
-
-  private async requireOwnProviderId(actor: User): Promise<string> {
-    const provider = await this.prisma.provider.findUnique({
-      where: { userId: actor.id },
-      select: { id: true },
-    });
-    if (!provider) {
-      throw new NotFoundException("Provider profile not found");
-    }
-    return provider.id;
-  }
-
-  async listPortfolio(actor: User) {
-    const providerId = await this.requireOwnProviderId(actor);
-    const projects = await this.prisma.portfolioProject.findMany({
-      where: { providerId },
-      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
-      include: { images: { orderBy: { displayOrder: "asc" } } },
-    });
-    return { projects: projects.map((p) => this.mapPortfolioProject(p)) };
-  }
-
-  async createPortfolioProject(
-    actor: User,
-    body: {
-      title: string;
-      description?: string;
-      categoryId?: string;
-      duration?: number;
-      price?: number;
-      images: Array<{
-        imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
-        path: string;
-        caption?: string;
-        displayOrder?: number;
-      }>;
-    },
-  ) {
-    const providerId = await this.requireOwnProviderId(actor);
-    const images = body.images.map((img, index) => {
-      this.storage.assertOwnedPath("portfolio", actor.id, img.path);
-      return {
-        imageType: img.imageType ?? "GENERAL",
-        imageUrl: this.storage.resolveStoredUrl("portfolio", img.path),
-        caption: img.caption ?? null,
-        displayOrder: img.displayOrder ?? index,
-      };
-    });
-    const project = await this.prisma.portfolioProject.create({
-      data: {
-        providerId,
-        title: body.title,
-        description: body.description ?? null,
-        categoryId: body.categoryId ?? null,
-        duration: body.duration ?? null,
-        price: body.price ?? null,
-        images: { create: images },
-      },
-      include: { images: { orderBy: { displayOrder: "asc" } } },
-    });
-    return { success: true as const, project: this.mapPortfolioProject(project) };
-  }
-
-  async updatePortfolioProject(
-    actor: User,
-    id: string,
-    body: {
-      title: string;
-      description?: string;
-      categoryId?: string;
-      duration?: number;
-      price?: number;
-      images: Array<{
-        imageType?: "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN";
-        path: string;
-        caption?: string;
-        displayOrder?: number;
-      }>;
-    },
-  ) {
-    const providerId = await this.requireOwnProviderId(actor);
-    const existing = await this.prisma.portfolioProject.findUnique({
       where: { id },
-      select: { id: true, providerId: true },
+      select: { id: true, userId: true, hidden: true, user: { select: { isActive: true } } },
     });
-    if (!existing || existing.providerId !== providerId) {
-      throw new NotFoundException("Portfolio project not found");
+    const privileged = viewer && (viewer.id === provider?.userId || viewer.role === "ADMIN");
+    if (!provider || ((provider.hidden || !provider.user.isActive) && !privileged)) {
+      throw notFound("Prestataire introuvable");
     }
-    const images = body.images.map((img, index) => {
-      this.storage.assertOwnedPath("portfolio", actor.id, img.path);
-      return {
-        imageType: img.imageType ?? "GENERAL",
-        imageUrl: this.storage.resolveStoredUrl("portfolio", img.path),
-        caption: img.caption ?? null,
-        displayOrder: img.displayOrder ?? index,
-      };
-    });
-    const project = await this.prisma.$transaction(async (tx) => {
-      await tx.portfolioImage.deleteMany({ where: { projectId: id } });
-      return tx.portfolioProject.update({
-        where: { id },
-        data: {
-          title: body.title,
-          description: body.description ?? null,
-          categoryId: body.categoryId ?? null,
-          duration: body.duration ?? null,
-          price: body.price ?? null,
-          images: { create: images },
-        },
-        include: { images: { orderBy: { displayOrder: "asc" } } },
-      });
-    });
-    return { success: true as const, project: this.mapPortfolioProject(project) };
+    return provider;
   }
 
-  async deletePortfolioProject(actor: User, id: string) {
-    const providerId = await this.requireOwnProviderId(actor);
-    const existing = await this.prisma.portfolioProject.findUnique({
-      where: { id },
-      select: { id: true, providerId: true },
-    });
-    if (!existing || existing.providerId !== providerId) {
-      throw new NotFoundException("Portfolio project not found");
-    }
-    await this.prisma.portfolioProject.delete({ where: { id } });
-    return { success: true as const };
-  }
-
-  private mapPortfolioProject(project: {
-    id: string;
-    title: string;
-    description: string | null;
-    categoryId: string | null;
-    duration: number | null;
-    price: number | null;
-    isFeatured: boolean;
-    isPublished: boolean;
-    createdAt: Date;
-    images: Array<{
-      id: string;
-      imageType: string;
-      imageUrl: string;
-      caption: string | null;
-      displayOrder: number;
-    }>;
-  }) {
-    return {
-      id: project.id,
-      title: project.title,
-      description: project.description,
-      categoryId: project.categoryId,
-      duration: project.duration,
-      price: project.price,
-      isFeatured: project.isFeatured,
-      isPublished: project.isPublished,
-      createdAt: project.createdAt.toISOString(),
-      images: project.images.map((img) => ({
-        id: img.id,
-        imageType: img.imageType as
-          | "BEFORE" | "DURING" | "AFTER" | "GENERAL" | "DETAIL" | "PLAN",
-        imageUrl: img.imageUrl,
-        caption: img.caption,
-        displayOrder: img.displayOrder,
-      })),
-    };
-  }
-
-  async resolveViewer(request: Request): Promise<Viewer> {
-    const token = this.extractToken(request);
-    if (!token) {
-      return null;
-    }
-
-    const claims = await this.jwt.verify(token).catch(() => null);
-    if (!claims?.sub) {
-      return null;
-    }
-
-    return this.identity
-      .resolve({
-        authUserId: claims.sub,
-        email: this.normalizeClaim(claims.email),
-        phone: this.normalizeClaim(claims.phone),
-        claims,
-      })
-      .catch(() => null);
-  }
-
-  private buildSearchWhere(query: ProviderSearchQuery): Prisma.ProviderWhereInput {
-    const conditions: Prisma.ProviderWhereInput[] = [
-      {
-        user: {
-          isActive: true,
-        },
-      },
-      {
-        onboardingCompleteAt: {
-          not: null,
-        },
-      },
-      {
-        profession: {
-          not: "",
-        },
-      },
-      {
-        hourlyRate: {
-          gt: 0,
-        },
-      },
-      {
-        categories: {
-          some: {
-            category: {
-              isActive: true,
-            },
-          },
-        },
-      },
-      {
-        serviceZones: {
-          some: {},
-        },
-      },
-      {
-        trustScore: {
-          isNot: null,
-        },
-      },
-      this.visibilityWhere("appearInSearch"),
-    ];
-
-    if (query.q) {
-      conditions.push({
-        OR: [
-          {
-            profession: {
-              contains: query.q,
-              mode: "insensitive",
-            },
-          },
-          {
-            description: {
-              contains: query.q,
-              mode: "insensitive",
-            },
-          },
-          {
-            user: {
-              firstName: {
-                contains: query.q,
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            user: {
-              lastName: {
-                contains: query.q,
-                mode: "insensitive",
-              },
-            },
-          },
-        ],
-      });
-    }
-
-    if (query.category) {
-      conditions.push({
-        categories: {
-          some: {
-            category: {
-              isActive: true,
-              OR: [{ id: query.category }, { slug: query.category }],
-            },
-          },
-        },
-      });
-      conditions.push(this.visibilityWhere("appearInCategory"));
-    }
-
-    if (query.subcategory) {
-      conditions.push({
-        subcategories: {
-          some: {
-            subcategory: {
-              isActive: true,
-              OR: [{ id: query.subcategory }, { slug: query.subcategory }],
-            },
-          },
-        },
-      });
-      conditions.push(this.visibilityWhere("appearInCategory"));
-    }
-
-    if (query.city) {
-      conditions.push({
-        OR: [
-          {
-            user: {
-              city: {
-                contains: query.city,
-                mode: "insensitive",
-              },
-            },
-          },
-          {
-            serviceZones: {
-              some: {
-                OR: [
-                  {
-                    city: {
-                      contains: query.city,
-                      mode: "insensitive",
-                    },
-                  },
-                  {
-                    commune: {
-                      contains: query.city,
-                      mode: "insensitive",
-                    },
-                  },
-                ],
-              },
-            },
-          },
-        ],
-      });
-    }
-
-    if (query.available) {
-      conditions.push({
-        isAvailable: true,
-      });
-    }
-
-    if (query.verified) {
-      conditions.push({
-        verificationStatus: "VERIFIED",
-      });
-    }
-
-    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-      conditions.push({
-        hourlyRate: {
-          ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
-          ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
-        },
-      });
-    }
-
-    return { AND: conditions };
-  }
-
-  private async applyMinRatingFilter(
-    baseWhere: Prisma.ProviderWhereInput,
-    minRating?: number,
-  ): Promise<Prisma.ProviderWhereInput> {
-    if (minRating === undefined || minRating <= 0) {
-      return baseWhere;
-    }
-
-    const matchingProviders = await this.prisma.provider.findMany({
-      where: baseWhere,
-      select: {
-        id: true,
-      },
-    });
-
-    const providerIds = matchingProviders.map((provider) => provider.id);
-    if (providerIds.length === 0) {
-      return {
-        AND: [baseWhere, { id: { in: [] } }],
-      };
-    }
-
-    const ratings = await this.prisma.review.groupBy({
-      by: ["providerId"],
-      where: {
-        providerId: {
-          in: providerIds,
-        },
-      },
-      _avg: {
-        overallScore: true,
-      },
-    });
-
-    const ratedProviderIds = ratings
-      .filter((item) => (item._avg.overallScore ?? 0) >= minRating)
-      .map((item) => item.providerId);
-
-    return {
-      AND: [baseWhere, { id: { in: ratedProviderIds } }],
-    };
-  }
-
-  private buildSearchOrderBy(
+  private async buildSearchWhere(
     query: ProviderSearchQuery,
-  ): Prisma.ProviderOrderByWithRelationInput[] {
-    if (query.sortBy === "hourlyRate") {
-      return [
-        { hourlyRate: query.sortOrder === "desc" ? "desc" : "asc" },
-        { id: "asc" },
-      ];
+    viewer: Viewer,
+    now: Date,
+  ): Promise<Prisma.ProviderWhereInput> {
+    const and: Prisma.ProviderWhereInput[] = [searchableProviderWhere()];
+
+    if (viewer) {
+      const blocked = await this.safety.blockedUserIds(viewer.id);
+      if (blocked.length > 0) and.push({ userId: { notIn: blocked } });
+    }
+    if (query.categoryId) and.push({ subcategory: { categoryId: query.categoryId } });
+    if (query.categorySlug) and.push({ subcategory: { category: { slug: query.categorySlug } } });
+    if (query.subcategoryId) {
+      and.push({
+        OR: [
+          { subcategoryId: query.subcategoryId },
+          { subcategory: { parentId: query.subcategoryId } },
+        ],
+      });
+    }
+    if (query.placeId) {
+      and.push({ placeId: { in: await this.places.descendantIds(query.placeId) } });
+    }
+    if (query.languageId) {
+      and.push({ references: { some: { itemId: query.languageId, kind: "LANGUAGE" } } });
+    }
+    if (query.modeId) {
+      and.push({ references: { some: { itemId: query.modeId, kind: "INTERVENTION_MODE" } } });
+    }
+    if (query.minRating !== undefined) and.push({ ratingAvg: { gte: query.minRating } });
+    if (query.verifiedOnly) and.push({ verificationStatus: "VERIFIED" });
+    if (query.premiumOnly) {
+      and.push({
+        premiumTier: { not: "FREE" },
+        OR: [{ premiumUntil: null }, { premiumUntil: { gt: now } }],
+      });
+    }
+    if (query.q) {
+      const q = query.q;
+      and.push({
+        OR: [
+          { displayName: insensitive(q) },
+          { description: insensitive(q) },
+          { subcategory: { name: insensitive(q) } },
+          { subcategory: { parent: { is: { name: insensitive(q) } } } },
+          { subcategory: { category: { name: insensitive(q) } } },
+          { skills: { some: { item: { label: insensitive(q) } } } },
+          { freeSkills: { has: q } },
+        ],
+      });
     }
 
-    if (query.sortBy === "createdAt") {
-      return [
-        { createdAt: query.sortOrder === "asc" ? "asc" : "desc" },
-        { id: "asc" },
-      ];
-    }
+    return { AND: and };
+  }
 
+  private searchOrder(sort: ProviderSearchQuery["sort"]): Prisma.ProviderOrderByWithRelationInput[] {
+    if (sort === "rating") {
+      return [{ ratingAvg: "desc" }, { ratingCount: "desc" }, { id: "asc" }];
+    }
+    if (sort === "newest") {
+      return [{ publishedAt: "desc" }, { id: "asc" }];
+    }
     return [
-      { isPremium: "desc" },
-      { totalReviews: "desc" },
-      { totalJobs: "desc" },
-      { responseTime: "asc" },
-      { createdAt: "desc" },
+      { premiumTier: "desc" },
+      { ratingAvg: "desc" },
+      { ratingCount: "desc" },
+      { publishedAt: "desc" },
       { id: "asc" },
     ];
   }
 
-  private async validateReferencedRecords(params: {
-    categoryIds?: string[];
-    subcategoryIds?: string[];
-  }) {
-    const [categoryCount, subcategoryCount] = await Promise.all([
-      params.categoryIds
-        ? this.prisma.category.count({
-            where: {
-              id: { in: params.categoryIds },
-              isActive: true,
-            },
-          })
-        : Promise.resolve(undefined),
-      params.subcategoryIds
-        ? this.prisma.subcategory.count({
-            where: {
-              id: { in: params.subcategoryIds },
-              isActive: true,
-            },
-          })
-        : Promise.resolve(undefined),
+  private async toCards(
+    rows: ProviderCardRow[],
+    origin: { lat: number; lng: number } | null,
+    now: Date,
+  ) {
+    const [placeChains, references] = await Promise.all([
+      this.places.chains(rows.map((row) => row.placeId)),
+      this.loadReferences(pricingReferenceIds(rows)),
     ]);
-
-    if (
-      params.categoryIds &&
-      categoryCount !== undefined &&
-      categoryCount !== params.categoryIds.length
-    ) {
-      throw new BadRequestException("One or more categories are invalid");
-    }
-
-    if (
-      params.subcategoryIds &&
-      subcategoryCount !== undefined &&
-      subcategoryCount !== params.subcategoryIds.length
-    ) {
-      throw new BadRequestException("One or more subcategories are invalid");
-    }
+    return rows.map((row) => toProviderCard(row, { placeChains, references, origin, now }));
   }
 
-  private async getRatingByProviderId(providerIds: string[]) {
-    if (providerIds.length === 0) {
-      return new Map<string, number>();
-    }
-
-    const ratings = await this.prisma.review.groupBy({
-      by: ["providerId"],
-      where: {
-        providerId: {
-          in: providerIds,
-        },
-      },
-      _avg: {
-        overallScore: true,
-      },
-      _count: {
-        providerId: true,
-      },
+  private async loadReferences(ids: string[]): Promise<Map<string, ReferenceSummary>> {
+    if (ids.length === 0) return new Map();
+    const items = await this.prisma.referenceItem.findMany({
+      where: { id: { in: ids } },
+      select: referenceSummarySelect,
     });
-
-    return new Map(
-      ratings.map((item) => [
-        item.providerId,
-        this.roundRating(item._avg.overallScore ?? 0),
-      ]),
-    );
-  }
-
-  private async getCertifiedProviderIds(providerIds: string[]) {
-    if (providerIds.length === 0) {
-      return new Set<string>();
-    }
-
-    const certifications = await this.prisma.certification.groupBy({
-      by: ["providerId"],
-      where: {
-        providerId: {
-          in: providerIds,
-        },
-        status: "VERIFIED",
-      },
-      _count: {
-        providerId: true,
-      },
-    });
-
-    return new Set(certifications.map((item) => item.providerId));
-  }
-
-  private async getProviderRatingStats(providerId: string) {
-    const [aggregate, reviews] = await Promise.all([
-      this.prisma.review.aggregate({
-        where: {
-          providerId,
-        },
-        _avg: {
-          overallScore: true,
-          punctuality: true,
-          quality: true,
-          communication: true,
-          value: true,
-          professionalism: true,
-        },
-      }),
-      this.prisma.review.findMany({
-        where: {
-          providerId,
-        },
-        select: {
-          overallScore: true,
-        },
-      }),
-    ]);
-
-    const ratingBreakdown = {
-      "1": 0,
-      "2": 0,
-      "3": 0,
-      "4": 0,
-      "5": 0,
-    };
-
-    for (const review of reviews) {
-      const bucket = String(
-        Math.min(5, Math.max(1, Math.round(review.overallScore || 0))),
-      ) as keyof typeof ratingBreakdown;
-      ratingBreakdown[bucket] += 1;
-    }
-
-    return {
-      average: this.roundRating(aggregate._avg.overallScore ?? 0),
-      totalReviews: reviews.length,
-      ratingBreakdown,
-      ratingAverages: {
-        overall: this.roundRating(aggregate._avg.overallScore ?? 0),
-        punctuality: this.roundRating(aggregate._avg.punctuality ?? 0),
-        quality: this.roundRating(aggregate._avg.quality ?? 0),
-        communication: this.roundRating(aggregate._avg.communication ?? 0),
-        value: this.roundRating(aggregate._avg.value ?? 0),
-        professionalism: this.roundRating(aggregate._avg.professionalism ?? 0),
-      },
-    };
-  }
-
-  private async canAccessProfile(
-    provider: ProviderDetailRecord,
-    viewer: Viewer,
-  ): Promise<boolean> {
-    const visibility = provider.user.visibilitySettings?.profileVisible ?? "PUBLIC";
-
-    if (this.isOwner(provider, viewer) || viewer?.role === "ADMIN") {
-      return true;
-    }
-
-    if (visibility === "PUBLIC") {
-      return true;
-    }
-
-    if (visibility === "REGISTERED") {
-      return Boolean(viewer);
-    }
-
-    if (visibility === "PRIVATE") {
-      return false;
-    }
-
-    if (!viewer || viewer.role !== "CLIENT") {
-      return false;
-    }
-
-    const booking = await this.prisma.booking.findFirst({
-      where: {
-        clientId: viewer.id,
-        providerId: provider.id,
-        status: {
-          in: ["CONFIRMED", "IN_PROGRESS", "COMPLETED"],
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    return Boolean(booking);
-  }
-
-  private mapProviderSummary(
-    provider: ProviderSummaryRecord,
-    rating: number,
-    isCertified: boolean,
-  ) {
-    return {
-      id: provider.id,
-      userId: provider.userId,
-      profession: provider.profession,
-      description: provider.description,
-      experience: provider.experience,
-      hourlyRate: provider.hourlyRate,
-      videoUrl: provider.videoUrl,
-      languages: provider.languages,
-      rating,
-      totalReviews: provider.totalReviews,
-      totalJobs: provider.totalJobs,
-      responseTime: provider.responseTime,
-      isCertified,
-      isPremium: provider.isPremium,
-      premiumExpiry: provider.premiumExpiry,
-      isAvailable: provider.isAvailable,
-      verificationStatus: provider.verificationStatus,
-      user: provider.user,
-      categories: provider.categories.map((item) => ({
-        id: item.category.id,
-        name: item.category.name,
-        slug: item.category.slug,
-        icon: item.category.icon,
-        color: item.category.color,
-      })),
-      subcategories: provider.subcategories
-        .map((item) => ({
-          id: item.subcategory.id,
-          categoryId: item.subcategory.categoryId,
-          name: item.subcategory.name,
-          slug: item.subcategory.slug,
-          description: item.subcategory.description,
-          icon: item.subcategory.icon,
-          isActive: item.subcategory.isActive,
-          order: item.subcategory.order,
-          createdAt: item.subcategory.createdAt,
-          isPrimary: item.isPrimary,
-          experience: item.experience,
-        }))
-        .sort((left, right) => {
-          if (left.isPrimary !== right.isPrimary) {
-            return Number(right.isPrimary) - Number(left.isPrimary);
-          }
-
-          if ((left.order ?? 0) !== (right.order ?? 0)) {
-            return (left.order ?? 0) - (right.order ?? 0);
-          }
-
-          return left.name.localeCompare(right.name);
-        }),
-      serviceZones: provider.serviceZones,
-      createdAt: provider.createdAt,
-      updatedAt: provider.updatedAt,
-    };
-  }
-
-  private mapProviderDetail(
-    provider: ProviderDetailRecord,
-    rating: number,
-    isCertified: boolean,
-    ratingStats: Awaited<ReturnType<ProvidersService["getProviderRatingStats"]>>,
-  ) {
-    return {
-      id: provider.id,
-      userId: provider.userId,
-      profession: provider.profession,
-      description: provider.description,
-      experience: provider.experience,
-      hourlyRate: provider.hourlyRate,
-      videoUrl: provider.videoUrl,
-      languages: provider.languages,
-      rating,
-      totalReviews: provider.totalReviews,
-      totalJobs: provider.totalJobs,
-      responseTime: provider.responseTime,
-      isCertified,
-      isPremium: provider.isPremium,
-      premiumExpiry: provider.premiumExpiry,
-      isAvailable: provider.isAvailable,
-      verificationStatus: provider.verificationStatus,
-      user: {
-        id: provider.user.id,
-        email: provider.user.email,
-        phone: provider.user.phone,
-        firstName: provider.user.firstName,
-        lastName: provider.user.lastName,
-        avatar: provider.user.avatar,
-        city: provider.user.city,
-        country: provider.user.country,
-        address: provider.user.address,
-        latitude: provider.user.latitude,
-        longitude: provider.user.longitude,
-        isVerified: provider.user.isVerified,
-      },
-      categories: provider.categories.map((item) => ({
-        id: item.category.id,
-        name: item.category.name,
-        slug: item.category.slug,
-        description: item.category.description,
-        image: item.category.image,
-        icon: item.category.icon,
-        color: item.category.color,
-        order: item.category.order,
-        isActive: item.category.isActive,
-        createdAt: item.category.createdAt,
-      })),
-      subcategories: provider.subcategories
-        .map((item) => ({
-          id: item.subcategory.id,
-          categoryId: item.subcategory.categoryId,
-          name: item.subcategory.name,
-          slug: item.subcategory.slug,
-          description: item.subcategory.description,
-          icon: item.subcategory.icon,
-          isActive: item.subcategory.isActive,
-          order: item.subcategory.order,
-          createdAt: item.subcategory.createdAt,
-          isPrimary: item.isPrimary,
-          experience: item.experience,
-        }))
-        .sort((left, right) => {
-          if (left.isPrimary !== right.isPrimary) {
-            return Number(right.isPrimary) - Number(left.isPrimary);
-          }
-
-          if ((left.order ?? 0) !== (right.order ?? 0)) {
-            return (left.order ?? 0) - (right.order ?? 0);
-          }
-
-          return left.name.localeCompare(right.name);
-        }),
-      skills: provider.skills,
-      serviceZones: provider.serviceZones,
-      trustScore: provider.trustScore
-        ? {
-            ...provider.trustScore,
-            badges: provider.trustScore.badges,
-          }
-        : null,
-      badges: provider.trustScore?.badges ?? [],
-      certifications: provider.certifications,
-      portfolio: provider.portfolio,
-      portfolioProjects: provider.portfolioProjects,
-      availabilitySchedules: provider.availabilitySchedules,
-      subscription: provider.subscription,
-      recentReviews: provider.reviews.map((review) => ({
-        id: review.id,
-        bookingId: review.bookingId,
-        clientId: review.clientId,
-        providerId: review.providerId,
-        rating: this.roundRating(review.overallScore),
-        punctuality: review.punctuality,
-        quality: review.quality,
-        communication: review.communication,
-        value: review.value,
-        professionalism: review.professionalism,
-        overallScore: review.overallScore,
-        satisfactionTags: review.satisfactionTags
-          ? JSON.stringify(review.satisfactionTags)
-          : null,
-        comment: review.comment,
-        reply: review.reply,
-        repliedAt: review.repliedAt,
-        isPublic: review.isPublic,
-        isEdited: review.isEdited,
-        createdAt: review.createdAt,
-        updatedAt: review.updatedAt,
-        client: review.client,
-      })),
-      stats: {
-        totalReviews: provider._count.reviews,
-        totalBookings: provider._count.bookings,
-        ratingBreakdown: ratingStats.ratingBreakdown,
-        ratingAverages: ratingStats.ratingAverages,
-      },
-      hasAccess: true,
-      accessDeniedReason: null,
-      createdAt: provider.createdAt,
-      updatedAt: provider.updatedAt,
-    };
-  }
-
-  private applyVisibility(
-    detail: ReturnType<ProvidersService["mapProviderDetail"]>,
-    provider: ProviderDetailRecord,
-    access: {
-      hasAccess: boolean;
-      isOwner: boolean;
-    },
-  ) {
-    const visibility = provider.user.visibilitySettings ?? this.defaultVisibility();
-    const fullAccess = access.hasAccess || access.isOwner;
-
-    return {
-      ...detail,
-      user: {
-        ...detail.user,
-        email: fullAccess || visibility.showEmail ? detail.user.email : null,
-        phone: fullAccess || visibility.showPhone ? detail.user.phone : null,
-        address:
-          fullAccess || visibility.showExactLocation ? detail.user.address : null,
-        latitude:
-          fullAccess || visibility.showExactLocation ? detail.user.latitude : null,
-        longitude:
-          fullAccess || visibility.showExactLocation ? detail.user.longitude : null,
-      },
-      hourlyRate:
-        fullAccess || visibility.showHourlyRate ? detail.hourlyRate : null,
-      isAvailable:
-        fullAccess || visibility.showAvailability ? detail.isAvailable : false,
-      availabilitySchedules:
-        fullAccess || visibility.showAvailability
-          ? detail.availabilitySchedules
-          : [],
-      portfolio:
-        fullAccess || visibility.showPastWork ? detail.portfolio : [],
-      portfolioProjects:
-        fullAccess || visibility.showPastWork ? detail.portfolioProjects : [],
-      certifications:
-        fullAccess || visibility.showCertifications ? detail.certifications : [],
-      recentReviews:
-        fullAccess || visibility.showReviews ? detail.recentReviews : [],
-      stats:
-        fullAccess || visibility.showReviews
-          ? detail.stats
-          : {
-              ...detail.stats,
-              totalReviews: 0,
-              ratingBreakdown: {
-                "1": 0,
-                "2": 0,
-                "3": 0,
-                "4": 0,
-                "5": 0,
-              },
-              ratingAverages: {
-                overall: 0,
-                punctuality: 0,
-                quality: 0,
-                communication: 0,
-                value: 0,
-                professionalism: 0,
-              },
-            },
-      hasAccess: access.hasAccess,
-      accessDeniedReason: access.hasAccess
-        ? null
-        : this.getAccessDeniedReason(visibility.profileVisible, null),
-    };
-  }
-
-  private visibilityWhere(
-    field: "appearInSearch" | "appearInCategory",
-  ): Prisma.ProviderWhereInput {
-    return {
-      OR: [
-        { user: { visibilitySettings: null } },
-        { user: { visibilitySettings: { [field]: true } } },
-      ],
-    };
-  }
-
-  private defaultVisibility() {
-    return {
-      profileVisible: "PUBLIC" as VisibilityLevel,
-      showEmail: false,
-      showPhone: false,
-      showExactLocation: false,
-      showHourlyRate: true,
-      showPastWork: true,
-      showReviews: true,
-      showAvailability: true,
-      showCertifications: true,
-      showClientHistory: true,
-      showClientReviews: true,
-      allowDirectContact: true,
-      allowMessages: true,
-      appearInSearch: true,
-      appearInCategory: true,
-    };
-  }
-
-  private getAccessDeniedReason(
-    visibility: VisibilityLevel,
-    viewer: Viewer,
-  ): string {
-    if (visibility === "PRIVATE") {
-      return "This profile is private";
-    }
-
-    if (visibility === "REGISTERED") {
-      return "Sign in to view this profile";
-    }
-
-    if (visibility === "CLIENTS_ONLY") {
-      return viewer ? "This profile is only visible to confirmed clients" : "Sign in to view this profile";
-    }
-
-    return "Access denied";
-  }
-
-  private isOwner(provider: Provider | ProviderDetailRecord, viewer: Viewer) {
-    return Boolean(viewer && provider.userId === viewer.id);
-  }
-
-  private roundRating(value: number) {
-    return Math.round(value * 10) / 10;
-  }
-
-  private unique(values: string[]) {
-    return [...new Set(values)];
-  }
-
-  private uniqueSkills(skills: NonNullable<UpdateProviderBody["skills"]>) {
-    const seen = new Set<string>();
-
-    return skills
-      .map((skill) => ({
-        name: skill.name.trim(),
-        level: skill.level,
-      }))
-      .filter((skill) => {
-        if (!skill.name) {
-          return false;
-        }
-
-        const key = skill.name.toLowerCase();
-        if (seen.has(key)) {
-          return false;
-        }
-
-        seen.add(key);
-        return true;
-      });
-  }
-
-  private uniqueZones(zones: NonNullable<UpdateProviderBody["serviceZones"]>) {
-    const seen = new Set<string>();
-
-    return zones.filter((zone) => {
-      const key = `${zone.city.trim().toLowerCase()}:${zone.commune?.trim().toLowerCase() ?? ""}`;
-      if (seen.has(key)) {
-        return false;
-      }
-
-      seen.add(key);
-      return true;
-    });
-  }
-
-  private normalizeClaim(value: unknown): string | undefined {
-    if (typeof value !== "string") {
-      return undefined;
-    }
-
-    const trimmed = value.trim();
-    return trimmed ? trimmed : undefined;
-  }
-
-  private extractToken(request: Request) {
-    const auth = request.headers.authorization;
-    if (auth?.startsWith("Bearer ")) {
-      const token = auth.slice("Bearer ".length).trim();
-      if (token) {
-        return token;
-      }
-    }
-
-    const cookies = request.cookies as Record<string, unknown> | undefined;
-    if (!cookies) {
-      return null;
-    }
-
-    const preferredKeys = [
-      "access_token",
-      "sb-access-token",
-      "supabase-access-token",
-      "supabase.auth.token",
-    ];
-
-    for (const key of preferredKeys) {
-      const token = this.readTokenCandidate(cookies[key]);
-      if (token) {
-        return token;
-      }
-    }
-
-    for (const [key, value] of Object.entries(cookies)) {
-      if (!/^sb-.*-auth-token/.test(key)) {
-        continue;
-      }
-
-      const token = this.readTokenCandidate(value);
-      if (token) {
-        return token;
-      }
-    }
-
-    return null;
-  }
-
-  private readTokenCandidate(value: unknown): string | null {
-    if (typeof value !== "string" || !value) {
-      return null;
-    }
-
-    const decoded = this.decodeCookieValue(value);
-    const directToken = this.findJwt(decoded);
-    if (directToken) {
-      return directToken;
-    }
-
-    try {
-      const parsed = JSON.parse(decoded) as unknown;
-      return this.findTokenInJson(parsed);
-    } catch {
-      return null;
-    }
-  }
-
-  private decodeCookieValue(value: string) {
-    let decoded = value;
-
-    try {
-      decoded = decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-
-    if (!decoded.startsWith("base64-")) {
-      return decoded;
-    }
-
-    return Buffer.from(decoded.slice("base64-".length), "base64").toString("utf8");
-  }
-
-  private findJwt(value: string) {
-    const match = value.match(
-      /eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/,
-    );
-
-    return match?.[0] ?? null;
-  }
-
-  private findTokenInJson(value: unknown): string | null {
-    if (typeof value === "string") {
-      return this.findJwt(value);
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const token = this.findTokenInJson(item);
-        if (token) {
-          return token;
-        }
-      }
-    }
-
-    if (value && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      const accessToken = record.access_token;
-      if (typeof accessToken === "string" && accessToken) {
-        return accessToken;
-      }
-
-      for (const item of Object.values(record)) {
-        const token = this.findTokenInJson(item);
-        if (token) {
-          return token;
-        }
-      }
-    }
-
-    return null;
+    return new Map(items.map((item) => [item.id, toReferenceSummary(item)]));
   }
 }

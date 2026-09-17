@@ -1,0 +1,38 @@
+// Services grid copy (workstream 05).
+
+export const servicesCopy = {
+  meta: {
+    title: "Tous les services",
+    description: "Dix-neuf familles de services en RDC et au Congo-Brazzaville.",
+  },
+  back: "Retour à l'accueil",
+  title: "Explorer les services",
+  searchLabel: "Rechercher un service",
+  searchPlaceholder: "Que recherchez-vous ?",
+  showAll: "Tous les services",
+  showLess: "Moins de services",
+  empty: "Aucun service trouvé.",
+  cta: "Trouver un prestataire",
+  unavailable: "Les services sont momentanément indisponibles.",
+  shortLabel: {
+    batiment_construction: "Bâtiment",
+    beaute_bien_etre: "Beauté",
+    cuisine_restauration: "Cuisine",
+    maison_entretien: "Maison",
+    garde_assistance: "Assistance",
+    transport_logistique: "Transport",
+    mecanique_auto: "Mécanique",
+    technologie_numerique: "Numérique",
+    sante: "Santé",
+    agriculture_elevage: "Jardin & terre",
+    education_formation: "Cours",
+    evenementiel: "Événements",
+    securite: "Sécurité",
+    energie: "Énergie",
+    textile_mode: "Mode",
+    communication_impression: "Impression",
+    metiers_artisanat: "Artisanat",
+    services_admin_juridique: "Juridique",
+    autres: "Autres",
+  } as Record<string, string>,
+} as const;

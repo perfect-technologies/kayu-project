@@ -5,18 +5,15 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex h-7 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border px-3 py-0 font-sans text-[13px] font-medium transition-[color,background,border-color,box-shadow] [&>svg]:size-3 [&>svg]:pointer-events-none focus-visible:border-[var(--k-primary)] focus-visible:ring-[3px] focus-visible:ring-[rgba(14,165,233,0.15)] aria-invalid:border-[var(--k-danger)] aria-invalid:ring-[rgba(225,29,72,0.16)]",
+  "inline-flex h-7 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-full border px-3 text-xs font-semibold transition-[color,background-color,border-color] [&>svg]:size-3 [&>svg]:pointer-events-none",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-[var(--k-primary-subtle)] text-[var(--k-primary-hover)] [a&]:hover:bg-[#E0F2FE]",
-        secondary:
-          "border-transparent bg-[var(--k-surface-muted)] text-[var(--k-text-body)] [a&]:hover:bg-[var(--k-border)]",
-        destructive:
-          "border-transparent bg-[var(--k-danger-subtle)] text-[var(--k-danger)] [a&]:hover:bg-[#FFE4E6]",
-        outline:
-          "border-[var(--k-border)] bg-[var(--k-surface)] text-[var(--k-text-body)] [a&]:hover:bg-[var(--k-surface-muted)]",
+        default: "border-transparent bg-primary/10 text-primary",
+        accent: "border-transparent bg-accent text-accent-foreground",
+        secondary: "border-transparent bg-muted text-muted-foreground",
+        destructive: "border-red-200 bg-red-50 text-red-700",
+        outline: "border-border bg-white text-foreground",
       },
     },
     defaultVariants: {

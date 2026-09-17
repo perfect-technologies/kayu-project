@@ -270,18 +270,26 @@ Definition of done: five campaign test files pass unchanged; DOM id/name
       inventory identical; manual campaign-mode smoke recorded.
 ```
 
-## Workstream 10 — QA, Migration And Release
+## Workstream 10 — QA, Hosting Move And Release
 
 ```text
 Implement docs/kyou-ux-refactor/10-qa-migration-and-release.md.
 
 Owner: TBD
-Owns: .github/workflows/ci.yml; root package.json scripts; apps/web/e2e/**;
-      apps/web/playwright.config.ts; apps/mobile/README.md; docs banners and
-      rewrites listed in the doc; the merge PR into main.
-Must not touch: product code except the test-mode session hook agreed with 02.
-Inputs: every other workstream Done in PROGRESS.md with evidence.
-Hands over: a tagged pre-kyou-ux main, a merged main, reset dev and prod
-      databases, and the closing PROGRESS entry.
+Owns: .github/workflows/ci.yml (delete deploy-dev.yml and deploy-prod.yml;
+      delete render.yaml); railway/backend.json and railway/web.json (new);
+      root package.json scripts; apps/web/e2e/**; apps/web/playwright.config.ts;
+      apps/mobile/README.md; both .env.example files; docs/DEPLOYMENT.md
+      (full rewrite) and the other doc banners and rewrites listed in the doc;
+      the merge PR into main.
+Product code allowed, and only this: the prisma datasource block (directUrl),
+      env.validation.ts (DIRECT_URL optional), main.ts listen host ("::"), and
+      the test-mode session hook agreed with 02.
+Must not touch: anything else under apps/** or packages/**.
+Inputs: every other workstream Done in PROGRESS.md with evidence; Supabase
+      dashboard access; a Railway account linked to the GitHub repo.
+Hands over: a tagged pre-kyou-ux main, a merged main, both Railway services
+      healthy on Supabase Postgres, Render deleted, and the closing PROGRESS
+      entry with the backup decision.
 Definition of done: launch gate checklist F fully ticked with evidence.
 ```

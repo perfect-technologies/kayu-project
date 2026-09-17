@@ -4,7 +4,7 @@ import {
   formatHourlyCompact,
   portfolioSlug,
   type ProviderCardData,
-} from "../cards.js";
+} from "../tokens.js";
 import { tokens } from "../tokens.js";
 import { Avatar } from "./Avatar.js";
 import {
