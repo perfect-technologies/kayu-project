@@ -4,6 +4,7 @@ export { ApiError } from "./error.js";
 export {
   addressesApi,
   adminApi,
+  assistantApi,
   bookingsApi,
   categoriesApi,
   contactApi,

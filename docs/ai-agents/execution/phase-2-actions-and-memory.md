@@ -46,7 +46,7 @@ Out (Phase 3): evals, model selection, agent notes, promotion.
 - `BookingApprovalCard`: provider, date and time in the provider timezone, phone, address (saved label with place chain, or the new line), notes. "Confirmer" gold pill, "Annuler" outline. Calls `addToolApprovalResponse`.
 - `MessageApprovalCard`: provider and the message text in an editable textarea (4000 chars, counter). Editing sends a new user message with the revised text and denies the pending call, so the model re-emits with the new body. "Envoyer" and "Annuler".
 - After execution the part renders as `StatusCard`: booking status pill and link to `/reservation/[id]`, or "Message envoyé" with a link to `/messagerie?c=[id]`.
-- `AddressCard`: saved addresses as pill choices when the agent asks for one; "Nouvelle adresse" opens `AddressAutocomplete` and `LocationFields` from the public components.
+- `AddressCard`: saved addresses as pill choices when the agent asks for one; "Nouvelle adresse" opens `AddressAutocomplete` and `LocationFields` from the public components, creating the address through the existing addresses endpoint. When the client answered the Phase 1 location question with a place and has no address, the card offers to save it as the default address so the agent never asks again.
 
 ### 3. Profile block
 
@@ -56,6 +56,7 @@ Out (Phase 3): evals, model selection, agent notes, promotion.
 
 ### 4. Prompt updates
 
+- Location: the default location from the turn facts is also the default booking address when it comes from the address book; confirm it in the approval card rather than asking again.
 - Actions: propose before booking, confirm place, date and time before `create_booking`, offer `send_message` when contacts are locked or the client hesitates, say "demande envoyée, le prestataire doit confirmer" after a booking, never "il arrive".
 - Do not recommend a provider the client rated 2 or below without saying so.
 

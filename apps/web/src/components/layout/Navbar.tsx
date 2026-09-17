@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Bell, LogOut } from "lucide-react";
 import { useAuth, type AuthRole, type AuthStatus } from "@/contexts/AuthContext";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
+import { assistantCopy } from "@/copy/assistant";
 import { shellCopy } from "@/copy/shell";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,6 +32,7 @@ export function navbarLinks(status: AuthStatus, role: AuthRole | undefined): Nav
     links.push({ href: "/mon-espace", label: nav.mySpace });
     links.push({ href: "/premium", label: nav.premium });
   } else {
+    if (role === "CLIENT") links.push({ href: "/assistant", label: assistantCopy.nav.label });
     links.push({ href: "/mes-reservations", label: nav.myBookings });
     links.push({ href: "/prestataire/nouveau", label: nav.becomeProvider });
     links.push({ href: "/premium", label: nav.premium });

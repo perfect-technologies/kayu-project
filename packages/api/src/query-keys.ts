@@ -104,6 +104,10 @@ export const queryKeys = {
     geocode: (params: GeocodeParams) => ["geo", "geocode", params] as const,
     distance: (params: DistanceParams) => ["geo", "distance", params] as const,
   },
+  assistant: {
+    conversations: ["assistant", "conversations"] as const,
+    conversation: (conversationId: string) => ["assistant", "conversation", conversationId] as const,
+  },
   admin: {
     overview: ["admin", "overview"] as const,
     users: (params?: AdminUserSearchParams) => ["admin", "users", params ?? {}] as const,

@@ -1,6 +1,7 @@
 import { ActivityModule } from "./modules/activity/activity.module";
 import { AddressesModule } from "./modules/addresses/addresses.module";
 import { AdminModule } from "./modules/admin/admin.module";
+import { AgentModule } from "./modules/agent/agent.module";
 import { BookingsModule } from "./modules/bookings/bookings.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { ContactModule } from "./modules/contact/contact.module";
@@ -50,4 +51,5 @@ export const featureModules = [
   StatsModule,
   GeoModule,
   AdminModule,
+  AgentModule,
 ];

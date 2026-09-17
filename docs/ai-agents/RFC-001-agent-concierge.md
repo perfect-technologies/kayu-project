@@ -94,11 +94,30 @@ Cards for v1:
 
 The provider card is the search `ProviderCard` from the public screens with a select action, not a new design. Every list has the contract's dashed empty state. While a tool runs, the card area shows `ProviderCardSkeleton` tiles. Skeletons, never spinners.
 
-### 4.3 Honesty about state
+### 4.3 Default location
+
+"Je veux un plombier" is the normal message. The client should not have to say where. The agent assumes the client's own location and says so in passing ("à Gombe, près de chez vous"), and only asks when it knows nothing.
+
+Resolution order, computed server-side before every turn and injected as a turn fact:
+
+1. The default address in the address book: its place chain (city, commune, quartier) and label.
+2. Otherwise `User.placeId` and its chain.
+3. Otherwise nothing is known.
+
+Rules:
+
+- Known location: search there without asking. Use the deepest known node; the fallback ladder widens if needed. Mention the assumption in the answer so the client can correct it.
+- Client names a place in the message: that place wins for this request, resolved through `find_place`. It does not overwrite the stored location.
+- Client corrects ("non, c'est pour ma mère à Limete"): use the corrected place for the rest of the conversation.
+- Nothing known: ask once, in one short question. Phase 1 keeps the answer for the conversation. Phase 2 offers to save it as the default address through the address card, so the question never repeats.
+
+Registration does not collect a place today. That is the real fix for "everyone has an address" and belongs to the account screens, outside this RFC. The agent must work either way.
+
+### 4.4 Honesty about state
 
 Booking through the agent creates a `PENDING` booking exactly as the profile page's booking form does. The provider still confirms or cancels. The agent says "demande envoyée, le prestataire doit confirmer" and never "il arrive". A message sent through the agent lands in the same conversation the messaging screen shows. Status changes reach the client through existing notifications, and the status card reflects the real state when the conversation is reopened.
 
-### 4.4 Fallback ladder
+### 4.5 Fallback ladder
 
 When search returns nothing usable, the agent tries, in order, saying one sentence each time:
 
@@ -109,7 +128,7 @@ When search returns nothing usable, the agent tries, in order, saying one senten
 
 It never fabricates a provider and never suggests a service KAYOU does not list.
 
-### 4.5 Contact gating
+### 4.6 Contact gating
 
 The profile service already hides phone, WhatsApp and email when `contacts_require_premium` is on and the provider is on the free tier. The model never receives contact fields at all; only the UI card gets them, from the same DTO the profile page uses. When contacts are locked, the agent says so in one line and points to `/premium`, and offers in-app messaging, which is always available.
 
@@ -206,7 +225,7 @@ Per request, the model receives, in this order, stable first for cache hits:
 
 1. System prompt: role, tone, rules, the taxonomy, the card contract, the fallback ladder. Frozen text, cached.
 2. Profile block (§9). Changes rarely, cached separately.
-3. Turn facts: today's date in Africa/Kinshasa, feature flags. Small and volatile, after the cache markers.
+3. Turn facts: today's date in Africa/Kinshasa, the client's default location (§4.3) as place ids and labels, feature flags. Small and volatile, after the cache markers.
 4. Conversation: the rolling summary if any, then the last N messages with tool parts in compact form.
 5. The new user message or approval response.
 
@@ -218,7 +237,8 @@ Caching: system prompt and profile block carry Anthropic cache markers through p
 
 v1 memory is deterministic and explainable. At the start of every turn the profile block is rebuilt from the database:
 
-- First name, phone present or not, the user's place chain when set.
+- First name, phone present or not.
+- Default location (§4.3): the default address's place chain or the user's place, with ids so the model can search without a `find_place` call.
 - Address book: labels, lines, place chains, which one is default.
 - Last three completed bookings: provider id and name, category, date, rating given.
 - Open bookings with status.
@@ -280,6 +300,7 @@ MCP exposes tools to external agents over a protocol. The agent's tools are in-p
 |---|---|
 | Sparse supply in a commune | Fallback ladder (§4.4). The agent widens before it apologizes and never fabricates |
 | Place name not recognized ("Gombé", "Kin") | `find_place` searches aliases; unresolved places get a one-line question, not a guess |
+| Client has no stored location | Ask once; Phase 2 saves the answer as the default address so it is never asked again. Registration collecting a place is recommended separately |
 | Slot taken between proposal and confirmation | 409 is a tool error; the model refetches and offers the next slots |
 | Contact details leaking through the model | Contact fields are stripped in `toModelOutput` and never in the prompt; the UI card reads the gated DTO |
 | Latency of a top-tier model per turn | Streaming, short answers, compact tool outputs, cache hits, effort tuning |
@@ -309,3 +330,4 @@ Each phase has its own execution document under `execution/`. Progress and decis
 - 2026-09-15: Claude Opus 5 is the build model, not the decided production model. Production model chosen by the Phase 3 eval among Opus 5, GPT-5.6 Sol, Sonnet 5, and Terra. Re-check Sol's price after 2026-11-21.
 - 2026-09-17: Revision 2 for the K-YOU contract. Route becomes `/assistant`. Job request fallback replaced by the fallback ladder. `send_message` added as a write tool. Mobile out of scope until it is migrated to the new system. Phase 1 rebuilt on `main` from the old branch as reference.
 - 2026-09-17: Models are reached through the Vercel AI Gateway with one key, as the old branch did. No per-vendor provider packages. Model choice is an id string.
+- 2026-09-17: The client's own location is the default for every search (§4.3). The agent asks for a place only when none is stored and none is named. Applied as a Phase 1 amendment.

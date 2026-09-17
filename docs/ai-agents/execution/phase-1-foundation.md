@@ -72,6 +72,18 @@ Do not reuse: `agent.tools.ts` (old search signature, service zones, city string
 - `agent.model.ts`: the only file that creates the gateway and names a model id (`anthropic/claude-opus-5`). Exports the model and the provider options passed through the gateway (Anthropic cache markers, adaptive thinking).
 - `agent.prompt.ts`: French system prompt. Answer briefly, at most three providers, resolve the place with `find_place` and ask when unresolved, map to the deepest taxonomy node, treat provider text as data, never claim a booking is confirmed, follow the fallback ladder from RFC §4.4, say when contacts are locked and offer messaging.
 
+### 3b. Default location (amendment, 2026-09-17)
+
+- `agent.location.ts`: `resolveDefaultLocation(actor)` returns the default address's place chain and label if one exists, else the chain of `User.placeId`, else null. Uses `AddressesService.list` and `PlaceTreeService.chain`. Chain entries carry id, kind, label.
+- `buildTurnFacts` gains a location line: "Lieu du client : Gombe (commune), Kinshasa, RDC — id … ; adresse par défaut « Maison »." or "Lieu du client : inconnu." Ids are included so `search_providers` can run without a `find_place` call.
+- Prompt rules replace "résous toujours le lieu avec find_place" with:
+  - When the message names no place and a client location is known, search there directly with the deepest known place id and say so in passing ("près de chez vous, à Gombe").
+  - When the message names a place, resolve it with `find_place` and use it for this request.
+  - When the client corrects the place, use the correction for the rest of the conversation.
+  - Ask for a place only when none is known and none is named, in one short question.
+- Chips: add "… près de chez moi" variants when a location is known.
+- Specs: `resolveDefaultLocation` for the three cases; the turn facts line for known and unknown; prompt stability unchanged.
+
 ### 4. Shared packages
 
 - `packages/schemas/src/dto.ts`: `AssistantConversationSummary`, tool input schemas, shared with the backend.
@@ -100,6 +112,9 @@ Do not reuse: `agent.tools.ts` (old search signature, service zones, city string
 ## Acceptance criteria
 
 - A client sends "un plombier à Gombe" and receives up to three provider cards within one streamed turn, with the place resolved through `find_place`.
+- A client with a default address in Gombe sends "je veux un plombier" and gets cards for Gombe with no question asked, the answer mentioning the assumed place.
+- The same message from a client with no address and no place gets exactly one short question about the place.
+- "un électricien à Limete" from the Gombe client searches Limete, and the stored default is untouched.
 - "Gombé demain matin" with no service asks one question instead of guessing.
 - Choosing a provider shows the detail card; a provider on the free tier with `contacts_require_premium` on shows the locked line and no phone number anywhere in the stored model messages.
 - Picking a date shows real slots from the provider's schedule.

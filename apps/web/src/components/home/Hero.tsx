@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Heart, MapPin, Search, ShieldCheck, Sparkles, Star } from "lucide-react";
 import type { SiteSettings } from "@kayu/schemas";
+import { useAuth } from "@/contexts/AuthContext";
+import { assistantCopy } from "@/copy/assistant";
 import { homeCopy } from "@/copy/home";
 import { settingOr } from "@/hooks/useSiteSettings";
 
@@ -20,7 +23,9 @@ function splitTitle(title: string): [string, string] {
 export function Hero({ settings }: { settings: SiteSettings }) {
   const router = useRouter();
   const reduce = useReducedMotion();
+  const { status, user } = useAuth();
   const [q, setQ] = useState("");
+  const showAssistant = status === "ready" && user?.role === "CLIENT";
   const [lead, accent] = splitTitle(settingOr(settings.hero_title, copy.title));
   const rise = (delay: number) => ({
     initial: { opacity: 0, y: 18 },
@@ -87,6 +92,15 @@ export function Hero({ settings }: { settings: SiteSettings }) {
                 <ArrowRight size={18} aria-hidden />
               </button>
             </motion.form>
+
+            {showAssistant && (
+              <Link
+                href="/assistant"
+                className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                <Sparkles size={15} aria-hidden /> {assistantCopy.hero.link}
+              </Link>
+            )}
 
             <motion.ul
               {...rise(0.3)}
