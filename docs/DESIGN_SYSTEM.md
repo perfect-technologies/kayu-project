@@ -1,3 +1,5 @@
+> **Superseded on 2026-09-16.** The K-YOU refactor replaced this document with `docs/kyou-ux-refactor/00-product-and-design-contract.md` §9 (design tokens), §10 (motion contract) and §11 (hard rules). This file is kept as history only; do not build new UI from it.
+
 # KAYOU Design System
 
 > Trust travels light.

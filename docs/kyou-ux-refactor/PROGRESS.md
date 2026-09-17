@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration C in progress (01–09 done; 10 next)**
+Overall status: **Iteration C in progress (01–09 done; 10 in review: local half done; the Railway + Supabase hosting move is deferred by the owner until deploy time, work continues locally)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -22,7 +22,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
 | 08 — Web Admin Console | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; type-check, production build, 64/64 browser checks and 42/42 reduced-motion renders green; contract handed over in `handover/08-web-admin-console.md` |
 | 09 — Launch Campaign Restyle | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; five campaign test files 28/28, type-check, production build; DOM id/name inventory, tab order and funnel events identical across 17 form states; 43/43 campaign-mode browser checks; smoke evidence handed over in `handover/09-launch-campaign.md` |
-| 10 — QA, Hosting Move And Release | Not started | TBD | Rewritten 2026-09-17 for Railway + Supabase; finish last |
+| 10 — QA, Hosting Move And Release | In review | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review. Done locally: test-mode session hook, Prisma `directUrl`, `::` listen host, Railway config as code, CI rewrite, Render files deleted, Playwright suite 22/22 on four projects with screenshots, docs G rewritten, mobile freeze, Supabase buckets created, `pre-kyou-ux` tag on `main` (local). Deferred by owner (2026-09-17): Railway project, Supabase connection strings, Render deletion, GitHub secrets, backup decision and the merge are picked up when deploying; work continues locally until then. Evidence below |
 
 Status values:
 
@@ -176,6 +176,17 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-17 | (09) `apps/web/scripts/campaign-smoke.mjs` added outside the owned paths | Like 07's and 08's smoke scripts: the before/after inventory, event and browser evidence needs a repeatable tool; handed to 10 |
 | 2026-09-17 | Hosting moves from Render to Railway (backend + web, one environment) and Supabase Postgres in the existing Supabase project; Render is deleted at the end of workstream 10 | Render cost ~$35/month for four flat-rate services and a DB that never served users; Railway bills usage and Supabase already hosts auth and storage; NestJS stays as is (Cloudflare Workers rejected because NestJS is unsupported there and the API keeps in-memory rate limits and caches) |
 
+| 2026-09-17 | Test-mode session hook `POST /api/test/session` lives in `apps/backend/src/modules/test-session/` and is registered from `process.env` at import time (`testSessionModules(process.env)`); the env validator rejects `E2E_TEST_MODE=true` with `NODE_ENV=production` and requires `E2E_SEED_PASSWORD` | Playwright cannot complete phone OTP; the route must not exist in any other mode (02 → 10 handover) |
+| 2026-09-17 | `DIRECT_URL` is optional: `validateEnv` defaults it to `DATABASE_URL` and writes it to `process.env`; CI sets `DIRECT_URL` explicitly on every step that runs the Prisma CLI, and the local `.env` needs it too | Prisma CLI fails at `getConfig` when `directUrl` names an unset variable, while Prisma Client runs fine without it |
+| 2026-09-17 | Root `build` and `type-check` filter out `@kayu/mobile`; `test:launch` ends with `pnpm --filter @kayu/web test`; new root `test:e2e` | Mobile freeze (D) and the automated gate (A) |
+| 2026-09-17 | The web unit test script runs from the repo root (`cd ../.. && node --test apps/web/src/lib/*.test.mjs`) | The five campaign test files read `apps/web/src/app/*` by repo-relative path |
+| 2026-09-17 | The four handed-over smoke scripts (`admin-smoke`, `spaces-smoke`, `campaign-smoke`, `overflow-check`) are deleted; `apps/web/e2e/smoke.spec.ts` replaces them, comparing `scrollWidth` with the requested viewport width | One suite, one runner, and the 09 overflow blind spot closed |
+| 2026-09-17 | The Playwright suite is self-healing on a used database (deletes Paul's earlier review of the target provider, unsuspends the target user, creates the place suggestion it approves) and every action click falls back to a DOM click after 10 s | Re-runs without a reseed; infinite decorative animations and sheet springs keep buttons "unstable" for the pointer |
+| 2026-09-17 | The two admin overflows found at 390 px are tracked as a `test.fail` expectation (`8b. admin overflow`) rather than fixed here | Defects go back to the owning workstream (08); Playwright reports the unexpected pass once fixed |
+| 2026-09-17 | CI seeds the disposable database with `SEED_SUPABASE_USERS=true` and needs the repository secrets `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_JWT_ISSUER`, `SUPABASE_ANON_KEY` | Identity provisioning matches `authUserId` only; the `seed:<email>` placeholders never sign in |
+| 2026-09-17 | The Railway + Supabase hosting move, Render deletion, CI secrets, backup choice and the merge to `main` are deferred until the owner is ready to deploy; development continues locally on `refactor/kyou-ux` | Owner decision; nothing on Render serves users and the local gate is green |
+| 2026-09-17 | `ci.yml` also runs on pushes to `refactor/kyou-ux`; `deploy-dev.yml`, `deploy-prod.yml` and `render.yaml` are deleted | Railway deploys from GitHub with "Wait for CI"; the branch needs a green run before the merge |
+
 ## Open Questions
 
 - Should client-side geolocation sorting ("À proximité") stay available when no place filter is chosen, or should distance sorting require a chosen place?
@@ -220,6 +231,15 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (09 → closed beta) The campaign form still sends `KIN_COMMUNES` strings (`homeCommune`, `commune`) because the lead DTO stores a controlled string. Moving it to `Place` references belongs to the closed-beta folder together with the lead DTO change.
 - (09 → owner) Existing behaviour, not changed: `launch_form_started` goes out without attribution if focus enters a form in the same frame it mounts (seen when the success card's cross-role button remounts the form and focus lands in it at once). `CampaignForm` sets `attribution` in an effect after mount. Real users are very unlikely to hit it; the smoke waits one frame.
 - (09 → 10) The disposable database `kayu_09_campaign` (port 5433) still holds the smoke's 1 provider lead, 1 client lead, 3 submission events and 59 funnel events; drop it once 10 has what it needs.
+
+- (10 → 08) `/admin?tab=categories` (scrollWidth 418) and `/admin?tab=references` (587) overflow at 390 px; the references overflow also lets a form label overlap the "Approuver la proposition" button. Tracked by `8b. admin overflow` (`test.fail`) in `apps/web/e2e/smoke.spec.ts`; remove the marker when fixed.
+- (10 → 05, 08) A 500-character comment without spaces makes `/prestataire/[id]` and `/admin?tab=reviews` overflow to 3 459 px at every viewport (no `overflow-wrap: anywhere` on review text). The smoke now writes a realistic comment; a real user pasting a long URL would still hit it.
+- (10 → owner, deferred 2026-09-17) Everything that needs the Railway or Supabase dashboards is deliberately left for deploy time: Railway project and services, `DATABASE_URL`/`DIRECT_URL` pooler strings, Railway env variables, Render deletion and `RENDER_DEPLOY_HOOK_*` secret removal, GitHub secrets for CI, the backup decision (C1 step 4), the operator admin, and the merge to `main`. The owner keeps working locally on `refactor/kyou-ux` until then. The runbook is `docs/DEPLOYMENT.md`; the launch gate table in the 10 evidence lists what is ticked.
+- (10 → owner) The 10 doc's C4 says not to set `SEED_SUPABASE_USERS=true` for the QA seed because "the seed re-links by email"; the code re-links only inside that flag. `docs/DEPLOYMENT.md` §5a now says to set it.
+- (10 → 02) The specs that run `prisma migrate deploy` themselves (`bookings.concurrency`, `launch-critical.harness`, launch-lead integrations) inherit `DIRECT_URL` from the environment; CI sets it per step to the same disposable database. Locally they need `DIRECT_URL` in `apps/backend/.env` (added on the owner's machine, equal to `DATABASE_URL`).
+- (10) Prisma Migrate refuses `migrate reset` when invoked from Claude Code, so the e2e database `kayu_10_e2e` was created with `createdb`, `migrate deploy` and `db seed` instead of `pnpm db:reset`; the `kayu` and `kayu_05_verify` databases were left untouched, and `kayu_09_campaign` was not dropped.
+- (10) The CI e2e step signs in against the shared Supabase Auth project with the seeded demo accounts; a second Supabase project for CI would remove that coupling.
+- (10) The e2e run against Railway can cover scenarios 1, 2 and 12 only (`--grep "@public|@viewports"` with `E2E_BASE_URL`): the session hook is absent in production, so 3–10 stay local and CI.
 
 ## How To Update This File
 
@@ -612,4 +632,65 @@ Status: Done (2026-09-17). Work on `refactor/kyou-ux` from `79a2fdd`; changes le
 
 ### 10 — QA, Hosting Move And Release
 
-Status: Not started
+Status: In review (2026-09-17). Local half complete and uncommitted on `refactor/kyou-ux` from `12c358d` for the owner's diff review; the hosting half is blocked on dashboard access (see the launch gate table). `main` is tagged `pre-kyou-ux` locally (`89f1324`, not pushed).
+
+#### Changed files
+
+- `apps/backend/src/modules/test-session/{test-session.module,test-session.controller,test-session.service,test-session.service.spec}.ts` (new): `POST /api/test/session` for `{ email }` (demo domains only, `E2E_SEED_PASSWORD`) and `{ phone }` (create or reuse a confirmed phone user with a random password); `testSessionModules(env)` decides registration. `apps/backend/src/app.module.ts`: the one registration line.
+- `apps/backend/src/config/env.validation.ts` (+ spec): `DIRECT_URL` optional and defaulted, `E2E_TEST_MODE`, `E2E_SEED_PASSWORD`, the production refusal. `apps/backend/prisma/schema.prisma`: `directUrl`. `apps/backend/src/main.ts`: listen on `::`.
+- `.github/workflows/ci.yml` (rewritten, see decisions); deleted `.github/workflows/deploy-dev.yml`, `.github/workflows/deploy-prod.yml`, `render.yaml`. New `railway/backend.json`, `railway/web.json`.
+- `package.json` (root scripts), `apps/web/package.json` (`test`, `e2e`, `@playwright/test`), `pnpm-lock.yaml`, `.gitignore` (`test-results/`, `playwright-report/`).
+- `apps/web/playwright.config.ts`, `apps/web/e2e/fixtures.ts`, `apps/web/e2e/smoke.spec.ts` (new); deleted `apps/web/scripts/{admin-smoke,spaces-smoke,campaign-smoke,overflow-check}.mjs`.
+- Docs: `docs/DEPLOYMENT.md` (full rewrite), `docs/DEVELOPER_GUIDE.md`, `README.md`, `CLAUDE.md`, `docs/DESIGN_SYSTEM.md` (banner), `docs/design-direction/index.html` (banner), `apps/mobile/README.md` (new), `apps/backend/.env.example`, `apps/web/.env.example`.
+- Screenshots in `docs/kyou-ux-refactor/screenshots/10/` (28 files): `home`, `rechercher`, `prestataire`, `mon-espace`, `mes-reservations`, `messagerie`, `admin` at 320, 390, 1440 and 390 reduced motion.
+- Outside the repo: the shared Supabase project gained the buckets `provider-media` (public, 25 MB), `message-attachments` (private, 8 MB) and `verification-docs` (private, 10 MB); `avatars` got an 8 MB limit. `apps/backend/.env` on the owner's machine gained `DIRECT_URL`. The backend on port 3001 was restarted in test mode against a new `kayu_10_e2e` database (`0_init` + seed with `SEED_SUPABASE_USERS=true`, 29 users linked).
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `pnpm test:launch` | Pass: utils 20/20, schemas/api/ui type-check and build, backend `test:launch` 220 pass / 1 skipped (database-backed spec without URL) / 0 fail, backend and web type-check, web unit tests 28/28 |
+| `pnpm --filter @kayu/backend test` | 235 pass / 3 skipped (database-backed specs without their URL) / 0 fail, including the new `test-session.service.spec.ts` |
+| `node --test` on `env.validation.spec.ts` + `test-session.service.spec.ts` | 13/13: `DIRECT_URL` default and override; production refusal; seed password required; email domain refusal; phone create and reuse; module registration matrix |
+| Backend booted without `E2E_TEST_MODE` (port 3011) | `POST /api/test/session` → 404 |
+| Backend booted with `NODE_ENV=production E2E_TEST_MODE=true` | Boot refused: `Invalid environment configuration: E2E_TEST_MODE: must never be enabled in production` |
+| Prisma CLI without `DIRECT_URL` | `migrate status` fails at `getConfig`; Prisma Client `SELECT 1` succeeds (why the validator defaults it and CI sets it per step) |
+| `pnpm --filter @kayu/web exec playwright test` (4 projects, `E2E_SHOTS_DIR=docs/kyou-ux-refactor/screenshots/10`) | **22 passed in 3.7 min**, exit 0. `mobile-320` 2/2, `mobile-390` 13/13 (incl. `8b` as expected failure), `desktop-1440` 2/2, `reduced-motion` 4/4 |
+| Scenario 1 (public routes + signed-in spaces) | 12 public routes plus `/prestataire/<id>` and `/mon-espace`, `/mes-reservations`, `/messagerie`, `/admin` with no horizontal overflow at 320, 390, 1440 and 390 reduced motion |
+| Scenario 2 | Anonymous profile shows exactly 3 login walls; no booking or review submit button |
+| Scenario 3 (mobile-390 and reduced-motion) | Filters sheet: category « Maison & Entretien » and the place chain RDC › Kinshasa › Kinshasa › commune; URL carries `category=` and `place=`; Marie-Claire's card opens; message with a PNG attachment persisted through `message-attachments` and rendered in the thread; first free slot booked, pending in `/mes-reservations`, cancelled (`CANCELLED` via API), second slot booked |
+| Scenario 4 | `/mon-espace` request confirmed (`CONFIRMED`), completed from `/reservation/[id]` with 25 000 FC (`agreedPrice` 25000), `/revenus` shows the summary total and the transaction row, client rated from « Réservations reçues » |
+| Scenario 5 | `/avis` « À évaluer » links to `/prestataire/[id]?review=[bookingId]`; 520 typed characters cap at 500 with `500/500`; `ratingCount` +1 and `ratingAvg` recomputed; profile shows « Avis clients (n) » and the comment |
+| Scenario 6 | Fresh phone user accepts the terms; wizard steps 1–4 (category cascade, place cascade to commune, languages and modes, one YouTube video `dQw4w9WgXcQ`, default schedule); `POST /me/provider` → redirect to the profile; provider found by `GET /providers?q=`; `GET /me` role `PROVIDER`; `/mes-reservations` → `/mon-espace` |
+| Scenario 7 | Block from the profile → `/rechercher`; `POST /conversations` and `POST /bookings` → 403; report sent from another profile; unblocked through `DELETE /blocks/:userId` |
+| Scenario 8 | 14 admin tabs render with the right rail item; Roger Ilunga suspended from Communauté → his `GET /me` 403 `ACCOUNT_SUSPENDED` and no search hit; report resolved; hero title edited, seen on `/`, restored; a fresh place suggestion approved; user unsuspended through the API |
+| Scenario 8b (expected failure) | `categories (418px), references (587px)` at 390 px |
+| Scenario 9 | Notifications listed, « Tout marquer lu » → `unreadCount` 0, no « Non lue » row |
+| Scenario 10 | Bio and place saved from `/compte` (`GET /me` shows both); account deleted with `SUPPRIMER`; the same phone signs in again as a new `CLIENT` id with no provider |
+| Scenario 11 | Under `reducedMotion: "reduce"` no element under `.mobile-dock` or `.screen-enter` has a transition or animation duration above 0 s |
+| Scenario 12 | 12 legacy paths answer 308 to the French routes; `/quotes/*`, `/pro/requests`, `/pro/devis/*`, `/dashboard/admin/*`, `/favorites`, `/pro/payouts` answer a redirect or 404 |
+| `grep` for removed domains in `apps/backend/src`, `apps/web/src`, `packages/*/src` | No hit in backend, web, api, schemas or utils except the Supabase auth `subscription` listener in `AuthContext.tsx` and the legacy admin tab map (`disputes`, `payouts` → new tabs) in `admin/sections.ts`; the only other hits are the frozen `packages/ui/src/mobile/*` components and the kept v1 block in `tokens.ts` (D) |
+| Supabase Storage API | Buckets after: `avatars` public 8 MB, `provider-media` public 25 MB, `message-attachments` private 8 MB, `verification-docs` private 10 MB |
+| `git tag pre-kyou-ux main` | `89f1324` (local tag, not pushed) |
+
+#### Launch gate checklist F
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Automated gate A green on `refactor/kyou-ux` | Local: ticked. CI: not run | `pnpm test:launch` above. The work is uncommitted (owner reviews the diff first), so no CI run exists; the first run also needs the four GitHub secrets |
+| Browser smoke B green locally on three viewports and reduced motion, screenshots attached | Ticked | 22/22, `screenshots/10/` (28 files); admin overflow tracked as expected failure |
+| Railway `backend` and `web` deployed from the branch; `/api/health` through the proxy; scenarios 1, 2, 6, 12 on Railway | Not done | Needs a Railway account linked to the repo and the Supabase pooler strings; scenario 6 cannot run there (no hook) |
+| Campaign pages functional on Railway in campaign mode with one test lead | Not done | Needs the Railway web service |
+| Launch-lead specs green; `test:launch-leads:ci` on the new baseline | Ticked locally / CI pending | Included in `test:launch` (contract, protection, service, funnel, migration-integrity specs); the `:ci` race spec runs in `ci.yml` |
+| No removed route answers anything but a redirect or 404 | Ticked | Scenario 12 |
+| `grep` for removed domains returns nothing | Ticked with the documented exceptions | Table above |
+| Admin created on Railway and reaches every `/admin` section | Not done | Needs the Railway deployment; the section walk is scenario 8 |
+| Render deleted and Render secrets removed | Not done | `render.yaml` and the deploy workflows are deleted in the diff; the Render dashboard and the `RENDER_DEPLOY_HOOK_*` secrets are the owner's |
+| PROGRESS shows every workstream Done plus the backup decision | Partly | 01–09 Done; 10 In review; backup decision pending (recommendation: Supabase Pro daily backups before the closed beta, otherwise the weekly `pg_dump` cron through `DIRECT_URL`) |
+
+#### Remaining risks
+
+- The Playwright suite runs Chromium only, on one worker, in a fixed order; scenarios 4, 5 and 10 read state written by 3 and 6 through `test-results/e2e-state.json`.
+- The wizard and account tests pick cascade options by index, so a seed change in places or taxonomy can change what they publish, not whether it publishes.
+- `next dev` served the web app for the local runs; CI uses `next start` on the production build through the `webServer` block (`E2E_START_SERVERS=true`).
+
