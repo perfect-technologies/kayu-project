@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+      - refactor/kyou-ux
+
+env:
+  CI_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
 
 jobs:
   ci:
@@ -43,33 +47,99 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @kayu/backend run prisma:generate
 
+      # Prisma CLI reads directUrl, so every step that runs it also sets DIRECT_URL.
       - name: Apply migrations to disposable Postgres
         run: pnpm --filter @kayu/backend run prisma:migrate:deploy
         env:
-          DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          DIRECT_URL: ${{ env.CI_DATABASE_URL }}
 
       - name: Launch lead serializable race integration
         run: pnpm --filter @kayu/backend run test:launch-leads:ci
         env:
-          LAUNCH_LEADS_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci?schema=public
+          LAUNCH_LEADS_TEST_DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          DIRECT_URL: ${{ env.CI_DATABASE_URL }}
 
       - name: Launch lead orphan-snapshot upgrade integration
         run: pnpm --filter @kayu/backend run test:launch-leads:orphan-upgrade:ci
         env:
           LAUNCH_LEADS_ORPHAN_UPGRADE_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_leads_orphan_upgrade?schema=public
+          DIRECT_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_leads_orphan_upgrade?schema=public
+
+      - name: Booking slot race integration
+        run: pnpm --filter @kayu/backend run test:bookings:ci
+        env:
+          BOOKINGS_TEST_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_bookings?schema=public
+          DIRECT_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_bookings?schema=public
+
+      - name: Launch harness smoke
+        run: pnpm --filter @kayu/backend run test:launch:harness:ci
+        env:
+          LAUNCH_HARNESS_DATABASE_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_harness?schema=public
+          DIRECT_URL: postgresql://kayu_ci:kayu_ci@localhost:5432/kayu_ci_launch_harness?schema=public
 
       - name: Backend full test suite
         run: pnpm --filter @kayu/backend test
 
-      # @kayu/mobile is not type-checked while the Expo app is frozen:
-      # docs/kyou-ux-refactor/README.md §Mobile freeze
+      # @kayu/mobile is frozen and out of the gate: apps/mobile/README.md
       - name: Type-check (backend, web, shared packages; mobile is out of scope)
-        run: pnpm turbo run type-check --filter=@kayu/backend --filter=@kayu/web --filter=@kayu/schemas --filter=@kayu/api --filter=@kayu/utils --filter=@kayu/ui
+        run: pnpm turbo run type-check --filter=!@kayu/mobile
+
+      - name: Web unit tests
+        run: pnpm --filter @kayu/web test
 
       - name: Web production build
         run: pnpm --filter @kayu/web build
         env:
           BACKEND_URL: http://localhost:3001
           NEXT_PUBLIC_APP_URL: http://localhost:3000
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          KAYOU_PUBLIC_WEB_MODE: marketplace
+
+      - name: Build backend
+        run: pnpm turbo run build --filter=@kayu/backend
+
+      # The smoke signs in through the test-only session hook against the shared Supabase
+      # Auth project, so the seed links the demo users to their Supabase ids.
+      - name: Seed the disposable database for the e2e smoke
+        run: pnpm --filter @kayu/backend run db:seed
+        env:
+          NODE_ENV: development
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          DIRECT_URL: ${{ env.CI_DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SEED_SUPABASE_USERS: "true"
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @kayu/web exec playwright install --with-deps chromium
+
+      - name: Web e2e smoke (Chromium, three viewports and reduced motion)
+        run: pnpm --filter @kayu/web e2e
+        env:
+          E2E_START_SERVERS: "true"
+          E2E_TEST_MODE: "true"
+          E2E_SEED_PASSWORD: Password123!
+          NODE_ENV: development
+          PORT: "3001"
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          DIRECT_URL: ${{ env.CI_DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_JWT_ISSUER: ${{ secrets.SUPABASE_JWT_ISSUER }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          STORAGE_ENV_PREFIX: ci
+          CORS_ORIGINS: http://localhost:3000
+          BACKEND_URL: http://localhost:3001
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          KAYOU_PUBLIC_WEB_MODE: marketplace
+
+      - name: Upload e2e report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
