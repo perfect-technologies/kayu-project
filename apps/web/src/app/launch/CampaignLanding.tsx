@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -17,12 +15,15 @@ import {
 
 import type { CampaignCategory } from "./campaign-data";
 import { CampaignForm } from "./CampaignForm";
+import { CampaignHeader } from "./CampaignHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   emitCampaignEvent,
   parseCampaignAttribution,
   type CampaignLeadType,
 } from "@/lib/campaign-leads";
 import { campaignScrollBehavior } from "@/lib/campaign-routing";
+import { cn } from "@/lib/utils";
 
 type CampaignLandingProps = {
   categories: CampaignCategory[];
@@ -104,47 +105,28 @@ export function CampaignLanding({
   }, []);
 
   return (
-    <div className="k-campaign min-h-screen bg-[var(--k-bg)] text-[var(--k-text-primary)]">
-      <header className="border-b border-[var(--k-border)] bg-[rgba(250,250,249,0.94)]">
-        <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link
-            href="/launch"
-            aria-label="KAYOU — accueil de la campagne"
-            className="inline-flex min-h-11 items-center gap-2.5"
-          >
-            <Image
-              src="/logo.svg"
-              alt=""
-              width={30}
-              height={30}
-              priority
-              className="h-8 w-8"
-            />
-            <span className="font-[var(--k-font-display)] text-[20px] font-extrabold tracking-[-0.02em]">
-              KAYOU
-            </span>
-          </Link>
-          <span className="rounded-full border border-[var(--k-border)] bg-[var(--k-surface)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--k-text-muted)]">
-            Ouverture prochaine · Kinshasa
-          </span>
-        </div>
-      </header>
+    <div className="k-campaign flex min-h-dvh flex-col text-foreground">
+      <CampaignHeader
+        label="KAYOU — accueil de la campagne"
+        className="max-w-[1120px] lg:px-8"
+      >
+        <span className="status-pill bg-white">
+          Ouverture prochaine · Kinshasa
+        </span>
+      </CampaignHeader>
 
-      <main>
-        <section className="mx-auto grid max-w-[1120px] gap-8 px-4 pb-10 pt-8 sm:px-6 sm:pt-12 lg:grid-cols-[1.02fr_0.98fr] lg:items-start lg:gap-12 lg:px-8 lg:pb-14 lg:pt-16">
-          <div className="lg:sticky lg:top-6">
-            <p className="k-overline mb-4 inline-flex items-center gap-2 text-[var(--k-primary-hover)]">
-              <MapPin aria-hidden className="h-4 w-4" />
+      <main className="flex-1">
+        <section className="mx-auto grid max-w-[1120px] gap-8 px-4 pb-12 pt-6 sm:px-6 sm:pt-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-start lg:gap-12 lg:px-8 lg:pb-16 lg:pt-14">
+          <div className="lg:sticky lg:top-8">
+            <p className="mb-4 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[.19em] text-primary">
+              <MapPin aria-hidden className="size-3.5" />
               Kinshasa
             </p>
-            <h1 className="k-display-xl mb-5 max-w-[720px]">
+            <h1 className="mb-5 max-w-[720px] text-3xl font-extrabold leading-[1.15] tracking-tight sm:text-4xl md:text-5xl">
               KAYOU arrive bientôt à{" "}
-              <span className="bg-[linear-gradient(100deg,#0EA5E9_0%,#0EA5E9_45%,#FB7185_100%)] bg-clip-text text-transparent">
-                Kinshasa
-              </span>
-              .
+              <span className="gradient-text">Kinshasa</span>.
             </h1>
-            <p className="k-body-l mb-6 max-w-[620px] text-[var(--k-text-body)]">
+            <p className="mb-7 max-w-[620px] text-base leading-relaxed text-muted-foreground sm:text-lg">
               Préinscrivez-vous gratuitement pour faire partie des premiers.
             </p>
 
@@ -163,31 +145,33 @@ export function CampaignLanding({
                     type="button"
                     onClick={() => chooseRole(itemRole)}
                     aria-pressed={selected}
-                    className={`group min-h-[116px] rounded-[16px] border p-4 text-left transition-[border-color,background-color,box-shadow] ${
+                    className={cn(
+                      "group min-h-[116px] rounded-2xl border p-4 text-left transition-colors",
                       selected
-                        ? "border-[var(--k-primary)] bg-[var(--k-primary-subtle)] shadow-[var(--k-e1)]"
-                        : "border-[var(--k-border)] bg-[var(--k-surface)] hover:border-[var(--k-border-strong)]"
-                    }`}
+                        ? "border-primary bg-secondary shadow-soft"
+                        : "border-border bg-white hover:bg-secondary/40",
+                    )}
                   >
                     <span className="mb-3 flex items-center justify-between gap-3">
                       <span
-                        className={`inline-flex h-10 w-10 items-center justify-center rounded-[12px] ${
+                        className={cn(
+                          "inline-flex size-10 items-center justify-center rounded-xl",
                           selected
-                            ? "bg-[var(--k-primary)] text-white"
-                            : "bg-[var(--k-surface-muted)] text-[var(--k-text-body)]"
-                        }`}
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary text-primary",
+                        )}
                       >
-                        <Icon aria-hidden className="h-5 w-5" />
+                        <Icon aria-hidden className="size-5" />
                       </span>
                       <ArrowRight
                         aria-hidden
-                        className="h-4 w-4 text-[var(--k-text-muted)] transition-transform group-hover:translate-x-0.5"
+                        className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                       />
                     </span>
-                    <span className="mb-1 block font-[var(--k-font-display)] text-[16px] font-bold">
+                    <span className="mb-1 block font-heading text-base font-bold text-foreground">
                       {item.label}
                     </span>
-                    <span className="block text-[13px] leading-5 text-[var(--k-text-muted)]">
+                    <span className="block text-[13px] leading-5 text-muted-foreground">
                       {item.description}
                     </span>
                   </button>
@@ -195,7 +179,7 @@ export function CampaignLanding({
               })}
             </div>
 
-            <div className="mt-6 grid gap-3 border-t border-[var(--k-border)] pt-5">
+            <div className="mt-6 grid gap-3 border-t border-border pt-5">
               {[
                 {
                   icon: LockKeyhole,
@@ -212,12 +196,11 @@ export function CampaignLanding({
               ].map(({ icon: Icon, text }) => (
                 <div
                   key={text}
-                  className="flex items-start gap-3 text-[13px] leading-5 text-[var(--k-text-body)]"
+                  className="flex items-center gap-3 text-[13px] leading-5 text-foreground/80"
                 >
-                  <Icon
-                    aria-hidden
-                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--k-primary-hover)]"
-                  />
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-soft">
+                    <Icon aria-hidden className="size-4" />
+                  </span>
                   <span>{text}</span>
                 </div>
               ))}
@@ -237,41 +220,32 @@ export function CampaignLanding({
                 }
               />
             ) : (
-              <div
-                id="interest-form"
-                role="status"
-                className="scroll-mt-6 rounded-[20px] border border-dashed border-[var(--k-border-strong)] bg-[var(--k-surface)] p-5 text-center sm:p-7"
-              >
-                <CheckCircle2
-                  aria-hidden
-                  className="mx-auto mb-3 h-7 w-7 text-[var(--k-primary-hover)]"
+              <div id="interest-form" role="status" className="scroll-mt-6">
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="Choisissez un parcours pour commencer."
+                  description="Deux étapes, seulement l’essentiel."
                 />
-                <p className="text-[14px] font-semibold text-[var(--k-text-body)]">
-                  Choisissez un parcours pour commencer.
-                </p>
-                <p className="mt-1 text-[12px] text-[var(--k-text-muted)]">
-                  Deux étapes, seulement l’essentiel.
-                </p>
               </div>
             )}
 
-            <details className="group mt-4 rounded-[16px] border border-[var(--k-border)] bg-[var(--k-surface)]">
-              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[14px] font-semibold [&::-webkit-details-marker]:hidden">
+            <details className="group mt-4 rounded-2xl border border-border bg-white">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-foreground [&::-webkit-details-marker]:hidden">
                 Tous les services prévus au lancement
                 <ChevronDown
                   aria-hidden
-                  className="h-4 w-4 shrink-0 text-[var(--k-text-muted)] transition-transform group-open:rotate-180"
+                  className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
                 />
               </summary>
-              <div className="border-t border-[var(--k-border)] px-4 py-4">
+              <div className="border-t border-border px-4 py-4">
                 {categories.length > 0 ? (
                   <div className="grid gap-4 sm:grid-cols-2">
                     {categories.map((category) => (
                       <div key={category.id}>
-                        <h3 className="mb-1.5 text-[13px] font-bold text-[var(--k-text-primary)]">
+                        <h3 className="mb-1 text-[13px] font-bold text-foreground">
                           {category.name}
                         </h3>
-                        <p className="text-[12px] leading-5 text-[var(--k-text-muted)]">
+                        <p className="text-xs leading-5 text-muted-foreground">
                           {category.subcategories
                             .map((subcategory) => subcategory.name)
                             .join(" · ")}
@@ -280,10 +254,7 @@ export function CampaignLanding({
                     ))}
                   </div>
                 ) : (
-                  <p
-                    role="status"
-                    className="text-[13px] text-[var(--k-text-muted)]"
-                  >
+                  <p role="status" className="text-[13px] text-muted-foreground">
                     Les services prévus n’ont pas pu être chargés. Rechargez
                     cette page avant votre préinscription.
                   </p>
@@ -291,8 +262,8 @@ export function CampaignLanding({
               </div>
             </details>
 
-            <div className="mt-4 rounded-[16px] border border-[var(--k-border)] bg-[#FFFBF5] p-4">
-              <h2 className="mb-2 text-[14px] font-bold">
+            <div className="mt-4 rounded-2xl bg-secondary p-4 sm:p-5">
+              <h2 className="mb-3 text-sm font-bold text-foreground">
                 Jamais demandé ici
               </h2>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -304,17 +275,17 @@ export function CampaignLanding({
                 ].map((item) => (
                   <span
                     key={item}
-                    className="flex items-center gap-2 text-[13px] text-[var(--k-text-body)]"
+                    className="flex items-center gap-2 text-[13px] text-foreground/80"
                   >
                     <CircleOff
                       aria-hidden
-                      className="h-4 w-4 shrink-0 text-[var(--k-text-muted)]"
+                      className="size-4 shrink-0 text-primary/60"
                     />
                     {item}
                   </span>
                 ))}
               </div>
-              <p className="mt-3 text-[12px] leading-5 text-[var(--k-text-muted)]">
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
                 Ni travail garanti, ni prestataire disponible immédiatement.
               </p>
             </div>
@@ -322,14 +293,14 @@ export function CampaignLanding({
         </section>
       </main>
 
-      <footer className="border-t border-[var(--k-border)] bg-[var(--k-surface)]">
-        <div className="mx-auto flex max-w-[1120px] flex-col gap-2 px-4 py-6 text-[12px] leading-5 text-[var(--k-text-muted)] sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-[1120px] flex-col gap-2 px-4 py-5 text-xs leading-5 text-muted-foreground sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <span>© {new Date().getFullYear()} KAYOU · Lancement prochain à Kinshasa</span>
           <span>
             Retrait ou correction :{" "}
             <a
               href={`mailto:${privacyContact}`}
-              className="font-semibold text-[var(--k-primary-hover)] underline underline-offset-2"
+              className="font-semibold text-primary underline underline-offset-2"
             >
               {privacyContact}
             </a>

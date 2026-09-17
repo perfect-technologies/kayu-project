@@ -272,6 +272,15 @@
     @apply mx-auto flex w-full max-w-md items-center justify-between;
   }
 
+  /* ---- Campaign pages (workstream 09 owns the .k-campaign rules) ---- */
+
+  .k-campaign {
+    background:
+      radial-gradient(ellipse at 15% 0%, #d4eee4 0, transparent 48%),
+      radial-gradient(ellipse at 90% 100%, #f7edce 0, transparent 42%),
+      #f8faf7;
+  }
+
   /* ---- Admin (contract §8) ---- */
 
   .admin-canvas {
