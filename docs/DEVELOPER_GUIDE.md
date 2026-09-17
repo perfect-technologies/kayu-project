@@ -45,7 +45,8 @@ Seed files live in `apps/backend/prisma`. `seed.ts` runs them in this order afte
 - `seed-categories.ts`: the K-YOU taxonomy tree (19 categories, level-2 and level-3 subcategories) with K-YOU slugs, Lucide icons and Tailwind colour classes.
 - `seed-references.ts`: reference lists (languages, intervention modes, currencies, price units) and one `SKILL` item per subcategory scoped to its category.
 - `seed-settings.ts`: the 21 site settings keys (16 strings, 5 booleans) read by `GET /settings/public` and edited in `/admin`.
-- `seed-demo.ts`: 15 providers and 13 clients with places, schedules (two ranges per weekday, 60 min slots, 15 min buffer), media, bookings in every status with snapshots, reviews, client reviews, transactions, conversations, notifications, one open report, one block, one pending place suggestion and three contact messages. Plus the `admin@kayou.cd` admin.
+- `seed-demo.ts`: 15 curated providers and 13 clients with places, schedules (two ranges per weekday, 60 min slots, 15 min buffer), media, bookings in every status with snapshots, reviews, client reviews, transactions, conversations, notifications, one open report, one block, one pending place suggestion and three contact messages. Plus the `admin@kayou.cd` admin.
+- `seed-demo-generated.ts`: 11 generated providers per category (198 in total; « Autres services » has no subcategory, so no provider can attach to it) from a seeded random generator: names, localities across Kinshasa communes, provincial capitals and Brazzaville, per-category descriptions, pricing and modes, all or half of the category's subcategories and services as skills, a past booking history with reviews so ratings are real, and a few open requests. They have no Supabase Auth account (`authUserId` prefix `seed-generated:`) and produce no notifications, so the curated demo inboxes stay readable.
 - `seed.ts`: orchestrator, cleanup, optional Supabase Auth user creation, model counts at the end.
 
 Run:

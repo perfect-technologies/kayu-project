@@ -7,6 +7,7 @@ import {
   UserRole,
   VerificationStatus,
 } from "@prisma/client";
+import { GENERATED_PER_CATEGORY, generatedProviders, seededRandom } from "./seed-demo-generated";
 import { slugify } from "./seed-places";
 import { referenceSlug, skillSlug } from "./seed-references";
 
@@ -48,7 +49,7 @@ function kinshasaCommune(label: string): string {
   return `${KINSHASA}-commune-${slugify(label)}`;
 }
 
-type DemoProvider = {
+export type DemoProvider = {
   firstName: string;
   lastName: string;
   email: string;
@@ -70,6 +71,8 @@ type DemoProvider = {
   pricing: { amount: number; currency: "CDF" | "USD" | "XAF"; unit: string };
   verificationStatus: VerificationStatus;
   premiumTier: PremiumTier;
+  profilePhoto?: string | null;
+  generated?: boolean;
 };
 
 type DemoClient = {
@@ -489,19 +492,44 @@ const clientsData: DemoClient[] = [
   { firstName: "Patrick", lastName: "Mwepu", email: "patrick.mwepu@email.cd", phone: "+242069000013", phoneVerified: true, country: "Congo", placeSlug: BRAZZAVILLE, addressLine: "Ouenzé, avenue de la Tsiémé" },
 ];
 
+// The curated providers keep their hand-written demo accounts and stories; the
+// generated ones fill every category to at least GENERATED_PER_CATEGORY profiles.
+const CURATED_PROVIDER_COUNT = providersData.length;
+const allProvidersData: DemoProvider[] = [
+  ...providersData,
+  ...generatedProviders(GENERATED_PER_CATEGORY, providersData.map((provider) => provider.email)),
+];
+
 const reviewRatings = [5, 4, 5, 5, 3, 4, 5, 4, 5, 5, 4, 5, 4, 5, 4];
 
 const reviewCommentsByRating: Record<number, string[]> = {
   5: [
     "Travail soigné, ponctuel et très professionnel. Je recommande sans hésiter.",
     "Très à l'écoute, intervention rapide et propre.",
+    "Excellent contact, résultat impeccable et conseils utiles pour la suite.",
+    "Arrivé à l'heure, matériel complet, tout a été fait dans la matinée.",
   ],
   4: [
     "Bonne prestation, communication claire du début à la fin.",
     "Résultat conforme à la demande et prix respecté.",
+    "Sérieux et efficace, un petit détail à reprendre mais rien de grave.",
   ],
-  3: ["Travail correct, mais arrivé avec une heure de retard."],
+  3: [
+    "Travail correct, mais arrivé avec une heure de retard.",
+    "Prestation acceptable, le devis initial a un peu augmenté.",
+  ],
+  2: ["Le rendez-vous a été déplacé deux fois, le travail final est moyen."],
+  1: ["Pas venu au rendez-vous et injoignable ensuite."],
 };
+
+function generatedRating(random: () => number): number {
+  const roll = random();
+  if (roll < 0.45) return 5;
+  if (roll < 0.8) return 4;
+  if (roll < 0.95) return 3;
+  if (roll < 0.99) return 2;
+  return 1;
+}
 
 function authSeedId(email: string): string {
   return `seed:${email}`;
@@ -576,17 +604,17 @@ export async function seedDemo(prisma: SeedPrismaClient) {
 
   console.log(`Demo password for Supabase seed users: ${DEFAULT_PASSWORD}`);
   console.log(
-    `Seeded ${providers.length} providers, ${clients.length} clients, and ${bookings.length} bookings.`,
+    `Seeded ${providers.length} providers (${CURATED_PROVIDER_COUNT} curated, ${providers.length - CURATED_PROVIDER_COUNT} generated), ${clients.length} clients, and ${bookings.length} bookings.`,
   );
 }
 
 async function seedProviders(prisma: SeedPrismaClient, lookups: Lookups): Promise<CreatedProvider[]> {
   const created: CreatedProvider[] = [];
 
-  for (const [index, data] of providersData.entries()) {
+  for (const [index, data] of allProvidersData.entries()) {
     const user = await prisma.user.create({
       data: {
-        authUserId: authSeedId(data.email),
+        authUserId: data.generated ? `seed-generated:${data.email}` : authSeedId(data.email),
         email: data.email,
         phone: data.phone,
         firstName: data.firstName,
@@ -606,6 +634,7 @@ async function seedProviders(prisma: SeedPrismaClient, lookups: Lookups): Promis
       data: {
         userId: user.id,
         displayName: `${data.firstName} ${data.lastName}`,
+        profilePhoto: data.profilePhoto ?? null,
         description: data.description,
         yearsExperience: data.yearsExperience,
         phone: data.phone,
@@ -626,7 +655,7 @@ async function seedProviders(prisma: SeedPrismaClient, lookups: Lookups): Promis
         verificationStatus: data.verificationStatus,
         premiumTier: data.premiumTier,
         premiumUntil: data.premiumTier === PremiumTier.FREE ? null : daysFromNow(365),
-        publishedAt: daysFromNow(-90),
+        publishedAt: daysFromNow(data.generated ? -(30 + (index % 12) * 25) : -90),
         skills: {
           create: data.skillSubcategorySlugs.map((slug) => ({
             itemId: lookups.referenceId(skillSlug(slug)),
@@ -782,7 +811,7 @@ async function seedAdmin(prisma: SeedPrismaClient, lookups: Lookups) {
 function bookingPlan(providers: CreatedProvider[], clients: CreatedClient[]): BookingSpec[] {
   const plan: BookingSpec[] = [];
 
-  for (const provider of providers) {
+  for (const provider of providers.slice(0, CURATED_PROVIDER_COUNT)) {
     const { index } = provider;
     const client = (offset: number) => clients[(index + offset) % clients.length];
 
@@ -835,6 +864,55 @@ function bookingPlan(providers: CreatedProvider[], clients: CreatedClient[]): Bo
         cancelledBy: index % 2 === 0 ? "client" : "provider",
       });
     }
+  }
+
+  for (const provider of providers.slice(CURATED_PROVIDER_COUNT)) {
+    plan.push(...generatedBookingPlan(provider, clients));
+  }
+
+  return plan;
+}
+
+// Past, completed history so the generated profiles carry real ratings and job
+// counts; a few open requests so their dashboards are not empty. Clients are
+// distinct per provider (one review per client and provider).
+function generatedBookingPlan(provider: CreatedProvider, clients: CreatedClient[]): BookingSpec[] {
+  const random = seededRandom(1_000 + provider.index);
+  const client = (offset: number) => clients[(provider.index * 7 + offset) % clients.length];
+  const completedCount = [0, 1, 1, 2, 2, 3, 3, 4][Math.floor(random() * 8)];
+  const plan: BookingSpec[] = [];
+
+  for (let k = 0; k < completedCount; k += 1) {
+    const priced = random() < 0.7;
+    plan.push({
+      provider,
+      client: client(k),
+      status: BookingStatus.COMPLETED,
+      dayOffset: -(4 + (provider.index % 17) + k * 11),
+      slotTime: SLOT_TIMES[k % 2],
+      agreedPrice: priced ? provider.pricingAmount * (1 + Math.floor(random() * 3)) : undefined,
+      isPaid: priced && random() < 0.6,
+    });
+  }
+
+  if (random() < 0.3) {
+    plan.push({
+      provider,
+      client: client(5),
+      status: BookingStatus.PENDING,
+      dayOffset: 2 + (provider.index % 12),
+      slotTime: SLOT_TIMES[0],
+    });
+  }
+
+  if (random() < 0.2) {
+    plan.push({
+      provider,
+      client: client(6),
+      status: BookingStatus.CONFIRMED,
+      dayOffset: 4 + (provider.index % 10),
+      slotTime: SLOT_TIMES[1],
+    });
   }
 
   return plan;
@@ -918,16 +996,20 @@ async function seedReviews(prisma: SeedPrismaClient, bookings: CreatedBooking[])
   const reviewed = new Set<string>();
   const created: Array<{ id: string; kind: "review" | "clientReview"; booking: CreatedBooking }> = [];
 
-  for (const booking of bookings) {
+  for (const [bookingIndex, booking] of bookings.entries()) {
     const { provider, client, status } = booking.spec;
     if (status !== BookingStatus.COMPLETED || !booking.completedAt) continue;
-    // Only each provider's first completed booking is reviewed, so the second
-    // one stays in the client's "to review" list.
-    if (reviewed.has(provider.providerId)) continue;
+    const generated = provider.index >= CURATED_PROVIDER_COUNT;
+    const random = seededRandom(5_000 + bookingIndex);
+    // Only each curated provider's first completed booking is reviewed, so the
+    // second one stays in the client's "to review" list. Generated providers
+    // get a review on most completed bookings.
+    if (!generated && reviewed.has(provider.providerId)) continue;
+    if (generated && random() > 0.8) continue;
     reviewed.add(provider.providerId);
 
     const reviewedAt = new Date(booking.completedAt.getTime() + DAY_MS);
-    const rating = reviewRatings[provider.index];
+    const rating = generated ? generatedRating(random) : reviewRatings[provider.index % reviewRatings.length];
     const comments = reviewCommentsByRating[rating];
     const review = await prisma.review.create({
       data: {
@@ -943,7 +1025,7 @@ async function seedReviews(prisma: SeedPrismaClient, bookings: CreatedBooking[])
     });
     created.push({ id: review.id, kind: "review", booking });
 
-    if (provider.index % 2 !== 0) continue;
+    if (generated ? random() > 0.5 : provider.index % 2 !== 0) continue;
 
     const clientReview = await prisma.clientReview.create({
       data: {
@@ -1164,8 +1246,10 @@ async function seedNotifications(
     },
   ];
 
+  // Generated providers' activity stays out of the inboxes so the demo accounts keep a readable feed.
   for (const [index, booking] of input.bookings.entries()) {
     const { provider, client, status } = booking.spec;
+    if (provider.index >= CURATED_PROVIDER_COUNT) continue;
     const bookingData = { bookingId: booking.id };
 
     if (status === BookingStatus.PENDING) {
@@ -1213,6 +1297,7 @@ async function seedNotifications(
 
   for (const review of input.reviews) {
     const { provider, client } = review.booking.spec;
+    if (provider.index >= CURATED_PROVIDER_COUNT) continue;
     data.push(
       review.kind === "review"
         ? {

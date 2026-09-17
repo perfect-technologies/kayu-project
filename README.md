@@ -105,7 +105,7 @@ Login: `admin@kayou.cd` / `admin`.
 
 ## Demo Accounts
 
-`apps/backend/prisma/seed-demo.ts` creates 15 providers (`@kayou.cd`), 13 clients (`@email.cd`) and one admin. The password is `Password123!` for all of them.
+`apps/backend/prisma/seed-demo.ts` creates 15 curated providers (`@kayou.cd`), 13 clients (`@email.cd`) and one admin, plus 11 generated providers per category (`seed-demo-generated.ts`, deterministic, no Supabase Auth accounts) so every category with subcategories has at least 11 profiles (« Autres services » has none and stays empty). The password is `Password123!` for all of them.
 
 | Role | Email |
 | --- | --- |
