@@ -70,3 +70,20 @@ test("requires privacy and hashing configuration before public intake can be ena
   });
   assert.equal(parsed.LAUNCH_PUBLIC_INTAKE_ENABLED, "true");
 });
+
+test("defaults DIRECT_URL to DATABASE_URL and keeps an explicit value", () => {
+  const parsed = validateEnv({ ...base });
+  assert.equal(parsed.DIRECT_URL, base.DATABASE_URL);
+  const direct = "postgresql://u:p@localhost:5432/direct?schema=public";
+  assert.equal(validateEnv({ ...base, DIRECT_URL: direct }).DIRECT_URL, direct);
+});
+
+test("rejects the test-mode session hook in production and requires the seed password", () => {
+  assert.throws(
+    () => validateEnv({ ...base, NODE_ENV: "production", E2E_TEST_MODE: "true", E2E_SEED_PASSWORD: "x" }),
+    /E2E_TEST_MODE: must never be enabled in production/,
+  );
+  assert.throws(() => validateEnv({ ...base, E2E_TEST_MODE: "true" }), /E2E_SEED_PASSWORD/);
+  assert.equal(validateEnv({ ...base, E2E_TEST_MODE: "true", E2E_SEED_PASSWORD: "Password123!" }).E2E_TEST_MODE, "true");
+  assert.equal(validateEnv({ ...base }).E2E_TEST_MODE, "false");
+});

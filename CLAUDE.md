@@ -4,18 +4,19 @@ Marketplace connecting clients to verified service providers in RDC and Congo-Br
 
 ## Required reading before frontend / design work
 
-- **`docs/design-direction/index.html`** — current visual direction for marketplace surfaces: card patterns, hard rules (no gradients, monochrome categories, plain text counts), homepage composition, and a list of patterns we explicitly rejected. Open in a browser. Always consult before proposing any homepage, search, or provider-card UI.
-- **`docs/DESIGN_SYSTEM.md`** — foundations only (brand identity, color tokens, typography, spacing, radius, elevation, motion). Sections §1 item #2 ("photo-forward discovery") and §8.4 ("ProviderCard photo-forward") are explicitly superseded by the design-direction doc above.
+- **`docs/kyou-ux-refactor/00-product-and-design-contract.md`** — the product and design contract (screen map, tokens, motion, hard rules). `docs/DESIGN_SYSTEM.md` and `docs/design-direction/index.html` are superseded history.
 - **`packages/ui/src/tokens.ts`** — canonical tokens (colors, spacing, radii, fonts). Source of truth.
+- Route slugs are French, see the screen map in the contract (§7).
 
 ## Where things live
 
 - Web app: `apps/web/` (Next.js App Router)
-- Mobile app: `apps/mobile/` (Expo)
+- Mobile app: `apps/mobile/` (Expo) — frozen since 2026-09-16 against the pre-refactor API; excluded from `build`, `type-check`, `test:launch` and CI. See `apps/mobile/README.md`.
 - Backend: `apps/backend/` (NestJS + Prisma + Postgres)
 - Shared UI: `packages/ui/src/web/` and `packages/ui/src/mobile/`
 - Shared DTOs: `packages/schemas/src/dto.ts` (Zod)
 - Typed API client: `packages/api/src/endpoints.ts`
+- Hosted on Railway + Supabase, see `docs/DEPLOYMENT.md`.
 
 ## Backend conventions
 

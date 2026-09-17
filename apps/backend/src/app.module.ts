@@ -7,6 +7,7 @@ import { CommonModule } from "./common/common.module";
 import { validateEnv } from "./config/env.validation";
 import { DatabaseModule } from "./database/database.module";
 import { SupabaseModule } from "./modules/supabase/supabase.module";
+import { testSessionModules } from "./modules/test-session/test-session.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SupabaseModule } from "./modules/supabase/supabase.module";
     SupabaseModule,
     CommonModule,
     ...featureModules,
+    ...testSessionModules(process.env),
   ],
   controllers: [AppController],
 })

@@ -12,7 +12,8 @@
     "start": "next start",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "echo 'no linter configured'",
-    "check:overflow": "node scripts/overflow-check.mjs",
+    "test": "cd ../.. && node --test apps/web/src/lib/*.test.mjs",
+    "e2e": "playwright test",
     "clean": "rm -rf .next dist"
   },
   "dependencies": {
@@ -51,6 +52,7 @@
     "zod": "^4.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.21",
     "@types/react": "^19",
