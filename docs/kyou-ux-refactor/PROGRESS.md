@@ -4,9 +4,9 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration C in progress (01–09 done; 10 in review: local half done; the Railway + Supabase hosting move is deferred by the owner until deploy time, work continues locally)**
+Overall status: **`refactor/kyou-ux` merged into `main` on 2026-09-17 (01–09 done; 10 in review: local half done, the Railway + Supabase hosting move is deferred by the owner until deploy time)**
 
-KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
+KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happened on `refactor/kyou-ux`; the owner merged it into `main` on 2026-09-17 with the hosting move still pending. `main` before the merge is tagged `pre-kyou-ux` (`89f1324`).
 
 ## Workstream Status
 
@@ -22,7 +22,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
 | 08 — Web Admin Console | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; type-check, production build, 64/64 browser checks and 42/42 reduced-motion renders green; contract handed over in `handover/08-web-admin-console.md` |
 | 09 — Launch Campaign Restyle | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; five campaign test files 28/28, type-check, production build; DOM id/name inventory, tab order and funnel events identical across 17 form states; 43/43 campaign-mode browser checks; smoke evidence handed over in `handover/09-launch-campaign.md` |
-| 10 — QA, Hosting Move And Release | In review | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review. Done locally: test-mode session hook, Prisma `directUrl`, `::` listen host, Railway config as code, CI rewrite, Render files deleted, Playwright suite 22/22 on four projects with screenshots, docs G rewritten, mobile freeze, Supabase buckets created, `pre-kyou-ux` tag on `main` (local). Deferred by owner (2026-09-17): Railway project, Supabase connection strings, Render deletion, GitHub secrets, backup decision and the merge are picked up when deploying; work continues locally until then. Evidence below |
+| 10 — QA, Hosting Move And Release | In review | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review. Done locally: test-mode session hook, Prisma `directUrl`, `::` listen host, Railway config as code, CI rewrite, Render files deleted, Playwright suite 22/22 on four projects with screenshots, docs G rewritten, mobile freeze, Supabase buckets created, `pre-kyou-ux` tag on `main` (local). Merged into `main` on 2026-09-17 by owner decision. Deferred until deploy time: Railway project, Supabase connection strings, Render deletion, GitHub secrets and the backup decision. Evidence below |
 
 Status values:
 
