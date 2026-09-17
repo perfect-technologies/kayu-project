@@ -4,7 +4,7 @@
 
 Created: 2026-09-16
 
-Overall status: **Iteration C in progress (01–08 done; 09 next)**
+Overall status: **Iteration C in progress (01–09 done; 10 next)**
 
 KAYOU adopts the K-YOU product model and visual system across backend, shared packages and the Next.js web app. The brand stays KAYOU. The Expo app is frozen. Launch-lead data and endpoints are preserved through a full database baseline reset. Work happens on `refactor/kyou-ux` and merges to `main` only after workstream 10.
 
@@ -21,7 +21,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 06 — Web Auth And Provider Onboarding | Done | Claude (agent), 2026-09-16 | Branch `kyou-ux/06-auth-onboarding`, uncommitted pending owner review; type-check, production build, redirects, 76 browser checks (320/390/1440, reduced motion) and an end-to-end wizard publish green; contract handed over in `handover/06-web-auth-and-onboarding.md` |
 | 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
 | 08 — Web Admin Console | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; type-check, production build, 64/64 browser checks and 42/42 reduced-motion renders green; contract handed over in `handover/08-web-admin-console.md` |
-| 09 — Launch Campaign Restyle | Not started | TBD | After 04; zero behaviour change. `/launch*` still reads the deleted `--k-*` variables, so it renders unstyled until 09 |
+| 09 — Launch Campaign Restyle | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; five campaign test files 28/28, type-check, production build; DOM id/name inventory, tab order and funnel events identical across 17 form states; 43/43 campaign-mode browser checks; smoke evidence handed over in `handover/09-launch-campaign.md` |
 | 10 — QA, Migration And Release | Not started | TBD | Scaffold during wave 3; finish last |
 
 Status values:
@@ -162,6 +162,18 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-17 | (08) Only `q`, `page`, `id` and `sub` live in the URL; the select filters (role, status, tier, kind, type) are local state | Deep links and back navigation need the search and the open item; filters reset with the tab |
 | 2026-09-17 | (08) Admin error toasts show the backend's French `message` (plus the `REFERENCED` counts and `DOCS_MISSING` kinds) and the first `errors[]` entry on a validation 400, falling back to `errorCopy` | The doc asks for the server message; the admin is internal and the backend's messages are already French |
 | 2026-09-17 | (08) The member sheet opens in the kept Radix `Sheet` (right side, full width under `sm`) with its own header; `window.print()` prints `#member-sheet` alone | Focus trap, Escape and scroll lock for free; no `html2canvas` / `jspdf` |
+| 2026-09-17 | (09) Labels, field errors, selects, the textarea, checkbox rows, role cards and the success block stay local markup styled with 04's classes (`.field`, `.primary-action`, `.secondary-action`, `.status-pill`, `.gradient-text`) instead of shared components | The 09 doc's `Field`, `Select`, `Textarea`, `CheckRow`, `SuccessCard`, `ChoiceCard` and chip were never built by 04. The nearest ones change attributes the doc freezes: 06's `Field` / `SelectField` / `TextAreaField` render the error without an `id` and drop `aria-describedby` (and cannot show the phone hint and error together); `AccountTypeSelector` uses `role="radio"` / `aria-checked` where the campaign uses `aria-pressed` |
+| 2026-09-17 | (09) Shared pieces that fit 1:1 are used: 04's `Logo` (in `components/layout`, `@kayu/ui/web` has none) inside a local `CampaignHeader`, 07's `EmptyState` for the no-role placeholder (wrapped in the existing `div#interest-form[role=status]`), 06's `FormError` for the submission alert and 06's `Spinner` as the submit spinner | Same look as the rest of the site; the inventory diff shows no id, name, aria, role or tab-order change |
+| 2026-09-17 | (09) The submit spinner is a ring in the button ink (deep green on the gold pill), not a gold ring | The final submit is gold (09 doc); a gold ring on it is invisible. It keeps `k-campaign-spinner` for the reduced-motion test |
+| 2026-09-17 | (09) No `EmptyState` for the categories-unavailable retry: the reload button stays under the disabled service select (now a secondary pill) and the landing notice stays a `role="status"` paragraph | `EmptyState` needs a title and neither state has copy of its own; inventing it is new copy, which the doc puts out of scope |
+| 2026-09-17 | (09) Campaign copy stays inline in the campaign files, not in `src/copy/*` | `campaign-copy.test.mjs` reads those source files and must pass unchanged; the one exception to contract §12 |
+| 2026-09-17 | (09) Secondary actions on the campaign (Retour, the cross-role switch, the reload) are pills (`secondary-action rounded-full`) | The 09 doc asks for pills; same override as 06's `WizardFooter` for a two-step wizard |
+| 2026-09-17 | (09) `.k-campaign` carries the auth-canvas radial wash in `globals.css` instead of reusing `.auth-canvas`; the wash stays on mobile | `.auth-canvas` is a centred grid with unlayered mobile padding that would break the header / main / footer column. The auth canvas flattens on mobile because its card turns transparent; the campaign keeps a white card |
+| 2026-09-17 | (09) Campaign inputs keep 16 px text inside `.field` (14 px elsewhere) | iOS Safari zooms on focus below 16 px; the campaign already used 16 px |
+| 2026-09-17 | (09) Input, select and textarea focus comes from `.field:focus-within` (deep-green border and halo) instead of a separate `ring-ring/40`; radios, checkboxes, links, buttons and summaries keep the 3 px gold outline | Same focus treatment as every 05/06 form; checked on every tab stop in 17 states |
+| 2026-09-17 | (09) The gold submit wraps (`whitespace-normal`) and the form card keeps `p-4` below `sm` | "Être parmi les premiers pros" needs 275 px unwrapped; the card has 248 px at 320 |
+| 2026-09-17 | (09) `campaign-data.ts` is unchanged | 04's `getTree()` mapping already yields level 2 only: the roots' `children` become `subcategories` and their nested level-3 `children` are dropped because only `id`, `name`, `slug` are copied. The tree node has no `parentId`, so the filter is structural. Verified: 19 optgroups, 106 options, equal to active `Subcategory` rows with `parentId IS NULL` |
+| 2026-09-17 | (09) `apps/web/scripts/campaign-smoke.mjs` added outside the owned paths | Like 07's and 08's smoke scripts: the before/after inventory, event and browser evidence needs a repeatable tool; handed to 10 |
 
 ## Open Questions
 
@@ -179,7 +191,7 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (02 → 08) Deactivating a category or level-2 node does not cascade `isActive` to its children in the admin tree (the public tree hides them anyway). Confirm this is the wanted admin view.
 - (03 → 02) Swap `contractPipe` to `@kayu/schemas` and move `providers/schedule.ts` / `youtube.ts` to `@kayu/utils` (steps and the `localSlotToInstant` ISO change in `handover/03-shared-packages.md`).
 - (04 → 02) Should `GET /me` return `unreadNotifications` so the navbar bell stops polling `GET /notifications?limit=1`?
-- (04 → 09) `/launch*` still uses `var(--k-*)` (105 usages) and renders without those variables until 09 lands; 09 should start right after 04 merges.
+- (04 → 09) Resolved by 09: `/launch*` no longer reads any `var(--k-*)` variable.
 - (04 → 06) `input-otp` was removed with the unused primitive; re-add it if the OTP field wants segmented input.
 - (03) `packages/ui/package.json` still lists `@kayu/schemas` although no UI file imports it any more; left alone because the file is outside 03's owned paths.
 
@@ -202,6 +214,11 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 - (08 → 10) `LAST_ADMIN` cannot be triggered with one seeded admin (self edits hit `SELF_ACTION` first); the smoke records it and should seed a second admin when 10 owns the demo data.
 - (08 → 10) The smoke creates and deactivates throwaway rows (`Smoke service …` level-3 node, `Smoke Q …` quartiers under Gombe) and flips one contact `NEW → READ → NEW`; the journal keeps those actions.
 - (05 → owner) During verification a seed run mis-targeted the old `kayu` dev database (the intended `kayu_05_verify` URL rewrite failed silently) and its `clearDatabase()` step emptied the old-schema `Message`, `Conversation`, `Transaction`, `Review`, `ClientReview`, `Booking` and `Notification` tables before failing on the missing `Report` table. Users, providers and every launch-lead table are untouched. That data was on the schema the refactor discards, but it was not backed up first.
+- (09 → 10) `scripts/overflow-check.mjs` compares `scrollWidth` with `window.innerWidth`. With Playwright `isMobile: true`, Chrome widens the layout viewport to fit overflowing content, so a real 11 px overflow on the campaign step 2 at 320 px read as `331 === 331` and passed (fixed in 09). The 320/390 overflow evidence of 04–08 used that script and could hide overflows the same way; 10 should compare against the requested width (as `campaign-smoke.mjs` does) and re-run.
+- (09 → 10) Campaign mode does not redirect `/`: it answers 200 with the marketplace home, as on `main` since `a590c20`. The 09 doc's manual step 1 lists `/`. If the campaign domain must not expose the marketplace home, `/` needs adding to `campaign-routing.ts` and its test (outside 09).
+- (09 → closed beta) The campaign form still sends `KIN_COMMUNES` strings (`homeCommune`, `commune`) because the lead DTO stores a controlled string. Moving it to `Place` references belongs to the closed-beta folder together with the lead DTO change.
+- (09 → owner) Existing behaviour, not changed: `launch_form_started` goes out without attribution if focus enters a form in the same frame it mounts (seen when the success card's cross-role button remounts the form and focus lands in it at once). `CampaignForm` sets `attribution` in an effect after mount. Real users are very unlikely to hit it; the smoke waits one frame.
+- (09 → 10) The disposable database `kayu_09_campaign` (port 5433) still holds the smoke's 1 provider lead, 1 client lead, 3 submission events and 59 funnel events; drop it once 10 has what it needs.
 
 ## How To Update This File
 
@@ -559,7 +576,38 @@ Status: Done (2026-09-17). Work on `refactor/kyou-ux` from `473dd32`; changes le
 
 ### 09 — Launch Campaign Restyle
 
-Status: Not started
+Status: Done (2026-09-17). Work on `refactor/kyou-ux` from `79a2fdd`; changes left uncommitted for the owner's diff review. Handover: `handover/09-launch-campaign.md`.
+
+#### Changed files
+
+- `apps/web/src/app/launch/CampaignLanding.tsx`: K-YOU classes on the header, hero (`gradient-text` on « Kinshasa »), role cards, reassurance rows, planned-services panel, mint « Jamais demandé ici » card and footer; `CampaignHeader`; `EmptyState` for the no-role placeholder.
+- `apps/web/src/app/launch/CampaignForm.tsx`: `.field` inputs, selects and textarea; radio tiles, checkbox rows and consent card on the tokens; `rounded-3xl bg-white shadow-soft` step and success cards; deep-green `primary-action` for Continuer, gold for the final submit, pill `secondary-action` for Retour, the cross-role switch and the reload; `FormError` and `Spinner` from 06.
+- `apps/web/src/app/launch/confidentialite/page.tsx`: same header, eyebrow, page H1, white notice cards with mint icon tiles, mint choices card, `primary-action` back link.
+- `apps/web/src/app/launch/CampaignHeader.tsx` (new). `apps/web/src/app/globals.css`: one `.k-campaign` background rule (09's block; the reduced-motion rules are untouched).
+- `apps/web/scripts/campaign-smoke.mjs` (new, handed to 10). `docs/kyou-ux-refactor/handover/09-launch-campaign.md`, `09-campaign-inventory-before.json`, `09-campaign-inventory-after.json`.
+- Screenshots in `docs/kyou-ux-refactor/screenshots/09/` (22 files): `launch`, `launch-clients`, `launch-providers`, `launch-confidentialite` at 320/390/1440, step 2 of both forms at 320/390/1440, the accepted state at 390 and 1440, categories unavailable at 390, the stale-privacy alert at 390.
+- Unchanged: `page.tsx`, `clients/page.tsx`, `providers/page.tsx`, `campaign-data.ts`. No diff under `src/lib/campaign-*`, `proxy.ts`, `AppProviders.tsx`, `apps/backend` or `packages`.
+
+#### Commands and results
+
+| Command | Result |
+| --- | --- |
+| `node --test` on the five campaign test files | 28/28 pass, test files unchanged |
+| `pnpm --filter @kayu/web type-check` | Pass, 0 errors |
+| `NODE_ENV=production pnpm --filter @kayu/web build` | Pass; `/launch`, `/launch/clients`, `/launch/providers` dynamic, `/launch/confidentialite` static |
+| Setup | Disposable database `kayu_09_campaign` (`migrate deploy` + taxonomy copied from `kayu_05_verify`); compiled backend on 3011 with `LAUNCH_PUBLIC_INTAKE_ENABLED=true`, `LAUNCH_FUNNEL_EVENTS_ENABLED=true`, notice `campaign-2026-07-25`; `next start` in campaign mode on 3009 and, with an unreachable `BACKEND_URL`, on 3019 |
+| `campaign-smoke.mjs` on the pre-restyle build, twice | Two recordings identical (the tool is deterministic); kept as `09-campaign-inventory-before.json` |
+| `campaign-smoke.mjs --checks` on the restyled build | 43/43: focus indicator on every tab stop in 17 states; privacy notice shows `campaign-2026-07-25` and `mailto:confidentialite@kayou.cd`; « Retour » keeps step-one values; categories unavailable disables the select and Continuer; no overflow at 320/390/1440 on the four routes and on step 2 of the three form routes; under reduced motion no transition or animation inside `.k-campaign` on step 2 and `html` scroll-behavior `auto` |
+| `campaign-smoke.mjs --compare` before / after | `[id],[name]` inventory, tab order, dataLayer events and collector events identical in all 17 states and 3 journeys; the only aria/role/data difference is the removed `<img data-nimg>` of the old logo (now an inline `aria-hidden` SVG) |
+| Database after the final run (lead tables truncated first) | 1 `ProviderLead` (`+243897812345`, WhatsApp, marketing consent, `STARTING`), 1 `ClientWaitlistLead` (`WITHIN_7_DAYS`, `WHATSAPP`), 3 `LeadSubmissionEvent` (`PROVIDER CREATED`, `CLIENT CREATED`, `PROVIDER DUPLICATE_REVIEW_REQUIRED` for the same phone), 59 `CampaignFunnelEvent`, 0 `User`, 0 `Provider`; the duplicate showed the same accepted state |
+| `curl -sL` in campaign mode | `/services`, `/rechercher`, `/prestataire/abc`, `/login`, `/register` → `/launch` in one hop; `/providers/x?utm_source=fb&utm_campaign=k` and `/auth?utm_source=fb` → `/launch?…` in two hops with the query kept; `/` 200 (see open note); identical on the pre-restyle build |
+| Stale privacy (Playwright, mocked 400 `PRIVACY_NOTICE_VERSION_MISMATCH`, 390 px) | `FormError` alert with the stale-notice copy, consent unchecked, submit enabled again, no overflow |
+
+#### Remaining risks
+
+- Chrome emulation only; iOS Safari and Android Chrome were not tried on devices. Inputs keep 16 px text to avoid the iOS focus zoom.
+- The rate-limited, intake-disabled and network error states share the stale-privacy `FormError` path; only stale privacy was exercised.
+- The overflow blind spot in 04's `overflow-check.mjs` (open note) means earlier 320 px evidence outside `/launch*` may need a re-run.
 
 ### 10 — QA, Migration And Release
 
