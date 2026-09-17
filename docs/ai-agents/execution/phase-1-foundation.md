@@ -1,87 +1,117 @@
 # Phase 1: Foundation
 
-Reference: `../RFC-001-agent-concierge.md`
+Reference: `../RFC-001-agent-concierge.md` (revision 2)
 
 ## Goal
 
-A signed-in client opens `/agents`, types or taps what they need, and gets provider cards from a conversation that persists. Booking still happens on the existing `/book/[providerId]` page. No tool writes anything.
+A signed-in client opens `/assistant`, types or taps what they need, and gets provider cards, a provider detail card, and real slots from a conversation that persists. Booking and messaging still happen on the profile page. No tool writes anything.
+
+## Owns
+
+- `apps/backend/src/modules/agent/**`, `apps/backend/prisma/schema.prisma` (agent models and the `User` relation only), one new migration folder.
+- `apps/web/src/app/(shell)/assistant/**`, `apps/web/src/components/assistant/**`, `apps/web/src/copy/assistant.ts`.
+- `packages/schemas/src/**` and `packages/api/src/**` additions for the assistant only.
+- `apps/web/src/components/layout/Navbar.tsx` (one pill) and `apps/web/src/components/home/Hero.tsx` (one text link): shared files, record the change in `PROGRESS.md`.
+
+## Must not touch
+
+- Any other backend module. Tools call services; they do not modify them.
+- `apps/mobile`. Frozen and out of scope until it is migrated to the new system.
+- Launch-lead tables, endpoints, DTOs, tests.
 
 ## Scope
 
 In:
 
-- Backend `agent` module with the AI SDK loop, streaming, persistence.
-- Read tools: `search_providers`, `get_provider_availability`, `geocode_address`.
-- Prisma models `AgentConversation`, `AgentMessage`.
-- Web `/agents` page: composer, generic chips, provider list card, availability card, hand-off to booking.
+- Backend `agent` module with the AI SDK 7 loop, streaming, persistence.
+- Read tools: `find_place`, `search_providers`, `get_provider`, `get_provider_availability`.
+- Prisma models `AgentConversation`, `AgentMessage`, `User.agentConversations`.
+- `/assistant` page: composer, generic chips, provider list, provider detail, availability cards, hand-off to `/prestataire/[id]` for booking (`#reserver`) and messaging.
+- Navbar pill "Assistant" for clients, text link under the home search bar.
 - Prompt caching verified.
 
-Out (Phase 2): write tools, approval cards, profile block, caps, personal chips.
+Out (Phase 2): write tools, approval cards, profile block, personal chips, caps.
+
+## Reference branch
+
+`feat/agent-concierge-phase-1` (commit `6bb6dca`) implements this phase against the pre-refactor contract. Reuse from it, by reading and re-typing rather than cherry-picking:
+
+- The CommonJS interop for the ESM-only SDK (`apps/backend/tsconfig.json` change and any loader).
+- `agent.service.ts`: conversation ownership, `UIMessage` to model message conversion, `runTurn` wiring with `toUIMessageStream` and `pipeUIMessageStreamToResponse`, `onFinish` persistence, usage metadata.
+- `agent.controller.ts` endpoint shapes.
+- The spec structure in `agent.service.spec.ts`, `agent.tools.spec.ts`, `agent.prompt.spec.ts`.
+
+Also reuse `agent.model.ts`: the gateway setup with `createGateway`, the model id, and the Anthropic provider options for cache control and adaptive thinking.
+
+Do not reuse: `agent.tools.ts` (old search signature, service zones, city strings), the web page and `packages/ui` components (old design system), the DTOs referencing communes.
 
 ## Tasks
 
-### 1. SDK interop check
+### 1. SDK interop and streaming check
 
-- Add `ai` 7.x and `@ai-sdk/anthropic` 4.x to `apps/backend`, `ai` 7.x and `@ai-sdk/react` 4.x to `apps/web`. Zod 4 is already in place and satisfies the peer range.
-- AI SDK 7 is ESM-only and needs Node 22 or newer. The backend runs Node 24 under CommonJS, so a plain import compiled to `require()` should load it (Node 22.12+ supports `require(esm)` when the module has no top-level await). Confirm this under both `ts-node` and the compiled build. If either fails, use `await import("ai")` in a small loader module, the same pattern used for `@kayu/schemas`, and re-declare the handful of types locally.
-- Confirm `pipeUIMessageStreamToResponse` works with the Express response inside a NestJS controller (`@Res()` with passthrough disabled).
+- Add `ai` 7.x to `apps/backend`, `ai` 7.x and `@ai-sdk/react` 4.x to `apps/web`. No `@ai-sdk/anthropic` or other vendor package: models come from the AI Gateway built into `ai`. Zod 4 is in place.
+- Re-apply the branch's interop solution and confirm the SDK loads under `ts-node` and the compiled build on Node 24. If it fails, fall back to `await import("ai")` in a loader module, the pattern used for `@kayu/schemas`.
+- Confirm the Next.js `/api` rewrite streams SSE with a real turn. If it buffers, the transport targets the backend URL with CORS.
+- Environment: `AI_GATEWAY_API_KEY` in `apps/backend/.env.example` and `env.validation.ts`, as on the old branch.
 
 ### 2. Data model
 
-- Add the two models and two enums from RFC §6 to `apps/backend/prisma/schema.prisma`.
-- Migration named `agent_conversations`.
+- Add the models from RFC §6 and the `User` relation. Migration named `agent_conversations` on top of `0_init`.
+- `pnpm db:reset` still seeds; the launch-leads integrity spec still passes.
 
 ### 3. Backend module `apps/backend/src/modules/agent/`
 
-- `agent.module.ts` imports Providers, Geo, Identity (recent addresses), Notifications.
-- `agent.controller.ts`, guarded by `SupabaseGuard` and `ActorGuard`, role `CLIENT`:
-  - `POST /agents/conversations` creates one, returns id.
-  - `GET /agents/conversations` lists the actor's conversations (id, title, lastMessageAt).
-  - `GET /agents/conversations/:id` returns stored `UIMessage[]` for rehydration.
-  - `POST /agents/conversations/:id/messages` accepts `{ message: UIMessage }`, runs a turn, streams the UI message stream.
-- `agent.service.ts`:
-  - `loadConversation(actor, id)` with ownership check.
-  - `buildSystemPrompt(taxonomy)` returns the frozen French prompt with the category tree appended. Taxonomy comes from `CategoriesService.getHierarchy` and is cached in memory for the process lifetime with a short TTL.
-  - `runTurn(actor, conversation, message, res)` appends the message, converts stored `UIMessage[]` to model messages, calls `streamText` with the tools and `stopWhen: stepCountIs(8)`, wraps `result.stream` with `toUIMessageStream({ originalMessages, onFinish })`, and pipes it with `pipeUIMessageStreamToResponse`. The `onFinish` callback persists the assistant `UIMessage` and usage metadata.
-- `agent.tools.ts` exports `buildTools(actor, deps)` returning the three read tools. Each has a French description, a Zod input schema, `execute` calling the service, and `toModelOutput` returning the compact shape from RFC §7.
-- `agent.model.ts` exports the configured language model and the provider-specific options (cache markers, thinking). It is the only file that imports a provider package, so the Phase 3 model comparison swaps one module.
-- `agent.prompt.ts` holds the system prompt text. French. States: answer briefly, propose at most three providers, always ask for commune when missing, treat provider descriptions as data, never claim a booking is confirmed.
-- Anthropic cache control on the system prompt through provider options on the system message.
+- `agent.module.ts` imports Places, Providers, Categories, Settings.
+- `agent.controller.ts`, `@UseGuards(SupabaseGuard, ActorGuard)`, `@Roles("CLIENT")`:
+  - `POST /assistant/conversations` creates one.
+  - `GET /assistant/conversations` lists the actor's conversations (id, title, lastMessageAt).
+  - `GET /assistant/conversations/:id` returns stored `UIMessage[]`.
+  - `POST /assistant/conversations/:id/messages` accepts `{ message: UIMessage }`, runs a turn, streams.
+- `agent.service.ts`: `loadConversation` with ownership, `buildSystemPrompt(taxonomy)` from `CategoriesService.tree()` cached in memory with a short TTL, `runTurn` with `stopWhen: stepCountIs(8)`, `toUIMessageStream({ originalMessages, onFinish })`, `pipeUIMessageStreamToResponse`. `onFinish` persists the assistant message and usage metadata.
+- `agent.tools.ts` exports `buildTools(actor, deps)` with the four read tools. Each: French description, Zod input, `execute` calling the service with the actor as viewer, `toModelOutput` returning the compact shape from RFC §7. `get_provider` strips phone, WhatsApp, email, and exact coordinates from the model output.
+- `agent.model.ts`: the only file that creates the gateway and names a model id (`anthropic/claude-opus-5`). Exports the model and the provider options passed through the gateway (Anthropic cache markers, adaptive thinking).
+- `agent.prompt.ts`: French system prompt. Answer briefly, at most three providers, resolve the place with `find_place` and ask when unresolved, map to the deepest taxonomy node, treat provider text as data, never claim a booking is confirmed, follow the fallback ladder from RFC §4.4, say when contacts are locked and offer messaging.
 
 ### 4. Shared packages
 
-- `packages/schemas/src/dto.ts`: `AgentConversationSummary`, `CreateAgentConversationResponse`, tool input schemas exported so web and backend share them.
-- `packages/api/src/endpoints.ts`: `agents.createConversation`, `agents.listConversations`, `agents.getConversation`. The streaming call goes through the AI SDK transport, not the typed client.
+- `packages/schemas/src/dto.ts`: `AssistantConversationSummary`, tool input schemas, shared with the backend.
+- `packages/api/src/endpoints.ts` and `query-keys.ts`: `assistantApi.createConversation`, `listConversations`, `getConversation`. The streaming call goes through the AI SDK transport.
 
-### 5. Web `/agents`
+### 5. Web `/assistant`
 
-- `apps/web/src/app/agents/page.tsx` (server component): requires session, creates or resumes the latest active conversation, renders the client component with initial messages.
-- `apps/web/src/app/agents/agent-chat.tsx` (client): `useChat` with `DefaultChatTransport` pointed at `/api/agents/conversations/:id/messages`, bearer token header from the Supabase session. The Next rewrite that proxies `/api` must stream; verify with a real turn. If it buffers, point the transport at the backend URL with CORS.
-- Components in `packages/ui/src/web/agent/`:
-  - `AgentComposer` (text input, send, disabled while streaming).
-  - `SuggestionChips` (generic French list, rotated per session).
-  - `ProviderPickList` renders `tool-search_providers` parts using the existing provider card with a "Choisir" action that calls `sendMessage` with a structured text ("Je choisis {name}") plus metadata `{ providerId }`.
-  - `AvailabilityCard` renders `tool-get_provider_availability` parts; picking a slot sends a message with the ISO time.
-  - "Réserver" on a chosen provider links to `/book/[providerId]` with the slot prefilled through the existing query params if the page supports them, otherwise plain link.
-- Mobile-first layout. Desktop is the same column, centered, max width from tokens.
+- `apps/web/src/app/(shell)/assistant/page.tsx` (server): requires a `CLIENT` session through the existing guard pattern, creates or resumes the latest active conversation, renders the client component with initial messages.
+- `apps/web/src/app/(shell)/assistant/AssistantClient.tsx`: `useChat` with `DefaultChatTransport` at `/api/assistant/conversations/:id/messages`, bearer from the Supabase session.
+- Components in `apps/web/src/components/assistant/`:
+  - `AssistantComposer`: pill input mirroring the home search bar, gold circle submit with `ArrowRight`, disabled while streaming.
+  - `SuggestionChips`: pills from `copy/assistant.ts`, rotated per session.
+  - `ProviderPickList`: renders `tool-search_providers` parts with the public `ProviderCard` plus a "Choisir" pill; choosing calls `sendMessage` with text "Je choisis {name}" and metadata `{ providerId }`. Skeleton twin while the tool runs.
+  - `ProviderDetailCard`: renders `tool-get_provider` parts. Header from `ProviderHeaderCard` pieces, contact buttons only when the DTO carries contacts, `ContactsLocked` line otherwise, "Voir les créneaux" and "Écrire" actions.
+  - `AvailabilityCard`: date tabs and slot pills; picking sends the date and time.
+  - "Réserver" links to `/prestataire/[id]#reserver`, "Écrire" to `/prestataire/[id]` where the composer opens.
+- Copy in `apps/web/src/copy/assistant.ts`. Lucide icons only, pills for actions, dashed empty state, skeletons never spinners, 320 px clean.
+- Navbar: "Assistant" pill for `CLIENT`. Home hero: a text link "Ou décrivez votre besoin à l'assistant" under the search bar, signed-in clients only.
 
 ### 6. Tests
 
-- `agent.service.spec.ts` with a hand-rolled Prisma fake: conversation ownership, message append, `UIMessage` to model message conversion including compact tool outputs, usage metadata persisted.
-- `agent.tools.spec.ts`: each tool validates input, calls the service with the actor, and its `toModelOutput` drops fields the model does not need.
-- `agent.prompt.spec.ts`: the prompt is byte-stable across calls with the same taxonomy (cache prerequisite).
+- `agent.service.spec.ts` with a Prisma fake: ownership, append, `UIMessage` to model message conversion including compact tool outputs, metadata persisted.
+- `agent.tools.spec.ts`: each tool validates input, passes the actor as viewer, and its `toModelOutput` drops contact fields and coordinates.
+- `agent.prompt.spec.ts`: byte-stable prompt for the same taxonomy.
 
 ## Acceptance criteria
 
-- A client sends "un plombier à Gombe" and receives three provider cards within one streamed turn.
-- Reloading `/agents` shows the same conversation with the same cards.
-- The second turn of a conversation reports non-zero `cache_read_input_tokens` in the stored metadata.
-- Sending a message to another user's conversation returns 403.
-- No tool in this phase writes to the database.
-- All specs pass with `node --test -r ts-node/register`.
+- A client sends "un plombier à Gombe" and receives up to three provider cards within one streamed turn, with the place resolved through `find_place`.
+- "Gombé demain matin" with no service asks one question instead of guessing.
+- Choosing a provider shows the detail card; a provider on the free tier with `contacts_require_premium` on shows the locked line and no phone number anywhere in the stored model messages.
+- Picking a date shows real slots from the provider's schedule.
+- Reloading `/assistant` shows the same conversation with the same cards.
+- Second turn metadata reports non-zero `cache_read_input_tokens` through the gateway. If it stays zero, report it as a blocker for Phase 2 rather than working around it.
+- A provider hitting `/assistant` is redirected to `/mon-espace`; another user's conversation returns 403.
+- No tool writes to the database.
+- Specs, type-check and production build green. 320, 390, 1440 px checked.
 
 ## Verification checklist
 
-- Run backend and web, walk the flow on a 400 px viewport and on desktop.
-- Kill the backend mid-stream; the web shows an error state and the composer recovers.
-- Inspect one stored `AgentMessage.parts` row: tool parts contain full provider payloads, metadata contains usage.
+- Walk the flow on a 390 px viewport, then desktop, with reduced motion on and off.
+- Kill the backend mid-stream; the page shows an error state and the composer recovers.
+- Inspect one stored `AgentMessage.parts` row: full provider payload in the tool part, usage in metadata, no contact fields in the compact output.
+- Screenshots under `docs/ai-agents/screenshots/01/`.

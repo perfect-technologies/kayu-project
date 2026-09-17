@@ -1,21 +1,25 @@
 # Agent prompts per phase
 
-Copy one block into a fresh Claude Code session at the repo root. Each prompt assumes the agent reads the RFC and its phase document before touching code.
+Copy one block into a fresh Claude Code session at the repo root. Each prompt assumes the agent reads the RFC and its phase document before touching code. Work happens on a branch `agent/0N-short-name` from `main`, one commit per phase, PR to `main`.
 
 ## Phase 1
 
 ```
-Implement Phase 1 of the KAYOU agent concierge.
+Implement Phase 1 of the KAYOU agent concierge on the post-refactor codebase.
 
-Read first, in this order: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md, docs/ai-agents/execution/phase-1-foundation.md, docs/design-direction/index.html.
+Read first, in this order: CLAUDE.md, docs/kyou-ux-refactor/00-product-and-design-contract.md, docs/ai-agents/RFC-001-agent-concierge.md (revision 2), docs/ai-agents/execution/phase-1-foundation.md, docs/ai-agents/PROGRESS.md, docs/kyou-ux-refactor/handover/02-backend-contract.md and 05-web-public-screens.md.
 
-Scope is exactly the tasks and acceptance criteria in the phase document: backend agent module with the AI SDK 7 loop and streaming, the three read tools, the two Prisma models, the web /agents page with chips and provider cards, hand-off to the existing booking page. No write tools, no approval flow, no profile block.
+Reference branch feat/agent-concierge-phase-1 (commit 6bb6dca) implements this phase against the old contract. Read it for the loop, persistence, streaming, interop and spec patterns. Re-type what you reuse on main; do not cherry-pick, and do not reuse its tools, model file, DTOs or UI.
 
-Before writing feature code, do task 1 of the phase doc: confirm the ESM-only AI SDK loads in the CommonJS backend under ts-node and the compiled build, and confirm the Next.js /api rewrite streams SSE. Fix the approach if either fails, and say what you found.
+Scope is exactly the tasks and acceptance criteria in the phase document: backend agent module with the AI SDK 7 loop, four read tools (find_place, search_providers, get_provider, get_provider_availability), the two Prisma models on top of 0_init, the /assistant page under the shell with chips, provider list, provider detail and availability cards, hand-off to /prestataire/[id]. No write tools, no approval flow, no profile block.
 
-Use the current AI SDK 7 docs, not memory, for every SDK call. Provider-specific code goes only in agent.model.ts.
+Before feature code, do task 1: confirm the ESM-only SDK loads in the CommonJS backend under ts-node and the compiled build, and confirm the Next.js /api rewrite streams SSE. Say what you found.
 
-Working rules: implement every task end to end before reporting, no commits, no comments unless they explain a non-obvious constraint, mobile-first layout, provider cards follow the design-direction rules. Tests use node:test with hand-rolled Prisma fakes like admin.service.spec.ts. Run the new specs and the typecheck and report the real output.
+Binding rules: the model never receives phone, WhatsApp, email or exact coordinates; every service call passes the actor as viewer; French only with copy in apps/web/src/copy/assistant.ts; K-YOU tokens and hard rules (Lucide only, pills, skeletons never spinners, dashed empty states, 320 px clean); reuse the public ProviderCard.
+
+Models go through the Vercel AI Gateway (createGateway, AI_GATEWAY_API_KEY) as on the reference branch; do not add @ai-sdk/anthropic or any vendor package. Mobile is out of scope; do not touch apps/mobile.
+
+Working rules: branch agent/01-foundation from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test with hand-rolled Prisma fakes like admin.service.spec.ts; run specs, type-check and production build and report real output; check 320, 390 and 1440 px; screenshots under docs/ai-agents/screenshots/01/; update docs/ai-agents/PROGRESS.md with files, commands, decisions and risks.
 
 End with: what was built, what was verified by running it, what you could not verify and why.
 ```
@@ -25,15 +29,15 @@ End with: what was built, what was verified by running it, what you could not ve
 ```
 Implement Phase 2 of the KAYOU agent concierge. Phase 1 is merged.
 
-Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (especially §7, §9, §10, §11), docs/ai-agents/execution/phase-2-actions-and-memory.md, then the existing apps/backend/src/modules/agent code and the web /agents page.
+Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (revision 2, especially §4.3, §4.5, §7, §9, §10, §11), docs/ai-agents/execution/phase-2-actions-and-memory.md, docs/ai-agents/PROGRESS.md, then the existing apps/backend/src/modules/agent code and apps/web/src/app/(shell)/assistant.
 
-Scope is the tasks and acceptance criteria in the phase document: create_booking and create_job_request behind the AI SDK 7 toolApproval setting, get_my_activity, approval and status and address cards, the profile block and personal chips, caps and daily limits from SystemSetting, rolling summary compaction, usage metadata and the admin dashboard numbers.
+Scope is the tasks and acceptance criteria in the phase document: create_booking and send_message behind the AI SDK 7 toolApproval setting, get_my_activity, approval, status and address cards, the profile block and personal chips, caps from SystemSetting, rolling summary compaction, usage metadata and the admin overview tile.
 
-Non-negotiable safety rules from the RFC: the server accepts only the new user message or approval responses from the client and loads history from the database; tools never read a user id from model input; write tools reuse the existing create DTOs and services so a booking made through the agent is identical to one made on /book/[providerId].
+Non-negotiable rules: the server accepts only the new user message or approval responses and loads history from the database; tools never read a user id from model input; write tools reuse the existing CreateBookingDto and StartConversationDto and call BookingsService.create and MessagingService.start unchanged, so a booking or message made through the agent is identical to one made on the profile page; feat_booking off removes the booking tool for the turn; 409 SLOT_TAKEN makes the agent refetch slots.
 
-The agent must never say a booking is confirmed. Wording is "demande envoyée, le prestataire doit confirmer".
+The agent never says a booking is confirmed. Wording is "demande envoyée, le prestataire doit confirmer".
 
-Working rules: implement every task end to end before reporting, no commits, no comments unless they explain a non-obvious constraint, node:test with Prisma fakes for every service change, run specs and typecheck and report real output. Walk the booking flow and the no-provider fallback yourself on a 400 px viewport and describe what you saw.
+Working rules: branch agent/02-actions from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test with Prisma fakes for every service change; run specs, type-check and production build and report real output. Book and message end to end at 390 px yourself, confirm the provider side on /mon-espace and /messagerie, and describe what you saw. Screenshots under docs/ai-agents/screenshots/02/; update PROGRESS.md.
 ```
 
 ## Phase 3
@@ -41,13 +45,11 @@ Working rules: implement every task end to end before reporting, no commits, no 
 ```
 Implement Phase 3 of the KAYOU agent concierge. Phases 1 and 2 are merged.
 
-Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (especially §9, §11, §16), docs/ai-agents/execution/phase-3-mobile-and-evals.md, the existing agent module, the web /agents components, and apps/mobile/src/screens/search for the mobile card conventions.
+Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (revision 2, especially §9, §11, §16, §17), docs/ai-agents/execution/phase-3-evals-and-promotion.md, docs/ai-agents/PROGRESS.md, and the existing agent module and /assistant components.
 
-Scope is the tasks and acceptance criteria in the phase document: the Expo agent screen with mobile implementations of every card, AgentMemoryNote with the remember tool and the settings section on web and mobile, the eval set exported from anonymized transcripts with code-first graders and a model-graded check only for wording, the eval runner calling the real runTurn with tools stubbed to recorded outputs, the model comparison across the four candidates in RFC §11, the home page entry point and funnel events, and the Lingala cases.
+Scope is the tasks and acceptance criteria in the phase document: the eval set exported from anonymized transcripts with code-first graders and a model-graded check only for wording, the runner calling the real runTurn with tools stubbed to recorded outputs, the model comparison across the four candidates in RFC §11, AgentMemoryNote with the remember tool and the /compte section, funnel events, and the Lingala cases. Mobile is out of scope.
 
-For Expo and React Native, check the official Expo and AI SDK docs before wiring useChat with expo/fetch. Do not guess the transport setup.
+For the eval: real transcripts first, hand-written edge cases second, thirty to sixty cases. Show me the case list and the rubric before the first paid run, and the measured cost of a five-case pilot before the full set. Store the baseline. Write the chosen model and the date into the RFC decision log and PROGRESS.md. The dock tab and hero promotion are my decision from the funnel numbers; prepare the change but do not apply it without my answer.
 
-For the eval: real transcripts first, hand-written edge cases second, thirty to sixty cases. Show me the case list and the rubric before the first paid run, and tell me the measured cost of a pilot of five cases before running the full set. Store the baseline. Write the chosen model and the date into the RFC decision log.
-
-Working rules: implement every task end to end before reporting, no commits, no comments unless they explain a non-obvious constraint, node:test for the notes tool and the runner, run everything and report real output. Anything that needs a physical device or an API key I have not provided, list it as unverified rather than claiming it works.
+Working rules: branch agent/03-evals from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test for the notes tool and the runner; run everything and report real output. Models go through the AI Gateway with the single AI_GATEWAY_API_KEY; do not add vendor provider packages. Anything that needs a key I have not provided, list as unverified rather than claiming it works. Screenshots under docs/ai-agents/screenshots/03/; update PROGRESS.md.
 ```

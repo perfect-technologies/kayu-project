@@ -1,82 +1,97 @@
 # Phase 2: Actions and memory
 
-Reference: `../RFC-001-agent-concierge.md`, builds on `phase-1-foundation.md`
+Reference: `../RFC-001-agent-concierge.md` (revision 2), builds on `phase-1-foundation.md`
 
 ## Goal
 
-The client books without leaving the conversation, with an approval card before anything is written. The agent knows the client's history and opens with it. Cost is capped and observable.
+The client messages or books without leaving the conversation, with an approval card before anything is written. The agent knows the client's history and opens with it. Cost is capped and observable.
+
+## Owns
+
+- Everything Phase 1 owns.
+- `apps/backend/src/modules/admin/**` for the overview block only; `apps/web/src/app/(shell)/admin/**` for the matching tile.
+
+## Must not touch
+
+- Bookings, messaging, addresses service logic. The tools call them as they are.
+- `apps/mobile`. Out of scope.
 
 ## Scope
 
 In:
 
-- Write tools with approval: `create_booking`, `create_job_request`.
-- Read tool `get_my_activity`.
+- Write tools with approval: `create_booking`, `send_message`. Read tool `get_my_activity`.
 - Approval cards, status card, address card.
 - Profile block (RFC §9) and personal chips.
-- Caps and daily limits (RFC §11), usage dashboard numbers.
+- Caps and daily limits (RFC §11), admin overview numbers.
 - Rolling summary compaction.
+- Reviews the client wrote, in the profile block (RFC §17).
 
-Out (Phase 3): mobile, agent notes, evals.
+Out (Phase 3): evals, model selection, agent notes, promotion.
 
 ## Tasks
 
 ### 1. Write tools
 
-- In `agent.tools.ts`, add `create_booking` and `create_job_request`. Inputs reuse the existing create DTOs from `packages/schemas`, narrowed to the fields the agent fills. `execute` calls `BookingsService.create(actor, body)` and `JobRequestsService.create(actor, input)`.
-- In `runTurn`, pass `toolApproval: { create_booking: () => 'user-approval', create_job_request: () => 'user-approval' }` to `streamText`. Approval is a call-level policy in AI SDK 7, so read tools stay unlisted and a later agent can reuse the same tool set with a different policy.
-- `toModelOutput` returns id and status only.
-- Add `get_my_activity` returning open bookings and job requests for the actor with status and provider name.
-- Server-side rule in `runTurn`: the request body may contain only a new user message or approval responses. Any other client-supplied part is rejected with 400. History always comes from the database.
+- `create_booking`: input is the existing `CreateBookingDto`. `execute` calls `BookingsService.create(actor, input)`. `clientPhone` defaults to the actor's phone; the prompt asks only when absent. Address: `addressId` from the address book, or `placeId` + `addressLine` + coordinates for a new one.
+- `send_message`: input `providerId`, `body`, `subject?`. `execute` calls `MessagingService.start(actor, input)`.
+- `get_my_activity`: open bookings with status and slot label, last conversations, saved addresses.
+- In `runTurn`, pass `toolApproval: { create_booking: () => 'user-approval', send_message: () => 'user-approval' }`. When `feat_booking` is off, omit `create_booking` from the tool set for the turn and state it in the turn facts.
+- Tool errors: 409 `SLOT_TAKEN` and 403 blocked return as tool errors with their French message; the prompt tells the model to refetch availability on 409.
+- Server rule: the request body may contain only a new user message or approval responses. Anything else is 400. History always comes from the database.
 
 ### 2. Approval UI
 
 - `useChat` gets `sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses`.
-- `packages/ui/src/web/agent/ApprovalCard` renders parts in state `approval-requested` for the two write tools. It shows every argument in plain French (prestataire, service, adresse, date, notes). Buttons "Confirmer" and "Annuler" call `addToolApprovalResponse` with the approval id.
-- After execution, the same part in its output state renders as a `StatusCard` with a link to `/bookings/[id]` or the client requests page.
-- `AddressCard` renders the client's recent addresses as choices when the agent asks for one; picking sends the address text and metadata.
+- `BookingApprovalCard`: provider, date and time in the provider timezone, phone, address (saved label with place chain, or the new line), notes. "Confirmer" gold pill, "Annuler" outline. Calls `addToolApprovalResponse`.
+- `MessageApprovalCard`: provider and the message text in an editable textarea (4000 chars, counter). Editing sends a new user message with the revised text and denies the pending call, so the model re-emits with the new body. "Envoyer" and "Annuler".
+- After execution the part renders as `StatusCard`: booking status pill and link to `/reservation/[id]`, or "Message envoyé" with a link to `/messagerie?c=[id]`.
+- `AddressCard`: saved addresses as pill choices when the agent asks for one; "Nouvelle adresse" opens `AddressAutocomplete` and `LocationFields` from the public components.
 
 ### 3. Profile block
 
-- `agent.profile.ts` builds the block from: identity (first name, default city), recent addresses (top 3), last three completed bookings with provider, subcategory, date, rating, favorites (top 5), open bookings and job requests.
-- Rendered as a second system message after the frozen prompt, with its own cache marker.
-- Personal chips: `GET /agents/suggestions` returns up to three French chips derived from the same data ("Rappeler {provider} pour {subcategory}", "{subcategory} à {commune} comme la dernière fois"). Web merges them ahead of generic chips.
+- `agent.profile.ts` builds the block from identity, address book, last three completed bookings with provider, category, date and the rating given, open bookings, last three conversations, reviews written.
+- Second cached system message after the frozen prompt.
+- `GET /assistant/suggestions` returns up to three personal French chips ("Recontacter {provider}", "Réserver à nouveau : {category}", "Comme la dernière fois à {place}"). The web merges them ahead of generic chips.
 
 ### 4. Prompt updates
 
-- Add the rules for actions: propose before booking, confirm commune and date before calling `create_booking`, offer `create_job_request` when search returns fewer than one usable provider, say "demande envoyée, le prestataire doit confirmer" after a booking.
-- Add the fallback wording and the honesty rule from RFC §4.3.
+- Actions: propose before booking, confirm place, date and time before `create_booking`, offer `send_message` when contacts are locked or the client hesitates, say "demande envoyée, le prestataire doit confirmer" after a booking, never "il arrive".
+- Do not recommend a provider the client rated 2 or below without saying so.
 
 ### 5. Caps and compaction
 
-- `SystemSetting` keys: `agent.maxStepsPerTurn` (8), `agent.maxMessagesPerConversation` (60), `agent.maxTurnsPerUserPerDay` (30). Read once per turn.
-- Turn cap exceeded: 429 with a French message the composer shows.
-- Conversation cap reached: the turn still runs, the response metadata flags `conversationFull`, the web offers "Nouvelle conversation" and archives the old one on click.
-- Compaction: when stored messages exceed 40, summarize the oldest 20 into `summary` with a low-effort call in a separate job after the turn, then mark those messages as compacted (a `compactedAt` column added in this phase). `runTurn` sends summary plus the uncompacted tail.
+- `SystemSetting` keys `agent.maxStepsPerTurn` (8), `agent.maxMessagesPerConversation` (60), `agent.maxTurnsPerUserPerDay` (30), seeded in `seed-settings.ts`.
+- Daily cap: 429 with a French message the composer shows.
+- Conversation cap: the turn runs, metadata flags `conversationFull`, the web offers "Nouvelle conversation" and archives the old one.
+- Compaction: past 40 stored messages, summarize the oldest 20 into `summary` with a low-effort call after the turn, set `compactedAt` on them (column added in this phase). `runTurn` sends summary plus the uncompacted tail.
 
 ### 6. Observability
 
-- Per assistant message metadata: model, input, output, cached tokens, steps, tools with durations, latency, finish reason.
-- Admin dashboard: conversations per day, bookings created via agent, job requests created via agent, fallback rate, average tokens per conversation. Backed by a `StatsService` query, tested with the existing fake pattern.
+- Metadata per assistant message: model, tokens, steps, tools with durations, latency, finish reason.
+- Admin overview: conversations today, messages sent and bookings created through the agent, fallback rate. Backed by a query in the admin service, tested with the fake pattern, rendered as one tile on `/admin`.
 
 ### 7. Tests
 
-- Tools: write tools reject when the actor is not a client, pass the actor through, and never read a user id from input.
-- `runTurn` rejects client-supplied tool parts.
-- Profile builder: deterministic output for a fixed fake dataset, empty sections omitted.
-- Caps: turn cap and daily cap return the right errors.
-- Compaction: after the threshold, the model receives summary plus tail, and stored messages are untouched.
+- Write tools: role check through the service, actor passed through, no user id from input, phone defaulted from the actor.
+- `runTurn` rejects client-supplied tool parts and omits `create_booking` when the flag is off.
+- Profile builder: deterministic output for a fixed fake dataset, empty sections omitted, low ratings surfaced.
+- Caps: turn and daily caps return the right errors.
+- Compaction: after the threshold the model receives summary plus tail, stored messages untouched.
 
 ## Acceptance criteria
 
-- A booking created through the agent is indistinguishable in the database from one created on `/book/[providerId]`.
+- A booking created through the agent is identical in the database to one created by the profile page's booking form, including snapshots.
+- A message sent through the agent appears in `/messagerie` for both parties with a `NEW_MESSAGE` notification for the provider.
+- Booking a slot another client took in parallel produces the 409 path: the agent shows fresh slots.
 - Denying an approval leads to the agent asking what to change, with no write.
 - A client with one completed booking sees a personal chip naming that provider.
 - The daily cap blocks the 31st turn with a French message.
-- Dashboard numbers match a manual count on seeded data.
+- Admin tile numbers match a manual count on seeded data.
 
 ## Verification checklist
 
-- Book a provider end-to-end on mobile width; confirm the provider sees the pending booking in their dashboard.
-- Trigger the fallback in a commune with no providers; confirm a job request appears in `/pro/requests` for a matching provider.
+- Book and message end to end at 390 px; confirm the provider sees the pending booking on `/mon-espace` and the message in `/messagerie`.
+- Trigger the fallback ladder in a quartier with no providers and read each step's sentence.
 - Force a compaction and read the stored summary for accuracy.
+- Screenshots under `docs/ai-agents/screenshots/02/`.
