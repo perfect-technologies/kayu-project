@@ -22,7 +22,7 @@ KAYOU adopts the K-YOU product model and visual system across backend, shared pa
 | 07 — Web Client And Provider Spaces | Done | Claude (agent), 2026-09-17 | Branch `kyou-ux/07-spaces`, uncommitted pending owner review; type-check, production build, 75/76 browser checks (the one failure is the missing `message-attachments` bucket) and 48/48 reduced-motion renders green; contract handed over in `handover/07-web-client-and-provider-spaces.md` |
 | 08 — Web Admin Console | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; type-check, production build, 64/64 browser checks and 42/42 reduced-motion renders green; contract handed over in `handover/08-web-admin-console.md` |
 | 09 — Launch Campaign Restyle | Done | Claude (agent), 2026-09-17 | Uncommitted on `refactor/kyou-ux` pending owner review; five campaign test files 28/28, type-check, production build; DOM id/name inventory, tab order and funnel events identical across 17 form states; 43/43 campaign-mode browser checks; smoke evidence handed over in `handover/09-launch-campaign.md` |
-| 10 — QA, Migration And Release | Not started | TBD | Scaffold during wave 3; finish last |
+| 10 — QA, Hosting Move And Release | Not started | TBD | Rewritten 2026-09-17 for Railway + Supabase; finish last |
 
 Status values:
 
@@ -174,6 +174,7 @@ Only mark `Done` when acceptance criteria and documented verification pass.
 | 2026-09-17 | (09) The gold submit wraps (`whitespace-normal`) and the form card keeps `p-4` below `sm` | "Être parmi les premiers pros" needs 275 px unwrapped; the card has 248 px at 320 |
 | 2026-09-17 | (09) `campaign-data.ts` is unchanged | 04's `getTree()` mapping already yields level 2 only: the roots' `children` become `subcategories` and their nested level-3 `children` are dropped because only `id`, `name`, `slug` are copied. The tree node has no `parentId`, so the filter is structural. Verified: 19 optgroups, 106 options, equal to active `Subcategory` rows with `parentId IS NULL` |
 | 2026-09-17 | (09) `apps/web/scripts/campaign-smoke.mjs` added outside the owned paths | Like 07's and 08's smoke scripts: the before/after inventory, event and browser evidence needs a repeatable tool; handed to 10 |
+| 2026-09-17 | Hosting moves from Render to Railway (backend + web, one environment) and Supabase Postgres in the existing Supabase project; Render is deleted at the end of workstream 10 | Render cost ~$35/month for four flat-rate services and a DB that never served users; Railway bills usage and Supabase already hosts auth and storage; NestJS stays as is (Cloudflare Workers rejected because NestJS is unsupported there and the API keeps in-memory rate limits and caches) |
 
 ## Open Questions
 
@@ -609,6 +610,6 @@ Status: Done (2026-09-17). Work on `refactor/kyou-ux` from `79a2fdd`; changes le
 - The rate-limited, intake-disabled and network error states share the stale-privacy `FormError` path; only stale privacy was exercised.
 - The overflow blind spot in 04's `overflow-check.mjs` (open note) means earlier 320 px evidence outside `/launch*` may need a re-run.
 
-### 10 — QA, Migration And Release
+### 10 — QA, Hosting Move And Release
 
 Status: Not started

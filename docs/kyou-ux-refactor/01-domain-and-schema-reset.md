@@ -611,7 +611,7 @@ enum NotificationType {
 3. Append the partial unique index SQL to `0_init/migration.sql`.
 4. Update `launch-leads.migration-integrity.spec.ts`: it currently pins checksums of `20260725120000_add_launch_leads` and its successors. Re-pin it to `0_init` and keep the assertions that the lead tables, enums and indexes exist with the expected columns. The intent of that test survives, the file list changes.
 5. `prisma migrate reset --force` locally, run seeds, run `test:launch`.
-6. Render dev and prod databases are reset in workstream 10 with an explicit runbook step. `preDeployCommand` (`migrate deploy`) will fail on a database that has the old history; the runbook drops and recreates the database before the first deploy of the branch.
+6. The hosted database is provisioned fresh on Supabase Postgres in workstream 10; `0_init` applies to an empty database on the first Railway deploy. The old Render databases are deleted, not migrated.
 
 ## Seeds
 
