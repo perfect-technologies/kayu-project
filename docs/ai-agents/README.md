@@ -7,7 +7,8 @@ Revision 2 (2026-09-17) targets the post-refactor product (`docs/kyou-ux-refacto
 - `RFC-001-agent-concierge.md` — the full design: what changed since revision 1, product, architecture, tools, approval, context, memory, cost, risks, decisions.
 - `execution/phase-1-foundation.md` — backend agent loop, read-only tools, web `/assistant` page.
 - `execution/phase-2-actions-and-memory.md` — booking and message tools with approval, profile memory, caps.
-- `execution/phase-3-evals-and-promotion.md` — eval set, model selection, agent notes, promotion.
+- `execution/phase-3-conversations-and-control.md` — the conversation list, starting one on demand, renaming, archiving, deleting.
+- `execution/phase-4-evals-and-promotion.md` — eval set, model selection, agent notes, promotion.
 
 Mobile is out of scope for all phases: `apps/mobile` is frozen and must be migrated to the new system first. Models are reached through the Vercel AI Gateway with one key.
 - `execution/prompts.md` — copy-paste prompts to start each phase in a fresh agent session.

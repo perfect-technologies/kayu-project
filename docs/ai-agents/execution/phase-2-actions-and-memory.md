@@ -27,7 +27,7 @@ In:
 - Rolling summary compaction.
 - Reviews the client wrote, in the profile block (RFC §17).
 
-Out (Phase 3): evals, model selection, agent notes, promotion.
+Out (Phase 3): the conversation list, starting a conversation on demand, archiving, deleting. Out (Phase 4): evals, model selection, agent notes, promotion.
 
 ## Tasks
 

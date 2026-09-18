@@ -56,12 +56,12 @@ Non-goals for v1:
 
 | Decision | Choice |
 |---|---|
-| Placement | `/assistant` beside the marketplace home. A navbar pill for clients and a text link under the home search bar in Phase 1. Promotion (a dock tab, a hero action) is decided in Phase 3 from funnel numbers. |
+| Placement | `/assistant` beside the marketplace home. A navbar pill for clients and a text link under the home search bar in Phase 1. Promotion (a dock tab, a hero action) is decided in Phase 4 from funnel numbers. |
 | Access | Authenticated `CLIENT` role only. Providers are redirected to `/mon-espace` like other client-only screens. |
 | Language | French only, like the rest of the app. Lingala and mixed input tolerated. Copy in `apps/web/src/copy/assistant.ts`. |
 | Loop location | Backend (NestJS). Web is a thin client. |
 | SDK | Vercel AI SDK v7 (`ai` 7.x, `@ai-sdk/react` 4.x). Models are reached through the Vercel AI Gateway (`createGateway`, one `AI_GATEWAY_API_KEY`), never through per-vendor provider packages. Switching models is a change of id string, as the old branch already did. |
-| Model | `anthropic/claude-opus-5` on the gateway for the build. Production model chosen by the Phase 3 eval (§11). |
+| Model | `anthropic/claude-opus-5` on the gateway for the build. Production model chosen by the Phase 4 eval (§11). |
 | Feature flags | `feat_booking` off removes the booking tool for the turn and the agent says so. `contacts_require_premium` is respected through the profile service, never bypassed. |
 | Existing branch | Phase 1 is rebuilt on `main`, using the branch for the loop, persistence, streaming, and spec patterns. The branch is deleted after Phase 1 merges. |
 
@@ -75,6 +75,15 @@ Non-goals for v1:
 - Generic chips from the top categories: "Un plombier pour une fuite", "Un électricien", "Ménage cette semaine".
 
 Tapping a chip sends it as the first message. Free text is always available.
+
+Which conversation greets the client is a rule, not an accident. Phases 1 and 2 always resumed the latest active conversation, which means yesterday's thread is what opens today, with no way to start a fresh one, see the older ones, or archive anything. Phase 3 fixes that:
+
+- Resume the latest active conversation only when its last message is recent, inside `agent.resumeWindowHours` (default 12). Otherwise open a fresh one.
+- A "Nouvelle conversation" action is always available, not only when the message cap is reached.
+- A conversation list, reachable from a header row carrying the current conversation's title, lists active and archived conversations with their titles, a preview line and a relative date, and can open, rename, archive, reactivate or delete any of them.
+- Titles are generated from the first user message and can be renamed by the client.
+
+Archived conversations are read-only: they can be opened and reactivated, but a turn on one is refused. Deleting a conversation deletes its messages, never the bookings or the provider conversations it produced.
 
 ### 4.2 Turn shape
 
@@ -194,7 +203,7 @@ model AgentMessage {
 
 `User` gains `agentConversations AgentConversation[]`. Account deletion (`DELETE /me`) cascades through the relation. Messages are stored as the SDK's `UIMessage` shape so the client rehydrates without transformation. Tool parts keep the full output for rendering; the model sees the compact form (§8).
 
-Phase 2 adds `AgentMessage.compactedAt`. Phase 3 adds `AgentMemoryNote` (§9).
+Phase 2 adds `AgentMessage.compactedAt`. Phase 3 adds no column: the conversation list derives its preview from the last stored message, and `title`, `status` and `lastMessageAt` already carry what it needs. Phase 4 adds `AgentMemoryNote` (§9).
 
 ## 7. Tools
 
@@ -246,7 +255,7 @@ v1 memory is deterministic and explainable. At the start of every turn the profi
 
 This is what lets the agent open with "Jean K. vous a fait la plomberie en juillet, vous voulez le recontacter ?" and generates the personal chips. No model output is stored as memory in v1 and v2.
 
-Phase 3 adds `AgentMemoryNote`: short notes the agent writes through a `remember` tool ("préfère le matin"), visible and deletable by the client on `/compte`, and appended to the profile block. Vector memory is not planned.
+Phase 4 adds `AgentMemoryNote`: short notes the agent writes through a `remember` tool ("préfère le matin"), visible and deletable by the client on `/compte`, and appended to the profile block. Vector memory is not planned.
 
 ## 10. Human in the loop
 
@@ -261,7 +270,7 @@ Read tools run without approval because they have no side effects and their resu
 ## 11. Model, prompting, and cost
 
 - Build model: `anthropic/claude-opus-5` through the AI Gateway. It is the strongest published option on agentic tool use and prompt-injection resistance, which removes model weakness as a variable while prompt and tools are being built.
-- Production model: decided by the Phase 3 eval. Candidates and list prices as of 2026-09-15 (input / output / cached input, $ per million tokens):
+- Production model: decided by the Phase 4 eval. Candidates and list prices as of 2026-09-15 (input / output / cached input, $ per million tokens):
 
   | Candidate | Tier | Price |
   |---|---|---|
@@ -308,26 +317,28 @@ MCP exposes tools to external agents over a protocol. The agent's tools are in-p
 | Gateway not forwarding Anthropic cache markers | Phase 1 acceptance checks `cache_read_input_tokens` on the second turn; if zero through the gateway, raise it with the owner before Phase 2 |
 | Next.js rewrite buffering SSE | Verified in Phase 1; fallback is the backend URL with CORS |
 | Cost runaway | Caps in §11, daily limit, usage alerts |
-| Prompt drift | Phase 3 eval; every prompt change is measured |
+| Prompt drift | Phase 4 eval; every prompt change is measured |
 
 ## 16. Phasing
 
 1. Foundation: backend loop rebuilt on `main`, four read tools, persisted conversations, `/assistant` with chips, provider cards, detail and availability cards, hand-off to the profile page for booking and messaging. Nothing writes.
 2. Actions and memory: approval-gated booking and message tools, approval and status cards, profile block, personal chips, caps, compaction, observability.
-3. Evals and promotion: eval set and grader, model selection, agent notes, home and navigation promotion from funnel data. Mobile is out of scope.
+3. Conversations and control: the conversation list, which conversation greets the client, starting one on demand, renaming, archiving, reactivating, deleting, and automatic archiving. No change to the loop, the tools or the prompt.
+4. Evals and promotion: eval set and grader, model selection, agent notes, home and navigation promotion from funnel data. Mobile is out of scope.
 
 Each phase has its own execution document under `execution/`. Progress and decisions are logged in `PROGRESS.md`.
 
 ## 17. Open questions
 
 - Should the agent see reviews the client wrote, to avoid recommending a provider they rated badly? Proposed: yes, in the profile block, Phase 2.
-- Dock tab for the assistant on mobile? The dock already has five client tabs. Proposed: decide in Phase 3 from funnel numbers, not before.
-- Auto-archive conversations after 30 days of inactivity? Proposed: yes.
+- Dock tab for the assistant on mobile? The dock already has five client tabs. Proposed: decide in Phase 4 from funnel numbers, not before.
 
 ## 18. Decision log
 
 - 2026-09-15: Placement beside home, authenticated only, French-first, backend-owned loop, AI SDK v7, no MCP, deterministic memory first.
-- 2026-09-15: Claude Opus 5 is the build model, not the decided production model. Production model chosen by the Phase 3 eval among Opus 5, GPT-5.6 Sol, Sonnet 5, and Terra. Re-check Sol's price after 2026-11-21.
+- 2026-09-15: Claude Opus 5 is the build model, not the decided production model. Production model chosen by the Phase 4 eval among Opus 5, GPT-5.6 Sol, Sonnet 5, and Terra. Re-check Sol's price after 2026-11-21.
 - 2026-09-17: Revision 2 for the K-YOU contract. Route becomes `/assistant`. Job request fallback replaced by the fallback ladder. `send_message` added as a write tool. Mobile out of scope until it is migrated to the new system. Phase 1 rebuilt on `main` from the old branch as reference.
 - 2026-09-17: Models are reached through the Vercel AI Gateway with one key, as the old branch did. No per-vendor provider packages. Model choice is an id string.
 - 2026-09-17: The client's own location is the default for every search (§4.3). The agent asks for a place only when none is stored and none is named. Applied as a Phase 1 amendment.
+- 2026-09-18: A new Phase 3, Conversations and control, is inserted after Phase 2, and the eval phase becomes Phase 4. Phases 1 and 2 shipped a persisted conversation with no way to leave it: the client lands in yesterday's thread and cannot start, browse, archive or delete one. The list endpoint, the titles and the archive endpoint already exist, so the gap is a surface plus a freshness rule, not new machinery. Sequential numbering rather than a "2B" so no phase looks optional.
+- 2026-09-18: Automatic archiving is settled as part of that phase, lazily on a list read rather than through a scheduler, since the app runs no cron. It was an open question until then.
