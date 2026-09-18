@@ -40,6 +40,8 @@ export const ProviderSearchParams = pagination(20)
     sort: ProviderSearchSort.default("recommended"),
     lat: LatitudeSchema.optional(),
     lng: LongitudeSchema.optional(),
+    // false: the client removed the interpretation chip; search the typed text only.
+    interpret: BooleanQuerySchema.optional(),
   })
   .superRefine((params, ctx) => {
     if ((params.lat === undefined) !== (params.lng === undefined)) {

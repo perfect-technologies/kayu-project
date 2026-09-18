@@ -381,6 +381,7 @@ export const adminCopy = {
       feat_booking: { label: "Réservations", description: "Les clients peuvent réserver un créneau." },
       feat_reviews: { label: "Avis", description: "Les clients peuvent laisser un avis après une prestation." },
       feat_whatsapp: { label: "WhatsApp", description: "Le bouton WhatsApp s'affiche sur les profils." },
+      feat_jev_search: { label: "Recherche comprise", description: "La recherche ajoute le service que le client décrit, par exemple Plomberie pour « fuite d'eau ». Utilise Jev (TypeSafe)." },
       contacts_require_premium: { label: "Contacts réservés au premium", description: "Les coordonnées des prestataires gratuits sont masquées aux visiteurs." },
       maintenance_mode: { label: "Maintenance", description: "Affiche un bandeau de maintenance sur toutes les pages." },
     },

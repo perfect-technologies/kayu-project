@@ -318,6 +318,32 @@ test("language, rating, verified and text filters", async () => {
   assert.deepEqual(ids(await service.search(query({ q: "Dépannage nuit" }))), ["low_rating"]);
 });
 
+test("widening adds a subcategory or category to the text matches without dropping them, and other filters still apply", async () => {
+  const service = makeService({
+    providers: [
+      provider({ id: "on_level3", subcategoryId: "sub_fuites", subcategory: fuites }),
+      provider({ id: "on_level2", subcategoryId: "sub_plomberie", subcategory: plomberie, ratingAvg: 3.1 }),
+      provider({ id: "hair_text", subcategoryId: "sub_coiffure", subcategory: coiffure, description: "Je répare aussi les fuites d'eau" }),
+      provider({ id: "hair", subcategoryId: "sub_coiffure", subcategory: coiffure }),
+    ],
+  });
+  const q = query({ q: "fuites d'eau" });
+
+  assert.deepEqual(ids(await service.search(q)), ["hair_text"]);
+  assert.deepEqual(
+    new Set(ids(await service.search(q, undefined, { widenTo: { subcategoryId: "sub_plomberie" } }))),
+    new Set(["hair_text", "on_level3", "on_level2"]),
+  );
+  assert.deepEqual(
+    new Set(ids(await service.search(q, undefined, { widenTo: { categorySlug: "maison" } }))),
+    new Set(["hair_text", "on_level3", "on_level2"]),
+  );
+  assert.deepEqual(
+    new Set(ids(await service.search(query({ q: "fuites d'eau", minRating: "4" }), undefined, { widenTo: { subcategoryId: "sub_plomberie" } }))),
+    new Set(["hair_text", "on_level3"]),
+  );
+});
+
 test("recommended sort ranks premium tier first, then rating", async () => {
   const service = makeService({
     providers: [

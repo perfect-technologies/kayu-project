@@ -25,6 +25,8 @@ const schema = z.object({
     blankOrPlaceholder,
     z.string().regex(/^[a-z0-9.-]+\/[a-z0-9.-]+$/, "AGENT_MODEL_ID must be a gateway model id").optional(),
   ),
+  // Jev (TypeSafe) for search interpretation; unset means the search never calls it.
+  TYPESAFE_API_KEY: z.preprocess(blankOrPlaceholder, z.string().min(1).optional()),
   STORAGE_ENV_PREFIX: z.string().optional(),
   SEED_SUPABASE_USERS: z.enum(["true", "false"]).default("false"),
   E2E_TEST_MODE: z.enum(["true", "false"]).default("false"),

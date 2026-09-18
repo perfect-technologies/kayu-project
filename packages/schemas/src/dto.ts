@@ -130,6 +130,8 @@ export const ProviderSearchParams = pagination(20)
     sort: ProviderSearchSort.default("recommended"),
     lat: LatitudeSchema.optional(),
     lng: LongitudeSchema.optional(),
+    // false: the client removed the interpretation chip; search the typed text only.
+    interpret: BooleanQuerySchema.optional(),
   })
   .superRefine((params, ctx) => {
     if ((params.lat === undefined) !== (params.lng === undefined)) {
@@ -143,7 +145,14 @@ export const ProviderSearchParams = pagination(20)
       });
     }
   });
-export const ProviderSearchResponseSchema = createPaginatedResponseSchema(ProviderCardSchema);
+export const SearchInterpretationSchema = z.object({
+  level: z.enum(["subcategory", "category"]),
+  slug: z.string(),
+  label: z.string(),
+});
+export const ProviderSearchResponseSchema = createPaginatedResponseSchema(ProviderCardSchema).extend({
+  interpretation: SearchInterpretationSchema.nullable().optional(),
+});
 
 export const ProviderPublicResponseSchema = ProviderPublicSchema;
 
@@ -1344,6 +1353,7 @@ export type PlacesResponse = z.infer<typeof PlacesResponseSchema>;
 export type PlaceAncestorsResponse = z.infer<typeof PlaceAncestorsResponseSchema>;
 export type ReferencesResponse = z.infer<typeof ReferencesResponseSchema>;
 export type ProviderSearchResponse = z.infer<typeof ProviderSearchResponseSchema>;
+export type SearchInterpretation = z.infer<typeof SearchInterpretationSchema>;
 export type ProviderPublicResponse = z.infer<typeof ProviderPublicResponseSchema>;
 export type AvailabilityResponse = z.infer<typeof AvailabilityResponseSchema>;
 export type ProviderReviewsResponse = z.infer<typeof ProviderReviewsResponseSchema>;

@@ -1,0 +1,164 @@
+{"id":"fr-001","q":"fuite d'eau sous l'évier","expect":["plomberie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-002","q":"plombier","expect":["plomberie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-003","q":"mon chauffe-eau ne chauffe plus","expect":["plomberie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-004","q":"les toilettes sont bouchées","expect":["plomberie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-005","q":"électricien","expect":["electricite"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-006","q":"les prises de la maison ne marchent plus","expect":["electricite"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-007","q":"installer un compteur prépayé","expect":["electricite"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-008","q":"construire un mur de clôture","expect":["maconnerie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-009","q":"faire la dalle de ma maison","expect":["maconnerie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-010","q":"porte en bois sur mesure","expect":["menuiserie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-011","q":"soudeur pour un portail métallique","expect":["menuiserie","forge_soudure"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-012","q":"repeindre le salon","expect":["peinture"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-013","q":"poser du carrelage dans la douche","expect":["carrelage"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-014","q":"mon climatiseur coule et ne refroidit plus","expect":["climatisation"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-015","q":"mon frigo ne refroidit plus","expect":["climatisation"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-016","q":"le toit fuit quand il pleut","expect":["toiture"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-017","q":"changer les tôles de la maison","expect":["toiture"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-018","q":"vitre cassée à remplacer","expect":["vitrerie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-019","q":"faire les plans d'une maison","expect":["architecture"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-020","q":"tresses africaines","expect":["coiffure"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-021","q":"coiffeuse à domicile pour un tissage","expect":["coiffure"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-022","q":"pose de faux ongles","expect":["onglerie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-023","q":"maquillage pour mon mariage","expect":["maquillage"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-024","q":"massage pour le mal de dos","expect":["spa_massage","kinesitherapie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-025","q":"me raser la barbe","expect":["barbier"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-026","q":"repas pour 200 invités au mariage","expect":["traiteur","restauration_evenementielle"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-027","q":"gâteau d'anniversaire","expect":["patisserie","traiteur"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-028","q":"quelqu'un pour cuisiner chez moi tous les jours","expect":["cuisinier_domicile"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-029","q":"femme de ménage","expect":["menage"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-030","q":"nettoyage après travaux","expect":["menage"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-031","q":"laver et repasser mes chemises","expect":["blanchisserie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-032","q":"couper un arbre dans la parcelle","expect":["jardinage"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-033","q":"il y a des cafards partout dans la cuisine","expect":["desinsectisation"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-034","q":"des rats dans le plafond","expect":["desinsectisation"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-035","q":"nounou pour mon bébé","expect":["garde_enfants"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-036","q":"quelqu'un pour aller chercher les enfants à l'école","expect":["garde_enfants"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-037","q":"s'occuper de ma grand-mère","expect":["garde_personnes_agees"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-038","q":"chauffeur pour aller à l'aéroport de Ndjili","expect":["transport_personnes"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-039","q":"camion pour déménager","expect":["demenagement","transport_marchandises"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-040","q":"louer une voiture pour le week-end","expect":["location_vehicule"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-041","q":"envoyer un colis à Limete","expect":["livraison_coursier"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-042","q":"bus pour transporter les invités","expect":["transport_evenementiel"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-043","q":"ma voiture ne démarre plus","expect":["mecanique_automobile"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-044","q":"faire la vidange","expect":["entretien_auto","mecanique_automobile"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-045","q":"réparer ma moto","expect":["mecanique_moto"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-046","q":"pneu crevé","expect":["pneumatiques"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-047","q":"la clim de la voiture souffle chaud","expect":["entretien_auto","mecanique_automobile"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-048","q":"écran de téléphone cassé","expect":["reparation_telephone"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-049","q":"mon ordinateur portable est très lent","expect":["reparation_ordinateur"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-050","q":"installer le wifi au bureau","expect":["installation_reseau"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-051","q":"créer un site internet pour ma boutique","expect":["developpement_web"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-052","q":"infirmière pour faire des injections à la maison","expect":["infirmier_domicile"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-053","q":"rééducation après une fracture","expect":["kinesitherapie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-054","q":"prise de sang","expect":["laboratoire_analyses","infirmier_domicile"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-055","q":"mes poules sont malades","expect":["veterinaire","elevage"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-056","q":"creuser des étangs pour les poissons","expect":["pisciculture"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-057","q":"répétiteur de maths pour mon fils en 6e","expect":["cours_particuliers","soutien_scolaire"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-058","q":"apprendre l'anglais","expect":["formation_langues","cours_particuliers"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-059","q":"cours de guitare","expect":["musique_arts"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-060","q":"DJ pour une fête samedi","expect":["son_lumiere_dj"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-061","q":"photographe pour un baptême","expect":["photographie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-062","q":"louer des chaises et une tente","expect":["location_materiel"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-063","q":"décorer la salle pour une dot","expect":["decoration"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-064","q":"gardien de nuit pour ma parcelle","expect":["gardiennage","agent_securite"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-065","q":"installer des caméras de surveillance","expect":["installation_securite"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-066","q":"installer des panneaux solaires","expect":["panneaux_solaires"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-067","q":"mon groupe électrogène ne démarre pas","expect":["groupe_electrogene"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-068","q":"batterie pour tenir pendant les coupures","expect":["batteries_stockage","panneaux_solaires"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-069","q":"couturière pour une tenue en pagne","expect":["couture"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-070","q":"raccourcir un pantalon","expect":["couture"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-071","q":"imprimer 500 flyers","expect":["impression"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-072","q":"t-shirts avec le logo de l'entreprise","expect":["serigraphie","broderie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-073","q":"créer un logo","expect":["design_graphique"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-074","q":"gérer ma page Facebook","expect":["communication_digitale"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-075","q":"faire ma déclaration d'impôts","expect":["fiscalite","comptabilite"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-076","q":"avocat pour un problème de parcelle","expect":["conseil_juridique"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-077","q":"traduire un diplôme en anglais","expect":["traduction"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-078","q":"aide pour obtenir un passeport","expect":["formalites_admin"],"kind":"service","lang":"fr","split":"test"}
+{"id":"fr-079","q":"bijoux en or sur mesure","expect":["bijouterie"],"kind":"service","lang":"fr","split":"dev"}
+{"id":"fr-080","q":"réparer mon sac en cuir","expect":["maroquinerie"],"kind":"service","lang":"fr","split":"test"}
+{"id":"pl-001","q":"plombie","expect":["plomberie"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-002","q":"electricien pas cher","expect":["electricite"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-003","q":"coifeuse","expect":["coiffure"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-004","q":"menuisier","expect":["menuiserie"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-005","q":"macon pour construire","expect":["maconnerie"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-006","q":"reparation frigo","expect":["climatisation"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-007","q":"mecanicien","expect":["mecanique_automobile","mecanique_moto"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-008","q":"reparer tel","expect":["reparation_telephone"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-009","q":"menage maison","expect":["menage"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-010","q":"traiteur mariage","expect":["traiteur"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-011","q":"patisier","expect":["patisserie"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-012","q":"chauffeur","expect":["transport_personnes"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-013","q":"infirmiere a domicile","expect":["infirmier_domicile"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-014","q":"peintre batiment","expect":["peinture"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-015","q":"carreleur","expect":["carrelage"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-016","q":"cour de math","expect":["cours_particuliers","soutien_scolaire"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-017","q":"photografe","expect":["photographie"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-018","q":"clim pas froid","expect":["climatisation"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-019","q":"panneau solaire","expect":["panneaux_solaires"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-020","q":"soudeur","expect":["forge_soudure","menuiserie"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-021","q":"slt jcherche qlq1 pr repare ma tv","expect":["electronique_hifi"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-022","q":"couturier","expect":["couture"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-023","q":"demenagement urgent","expect":["demenagement"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"pl-024","q":"gardien","expect":["gardiennage","agent_securite"],"kind":"service","lang":"fr_plain","split":"test"}
+{"id":"pl-025","q":"veterinere pour chien","expect":["veterinaire"],"kind":"service","lang":"fr_plain","split":"dev"}
+{"id":"ln-001","q":"nazali na fuite ya mai na ndako","expect":["plomberie"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-002","q":"courant ekatani na ndako","expect":["electricite"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-003","q":"nalingi moto ya kobongisa frigo","expect":["climatisation"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-004","q":"nazali koluka coiffeuse ya kosala ba tresses","expect":["coiffure"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-005","q":"motuka na ngai e démarrer te","expect":["mecanique_automobile"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-006","q":"moto ya kosukola ndako","expect":["menage"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-007","q":"nalingi kotonga ndako","expect":["maconnerie","architecture"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-008","q":"moto ya kolamba bilei ya libala","expect":["traiteur","restauration_evenementielle"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-009","q":"nazali na mposa ya mama ya kobatela bana","expect":["garde_enfants"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-010","q":"téléphone na ngai ebukani écran","expect":["reparation_telephone"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-011","q":"ndako na ngai ezali kotanga mai soki mbula ebeti","expect":["toiture"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-012","q":"nalingi kokata suki","expect":["coiffure","barbier"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-013","q":"moto ya kosala bilamba","expect":["couture"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-014","q":"groupe ezali ko démarrer te","expect":["groupe_electrogene"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-015","q":"nalingi mwalimu ya math pona mwana","expect":["cours_particuliers","soutien_scolaire"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-016","q":"ba nzoloko ezali mingi na cuisine","expect":["desinsectisation"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-017","q":"nalingi camion pona ko déménager","expect":["demenagement","transport_marchandises"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-018","q":"infirmier aya kotala papa na ndako","expect":["infirmier_domicile"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-019","q":"nalingi ko peindre ndako","expect":["peinture"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-020","q":"moto ya kobatela lopango butu","expect":["gardiennage","agent_securite"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-021","q":"nsoso na ngai ebeli","expect":["veterinaire","elevage"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-022","q":"clim ezali kopesa malili te","expect":["climatisation"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-023","q":"nalingi photographe pona libala","expect":["photographie"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"ln-024","q":"pneu ya moto epanzani","expect":["pneumatiques","mecanique_moto"],"kind":"service","lang":"ln_mix","split":"test","review":true}
+{"id":"ln-025","q":"toilette ekangami","expect":["plomberie"],"kind":"service","lang":"ln_mix","split":"dev","review":true}
+{"id":"en-001","q":"plumber near me","expect":["plomberie"],"kind":"service","lang":"en","split":"dev"}
+{"id":"en-002","q":"my phone screen is broken","expect":["reparation_telephone"],"kind":"service","lang":"en","split":"test"}
+{"id":"en-003","q":"babysitter for tonight","expect":["garde_enfants"],"kind":"service","lang":"en","split":"dev"}
+{"id":"en-004","q":"airport pickup","expect":["transport_personnes"],"kind":"service","lang":"en","split":"test"}
+{"id":"en-005","q":"house cleaning","expect":["menage"],"kind":"service","lang":"en","split":"dev"}
+{"id":"en-006","q":"accountant for my small business","expect":["comptabilite"],"kind":"service","lang":"en","split":"test"}
+{"id":"en-007","q":"solar panel installation","expect":["panneaux_solaires"],"kind":"service","lang":"en","split":"dev"}
+{"id":"en-008","q":"wedding catering","expect":["traiteur","restauration_evenementielle"],"kind":"service","lang":"en","split":"test"}
+{"id":"en-009","q":"car won't start","expect":["mecanique_automobile"],"kind":"service","lang":"en","split":"dev"}
+{"id":"en-010","q":"french tutor","expect":["formation_langues","cours_particuliers"],"kind":"service","lang":"en","split":"test"}
+{"id":"nm-001","q":"Mama Nzuzi","expect":[],"kind":"name","lang":"fr","split":"dev"}
+{"id":"nm-002","q":"Ets Kabeya et Fils","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"nm-003","q":"Papa Jules Mbuyi","expect":[],"kind":"name","lang":"fr","split":"dev"}
+{"id":"nm-004","q":"Salon Élégance Bandal","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"nm-005","q":"Garage Lumbu Frères","expect":[],"kind":"name","lang":"fr","split":"dev"}
+{"id":"nm-006","q":"Chez Tantine Mado","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"nm-007","q":"Grâce Mavungu","expect":[],"kind":"name","lang":"fr","split":"dev"}
+{"id":"nm-008","q":"Kin Clim Services","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"nm-009","q":"patrick ilunga","expect":[],"kind":"name","lang":"fr_plain","split":"dev"}
+{"id":"nm-010","q":"Studio Nkembo Photo","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"nm-011","q":"Déo Tshibangu","expect":[],"kind":"name","lang":"fr","split":"dev"}
+{"id":"nm-012","q":"Pâtisserie La Belle Kinoise","expect":[],"kind":"name","lang":"fr","split":"test"}
+{"id":"ot-001","q":"bonjour","expect":[],"kind":"off_topic","lang":"fr","split":"dev"}
+{"id":"ot-002","q":"comment payer sur KAYOU","expect":[],"kind":"off_topic","lang":"fr","split":"test"}
+{"id":"ot-003","q":"mot de passe oublié","expect":[],"kind":"off_topic","lang":"fr","split":"dev"}
+{"id":"ot-004","q":"taux du dollar aujourd'hui","expect":[],"kind":"off_topic","lang":"fr","split":"test"}
+{"id":"ot-005","q":"résultat du match V Club","expect":[],"kind":"off_topic","lang":"fr","split":"dev"}
+{"id":"ot-006","q":"asdfgh","expect":[],"kind":"off_topic","lang":"fr_plain","split":"test"}
+{"id":"ot-007","q":"test","expect":[],"kind":"off_topic","lang":"fr_plain","split":"dev"}
+{"id":"ot-008","q":"mbote","expect":[],"kind":"off_topic","lang":"ln_mix","split":"test","review":true}
+{"id":"ot-009","q":"je veux devenir prestataire","expect":[],"kind":"off_topic","lang":"fr","split":"dev"}
+{"id":"ot-010","q":"annuler ma réservation","expect":[],"kind":"off_topic","lang":"fr","split":"test"}
+{"id":"ot-011","q":"Kinshasa","expect":[],"kind":"off_topic","lang":"fr","split":"dev"}
+{"id":"ot-012","q":"what is kayou","expect":[],"kind":"off_topic","lang":"en","split":"test"}

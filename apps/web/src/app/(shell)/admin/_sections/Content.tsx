@@ -25,7 +25,7 @@ const GROUPS: Array<{ key: keyof typeof copy.groups; fields: StringKey[]; toggle
   { key: "how", fields: ["how1_title", "how1_desc", "how2_title", "how2_desc", "how3_title", "how3_desc"], multiline: ["how1_desc", "how2_desc", "how3_desc"] },
   { key: "premium", fields: ["premium_title", "premium_subtitle"], multiline: ["premium_subtitle"] },
   { key: "contact", fields: ["contact_phone", "contact_email", "contact_website"] },
-  { key: "features", fields: [], toggles: ["feat_booking", "feat_reviews", "feat_whatsapp", "contacts_require_premium"] },
+  { key: "features", fields: [], toggles: ["feat_booking", "feat_reviews", "feat_whatsapp", "feat_jev_search", "contacts_require_premium"] },
   { key: "maintenance", fields: ["maintenance_message"], toggles: ["maintenance_mode"], multiline: ["maintenance_message"] },
 ];
 

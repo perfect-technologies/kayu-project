@@ -23,8 +23,3 @@ Marketplace connecting clients to verified service providers in RDC and Congo-Br
 - Service logic tested via `node:test` + hand-rolled Prisma fakes (see `apps/backend/src/modules/admin/admin.service.spec.ts` and `.../stats/stats.service.spec.ts` as references).
 - Run a single spec with `node --test -r ts-node/register apps/backend/src/modules/<module>/<file>.spec.ts` from `apps/backend/`.
 - The backend is CJS while `@kayu/schemas` is ESM. Use dynamic `await import("@kayu/schemas")` for runtime values; re-declare types locally or derive them with `Awaited<ReturnType<...>>`.
-
-## Workflow
-
-- Brainstorm → spec → plan → implement. Use the `superpowers` skills when present.
-- Default branch is `main`. Recent history is direct-to-main; create a feature branch only when explicitly asked.

@@ -23,6 +23,10 @@ export const searchCopy = {
     list: "Liste",
     map: "Carte",
   },
+  interpretation: {
+    label: (name: string) => `Inclut aussi : ${name}`,
+    remove: (name: string) => `Retirer ${name} de la recherche`,
+  },
   loadMore: "Voir plus",
   loadingMore: "Chargement…",
   empty: {

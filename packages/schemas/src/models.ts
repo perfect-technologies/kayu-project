@@ -587,6 +587,7 @@ export const SITE_SETTING_BOOLEAN_KEYS = [
   "feat_booking",
   "feat_reviews",
   "feat_whatsapp",
+  "feat_jev_search",
   "contacts_require_premium",
   "maintenance_mode",
 ] as const;
@@ -603,6 +604,7 @@ export const SITE_SETTING_DEFAULTS = {
   feat_booking: true,
   feat_reviews: true,
   feat_whatsapp: true,
+  feat_jev_search: false,
   contacts_require_premium: false,
   maintenance_mode: false,
 } as SiteSettings;
