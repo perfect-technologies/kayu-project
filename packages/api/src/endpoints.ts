@@ -2,6 +2,7 @@ import type {
   AssistantConversationDetailResponse,
   AssistantConversationResponse,
   AssistantConversationsResponse,
+  AssistantSuggestionsResponse,
   AcceptTermsResponse,
   AddressResponse,
   AddressesQueryParams,
@@ -358,6 +359,11 @@ export const assistantApi = (client: ApiClient) => ({
     client.get<AssistantConversationDetailResponse>(
       `/assistant/conversations/${encodeURIComponent(id)}`,
     ),
+  archiveConversation: (id: string) =>
+    client.post<AssistantConversationResponse>(
+      `/assistant/conversations/${encodeURIComponent(id)}/archive`,
+    ),
+  suggestions: () => client.get<AssistantSuggestionsResponse>("/assistant/suggestions"),
   // The turn itself streams through the AI SDK transport; this is the path it posts to.
   messagesPath: (id: string) => `/assistant/conversations/${encodeURIComponent(id)}/messages`,
 });

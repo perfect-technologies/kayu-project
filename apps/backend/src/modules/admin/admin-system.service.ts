@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,6 +12,16 @@ import { SiteSettingsService } from "../settings/site-settings.service";
 import { SUPABASE_CLIENT } from "../storage/storage.service";
 
 const AUDIT_LIMIT = 200;
+const AGENT_TIMEZONE = "Africa/Kinshasa";
+const kinshasaDay = new Intl.DateTimeFormat("en-CA", { timeZone: AGENT_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+// Kinshasa has no daylight saving time, so the calendar day starts at a fixed offset.
+export function startOfKinshasaDay(now: Date): Date {
+  return new Date(`${kinshasaDay.format(now)}T00:00:00+01:00`);
+}
+
+// Stored UIMessage parts are the source of truth for what the agent did: a jsonb containment match per action.
+const partsWith = (part: Prisma.InputJsonObject): Prisma.JsonFilter => ({ array_contains: [part] });
 
 let cachedVersion: string | undefined;
 
@@ -35,8 +46,8 @@ export class AdminSystemService {
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
   ) {}
 
-  async overview() {
-    const [users, suspended, providers, bookings, openReports, pendingSuggestions, pendingVerifications] =
+  async overview(now = new Date()) {
+    const [users, suspended, providers, bookings, openReports, pendingSuggestions, pendingVerifications, assistant] =
       await Promise.all([
         this.prisma.user.count(),
         this.prisma.user.count({ where: { isActive: false } }),
@@ -45,6 +56,7 @@ export class AdminSystemService {
         this.prisma.report.count({ where: { status: "OPEN" } }),
         this.prisma.placeSuggestion.count({ where: { status: "PENDING" } }),
         this.prisma.provider.count({ where: { verificationStatus: "UNDER_REVIEW" } }),
+        this.assistantOverview(now),
       ]);
 
     return {
@@ -54,6 +66,25 @@ export class AdminSystemService {
       openReports,
       pendingSuggestions,
       pendingVerifications,
+      assistant,
+    };
+  }
+
+  // Fallback rate: assistant messages where a search came back empty (the ladder widened) over messages with a search.
+  async assistantOverview(now = new Date()) {
+    const assistantRole = { role: "ASSISTANT" as const };
+    const [conversationsToday, messagesSent, bookingsCreated, searched, widened] = await Promise.all([
+      this.prisma.agentConversation.count({ where: { lastMessageAt: { gte: startOfKinshasaDay(now) } } }),
+      this.prisma.agentMessage.count({ where: { ...assistantRole, parts: partsWith({ type: "tool-send_message", state: "output-available" }) } }),
+      this.prisma.agentMessage.count({ where: { ...assistantRole, parts: partsWith({ type: "tool-create_booking", state: "output-available" }) } }),
+      this.prisma.agentMessage.count({ where: { ...assistantRole, parts: partsWith({ type: "tool-search_providers", state: "output-available" }) } }),
+      this.prisma.agentMessage.count({ where: { ...assistantRole, parts: partsWith({ type: "tool-search_providers", output: { total: 0 } }) } }),
+    ]);
+    return {
+      conversationsToday,
+      messagesSent,
+      bookingsCreated,
+      fallbackRate: searched === 0 ? null : Math.round((widened / searched) * 100),
     };
   }
 

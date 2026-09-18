@@ -1035,6 +1035,7 @@ model AgentMessage {
   role           AgentMessageRole
   parts          Json
   metadata       Json?
+  compactedAt    DateTime?
   createdAt      DateTime          @default(now())
 
   @@index([conversationId, createdAt])

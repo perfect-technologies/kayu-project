@@ -107,6 +107,7 @@ export const queryKeys = {
   assistant: {
     conversations: ["assistant", "conversations"] as const,
     conversation: (conversationId: string) => ["assistant", "conversation", conversationId] as const,
+    suggestions: ["assistant", "suggestions"] as const,
   },
   admin: {
     overview: ["admin", "overview"] as const,

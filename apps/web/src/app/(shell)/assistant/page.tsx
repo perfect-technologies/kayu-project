@@ -20,7 +20,7 @@ async function loadInitial(): Promise<InitialConversation | null> {
     const { items } = await api.listConversations();
     const conversationId = items[0]?.id ?? (await api.createConversation()).id;
     const detail = await api.getConversation(conversationId);
-    return { conversationId, messages: detail.messages as AssistantUIMessage[], locationKnown: detail.clientLocation !== null };
+    return { conversationId, messages: detail.messages as AssistantUIMessage[], locationKnown: detail.clientLocation !== null, full: detail.full };
   } catch {
     return null;
   }

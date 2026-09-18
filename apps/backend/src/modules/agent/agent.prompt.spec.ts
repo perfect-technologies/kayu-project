@@ -62,7 +62,23 @@ test("frozen prompt carries the phase 1 rules", () => {
   assert.match(AGENT_SYSTEM_PROMPT, /Ne dis jamais qu'une réservation est faite/);
   assert.match(AGENT_SYSTEM_PROMPT, /1\) le lieu parent[\s\S]*2\) la catégorie parente[\s\S]*3\) le prestataire le plus proche[\s\S]*4\) la page de recherche/);
   assert.match(AGENT_SYSTEM_PROMPT, /contactsLocked[\s\S]*messagerie intégrée/);
-  assert.doesNotMatch(AGENT_SYSTEM_PROMPT, /create_booking|send_message/);
+});
+
+test("frozen prompt carries the phase 2 action rules", () => {
+  assert.match(AGENT_SYSTEM_PROMPT, /- create_booking :/);
+  assert.match(AGENT_SYSTEM_PROMPT, /- send_message :/);
+  assert.match(AGENT_SYSTEM_PROMPT, /- get_my_activity :/);
+  assert.match(AGENT_SYSTEM_PROMPT, /Propose la réservation avant de la lancer/);
+  assert.match(AGENT_SYSTEM_PROMPT, /confirmé en une phrase le lieu, la date et l'heure/);
+  assert.match(AGENT_SYSTEM_PROMPT, /demande envoyée, le prestataire doit confirmer/);
+  assert.match(AGENT_SYSTEM_PROMPT, /ni que le prestataire arrive/);
+  assert.match(AGENT_SYSTEM_PROMPT, /SLOT_TAKEN, rappelle get_provider_availability/);
+  assert.match(AGENT_SYSTEM_PROMPT, /accord refusé[\s\S]*demande en une phrase ce qu'il faut changer/);
+  assert.match(AGENT_SYSTEM_PROMPT, /noté 2 ou moins[\s\S]*sans le dire/);
+  assert.match(AGENT_SYSTEM_PROMPT, /passe son addressId sans redemander/);
+  assert.match(AGENT_SYSTEM_PROMPT, /\[\[adresse\]\]/);
+  assert.match(AGENT_SYSTEM_PROMPT, /Réservation : désactivée[\s\S]*create_booking n'existe pas/);
+  assert.doesNotMatch(AGENT_SYSTEM_PROMPT, /tu ne réserves pas/);
 });
 
 test("frozen prompt carries the default-location rules", () => {
@@ -88,11 +104,22 @@ test("turn facts carry the client location with ids, or say it is unknown", () =
     "Lieu du client : Gombe (commune), Kinshasa, RDC — id gombe (parents : Kinshasa id kin, RDC id cd) ; adresse par défaut « Maison ».",
   );
   assert.equal(formatClientLocation({ ...known, addressLabel: null }), "Lieu du client : Gombe (commune), Kinshasa, RDC — id gombe (parents : Kinshasa id kin, RDC id cd).");
+  assert.equal(
+    formatClientLocation({ ...known, addressId: "addr_1" }),
+    "Lieu du client : Gombe (commune), Kinshasa, RDC — id gombe (parents : Kinshasa id kin, RDC id cd) ; adresse par défaut « Maison » (addressId addr_1).",
+  );
   assert.equal(formatClientLocation(null), "Lieu du client : inconnu.");
-  const facts = buildTurnFacts(new Date("2026-09-17T22:30:00.000Z"), known);
-  assert.equal(facts.split("\n").length, 2);
+  const facts = buildTurnFacts(new Date("2026-09-17T22:30:00.000Z"), { location: known });
+  assert.equal(facts.split("\n").length, 4);
   assert.match(facts, /\nLieu du client : Gombe \(commune\)/);
-  assert.match(buildTurnFacts(new Date("2026-09-17T22:30:00.000Z")), /\nLieu du client : inconnu\.$/);
+  assert.match(buildTurnFacts(new Date("2026-09-17T22:30:00.000Z")), /\nLieu du client : inconnu\.\n/);
+});
+
+test("turn facts state the phone and the booking flag so the prompt rules can react", () => {
+  const at = new Date("2026-09-17T22:30:00.000Z");
+  assert.match(buildTurnFacts(at, { phoneKnown: true, bookingEnabled: true }), /Téléphone du client : connu[\s\S]*Réservation : activée\.$/);
+  assert.match(buildTurnFacts(at, { phoneKnown: false }), /Téléphone du client : inconnu ; demande-le avant create_booking\./);
+  assert.match(buildTurnFacts(at, { bookingEnabled: false }), /Réservation : désactivée ; l'outil create_booking n'est pas disponible pour ce tour\.$/);
 });
 
 test("turn facts carry the Kinshasa calendar day, separate from the cached prompt", () => {

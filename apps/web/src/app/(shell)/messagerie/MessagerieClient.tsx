@@ -49,7 +49,8 @@ export function MessagerieClient() {
       </header>
       <h1 className={cn("lg:hidden", threadOpen && "sr-only")}>{copy.title}</h1>
 
-      <div className="mt-0 grid gap-4 lg:mt-6 lg:grid-cols-12 lg:items-start">
+      {/* grid-cols-1: without it the single mobile track is auto-sized, so a long last message widens the page. */}
+      <div className="mt-0 grid grid-cols-1 gap-4 lg:mt-6 lg:grid-cols-12 lg:items-start">
         <div className={cn("lg:col-span-5", threadOpen && "hidden lg:block")}>
           <ConversationList activeId={conversationId} />
         </div>

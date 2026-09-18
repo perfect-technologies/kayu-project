@@ -1,17 +1,38 @@
+import { HttpException } from "@nestjs/common";
 import { tool } from "ai";
 import type { Actor } from "../../common/auth/types";
-import { AvailabilityQueryParams, PlacesQueryParams, ProviderSearchParams } from "../../common/contract";
+import {
+  AddressesQueryParams,
+  AvailabilityQueryParams,
+  BookingsQueryParams,
+  ConversationsQueryParams,
+  CreateBookingDto,
+  PlacesQueryParams,
+  ProviderSearchParams,
+  StartConversationDto,
+} from "../../common/contract";
+import { errorCode } from "../../common/http/errors";
+import type { AddressesService } from "../addresses/addresses.service";
+import type { BookingCard } from "../bookings/booking-view.service";
+import type { BookingsService } from "../bookings/bookings.service";
+import type { MessagingService } from "../messaging/messaging.service";
 import type { PlaceTreeService } from "../places/place-tree.service";
 import type { PlacesService } from "../places/places.service";
 import type { ProviderCard, ProviderPublic } from "../providers/provider-mapper";
 import type { ProvidersService } from "../providers/providers.service";
+import { addressLabel, formatLocalDay } from "./agent.profile";
 
-export const AGENT_TOOL_NAMES = [
+export const AGENT_READ_TOOL_NAMES = [
   "find_place",
   "search_providers",
   "get_provider",
   "get_provider_availability",
+  "get_my_activity",
 ] as const;
+
+export const AGENT_WRITE_TOOL_NAMES = ["create_booking", "send_message"] as const;
+
+export const AGENT_TOOL_NAMES = [...AGENT_READ_TOOL_NAMES, ...AGENT_WRITE_TOOL_NAMES] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
@@ -25,8 +46,49 @@ export type AgentToolDeps = {
   places: Pick<PlacesService, "list">;
   placeTree: Pick<PlaceTreeService, "chains">;
   providers: Pick<ProvidersService, "search" | "getPublicProfile" | "getAvailability">;
+  bookings: Pick<BookingsService, "list" | "create">;
+  messaging: Pick<MessagingService, "list" | "start">;
+  addresses: Pick<AddressesService, "list">;
+  /** `feat_booking` for this turn: when false, `create_booking` is left out of the tool set. */
+  bookingEnabled?: boolean;
   onToolCall?: (trace: AgentToolCallTrace) => void;
 };
+
+const OPEN_BOOKINGS_LIMIT = 5;
+const CONVERSATIONS_LIMIT = 5;
+
+// Service errors reach the model and the card with their French message; the code lets the prompt react (409 SLOT_TAKEN).
+export class AgentToolError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(`${code} : ${message}`);
+    this.name = "AgentToolError";
+  }
+}
+
+export function toToolError(error: unknown): unknown {
+  if (error instanceof AgentToolError) return error;
+  if (error instanceof HttpException) {
+    const body = error.getResponse();
+    const message =
+      typeof body === "object" && body !== null && "message" in body && typeof (body as { message: unknown }).message === "string"
+        ? (body as { message: string }).message
+        : error.message;
+    return new AgentToolError(errorCode(error) ?? `HTTP_${error.getStatus()}`, message);
+  }
+  return error;
+}
+
+// Stored parts come back from JSON on later turns, so dates may be strings by then.
+export function toIso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+export function bookingSlotLabel(booking: Pick<BookingCard, "scheduledLocal">): string {
+  return `${formatLocalDay(booking.scheduledLocal.date)} à ${booking.scheduledLocal.time}`;
+}
 
 const FIND_PLACE_LIMIT = 5;
 const DESCRIPTION_EXCERPT = 280;
@@ -118,10 +180,13 @@ export function compactProviderProfile(profile: ProviderPublic) {
 
 export async function buildTools(actor: Actor, deps: AgentToolDeps) {
   const {
+    AssistantCreateBookingInput,
     AssistantFindPlaceInput,
+    AssistantGetMyActivityInput,
     AssistantGetProviderInput,
     AssistantProviderAvailabilityInput,
     AssistantSearchProvidersInput,
+    AssistantSendMessageInput,
   } = await import("@kayu/schemas");
 
   const timed = async <T>(name: AgentToolName, run: () => Promise<T>): Promise<T> => {
@@ -132,7 +197,7 @@ export async function buildTools(actor: Actor, deps: AgentToolDeps) {
       return output;
     } catch (error) {
       deps.onToolCall?.({ name, durationMs: Date.now() - startedAt, ok: false });
-      throw error;
+      throw toToolError(error);
     }
   };
 
@@ -246,7 +311,101 @@ export async function buildTools(actor: Actor, deps: AgentToolDeps) {
     }),
   });
 
-  return { find_place, search_providers, get_provider, get_provider_availability };
+  const get_my_activity = tool({
+    description:
+      "Donne l'activité du client sur KAYOU : réservations en cours (en attente ou confirmées) avec leur créneau, dernières conversations et adresses enregistrées avec leur addressId. Sans paramètre.",
+    inputSchema: AssistantGetMyActivityInput,
+    execute: () =>
+      timed("get_my_activity", async () => {
+        const [pending, confirmed, conversations, addresses] = await Promise.all([
+          deps.bookings.list(actor, BookingsQueryParams.parse({ status: "PENDING", page: 1, limit: OPEN_BOOKINGS_LIMIT })),
+          deps.bookings.list(actor, BookingsQueryParams.parse({ status: "CONFIRMED", page: 1, limit: OPEN_BOOKINGS_LIMIT })),
+          deps.messaging.list(actor, ConversationsQueryParams.parse({ page: 1, limit: CONVERSATIONS_LIMIT })),
+          deps.addresses.list(actor, AddressesQueryParams.parse({ page: 1, limit: 50 })),
+        ]);
+        return {
+          openBookings: [...pending.items, ...confirmed.items].sort((a, b) => toIso(a.scheduledAt).localeCompare(toIso(b.scheduledAt))),
+          conversations: conversations.items,
+          addresses: addresses.items,
+        };
+      }),
+    toModelOutput: ({ output }) => ({
+      type: "json",
+      value: withoutContactFields({
+        openBookings: output.openBookings.map((booking) => ({
+          id: booking.id,
+          status: booking.status,
+          provider: booking.counterpart.name,
+          providerId: booking.counterpart.providerId,
+          category: booking.counterpart.categoryLabel,
+          when: bookingSlotLabel(booking),
+        })),
+        conversations: output.conversations.map((conversation) => ({
+          id: conversation.id,
+          provider: conversation.counterpart.name,
+          providerId: conversation.counterpart.providerId,
+          lastMessageAt: toIso(conversation.lastMessageAt),
+          unread: conversation.unread,
+        })),
+        addresses: output.addresses.map((address) => ({
+          addressId: address.id,
+          label: addressLabel(address.label),
+          place: labelPath(address.placeChain),
+          isDefault: address.isDefault,
+        })),
+      }),
+    }),
+  });
+
+  const create_booking = tool({
+    description:
+      "Envoie une demande de réservation au prestataire pour un créneau renvoyé par get_provider_availability. Adresse : addressId d'une adresse enregistrée, ou placeId + addressLine (+ latitude/longitude) pour une nouvelle. clientPhone est rempli avec le téléphone du compte s'il manque. Le client donne son accord dans l'interface avant l'envoi ; la réservation reste en attente jusqu'à la confirmation du prestataire.",
+    inputSchema: AssistantCreateBookingInput,
+    execute: (input) =>
+      timed("create_booking", async () => {
+        const dto = CreateBookingDto.parse({ ...input, clientPhone: input.clientPhone ?? actor.phone ?? undefined });
+        return deps.bookings.create(actor, dto);
+      }),
+    toModelOutput: ({ output }) => ({
+      type: "json",
+      value: {
+        bookingId: output.id,
+        status: output.status,
+        provider: output.counterpart.name,
+        when: bookingSlotLabel(output),
+        timezone: output.timezone,
+      },
+    }),
+  });
+
+  const send_message = tool({
+    description:
+      "Envoie un message au prestataire par la messagerie intégrée de KAYOU (toujours disponible, même quand ses contacts sont verrouillés). Le client relit et valide le texte dans l'interface avant l'envoi.",
+    inputSchema: AssistantSendMessageInput,
+    execute: (input) =>
+      timed("send_message", async () => {
+        const dto = StartConversationDto.parse({ providerId: input.providerId, body: input.body, subject: input.subject });
+        return deps.messaging.start(actor, dto);
+      }),
+    toModelOutput: ({ output }) => ({
+      type: "json",
+      value: {
+        conversationId: output.conversation.id,
+        provider: output.conversation.counterpart.name,
+        sentAt: toIso(output.message.createdAt),
+      },
+    }),
+  });
+
+  const readTools = { find_place, search_providers, get_provider, get_provider_availability, get_my_activity, send_message };
+  return deps.bookingEnabled === false ? readTools : { ...readTools, create_booking };
 }
 
 export type AgentTools = Awaited<ReturnType<typeof buildTools>>;
+
+export function approvalConfig(tools: AgentTools) {
+  return {
+    send_message: () => "user-approval" as const,
+    ...("create_booking" in tools ? { create_booking: () => "user-approval" as const } : {}),
+  };
+}
