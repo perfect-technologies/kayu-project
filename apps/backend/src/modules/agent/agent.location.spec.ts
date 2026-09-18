@@ -49,6 +49,7 @@ test("the default address's place chain wins, with its label", async () => {
       { id: "gombe", kind: "COMMUNE", label: "Gombe" },
     ],
     addressLabel: "Maison",
+    addressId: "a1",
   });
   assert.deepEqual(calls.list[0], ["user_1", { page: 1, limit: 50 }]);
   assert.equal(calls.chain.length, 0);
@@ -60,6 +61,7 @@ test("without a default address carrying a place, User.placeId's chain is used",
   assert.equal(location?.source, "user");
   assert.deepEqual(location?.chain.map((place) => place.label), ["RDC", "Kinshasa", "Limete"]);
   assert.equal(location?.addressLabel, null);
+  assert.equal(location?.addressId, null);
   assert.deepEqual(calls.chain, ["limete"]);
 });
 

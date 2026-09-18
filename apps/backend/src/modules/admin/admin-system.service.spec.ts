@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Actor } from "../../common/auth/types";
-import { AdminSystemService } from "./admin-system.service";
+import { AdminSystemService, startOfKinshasaDay } from "./admin-system.service";
 
 const admin = { id: "admin_1", role: "ADMIN", isActive: true } as Actor;
 
@@ -9,31 +9,64 @@ function supabase(listBuckets: () => Promise<unknown>) {
   return { storage: { listBuckets } };
 }
 
-test("overview counts users, suspensions, providers, bookings and pending queues", async () => {
-  const wheres: Record<string, unknown[]> = {};
-  const counter = (name: string, values: Record<string, number>) => ({
+const now = new Date("2026-09-17T14:00:00.000Z");
+const dayStart = new Date("2026-09-16T23:00:00.000Z");
+
+function counter(wheres: Record<string, unknown[]>, name: string, values: Record<string, number>) {
+  return {
     count: async (args?: { where?: unknown }) => {
       (wheres[name] ??= []).push(args?.where);
       return values[JSON.stringify(args?.where ?? null)] ?? -1;
     },
-  });
-  const prisma = {
-    user: counter("user", { null: 30, '{"isActive":false}': 2 }),
-    provider: counter("provider", { null: 15, '{"verificationStatus":"UNDER_REVIEW"}': 3 }),
-    booking: counter("booking", { null: 36 }),
-    report: counter("report", { '{"status":"OPEN"}': 1 }),
-    placeSuggestion: counter("placeSuggestion", { '{"status":"PENDING"}': 4 }),
   };
-  const service = new AdminSystemService(prisma as never, {} as never, {} as never, {} as never);
+}
 
-  assert.deepEqual(await service.overview(), {
+function overviewPrisma(wheres: Record<string, unknown[]>, agent: Partial<Record<string, number>> = {}) {
+  const sent = '{"role":"ASSISTANT","parts":{"array_contains":[{"type":"tool-send_message","state":"output-available"}]}}';
+  const booked = '{"role":"ASSISTANT","parts":{"array_contains":[{"type":"tool-create_booking","state":"output-available"}]}}';
+  const searched = '{"role":"ASSISTANT","parts":{"array_contains":[{"type":"tool-search_providers","state":"output-available"}]}}';
+  const widened = '{"role":"ASSISTANT","parts":{"array_contains":[{"type":"tool-search_providers","output":{"total":0}}]}}';
+  return {
+    user: counter(wheres, "user", { null: 30, '{"isActive":false}': 2 }),
+    provider: counter(wheres, "provider", { null: 15, '{"verificationStatus":"UNDER_REVIEW"}': 3 }),
+    booking: counter(wheres, "booking", { null: 36 }),
+    report: counter(wheres, "report", { '{"status":"OPEN"}': 1 }),
+    placeSuggestion: counter(wheres, "placeSuggestion", { '{"status":"PENDING"}': 4 }),
+    agentConversation: counter(wheres, "agentConversation", { [`{"lastMessageAt":{"gte":"${dayStart.toISOString()}"}}`]: agent.conversationsToday ?? 5 }),
+    agentMessage: counter(wheres, "agentMessage", {
+      [sent]: agent.messagesSent ?? 7,
+      [booked]: agent.bookingsCreated ?? 2,
+      [searched]: agent.searched ?? 40,
+      [widened]: agent.widened ?? 10,
+    }),
+  };
+}
+
+test("overview counts users, suspensions, providers, bookings, pending queues and the assistant block", async () => {
+  const wheres: Record<string, unknown[]> = {};
+  const service = new AdminSystemService(overviewPrisma(wheres) as never, {} as never, {} as never, {} as never);
+
+  assert.deepEqual(await service.overview(now), {
     users: { total: 30, suspended: 2 },
     providers: 15,
     bookings: 36,
     openReports: 1,
     pendingSuggestions: 4,
     pendingVerifications: 3,
+    assistant: { conversationsToday: 5, messagesSent: 7, bookingsCreated: 2, fallbackRate: 25 },
   });
+  assert.deepEqual(wheres.agentConversation, [{ lastMessageAt: { gte: dayStart } }]);
+  assert.equal(wheres.agentMessage!.length, 4);
+});
+
+test("assistant overview counts on the Kinshasa day and reports no fallback rate without searches", async () => {
+  const wheres: Record<string, unknown[]> = {};
+  const prisma = overviewPrisma(wheres, { searched: 0, widened: 0, conversationsToday: 0 });
+  const service = new AdminSystemService(prisma as never, {} as never, {} as never, {} as never);
+
+  assert.deepEqual(await service.assistantOverview(now), { conversationsToday: 0, messagesSent: 7, bookingsCreated: 2, fallbackRate: null });
+  assert.equal(startOfKinshasaDay(new Date("2026-09-17T22:30:00.000Z")).toISOString(), "2026-09-16T23:00:00.000Z");
+  assert.equal(startOfKinshasaDay(new Date("2026-09-17T23:30:00.000Z")).toISOString(), "2026-09-17T23:00:00.000Z");
 });
 
 test("updating settings writes through the transaction and journals the changed keys", async () => {

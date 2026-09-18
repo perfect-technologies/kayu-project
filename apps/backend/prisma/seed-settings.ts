@@ -5,7 +5,7 @@ type SeedPrismaClient = Pick<PrismaClient, "systemSetting">;
 // Empty strings mean "use the copy module default" on the web.
 export const siteSettings: Array<{
   key: string;
-  value: string | boolean;
+  value: string | boolean | number;
   description: string;
 }> = [
   { key: "hero_title", value: "", description: "Accueil : titre du hero" },
@@ -33,6 +33,9 @@ export const siteSettings: Array<{
   { key: "contact_phone", value: "", description: "Contact public : téléphone" },
   { key: "contact_email", value: "", description: "Contact public : e-mail" },
   { key: "contact_website", value: "", description: "Contact public : site web" },
+  { key: "agent.maxStepsPerTurn", value: 8, description: "Assistant : étapes modèle maximum par tour" },
+  { key: "agent.maxMessagesPerConversation", value: 60, description: "Assistant : messages maximum par conversation" },
+  { key: "agent.maxTurnsPerUserPerDay", value: 30, description: "Assistant : tours maximum par client et par jour" },
 ];
 
 export async function seedSettings(prisma: SeedPrismaClient) {

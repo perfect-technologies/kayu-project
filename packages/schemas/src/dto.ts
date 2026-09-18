@@ -614,11 +614,6 @@ export const AssistantConversationResponseSchema = AssistantConversationSummaryS
 
 // Messages travel as the AI SDK UIMessage shape; the SDK owns the part shapes, the API checks the envelope.
 export const AssistantUIMessagePartSchema = z.looseObject({ type: z.string().min(1).max(80) });
-export const AssistantMessageMetadataSchema = z.object({
-  providerId: IdSchema.optional(),
-  date: DateOnlySchema.optional(),
-  time: TimeOfDaySchema.optional(),
-});
 export const AssistantUIMessageSchema = z.object({
   id: z.string().trim().min(1).max(64),
   role: z.enum(["user", "assistant", "system"]),
@@ -628,16 +623,49 @@ export const AssistantUIMessageSchema = z.object({
 export const AssistantClientLocationSchema = z.object({ placeId: IdSchema, label: z.string() });
 export const AssistantConversationDetailResponseSchema = AssistantConversationSummarySchema.extend({
   clientLocation: AssistantClientLocationSchema.nullable(),
+  // True once the conversation reached `agent.maxMessagesPerConversation`: the client should open a new one.
+  full: z.boolean(),
   messages: z.array(AssistantUIMessageSchema),
 });
 
-export const AssistantUserMessageDto = z.object({
-  message: z.object({
+// The turn body carries either the new user message (text parts only) or the answers to the pending approvals;
+// history, tool parts and results always come from the database (RFC §10).
+export const AssistantUserTextPartSchema = z.object({
+  type: z.literal("text"),
+  text: z.string().max(4000),
+  state: z.enum(["streaming", "done"]).optional(),
+});
+export const AssistantMessageMetadataSchema = z.object({
+  providerId: IdSchema.optional(),
+  date: DateOnlySchema.optional(),
+  time: TimeOfDaySchema.optional(),
+  addressId: IdSchema.optional(),
+  revisedFor: z.string().trim().min(1).max(64).optional(),
+});
+export const AssistantUserMessageDto = z.strictObject({
+  message: z.strictObject({
     id: z.string().trim().min(1).max(64),
     role: z.literal("user"),
-    parts: z.array(AssistantUIMessagePartSchema).min(1).max(8),
+    parts: z.array(AssistantUserTextPartSchema).min(1).max(8),
     metadata: AssistantMessageMetadataSchema.optional(),
   }),
+});
+export const AssistantApprovalResponseSchema = z.strictObject({
+  id: z.string().trim().min(1).max(64),
+  approved: z.boolean(),
+  reason: z.string().trim().max(500).optional(),
+});
+export const AssistantApprovalsDto = z.strictObject({
+  approvals: z.array(AssistantApprovalResponseSchema).min(1).max(4),
+});
+export const AssistantTurnDto = z.union([AssistantUserMessageDto, AssistantApprovalsDto]);
+
+export const AssistantSuggestionSchema = z.object({
+  text: z.string(),
+  providerId: IdSchema.nullable(),
+});
+export const AssistantSuggestionsResponseSchema = z.object({
+  items: z.array(AssistantSuggestionSchema).max(3),
 });
 
 export const AssistantFindPlaceInput = z.object({
@@ -660,11 +688,37 @@ export const AssistantProviderAvailabilityInput = z.object({
   providerId: IdSchema,
   dates: z.array(DateOnlySchema).min(1).max(7),
 });
+export const AssistantGetMyActivityInput = z.object({});
+// Same fields as CreateBookingDto; the phone is optional for the model and defaults to the account's phone
+// before the booking service validates the full DTO (RFC §7).
+export const AssistantCreateBookingInput = z.object({
+  providerId: IdSchema,
+  date: DateOnlySchema,
+  time: TimeOfDaySchema,
+  clientPhone: PhoneE164Schema.optional(),
+  clientNotes: optionalText(2000),
+  addressId: IdSchema.optional(),
+  placeId: IdSchema.optional(),
+  addressLine: optionalText(200),
+  latitude: LatitudeSchema.optional(),
+  longitude: LongitudeSchema.optional(),
+});
+export const AssistantSendMessageInput = z.object({
+  providerId: IdSchema,
+  body: z.string().trim().min(1).max(4000),
+  subject: z.string().trim().max(160).optional(),
+});
 
 // =====================================================================================
 // Admin
 // =====================================================================================
 
+export const AdminAssistantOverviewSchema = z.object({
+  conversationsToday: Count,
+  messagesSent: Count,
+  bookingsCreated: Count,
+  fallbackRate: z.number().int().min(0).max(100).nullable(),
+});
 export const AdminOverviewResponseSchema = z.object({
   users: z.object({ total: Count, suspended: Count }),
   providers: Count,
@@ -672,6 +726,7 @@ export const AdminOverviewResponseSchema = z.object({
   openReports: Count,
   pendingSuggestions: Count,
   pendingVerifications: Count,
+  assistant: AdminAssistantOverviewSchema,
 });
 
 // ---------- Users ----------
@@ -1389,6 +1444,15 @@ export type AssistantClientLocation = z.infer<typeof AssistantClientLocationSche
 export type AssistantUIMessageWire = z.infer<typeof AssistantUIMessageSchema>;
 export type AssistantMessageMetadata = z.infer<typeof AssistantMessageMetadataSchema>;
 export type AssistantUserMessageDto = z.infer<typeof AssistantUserMessageDto>;
+export type AssistantApprovalResponse = z.infer<typeof AssistantApprovalResponseSchema>;
+export type AssistantApprovalsDto = z.infer<typeof AssistantApprovalsDto>;
+export type AssistantTurnDto = z.infer<typeof AssistantTurnDto>;
+export type AssistantSuggestion = z.infer<typeof AssistantSuggestionSchema>;
+export type AssistantSuggestionsResponse = z.infer<typeof AssistantSuggestionsResponseSchema>;
+export type AssistantGetMyActivityInput = z.infer<typeof AssistantGetMyActivityInput>;
+export type AssistantCreateBookingInput = z.infer<typeof AssistantCreateBookingInput>;
+export type AssistantSendMessageInput = z.infer<typeof AssistantSendMessageInput>;
+export type AdminAssistantOverview = z.infer<typeof AdminAssistantOverviewSchema>;
 export type AssistantFindPlaceInput = z.infer<typeof AssistantFindPlaceInput>;
 export type AssistantSearchProvidersInput = z.infer<typeof AssistantSearchProvidersInput>;
 export type AssistantGetProviderInput = z.infer<typeof AssistantGetProviderInput>;

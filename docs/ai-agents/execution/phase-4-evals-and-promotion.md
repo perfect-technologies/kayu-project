@@ -1,6 +1,6 @@
-# Phase 3: Evals and promotion
+# Phase 4: Evals and promotion
 
-Reference: `../RFC-001-agent-concierge.md` (revision 2), builds on Phases 1 and 2
+Reference: `../RFC-001-agent-concierge.md` (revision 2), builds on Phases 1, 2 and 3
 
 ## Goal
 
@@ -8,7 +8,7 @@ An eval set so prompt and model changes are measured, the production model chose
 
 ## Owns
 
-- Everything Phases 1 and 2 own.
+- Everything Phases 1, 2 and 3 own.
 - `docs/ai-agents/evals/**`, `apps/backend/scripts/agent-eval.ts`.
 - `apps/web/src/app/(shell)/compte/**` for the notes section; `apps/web/src/components/home/**` and `apps/web/src/components/layout/MobileNav.tsx` for promotion, recorded in `PROGRESS.md`.
 
@@ -76,4 +76,4 @@ Out: mobile, provider-side agent, proactive messages.
 ## Verification checklist
 
 - Review ten random transcripts by hand for tone and false-confirmation language.
-- Screenshots under `docs/ai-agents/screenshots/03/`.
+- Screenshots under `docs/ai-agents/screenshots/04/`.

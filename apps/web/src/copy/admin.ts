@@ -119,6 +119,9 @@ export const adminCopy = {
     suggestions: "Propositions de lieux",
     verifications: "Vérifications en attente",
     open: "Ouvrir",
+    assistant: "Assistant · conversations aujourd'hui",
+    assistantSub: (messages: number, bookings: number, fallback: number | null) =>
+      `${messages} message${messages === 1 ? "" : "s"} · ${bookings} réservation${bookings === 1 ? "" : "s"} · repli ${fallback === null ? "—" : `${fallback} %`}`,
     cardTitle: "Une plateforme sous votre contrôle",
     cardBody:
       "Gérez les rôles et suspensions, vérifiez les prestataires, modérez les contenus et consultez la trace des actions administratives. Les compteurs proviennent de votre base de données.",

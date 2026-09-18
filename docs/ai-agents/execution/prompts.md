@@ -59,11 +59,29 @@ Working rules: branch agent/02-actions from main; implement every task end to en
 ```
 Implement Phase 3 of the KAYOU agent concierge. Phases 1 and 2 are merged.
 
-Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (revision 2, especially §9, §11, §16, §17), docs/ai-agents/execution/phase-3-evals-and-promotion.md, docs/ai-agents/PROGRESS.md, and the existing agent module and /assistant components.
+Read first: CLAUDE.md, docs/kyou-ux-refactor/00-product-and-design-contract.md (§8 shell, §10 motion, §11 hard rules), docs/ai-agents/RFC-001-agent-concierge.md (revision 2, especially §4.1 and §6), docs/ai-agents/execution/phase-3-conversations-and-control.md, docs/ai-agents/PROGRESS.md, then the existing apps/backend/src/modules/agent code and apps/web/src/app/(shell)/assistant.
+
+The problem this phase fixes: Phases 1 and 2 always resume the latest active conversation, so the client opens the assistant and lands in yesterday's thread with no way to start a new one, browse the old ones, archive or delete. The list endpoint, the generated titles and the archive endpoint already exist; what is missing is a surface and a freshness rule.
+
+Scope is exactly the tasks and acceptance criteria in the phase document: the status filter, pagination and derived preview on the list; unarchive, delete and rename endpoints; lazy auto-archive with no scheduler; the freshness rule that decides which conversation greets the client; the header row, the conversation sheet, the read-only archived state and the deep link.
+
+Non-negotiable: this phase changes no model behaviour. Do not touch the turn loop, the tools, the system prompt, the profile block or the approval flow. Ownership checks match the existing routes exactly. Deleting a conversation never deletes the bookings or the provider conversations it produced, and the delete copy says so. The sheet follows the product contract's bottom-sheet pattern, becoming the centred modal at sm and above.
+
+Resolve which conversation to open in one shared helper used by both the server component and the client bootstrap, so a cookie-less boot behaves identically.
+
+Working rules: branch agent/03-conversations from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test with Prisma fakes for every service change; run specs, type-check and production build and report real output. Drive the whole lifecycle yourself at 390 px (create, rename, archive, reactivate, delete) and describe what you saw. Screenshots under docs/ai-agents/screenshots/03/; update PROGRESS.md.
+```
+
+## Phase 4
+
+```
+Implement Phase 4 of the KAYOU agent concierge. Phases 1, 2 and 3 are merged.
+
+Read first: CLAUDE.md, docs/ai-agents/RFC-001-agent-concierge.md (revision 2, especially §9, §11, §16, §17), docs/ai-agents/execution/phase-4-evals-and-promotion.md, docs/ai-agents/PROGRESS.md, and the existing agent module and /assistant components.
 
 Scope is the tasks and acceptance criteria in the phase document: the eval set exported from anonymized transcripts with code-first graders and a model-graded check only for wording, the runner calling the real runTurn with tools stubbed to recorded outputs, the model comparison across the four candidates in RFC §11, AgentMemoryNote with the remember tool and the /compte section, funnel events, and the Lingala cases. Mobile is out of scope.
 
 For the eval: real transcripts first, hand-written edge cases second, thirty to sixty cases. Show me the case list and the rubric before the first paid run, and the measured cost of a five-case pilot before the full set. Store the baseline. Write the chosen model and the date into the RFC decision log and PROGRESS.md. The dock tab and hero promotion are my decision from the funnel numbers; prepare the change but do not apply it without my answer.
 
-Working rules: branch agent/03-evals from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test for the notes tool and the runner; run everything and report real output. Models go through the AI Gateway with the single AI_GATEWAY_API_KEY; do not add vendor provider packages. Anything that needs a key I have not provided, list as unverified rather than claiming it works. Screenshots under docs/ai-agents/screenshots/03/; update PROGRESS.md.
+Working rules: branch agent/04-evals from main; implement every task end to end before reporting; no commits until I review; no comments unless they explain a non-obvious constraint; node:test for the notes tool and the runner; run everything and report real output. Models go through the AI Gateway with the single AI_GATEWAY_API_KEY; do not add vendor provider packages. Anything that needs a key I have not provided, list as unverified rather than claiming it works. Screenshots under docs/ai-agents/screenshots/04/; update PROGRESS.md.
 ```

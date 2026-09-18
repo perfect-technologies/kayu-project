@@ -9,6 +9,7 @@ export type ClientLocation = {
   source: "address" | "user";
   chain: ClientLocationNode[];
   addressLabel: string | null;
+  addressId: string | null;
 };
 
 export type LocationDeps = {
@@ -25,12 +26,12 @@ export async function resolveDefaultLocation(actor: Actor, deps: LocationDeps): 
   const { items } = await deps.addresses.list(actor, ADDRESS_PAGE);
   const preferred = items.find((address) => address.isDefault && address.placeChain.length > 0);
   if (preferred) {
-    return { source: "address", chain: preferred.placeChain.map(toNode), addressLabel: preferred.label };
+    return { source: "address", chain: preferred.placeChain.map(toNode), addressLabel: preferred.label, addressId: preferred.id };
   }
 
   if (actor.placeId) {
     const chain = await deps.placeTree.chain(actor.placeId);
-    if (chain.length > 0) return { source: "user", chain: chain.map(toNode), addressLabel: null };
+    if (chain.length > 0) return { source: "user", chain: chain.map(toNode), addressLabel: null, addressId: null };
   }
 
   return null;

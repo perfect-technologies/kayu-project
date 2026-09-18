@@ -7,13 +7,9 @@ import { ActorGuard } from "../../common/guards/actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { LazyZodValidationPipe } from "../../common/pipes/lazy-zod-validation.pipe";
-import { AgentService, type IncomingUserMessage } from "./agent.service";
+import { AgentService, type TurnBody } from "./agent.service";
 
-type UserMessageBody = { message: IncomingUserMessage };
-
-const userMessagePipe = new LazyZodValidationPipe(
-  async () => (await import("@kayu/schemas")).AssistantUserMessageDto,
-);
+const turnPipe = new LazyZodValidationPipe(async () => (await import("@kayu/schemas")).AssistantTurnDto);
 
 @Controller("assistant")
 @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
@@ -31,18 +27,28 @@ export class AgentController {
     return this.agent.listConversations(actor);
   }
 
+  @Get("suggestions")
+  suggestions(@CurrentActor() actor: Actor) {
+    return this.agent.getSuggestions(actor);
+  }
+
   @Get("conversations/:id")
   getConversation(@CurrentActor() actor: Actor, @Param("id") id: string) {
     return this.agent.getConversation(actor, id);
+  }
+
+  @Post("conversations/:id/archive")
+  archiveConversation(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.agent.archiveConversation(actor, id);
   }
 
   @Post("conversations/:id/messages")
   async sendMessage(
     @CurrentActor() actor: Actor,
     @Param("id") id: string,
-    @Body(userMessagePipe) body: UserMessageBody,
+    @Body(turnPipe) body: TurnBody,
     @Res() res: Response,
   ) {
-    await this.agent.runTurn(actor, id, body.message, res);
+    await this.agent.runTurn(actor, id, body, res);
   }
 }
