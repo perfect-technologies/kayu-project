@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { SearchX } from "lucide-react";
 import { providersApi, queryKeys } from "@kayu/api";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ProviderCard } from "@/components/provider/ProviderCard";
 import { FilterChips } from "@/components/search/FilterChips";
 import { FiltersSheet } from "@/components/search/FiltersSheet";
+import { InterpretationChip } from "@/components/search/InterpretationChip";
 import { NearMeButton } from "@/components/search/NearMeButton";
 import { ProviderCardSkeleton } from "@/components/search/ProviderCardSkeleton";
 import { ResultsHeader } from "@/components/search/ResultsHeader";
@@ -39,18 +40,19 @@ const SearchMapView = dynamic(() => import("@/components/search/SearchMapView"),
 const SKELETONS = [0, 1, 2, 3];
 
 export function SearchClient() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const state = useMemo(() => parseSearchState(new URLSearchParams(searchParams.toString())), [searchParams]);
   const { tree } = useCategoryTree();
 
+  // Native replaceState, which Next syncs into useSearchParams: in production builds router.replace on this
+  // static route dropped search-param changes (the list/map toggle and the interpretation chip were lost).
   const update = useCallback(
     (patch: Partial<SearchState>) => {
       const query = serializeSearchState({ ...state, ...patch });
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
     },
-    [router, pathname, state],
+    [pathname, state],
   );
 
   // Typed text lives locally and reaches the URL after 250 ms.
@@ -66,7 +68,7 @@ export function SearchClient() {
     if (qInput === state.q) return;
     const timer = setTimeout(() => {
       lastUrlQ.current = qInput;
-      update({ q: qInput, page: 1 });
+      update({ q: qInput, page: 1, interpret: true });
     }, 250);
     return () => clearTimeout(timer);
   }, [qInput, state.q, update]);
@@ -103,6 +105,7 @@ export function SearchClient() {
     return list;
   }, [settled]);
   const last = settled[settled.length - 1];
+  const interpretation = state.interpret && !first?.isPlaceholderData ? (settled[0]?.interpretation ?? null) : null;
   const total = last?.total ?? null;
   const hasMore = last ? last.page * last.limit < last.total : false;
   const loadingMore = state.page > 1 && results[results.length - 1]?.isPending === true;
@@ -163,6 +166,8 @@ export function SearchClient() {
         onOpen={() => setSheetOpen(true)}
         onClear={clearAll}
       />
+
+      {interpretation && <InterpretationChip interpretation={interpretation} onRemove={() => update({ interpret: false, page: 1 })} />}
 
       <ResultsHeader total={showSkeletons ? null : visibleTotal} hasMore={visibleHasMore} view={state.view} onView={(view) => update({ view })} />
 

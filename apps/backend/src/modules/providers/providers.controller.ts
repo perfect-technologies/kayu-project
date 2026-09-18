@@ -16,6 +16,7 @@ import { OptionalActorGuard } from "../../common/guards/optional-actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import type { PageQuery } from "../../common/http/pagination";
+import { SearchIntentService } from "../jev/search-intent.service";
 import { ProviderEditorService } from "./provider-editor.service";
 import { ProvidersService } from "./providers.service";
 
@@ -24,6 +25,7 @@ export class ProvidersController {
   constructor(
     private readonly providers: ProvidersService,
     private readonly editor: ProviderEditorService,
+    private readonly searchIntent: SearchIntentService,
   ) {}
 
   @Patch("me")
@@ -65,11 +67,13 @@ export class ProvidersController {
 
   @Get()
   @UseGuards(OptionalActorGuard)
-  search(
+  async search(
     @CurrentActor() viewer: Actor | undefined,
     @Query(contractPipe("ProviderSearchParams")) query: ProviderSearchQuery,
   ) {
-    return this.providers.search(query, viewer);
+    const resolved = await this.searchIntent.interpret(query);
+    const page = await this.providers.search(query, viewer, { widenTo: resolved?.widenTo });
+    return { ...page, interpretation: resolved?.interpretation ?? null };
   }
 
   @Get(":id")

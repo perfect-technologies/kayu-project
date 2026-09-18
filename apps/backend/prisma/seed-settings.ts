@@ -23,6 +23,7 @@ export const siteSettings: Array<{
   { key: "feat_booking", value: true, description: "Fonction : réservation de créneaux" },
   { key: "feat_reviews", value: true, description: "Fonction : avis clients" },
   { key: "feat_whatsapp", value: true, description: "Fonction : contact WhatsApp" },
+  { key: "feat_jev_search", value: false, description: "Fonction : recherche comprise par Jev (TypeSafe)" },
   {
     key: "contacts_require_premium",
     value: false,

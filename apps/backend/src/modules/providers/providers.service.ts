@@ -31,6 +31,10 @@ import {
 
 type Viewer = Actor | null | undefined;
 
+/** Adds a whole subcategory or category to the text matches (search intent, docs/ai-jev/02). */
+export type SearchWidening = { subcategoryId: string } | { categorySlug: string };
+export type SearchOptions = { widenTo?: SearchWidening | null };
+
 const insensitive = (value: string) => ({ contains: value, mode: "insensitive" as const });
 
 @Injectable()
@@ -43,9 +47,9 @@ export class ProvidersService {
     private readonly availability: ProvidersAvailabilityService,
   ) {}
 
-  async search(query: ProviderSearchQuery, viewer?: Viewer) {
+  async search(query: ProviderSearchQuery, viewer?: Viewer, options: SearchOptions = {}) {
     const now = new Date();
-    const where = await this.buildSearchWhere(query, viewer, now);
+    const where = await this.buildSearchWhere(query, viewer, now, options.widenTo ?? null);
     const origin =
       query.lat !== undefined && query.lng !== undefined ? { lat: query.lat, lng: query.lng } : null;
 
@@ -168,6 +172,7 @@ export class ProvidersService {
     query: ProviderSearchQuery,
     viewer: Viewer,
     now: Date,
+    widenTo: SearchWidening | null,
   ): Promise<Prisma.ProviderWhereInput> {
     const and: Prisma.ProviderWhereInput[] = [searchableProviderWhere()];
 
@@ -213,6 +218,7 @@ export class ProvidersService {
           { subcategory: { category: { name: insensitive(q) } } },
           { skills: { some: { item: { label: insensitive(q) } } } },
           { freeSkills: { has: q } },
+          ...(widenTo ? [widenedWhere(widenTo)] : []),
         ],
       });
     }
@@ -256,4 +262,11 @@ export class ProvidersService {
     });
     return new Map(items.map((item) => [item.id, toReferenceSummary(item)]));
   }
+}
+
+function widenedWhere(widenTo: SearchWidening): Prisma.ProviderWhereInput {
+  if ("subcategoryId" in widenTo) {
+    return { OR: [{ subcategoryId: widenTo.subcategoryId }, { subcategory: { parentId: widenTo.subcategoryId } }] };
+  }
+  return { subcategory: { category: { slug: widenTo.categorySlug } } };
 }

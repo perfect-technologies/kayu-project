@@ -22,6 +22,8 @@ export type SearchState = {
   lng: number | null;
   page: number;
   view: ViewMode;
+  /** False once the client removes the interpretation chip; a new query turns it back on. */
+  interpret: boolean;
 };
 
 export const EMPTY_STATE: SearchState = {
@@ -40,6 +42,7 @@ export const EMPTY_STATE: SearchState = {
   lng: null,
   page: 1,
   view: "list",
+  interpret: true,
 };
 
 /** The sheet's criteria (everything the "Réinitialiser" button clears). */
@@ -76,6 +79,7 @@ export function parseSearchState(params: URLSearchParams): SearchState {
     lng: hasPosition ? lng : null,
     page: Math.max(1, Math.min(50, Math.floor(num(params.get("page")) ?? 1))),
     view: params.get("view") === "map" ? "map" : "list",
+    interpret: params.get("brut") !== "1",
   };
 }
 
@@ -99,6 +103,7 @@ export function serializeSearchState(state: SearchState): string {
   }
   if (state.page > 1) params.set("page", String(state.page));
   if (state.view !== "list") params.set("view", state.view);
+  if (!state.interpret && state.q) params.set("brut", "1");
   return params.toString();
 }
 
@@ -124,6 +129,7 @@ export function toApiParams(state: SearchState, page: number): ProviderSearchPar
     lng: hasPosition ? state.lng! : undefined,
     page,
     limit: PAGE_SIZE,
+    interpret: state.interpret ? undefined : false,
   };
 }
 
