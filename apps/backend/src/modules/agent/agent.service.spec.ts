@@ -13,6 +13,7 @@ import {
   titleFromMessage,
   type AgentUIMessage,
 } from "./agent.service";
+import { DEFAULT_AGENT_MODEL_ID, agentModelId } from "./agent.model";
 import { buildTools, type AgentToolDeps } from "./agent.tools";
 
 const now = new Date("2026-09-17T10:00:00.000Z");
@@ -624,7 +625,7 @@ test("persistAssistantMessage stores parts with usage metadata and bumps the ste
     { trace: [{ name: "search_providers", durationMs: 42, ok: true }], startedAt: Date.now() - 10, aborted: false, conversationFull: true },
   );
 
-  assert.equal(metadata.model, "anthropic/claude-opus-5");
+  assert.equal(metadata.model, agentModelId());
   assert.equal(metadata.conversationFull, true);
   assert.equal(metadata.cachedInputTokens, 1500);
   assert.equal(metadata.inputTokens, 1800);
@@ -640,6 +641,22 @@ test("persistAssistantMessage stores parts with usage metadata and bumps the ste
   assert.equal(upsert.create.metadata.cachedInputTokens, 1500);
   assert.equal(upsert.create.metadata.tools.length, 1);
   assert.deepEqual((calls.conversationUpdate[0] as { data: { stepCount: unknown } }).data.stepCount, { increment: 2 });
+});
+
+test("the recorded model id is the RFC default unless AGENT_MODEL_ID overrides it", () => {
+  const previous = process.env.AGENT_MODEL_ID;
+  try {
+    delete process.env.AGENT_MODEL_ID;
+    assert.equal(DEFAULT_AGENT_MODEL_ID, "anthropic/claude-opus-5");
+    assert.equal(agentModelId(), DEFAULT_AGENT_MODEL_ID);
+    process.env.AGENT_MODEL_ID = "  anthropic/claude-sonnet-5  ";
+    assert.equal(agentModelId(), "anthropic/claude-sonnet-5");
+    process.env.AGENT_MODEL_ID = "   ";
+    assert.equal(agentModelId(), DEFAULT_AGENT_MODEL_ID);
+  } finally {
+    if (previous === undefined) delete process.env.AGENT_MODEL_ID;
+    else process.env.AGENT_MODEL_ID = previous;
+  }
 });
 
 test("the stream carries conversationFull on the finish part only, so the web can offer a new conversation at once", () => {

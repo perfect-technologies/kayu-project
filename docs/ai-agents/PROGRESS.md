@@ -88,7 +88,7 @@
 ## Open questions for the owner
 
 - (03) Confirm the two additions that are not in the phase document: an empty conversation is reused rather than duplicated, and conversations without a message stay out of the list.
-- (03) `agent.service.spec.ts` › « persistAssistantMessage stores parts with usage metadata… » fails on `main` too whenever `apps/backend/.env` sets `AGENT_MODEL_ID` (it does since 2026-09-19): the spec hardcodes `anthropic/claude-opus-5`. Phase 3 left it alone because it belongs to the turn loop; run the suite with `AGENT_MODEL_ID=` or make the spec read `agentModelId()`.
+- (03, resolved 2026-09-20) `agent.service.spec.ts` hardcoded `anthropic/claude-opus-5`, so it failed whenever `apps/backend/.env` set `AGENT_MODEL_ID`. The metadata assertion now reads `agentModelId()`, and a new test pins what that function decides: the RFC default when the variable is unset or blank, the trimmed override otherwise. The suite passes with the variable set, blank and overridden.
 
 - Dock tab for the assistant on mobile (Phase 4, from funnel numbers).
 - Opus 5 access on the AI Gateway account: the build model returns 429 "No access to this model at this time". Unlock it, or keep `AGENT_MODEL_ID=anthropic/claude-sonnet-5` in the environment (Phase 1 was accepted on Sonnet 5).
