@@ -6,7 +6,7 @@
 | --- | --- | --- | --- |
 | 1 — Foundation | Built on `agent/01-foundation`, awaiting review (2026-09-17) | Claude, 2026-09-17 | Rebuilt on `main` from the revision-1 branch (`6bb6dca`) as reference; see the Phase 1 evidence below |
 | 2 — Actions and memory | Built on `agent/02-actions`, awaiting review (2026-09-17) | Claude, 2026-09-17 | See the Phase 2 evidence below |
-| 3 — Conversations and control | Not started | — | Inserted 2026-09-18; the list, starting a conversation on demand, renaming, archiving, deleting, auto-archive |
+| 3 — Conversations and control | Built on `agent/03-conversations`, awaiting review (2026-09-19) | Claude, 2026-09-19 | See the Phase 3 evidence below |
 | 4 — Evals and promotion | Not started | — | Was Phase 3 until 2026-09-18 |
 
 ## Decisions
@@ -42,6 +42,16 @@
 | 2026-09-17 | (02) Compact tool outputs accept `Date` or ISO strings | Stored parts come back from JSON on later turns; `createdAt.toISOString()` on a string threw a 500 on the second turn after a sent message (found in the acceptance run, covered by a spec) |
 | 2026-09-18 | A new Phase 3, Conversations and control, is inserted after Phase 2; the eval phase becomes Phase 4 | Phases 1 and 2 shipped a persisted conversation with no way to leave it: the client lands in yesterday's thread and cannot start, browse, archive or delete one. Sequential numbering rather than a "2B" so no phase reads as optional |
 | 2026-09-18 | Automatic archiving lands in Phase 3, swept lazily on a list read | The app runs no scheduler and this phase does not add one. It was an open question until now |
+| 2026-09-19 | (03) `GET /assistant/conversations` carries `resumeWindowHours` beside the usual envelope, and every item carries `full`; the comparison itself lives in `apps/web/src/lib/assistant-resume.ts` (`isResumable`, `resolveConversation`), called by `loadInitial` and by `AssistantBootstrap` | The setting and the message cap are server-side; one list read gives the page everything the freshness rule needs, and one helper means a cookie-less boot cannot drift from the server component |
+| 2026-09-19 | (03) The boundary is inclusive: a last message exactly `resumeWindowHours` old is resumed, one millisecond older is not. The age is measured on the clock of whoever runs the helper (the Next server, or the browser on a cookie-less boot) | A rule has to pick a side; a phone with a wrong clock can therefore resume or start fresh a little early on the client path only |
+| 2026-09-19 | (03) `createConversation` hands back the client's existing empty active conversation (bumping its `lastMessageAt`) instead of inserting another, and the list leaves out conversations that hold no message | With the freshness rule every stale visit asks for a conversation; a client who opens the assistant and never types would otherwise pile up blank rows, and with `resumeWindowHours = 0` every reload would. The list then shows only conversations there is something to read in, which also makes the contract's empty state reachable. Not in the phase document: owner to confirm |
+| 2026-09-19 | (03) The sweep archives on `lastMessageAt < cutoff AND updatedAt < cutoff` | Unarchive must not move `lastMessageAt`, so `updatedAt` is the only thing that tells a conversation reactivated inside the window from one that went stale. A rename also resets the clock, which is acceptable. Backdating a row by hand means backdating both columns |
+| 2026-09-19 | (03) Unarchive, rename and delete call `loadConversation` first, exactly as archive does | Same 404 `NOT_FOUND` and 403 `FORBIDDEN` with the same messages, by construction rather than by copy |
+| 2026-09-19 | (03) The URL drives switching: the list and « Nouvelle conversation » `pushState` `?c=<id>`, the bare `/assistant` stands for the conversation the resolution picked, and the client loads the target through the same helper. An id that proved missing or was just deleted is remembered for the render in which the router has not caught up yet | The back button walks the conversations without a server round-trip per switch, and a foreign id cannot toast twice |
+| 2026-09-19 | (03) The cap's « Nouvelle conversation » no longer archives the full conversation first; it is the header pill's action | One code path, as the phase asks. A full conversation is never resumed, so it does not need to be archived to get out of the way |
+| 2026-09-19 | (03, owner decision after the first review) The conversation list is a persistent left sidebar from `lg` and a left drawer below it, opened by a labelled « Conversations » button at the start of the header. This replaces the header title with a chevron opening a bottom sheet (centred modal from `sm`) that the phase document asked for | Owner: the chevron on the title was hard to find and switching took two steps; a left sidebar is what clients know from other AI apps. The drawer keeps the contract's sheet behaviour (spring damping 28 / stiffness 280, black/40 backdrop, focus trap, Escape, scroll lock, focus restored), only the edge changes. A deviation from the phase document §5 and from the contract's bottom-sheet pattern for this one surface, logged here as the contract requires |
+| 2026-09-19 | (03) One `ConversationList` (« Nouvelle conversation », Actives, Archivées, rows, pagination, delete confirmation) is mounted in either shell, never both; from `lg` the header keeps only the title and the archive button | The two surfaces cannot drift, and the list query runs once. The header pill stays below `lg` so a new conversation is still one tap away without opening the drawer; it is the same mutation |
+| 2026-09-19 | (03, owner decision after the second review) Each conversation is a full-width card with the « ⋯ » button inside it on the right; the button opens a popup menu (Radix `DropdownMenu`, non-modal, portalled) with Ouvrir, Renommer, Archiver or Réactiver, and Supprimer. In the desktop sidebar on a hover-capable pointer the button is hidden until the row is hovered or focused; in the drawer and on touch tablets it is always shown. Rename replaces the card with the inline field; the open conversation is the highlighted card (`aria-current`) | Owner: the permanent round buttons beside every row were heavy and the pills pushed the list down. The reveal rule is `min-width: 1024px and hover: hover`, not `hover: hover` alone, because a phone drawer must never hide its only way to the actions, and Chromium's device emulation reports `hover: hover` for phones so the tests could not have told the difference. The drawer ignores key events that come from outside its panel (the portalled menu bubbles through React), so Escape closes the menu, not the drawer. Focus goes back to the row's « ⋯ » when a deletion is cancelled and to the list's first control after one, since the confirm sheet's own restore target (the menu item) has unmounted by then |
 
 ## Shared-file changes (record before consumers merge)
 
@@ -69,8 +79,16 @@
 | 2026-09-17 | `apps/web/src/app/(shell)/admin/_sections/Overview.tsx`, `apps/web/src/copy/admin.ts` | One "Assistant" metric tile | 2 |
 | 2026-09-17 | `apps/web/e2e/assistant.actions.spec.ts` | Phase 2 flows spec (tag `@flows`, serial, real model turns) | 2 |
 | 2026-09-17 | `apps/web/src/app/(shell)/messagerie/MessagerieClient.tsx` | `grid-cols-1` on the list/thread grid: the mobile track was auto-sized, so a long last message overflowed the page at 390 px | 2 (bug found on the way) |
+| 2026-09-19 | `packages/schemas/src/dto.ts` | `AssistantConversationsQueryParams`, `AssistantConversationListItemSchema` (`preview`, `full`), the list response becomes the paginated envelope plus `resumeWindowHours`, `AssistantRenameConversationDto` | 3 |
+| 2026-09-19 | `packages/api/src/{endpoints,query-keys}.ts` | `listConversations(params)`, `unarchiveConversation`, `renameConversation`, `deleteConversation`; `queryKeys.assistant.conversationList(status)` and `.boot` | 3 |
+| 2026-09-19 | `apps/backend/prisma/seed-settings.ts` | `agent.autoArchiveDays` (30) and `agent.resumeWindowHours` (12) | 3 |
+| 2026-09-19 | `apps/backend/package.json` | `agent.conversations.spec.ts` added to `test:launch` | 3 |
+| 2026-09-19 | `apps/web/e2e/assistant.conversations.spec.ts` | Phase 3 lifecycle, deep link and sheet spec (tags `@flows`, `@viewports`) | 3 |
 
 ## Open questions for the owner
+
+- (03) Confirm the two additions that are not in the phase document: an empty conversation is reused rather than duplicated, and conversations without a message stay out of the list.
+- (03) `agent.service.spec.ts` › « persistAssistantMessage stores parts with usage metadata… » fails on `main` too whenever `apps/backend/.env` sets `AGENT_MODEL_ID` (it does since 2026-09-19): the spec hardcodes `anthropic/claude-opus-5`. Phase 3 left it alone because it belongs to the turn loop; run the suite with `AGENT_MODEL_ID=` or make the spec read `agentModelId()`.
 
 - Dock tab for the assistant on mobile (Phase 4, from funnel numbers).
 - Opus 5 access on the AI Gateway account: the build model returns 429 "No access to this model at this time". Unlock it, or keep `AGENT_MODEL_ID=anthropic/claude-sonnet-5` in the environment (Phase 1 was accepted on Sonnet 5).
@@ -211,3 +229,63 @@ Risks and open items:
 - The web resolves provider names for approval cards from the conversation, else from `GET /providers/:id`; ids taken from the profile block (« Recontacter … ») hit that fallback.
 - Slots are a finite test resource: a pending booking holds its slot, so the flows spec cancels the pending bookings it left behind before each run and reads a free slot off the card instead of naming a time.
 - The daily cap is real during development: these runs needed `agent.maxTurnsPerUserPerDay` raised temporarily, and it is back to 30 in `kayu_agent01`.
+
+### Phase 3 (2026-09-19, branch `agent/03-conversations`, not committed)
+
+Files:
+
+- Backend: `apps/backend/src/modules/agent/agent.service.ts` (`listConversations` with the status filter, pagination, `preview`, `full` and `resumeWindowHours`; `sweepStale`; `unarchiveConversation`, `renameConversation`, `deleteConversation`; `createConversation` reuses the empty conversation; `previewFromParts`), `agent.controller.ts` (list query, `POST …/unarchive`, `PATCH …/:id`, `DELETE …/:id`), `agent.settings.ts` (`loadAgentLifecycle`), `agent.conversations.spec.ts` (new), `agent.service.spec.ts` (fake only), `prisma/seed-settings.ts`. `runTurn`, the tools, the prompt, the profile block, the approvals and the compaction are untouched (`git diff` shows no hunk in them).
+- Shared: `packages/schemas/src/dto.ts`, `packages/api/src/{endpoints,query-keys}.ts`.
+- Web: `apps/web/src/lib/assistant-resume.ts` (+ `assistant-resume.test.mjs`), `apps/web/src/app/(shell)/assistant/{page,AssistantClient}.tsx`, `apps/web/src/components/assistant/{ConversationHeader,ConversationList,ConversationDrawer,useIsDesktop}.tsx`, `AssistantComposer.tsx` (an id on the input), `apps/web/src/copy/assistant.ts` (`conversations`), `apps/web/e2e/assistant.conversations.spec.ts`.
+
+Commands run:
+
+- `pnpm --filter @kayu/schemas build`, `pnpm --filter @kayu/api build` (after removing `packages/api/dist` and its `tsbuildinfo`).
+- `apps/backend`: `npx tsc -p tsconfig.json --noEmit` clean. `agent.conversations.spec.ts`: 15 tests, 15 pass. All agent specs with `AGENT_MODEL_ID=`: 76 tests, 76 pass. `AGENT_MODEL_ID= pnpm test:launch`: 320 tests, 319 pass, 0 fail, 1 skipped (pre-existing). Without the blank override one Phase 2 test fails, on `main` as well (see the open questions).
+- `apps/web`: `npx tsc -p tsconfig.json --noEmit` clean; `pnpm --filter @kayu/web test`: 37 pass (9 new in `assistant-resume.test.mjs`: inside, outside, both sides of the boundary, `0`, `full`, no conversation, deep link, foreign and unknown ids, a 500 is not a missing conversation).
+- Production builds were run in a scratch copy of the working tree, not in the repository, so the owner's `.next` (dev server on 3000) and `apps/backend/dist` (server on 3001) were left alone: `pnpm build` in `apps/backend` and `BACKEND_URL=http://localhost:3999 pnpm build` in `apps/web` (`✓ Compiled successfully`, `ƒ /assistant`).
+
+API checks (backend on 3999 against `kayu_agent01`, Paul Kabasele, who has 106 conversations from the earlier phases):
+
+- `GET /assistant/conversations` → `{ total: 102, page: 1, limit: 20, resumeWindowHours: 12 }` with 20 items, each with `preview` and `full`; `status=archived` → 0; `status=all&limit=2&page=2` → 2 items, `page: 2`; `limit=51` and `status=nope` → 400 with the Zod message. The total is 102, not 106, because four of his conversations hold no message. Provider token → 403, anonymous → 401.
+- Annie Mutombo on Paul's id: archive, unarchive, rename, delete and get all answer 403 `FORBIDDEN` with no data; an unknown id answers 404 on all five. Paul's row was unchanged afterwards.
+- Rename: `"   Fuite cuisine   "` is stored as `Fuite cuisine`; an empty string, blanks, 81 characters, `{}` and an extra key are 400; `null` restored `merci beaucoup`, the first user message.
+- Archive then a turn → 409 `INVALID_TRANSITION`; unarchive → `ACTIVE` with `lastMessageAt` identical to the millisecond (`2026-09-19 00:55:04.219` before and after).
+- Sweep: two conversations backdated 31 days by SQL (`lastMessageAt` and `updatedAt`), one list read, both `ARCHIVED`. One was reactivated, two more list reads, it stayed `ACTIVE` while the other stayed `ARCHIVED`; the other 121 active rows of the database were not touched.
+
+Driven in the browser (`apps/web/e2e/assistant.conversations.spec.ts`, production build on 127.0.0.1:3100 → backend 3999, `E2E_PSQL` pointing at `kayu_agent01`, `E2E_SHOTS_DIR=docs/ai-agents/screenshots/03`). The lifecycle runs at 390 px as Francine Kiese, a seeded client who had never used the assistant; the two model turns are real (Sonnet 5):
+
+- Create: the page opens on the greeting with the header reading « Nouvelle conversation », the pill disabled and no archive button. « Conversations » opens the drawer from the left, which shows the dashed empty card; « Écrire à l'assistant » closes it and puts the focus in the composer (`conversations-empty-state-390`). After « Un électricien à Limete pour une panne de courant » the header carries that title, the pill is enabled (`conversations-header-390`).
+- Ten minutes later: a reload resumes the same conversation and the account still holds exactly one.
+- Drawer: focus lands on « Fermer », Shift+Tab wraps to « Archivées », Tab wraps back, eight more Tabs never leave the dialog, the body is scroll-locked, Escape closes and the focus returns to the « Conversations » button (`conversations-drawer-390`).
+- Rename: the row menu opens as pills under the row (`conversations-row-menu-390`), the field shows `25/80` (`conversations-rename-390`), the new title appears in the row and the header; saving an empty field brings the generated title back in both.
+- Archive from the header: the composer is replaced by « Conversation archivée … Réactiver », the archive button leaves the header (`conversations-archived-readonly-390`), a turn posted by hand is refused with 409, « Actives » shows the empty card and the row sits under « Archivées » (`conversations-drawer-archived-390`). « Réactiver » brings the composer back without a reload.
+- « Nouvelle conversation »: a fresh greeting, `?c=<new id>` in the URL, the pill disabled again; after a second real turn the drawer lists both, newest first, the open one highlighted (`conversations-drawer-two-390`). Opening the first from the drawer sets `?c=<first id>`; Back returns to the second, Forward to the first.
+- Archive and reactivate from the list: the row moves to « Archivées » and back; the archived section is collapsed again every time the drawer opens.
+- Delete: the confirm sheet reads « Les messages échangés avec l'assistant seront supprimés définitivement. Vos réservations et vos conversations avec les prestataires restent intactes… » (`conversations-delete-confirm-390`). After confirming, the row is gone from both sections, the page moves to the other conversation without an error, and the API answers 404 for the deleted id.
+- The morning after: the conversation backdated 13 h by SQL → `/assistant` opens an empty new one and the drawer lists yesterday's first, « il y a 13 h » (`conversations-morning-after-390`); set back to 5 minutes → resumed. `agent.resumeWindowHours = 0` → a fresh conversation on two reloads in a row (the same empty row, reused); back to 12 → resumed.
+- `agent.autoArchiveDays = 1` with a conversation backdated 25 h: opening the drawer archives it (`status = ARCHIVED` in the database), `/assistant?c=<id>` opens it read-only and « Réactiver » restores the composer. The setting is back to 30.
+- Deep link: Paul's conversation id in Francine's URL → toast « Cette conversation est introuvable. Voici votre conversation en cours. », her own conversation opens, the URL loses `?c=`, Paul's title appears nowhere in the DOM and the API answers 403 (`conversations-deeplink-foreign-390`). An id that never existed behaves the same.
+- A conversation of Paul's that had created a booking (Phase 2) was deleted: its `AgentMessage` rows are gone, `GET /bookings/:id` still returns the booking, the `Booking` row and the count of his provider `Conversation` rows are unchanged, and `/reservation/<id>` renders (`conversations-booking-survives-390`).
+- The list at 320, 390, 1440 and reduced motion, as Paul: 20 rows with exactly one highlighted, « Voir plus » appends to 40, no horizontal overflow with the list, the row menu or the rename form open. Below `lg` the drawer is flush with the left, top and bottom edges and at most 88 % wide, and the sidebar is hidden; at 1440 the sidebar is at least 280 px wide, entirely left of the chat column and inside the viewport, there is no dialog and no « Conversations » button, and one click on a row moves the URL, the title and the highlight (`conversations-page-*`, `conversations-list-*`, `conversations-list-rename-*`, `conversations-sidebar-switched-1440`). Full-page captures show fixed and sticky elements at their first-viewport position; that is the capture, not the layout.
+- The Phase 1 viewport checks (`assistant.screens.spec.ts @viewports`) still pass at 320, 1440 and reduced motion (12 of 12).
+
+Two defects found while driving it, both fixed:
+
+- Cancelling a rename left the focus on `<body>`, outside the trap. The row now hands the focus back to its menu button, and the spec asserts it.
+- The first version's panel was keyed on the `sm` breakpoint, so crossing it (or a full-page capture resizing a desktop viewport) remounted the rows mid-animation and could drop the panel: the 1440 check failed about one run in two. That design is gone; the sidebar and the drawer are separate shells chosen at `lg`, and the drawer closes if the viewport grows past it.
+
+Not verified:
+
+- The cookie-less boot in a browser. The server component resolves the conversation whenever the cookie is there, which is every Playwright run; the client path calls the same `resolveConversation`, covered by `assistant-resume.test.mjs`.
+- The cap's « Nouvelle conversation » button on a 60-message conversation in the browser; it calls the header pill's mutation.
+- Opus 5 (gateway 429, as before): the two turns ran on Sonnet 5. No model behaviour changed in this phase.
+
+Notes on the local environment: ports 3999 and 3100 were held by the servers an earlier verification session had left running from its own scratch copy; they were stopped by PID and replaced by this branch's builds, which are still running (backend 3999, web 127.0.0.1:3100). The owner's servers on 3000 and 3001 were not touched. `kayu_agent01` now has the two new `agent.*` rows at 30 and 12; `agent.maxTurnsPerUserPerDay` was already at 500 there and was left as found. Francine Kiese keeps the two conversations of the run, Paul lost the one deleted for the booking check.
+
+Risks and open items:
+
+- The freshness rule uses the local clock of whoever runs it; a badly set phone clock shifts the window on the cookie-less path only.
+- A rename resets the auto-archive clock (`updatedAt`), as does any other write to the row.
+- Conversations without a message never appear in the list, so an empty conversation that was archived by the sweep is invisible for good. They hold nothing, and the account deletion cascade still removes them.
+

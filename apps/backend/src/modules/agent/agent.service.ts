@@ -30,8 +30,8 @@ import { compactConversation, summaryModelMessage } from "./agent.compaction";
 import { resolveDefaultLocation, type ClientLocation } from "./agent.location";
 import { agentCallProviderOptions, agentModel, agentModelId, cachedSystemProviderOptions } from "./agent.model";
 import { buildProfileBlock, buildSuggestions, loadProfileData, type ProfileData } from "./agent.profile";
-import { AGENT_TIMEZONE, buildSystemPrompt, buildTurnFacts, type AgentTaxonomyNode } from "./agent.prompt";
-import { loadAgentCaps, type AgentCaps } from "./agent.settings";
+import { ADDRESS_MARKER, AGENT_TIMEZONE, buildSystemPrompt, buildTurnFacts, type AgentTaxonomyNode } from "./agent.prompt";
+import { loadAgentCaps, loadAgentLifecycle, type AgentCaps } from "./agent.settings";
 import { AgentToolError, approvalConfig, buildTools, type AgentToolCallTrace, type AgentTools } from "./agent.tools";
 
 // A stalled gateway stream once held a turn open for 15 minutes; these bound a turn without cutting a slow step.
@@ -40,7 +40,8 @@ export const AGENT_TIMEOUTS = { firstChunkMs: 45_000, chunkMs: 45_000, totalMs: 
 export const CONVERSATION_GRACE = 6;
 const TAXONOMY_TTL_MS = 5 * 60 * 1000;
 const TITLE_MAX_LENGTH = 60;
-const CONVERSATION_LIST_LIMIT = 20;
+const PREVIEW_MAX_LENGTH = 120;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const SUPERSEDED_REASON = "Remplacé par un nouveau message du client.";
 const GENERIC_STREAM_ERROR = "Une erreur est survenue. Réessayez dans un instant.";
 
@@ -57,6 +58,8 @@ export type IncomingUserMessage = {
 export type IncomingApproval = { id: string; approved: boolean; reason?: string };
 
 export type TurnBody = { message: IncomingUserMessage } | { approvals: IncomingApproval[] };
+
+export type ConversationListQuery = { status: "active" | "archived" | "all"; page: number; limit: number };
 
 export type TurnUsageSource = {
   totalUsage: PromiseLike<LanguageModelUsage>;
@@ -86,6 +89,14 @@ const conversationSummarySelect = {
   lastMessageAt: true,
   createdAt: true,
 } satisfies Prisma.AgentConversationSelect;
+
+const conversationListSelect = {
+  ...conversationSummarySelect,
+  messages: { orderBy: { createdAt: "desc" }, take: 1, select: { parts: true } },
+  _count: { select: { messages: true } },
+} satisfies Prisma.AgentConversationSelect;
+
+const LIST_STATUS = { active: "ACTIVE", archived: "ARCHIVED" } as const;
 
 const generateAssistantMessageId = createIdGenerator({ prefix: "msg", size: 16 });
 
@@ -127,6 +138,23 @@ export function titleFromMessage(message: AgentUIMessage): string | null {
     .trim();
   if (!text) return null;
   return text.length > TITLE_MAX_LENGTH ? `${text.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…` : text;
+}
+
+function messageText(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .filter((part): part is { type: "text"; text: string } => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join(" ")
+    .replaceAll(ADDRESS_MARKER, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function previewFromParts(parts: unknown): string | null {
+  const text = messageText(parts);
+  if (!text) return null;
+  return text.length > PREVIEW_MAX_LENGTH ? `${text.slice(0, PREVIEW_MAX_LENGTH - 1).trimEnd()}…` : text;
 }
 
 /** The web needs `conversationFull` during the turn, not only after a reload; the row keeps the full metadata. */
@@ -181,21 +209,65 @@ export class AgentService {
     private readonly settings: SiteSettingsService,
   ) {}
 
+  // With the freshness rule every stale visit asks for a conversation; handing back the one still empty
+  // keeps a client who never types from piling up blank rows.
   async createConversation(actor: Actor) {
+    const empty = await this.prisma.agentConversation.findFirst({
+      where: { userId: actor.id, status: "ACTIVE", messages: { none: {} } },
+      orderBy: { lastMessageAt: "desc" },
+      select: { id: true },
+    });
+    if (empty) {
+      return this.prisma.agentConversation.update({
+        where: { id: empty.id },
+        data: { lastMessageAt: new Date() },
+        select: conversationSummarySelect,
+      });
+    }
     return this.prisma.agentConversation.create({
       data: { userId: actor.id },
       select: conversationSummarySelect,
     });
   }
 
-  async listConversations(actor: Actor) {
-    const items = await this.prisma.agentConversation.findMany({
-      where: { userId: actor.id, status: "ACTIVE" },
-      orderBy: { lastMessageAt: "desc" },
-      take: CONVERSATION_LIST_LIMIT,
-      select: conversationSummarySelect,
+  async listConversations(actor: Actor, query: ConversationListQuery = { status: "active", page: 1, limit: 20 }, now = new Date()) {
+    const [caps, lifecycle] = await Promise.all([this.loadCaps(), loadAgentLifecycle(this.prisma)]);
+    await this.sweepStale(actor, lifecycle.autoArchiveDays, now);
+
+    const where: Prisma.AgentConversationWhereInput = {
+      userId: actor.id,
+      messages: { some: {} },
+      ...(query.status === "all" ? {} : { status: LIST_STATUS[query.status] }),
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.agentConversation.findMany({
+        where,
+        orderBy: { lastMessageAt: "desc" },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        select: conversationListSelect,
+      }),
+      this.prisma.agentConversation.count({ where }),
+    ]);
+
+    const items = rows.map(({ messages, _count, ...summary }) => ({
+      ...summary,
+      preview: previewFromParts(messages[0]?.parts),
+      full: _count.messages >= caps.maxMessagesPerConversation,
+    }));
+    return { items, total, page: query.page, limit: query.limit, resumeWindowHours: lifecycle.resumeWindowHours };
+  }
+
+  // Unarchiving leaves `lastMessageAt` alone, so `updatedAt` is what tells a conversation reactivated
+  // inside the window from one that simply went stale.
+  async sweepStale(actor: Actor, autoArchiveDays: number, now = new Date()) {
+    if (autoArchiveDays === 0) return 0;
+    const cutoff = new Date(now.getTime() - autoArchiveDays * DAY_MS);
+    const { count } = await this.prisma.agentConversation.updateMany({
+      where: { userId: actor.id, status: "ACTIVE", lastMessageAt: { lt: cutoff }, updatedAt: { lt: cutoff } },
+      data: { status: "ARCHIVED" },
     });
-    return { items };
+    return count;
   }
 
   async getConversation(actor: Actor, conversationId: string) {
@@ -223,6 +295,34 @@ export class AgentService {
       data: { status: "ARCHIVED" },
       select: conversationSummarySelect,
     });
+  }
+
+  async unarchiveConversation(actor: Actor, conversationId: string) {
+    await this.loadConversation(actor, conversationId);
+    return this.prisma.agentConversation.update({
+      where: { id: conversationId },
+      data: { status: "ACTIVE" },
+      select: conversationSummarySelect,
+    });
+  }
+
+  async renameConversation(actor: Actor, conversationId: string, title: string | null) {
+    const conversation = await this.loadConversation(actor, conversationId);
+    const firstUserMessage = conversation.messages.find((row) => row.role === "USER");
+    const generated = firstUserMessage ? titleFromMessage(rowToUIMessage(firstUserMessage)) : null;
+    return this.prisma.agentConversation.update({
+      where: { id: conversationId },
+      data: { title: title ?? generated },
+      select: conversationSummarySelect,
+    });
+  }
+
+  // Messages go with the row (onDelete: Cascade). Bookings and provider conversations made through the
+  // agent hold no reference to it and stay where they are.
+  async deleteConversation(actor: Actor, conversationId: string) {
+    await this.loadConversation(actor, conversationId);
+    await this.prisma.agentConversation.delete({ where: { id: conversationId } });
+    return { ok: true as const };
   }
 
   async getSuggestions(actor: Actor) {

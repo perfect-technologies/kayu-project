@@ -37,6 +37,8 @@ export const siteSettings: Array<{
   { key: "agent.maxStepsPerTurn", value: 8, description: "Assistant : étapes modèle maximum par tour" },
   { key: "agent.maxMessagesPerConversation", value: 60, description: "Assistant : messages maximum par conversation" },
   { key: "agent.maxTurnsPerUserPerDay", value: 30, description: "Assistant : tours maximum par client et par jour" },
+  { key: "agent.autoArchiveDays", value: 30, description: "Assistant : archivage automatique après ce nombre de jours sans message (0 = jamais)" },
+  { key: "agent.resumeWindowHours", value: 12, description: "Assistant : reprise de la dernière conversation si elle a moins de ce nombre d'heures (0 = toujours une nouvelle)" },
 ];
 
 export async function seedSettings(prisma: SeedPrismaClient) {

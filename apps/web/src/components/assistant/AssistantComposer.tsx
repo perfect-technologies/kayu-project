@@ -5,6 +5,7 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import { assistantCopy } from "@/copy/assistant";
 
 const copy = assistantCopy.composer;
+export const COMPOSER_INPUT_ID = "assistant-composer-input";
 
 export function AssistantComposer({
   onSend,
@@ -31,6 +32,7 @@ export function AssistantComposer({
       <label className="min-w-0 flex-1">
         <span className="sr-only">{copy.label}</span>
         <input
+          id={COMPOSER_INPUT_ID}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder={copy.placeholder}

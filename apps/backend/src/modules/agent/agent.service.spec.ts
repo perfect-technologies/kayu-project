@@ -76,10 +76,13 @@ function makePrisma(
         calls.conversationCreate.push(args);
         return { id: "conv_new", title: null, status: "ACTIVE", lastMessageAt: now, createdAt: now };
       },
+      findFirst: async () => null,
       findMany: async (args: unknown) => {
         calls.conversationFindMany.push(args);
-        return [{ id: "conv_1", title: "Un plombier", status: "ACTIVE", lastMessageAt: now, createdAt: now }];
+        return [{ id: "conv_1", title: "Un plombier", status: "ACTIVE", lastMessageAt: now, createdAt: now, messages: [], _count: { messages: 0 } }];
       },
+      count: async () => 1,
+      updateMany: async () => ({ count: 0 }),
       update: async (args: unknown) => {
         calls.conversationUpdate.push(args);
         return {};
@@ -203,7 +206,7 @@ test("createConversation and listConversations are scoped to the actor", async (
 
   const listed = await service.listConversations(makeActor("user_9"));
   assert.equal(listed.items.length, 1);
-  assert.deepEqual((calls.conversationFindMany[0] as { where: unknown }).where, { userId: "user_9", status: "ACTIVE" });
+  assert.deepEqual((calls.conversationFindMany[0] as { where: unknown }).where, { userId: "user_9", messages: { some: {} }, status: "ACTIVE" });
 });
 
 test("getConversation rehydrates stored rows as UIMessages", async () => {
