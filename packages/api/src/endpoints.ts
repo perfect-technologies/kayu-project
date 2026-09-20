@@ -1,6 +1,7 @@
 import type {
   AssistantConversationDetailResponse,
   AssistantConversationResponse,
+  AssistantConversationsQueryParams,
   AssistantConversationsResponse,
   AssistantSuggestionsResponse,
   AcceptTermsResponse,
@@ -353,8 +354,8 @@ export const launchLeadsApi = (client: ApiClient) => ({
 export const assistantApi = (client: ApiClient) => ({
   createConversation: () =>
     client.post<AssistantConversationResponse>("/assistant/conversations"),
-  listConversations: () =>
-    client.get<AssistantConversationsResponse>("/assistant/conversations"),
+  listConversations: (params?: AssistantConversationsQueryParams) =>
+    client.get<AssistantConversationsResponse>("/assistant/conversations", params),
   getConversation: (id: string) =>
     client.get<AssistantConversationDetailResponse>(
       `/assistant/conversations/${encodeURIComponent(id)}`,
@@ -363,6 +364,17 @@ export const assistantApi = (client: ApiClient) => ({
     client.post<AssistantConversationResponse>(
       `/assistant/conversations/${encodeURIComponent(id)}/archive`,
     ),
+  unarchiveConversation: (id: string) =>
+    client.post<AssistantConversationResponse>(
+      `/assistant/conversations/${encodeURIComponent(id)}/unarchive`,
+    ),
+  renameConversation: (id: string, title: string | null) =>
+    client.patch<AssistantConversationResponse>(
+      `/assistant/conversations/${encodeURIComponent(id)}`,
+      { title },
+    ),
+  deleteConversation: (id: string) =>
+    client.delete<OkResponse>(`/assistant/conversations/${encodeURIComponent(id)}`),
   suggestions: () => client.get<AssistantSuggestionsResponse>("/assistant/suggestions"),
   // The turn itself streams through the AI SDK transport; this is the path it posts to.
   messagesPath: (id: string) => `/assistant/conversations/${encodeURIComponent(id)}/messages`,

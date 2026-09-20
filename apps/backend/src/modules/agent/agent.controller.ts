@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import type { Actor } from "../../common/auth/types";
 import { CurrentActor } from "../../common/decorators/current-actor.decorator";
@@ -7,9 +7,11 @@ import { ActorGuard } from "../../common/guards/actor.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { SupabaseGuard } from "../../common/guards/supabase.guard";
 import { LazyZodValidationPipe } from "../../common/pipes/lazy-zod-validation.pipe";
-import { AgentService, type TurnBody } from "./agent.service";
+import { AgentService, type ConversationListQuery, type TurnBody } from "./agent.service";
 
 const turnPipe = new LazyZodValidationPipe(async () => (await import("@kayu/schemas")).AssistantTurnDto);
+const listPipe = new LazyZodValidationPipe(async () => (await import("@kayu/schemas")).AssistantConversationsQueryParams);
+const renamePipe = new LazyZodValidationPipe(async () => (await import("@kayu/schemas")).AssistantRenameConversationDto);
 
 @Controller("assistant")
 @UseGuards(SupabaseGuard, ActorGuard, RolesGuard)
@@ -23,8 +25,8 @@ export class AgentController {
   }
 
   @Get("conversations")
-  listConversations(@CurrentActor() actor: Actor) {
-    return this.agent.listConversations(actor);
+  listConversations(@CurrentActor() actor: Actor, @Query(listPipe) query: ConversationListQuery) {
+    return this.agent.listConversations(actor, query);
   }
 
   @Get("suggestions")
@@ -40,6 +42,21 @@ export class AgentController {
   @Post("conversations/:id/archive")
   archiveConversation(@CurrentActor() actor: Actor, @Param("id") id: string) {
     return this.agent.archiveConversation(actor, id);
+  }
+
+  @Post("conversations/:id/unarchive")
+  unarchiveConversation(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.agent.unarchiveConversation(actor, id);
+  }
+
+  @Patch("conversations/:id")
+  renameConversation(@CurrentActor() actor: Actor, @Param("id") id: string, @Body(renamePipe) body: { title: string | null }) {
+    return this.agent.renameConversation(actor, id, body.title);
+  }
+
+  @Delete("conversations/:id")
+  deleteConversation(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.agent.deleteConversation(actor, id);
   }
 
   @Post("conversations/:id/messages")

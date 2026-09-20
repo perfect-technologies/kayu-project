@@ -616,10 +616,24 @@ export const AssistantConversationSummarySchema = z.object({
   lastMessageAt: DateTimeSchema,
   createdAt: DateTimeSchema,
 });
-export const AssistantConversationsResponseSchema = z.object({
-  items: z.array(AssistantConversationSummarySchema),
+export const AssistantConversationListStatus = z.enum(["active", "archived", "all"]);
+export const AssistantConversationsQueryParams = z.object({
+  status: AssistantConversationListStatus.default("active"),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export const AssistantConversationListItemSchema = AssistantConversationSummarySchema.extend({
+  preview: z.string().max(120).nullable(),
+  full: z.boolean(),
+});
+// `resumeWindowHours` rides with the list so the page decides which conversation greets the client in one read.
+export const AssistantConversationsResponseSchema = createPaginatedResponseSchema(AssistantConversationListItemSchema).extend({
+  resumeWindowHours: z.number().int().min(0),
 });
 export const AssistantConversationResponseSchema = AssistantConversationSummarySchema;
+export const AssistantRenameConversationDto = z.strictObject({
+  title: z.string().trim().min(1).max(80).nullable(),
+});
 
 // Messages travel as the AI SDK UIMessage shape; the SDK owns the part shapes, the API checks the envelope.
 export const AssistantUIMessagePartSchema = z.looseObject({ type: z.string().min(1).max(80) });
@@ -1448,6 +1462,10 @@ export type AdminReference = z.infer<typeof AdminReferenceSchema>;
 
 export type AssistantConversationSummary = z.infer<typeof AssistantConversationSummarySchema>;
 export type AssistantConversationsResponse = z.infer<typeof AssistantConversationsResponseSchema>;
+export type AssistantConversationListItem = z.infer<typeof AssistantConversationListItemSchema>;
+export type AssistantConversationListStatus = z.infer<typeof AssistantConversationListStatus>;
+export type AssistantConversationsQueryParams = Wire<typeof AssistantConversationsQueryParams>;
+export type AssistantRenameConversationDto = z.infer<typeof AssistantRenameConversationDto>;
 export type AssistantConversationResponse = z.infer<typeof AssistantConversationResponseSchema>;
 export type AssistantConversationDetailResponse = z.infer<typeof AssistantConversationDetailResponseSchema>;
 export type AssistantClientLocation = z.infer<typeof AssistantClientLocationSchema>;
